@@ -1,7 +1,7 @@
 // Cài đặt của từng khâu trong luồng làm việc: bật tắt và các ngưỡng chỉnh được ở trang Luồng.
 // Lưu ở cai_dat theo tổ chức: luong_bat_<mã tác vụ> ('0' là tắt), luong_<tên ngưỡng> (số).
 
-export const KHAU_BAT_TAT = ['tach-viec', 'goi-y', 'nhac-viec', 'bao-viec-moi', 'ban-tin', 'bao-cao-tuan', 'canh-zalo', 'canh-viec', 'don-cuoi-ngay', 'sao-luu', 'dong-bo-google'];
+export const KHAU_BAT_TAT = ['tach-viec', 'goi-y', 'nhac-viec', 'bao-viec-moi', 'ban-tin', 'bao-cao-tuan', 'canh-zalo', 'canh-viec', 'don-cuoi-ngay', 'sao-luu', 'dong-bo-google', 'giao-github'];
 
 export const NGUONG = {
   zalo_im_gio: { mac_dinh: 6, min: 1, max: 48 },

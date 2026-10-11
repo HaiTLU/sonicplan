@@ -4,6 +4,7 @@
 import { LOAI_GHI_NHO } from './ghi-nho.js';
 import { coMaNhanViec, goMaNhanViec, taoMaNhanViec } from './nhan-ngoai.js';
 import { docLuong, luuLuong, NGUONG } from './luong.js';
+import { kiemCauHinhGithub, thuGithub } from './github.js';
 import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from './google.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
 import { caiBot, layBot, maNoiTelegram } from './telegram.js';
@@ -116,6 +117,22 @@ export async function xuLyApi(yeuCau, env, phien, url) {
     } catch (e) {
       return veTrang(e.message);
     }
+  }
+  if (p === '/api/ket-noi/github' && m === 'POST') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức nối được GitHub.');
+    try {
+      const cauHinh = kiemCauHinhGithub(await yeuCau.json().catch(() => ({})));
+      await thuGithub(cauHinh);
+      await luuTichHop(env, tc, 'github', cauHinh);
+      return json({ repo: cauHinh.repo, nhan: cauHinh.nhan });
+    } catch (e) {
+      return loi(400, e.message);
+    }
+  }
+  if (p === '/api/ket-noi/github' && m === 'DELETE') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
+    await xoaTichHop(env, tc, 'github');
+    return json({ ok: true });
   }
   if (p === '/api/ket-noi/nhan-viec' && m === 'POST') {
     if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức tạo được mã.');
@@ -253,6 +270,7 @@ async function tinhKetNoi(env, tc, khoa, tinHieu) {
     else if (Date.now() - Date.parse(z.lan_cuoi) > 6 * 3600000) ds.push({ loai: 'zalo', trang_thai: 'loi', mo_ta: `Máy Mac im ${gioTruoc(z.lan_cuoi).replace(' trước', '')}`, cap_nhat_luc: z.lan_cuoi });
     else ds.push({ loai: 'zalo', trang_thai: 'dang_chay', mo_ta: `Tín hiệu ${gioTruoc(z.lan_cuoi)}`, cap_nhat_luc: z.lan_cuoi });
   }
+  if (th.github) ds.push({ loai: 'github', trang_thai: th.github.ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th.github.ghi_chu || 'Đã nối', cap_nhat_luc: th.github.lan_cuoi });
   if (th['api-vao']) ds.push({ loai: 'api-vao', trang_thai: th['api-vao'].ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th['api-vao'].ghi_chu || 'Đang nhận', cap_nhat_luc: th['api-vao'].lan_cuoi });
   if (th.google) ds.push({ loai: 'google', trang_thai: th.google.ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th.google.ghi_chu?.startsWith('Lỗi') ? th.google.ghi_chu.slice(0, 120) : `Đồng bộ ${gioTruoc(th.google.lan_cuoi)}`, cap_nhat_luc: th.google.lan_cuoi });
   if (env.TEP) ds.push({ loai: 'tep', trang_thai: 'dang_chay', mo_ta: 'Kho R2 sẵn sàng' });
@@ -432,7 +450,7 @@ async function layKetNoi(env, tc, url, phien) {
   } catch {}
   // Đã có thư thật về sau lần xác nhận thì không cần hiện nút xác nhận nữa.
   if (xacNhan && th.thu && th.thu.lan_cuoi > xacNhan.luc) xacNhan = null;
-  const [tichAi, tichWebhook, tichClient, tichGoogle] = [await docTichHop(env, tc, 'ai'), await docTichHop(env, tc, 'webhook'), await docTichHop(env, tc, 'google_client'), await docTichHop(env, tc, 'google')];
+  const [tichAi, tichWebhook, tichClient, tichGoogle, tichGithub] = [await docTichHop(env, tc, 'ai'), await docTichHop(env, tc, 'webhook'), await docTichHop(env, tc, 'google_client'), await docTichHop(env, tc, 'google'), await docTichHop(env, tc, 'github')];
   return {
     goc: url.origin,
     tich_hop: {
@@ -440,6 +458,7 @@ async function layKetNoi(env, tc, url, phien) {
       webhook: tichWebhook ? { host: new URL(tichWebhook.url).host, lan_cuoi: th.webhook || null } : null,
       vai_tro: phien.to_chuc.vai_tro,
     },
+    github: tichGithub ? { repo: tichGithub.repo, nhan: tichGithub.nhan, lan_cuoi: th.github || null } : null,
     nhan_viec: { co: await coMaNhanViec(env, tc), dia_chi: `${url.origin}/nhan/viec`, lan_cuoi: th['api-vao'] || null },
     google: { co_client: Boolean(tichClient), da_noi: tichGoogle ? { email: tichGoogle.email || null } : null, dia_chi_goi_lai: diaChiGoiLai(url.origin), lan_cuoi: th.google || null },
     thu: { dia_chi: env.EMAIL_DOMAIN && maNhan ? `${maNhan}@${env.EMAIL_DOMAIN}` : null, lan_cuoi: th.thu || null, xac_nhan: xacNhan },

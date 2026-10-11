@@ -2,10 +2,12 @@
 
 import { docLuong, dangYenLang } from './luong.js';
 import { banTinNgay, baoCaoTuan, cacToChuc, goiYMoi, gioDayDuVN } from './ban-tin.js';
+import { taoIssue } from './github.js';
 import { dongBoGoogle } from './google.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { nhacViec } from './nhac-viec.js';
 import { bamNutDuocChua, baoToChuc } from './telegram.js';
+import { docTichHop } from './tich-hop.js';
 import { cat, congNgay, gioVN, ngayVN } from './tien-ich.js';
 import { tachViecChoToChuc } from './viec.js';
 
@@ -42,6 +44,39 @@ export const CAC_TAC_VU = {
     }
     if (loi.length && !thu && !viec) throw new Error(loi.join('; '));
     return { so_muc: thu + viec, ghi_chu: `${thu} thư mới, ${viec} việc đồng bộ${loi.length ? `, ${loi.length} lỗi` : ''}` };
+  },
+
+  'giao-github': async (env) => {
+    const { results } = await env.CSDL.prepare(`SELECT DISTINCT to_chuc_id FROM cai_dat WHERE khoa = 'tich_hop_github'`).all();
+    if (!results.length) return { bo_qua: true };
+    let soViec = 0;
+    const loi = [];
+    for (const { to_chuc_id: id } of results) {
+      if (!(await docLuong(env, id)).bat['giao-github']) continue;
+      const cauHinh = await docTichHop(env, id, 'github');
+      if (!cauHinh) continue;
+      const { results: viec } = await env.CSDL.prepare(
+        `SELECT id, tieu_de, ghi_chu, han_ngay, gio_hen FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND nhom = 'claude_tu_lam' AND github_issue IS NULL ORDER BY id LIMIT 5`,
+      ).bind(id).all();
+      const giao = [];
+      for (const v of viec) {
+        try {
+          const kq = await taoIssue(cauHinh, v);
+          await env.CSDL.prepare('UPDATE viec SET github_issue = ?1 WHERE id = ?2 AND to_chuc_id = ?3').bind(kq.so, v.id, id).run();
+          giao.push(`- #${kq.so} ${v.tieu_de}`);
+        } catch (e) {
+          loi.push(String(e.message).slice(0, 100));
+          break; // lỗi token hoặc kho thì các việc sau cũng lỗi, lượt sau thử lại
+        }
+      }
+      await ghiTinHieu(env, id, 'github', loi.length ? `Lỗi ${loi[0]}` : giao.length ? `Giao ${giao.length} việc` : 'Không có việc mới để giao');
+      if (giao.length) {
+        soViec += giao.length;
+        await baoToChuc(env, id, `Đã giao ${giao.length} việc cho Claude trên ${cauHinh.repo}:\n${giao.join('\n')}`);
+      }
+    }
+    if (loi.length && !soViec) throw new Error(loi.join('; '));
+    return { so_muc: soViec, ghi_chu: soViec ? `Giao ${soViec} việc sang GitHub` : 'Không có việc mới để giao' };
   },
 
   'tach-viec': async (env) => {
