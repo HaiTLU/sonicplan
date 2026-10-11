@@ -2,6 +2,7 @@
 // Cả ba cùng chạy mỗi giờ và tự xem giờ Việt Nam; không đúng giờ thì trả bo_qua để khỏi ghi nhật ký.
 
 import { goiYViec, NHOM_THEO_SO } from './ai.js';
+import { docCaiDat } from './hop-tin.js';
 import { docTichHop } from './tich-hop.js';
 import { baoToChuc } from './telegram.js';
 import { congNgay, gioVN, ngayVN } from './tien-ich.js';
@@ -23,13 +24,14 @@ export function gioDayDuVN(iso) {
 
 // Dựng nội dung bản tin. 8h: quá hạn, hạn hôm nay, hạn trong 3 ngày tới. 17h: chỉ quá hạn và hạn hôm nay.
 // Không có khối nào thì trả chuỗi rỗng (không gửi).
-export function dungBanTin(viec, homNay, buoiSang) {
+export function dungBanTin(viec, homNay, buoiSang, luuY = '') {
   const co = viec.filter((v) => v.han_ngay).sort((a, b) => a.han_ngay.localeCompare(b.han_ngay));
   const qua = co.filter((v) => v.han_ngay < homNay);
   const nay = co.filter((v) => v.han_ngay === homNay);
   const sap = co.filter((v) => v.han_ngay > homNay && v.han_ngay <= congNgay(homNay, 3));
   const cacKhoi = [khoi('Quá hạn', qua), khoi('Hạn hôm nay', nay), buoiSang ? khoi('Đến hạn trong 3 ngày tới', sap) : ''].filter(Boolean);
   if (!cacKhoi.length) return '';
+  if (buoiSang && luuY) cacKhoi.push(`Lưu ý từ tin mới:\n${luuY}`);
   return `${buoiSang ? `Bản tin sáng ${ngayNgan(homNay)}` : 'Việc còn mở cuối ngày'}\n\n${cacKhoi.join('\n\n')}`;
 }
 
@@ -42,7 +44,14 @@ export async function banTinNgay(env, bayGio) {
     const { results } = await env.CSDL.prepare(
       `SELECT tieu_de, han_ngay, gio_hen FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay IS NOT NULL`,
     ).bind(tc.id).all();
-    const noiDung = dungBanTin(results, homNay, gio === 8);
+    let luuY = '';
+    if (gio === 8) {
+      try {
+        const pt = JSON.parse((await docCaiDat(env, tc.id, 'phan_tich_cuoi')) || 'null');
+        if (pt && Date.parse(bayGio) - Date.parse(pt.luc) < 24 * 3600000) luuY = pt.noi_dung;
+      } catch { /* bỏ qua phân tích hỏng */ }
+    }
+    const noiDung = dungBanTin(results, homNay, gio === 8, luuY);
     if (noiDung && (await baoToChuc(env, tc.id, noiDung))) soBao++;
   }
   return { so_muc: soBao, ghi_chu: soBao ? `Gửi bản tin cho ${soBao} tổ chức` : 'Không có việc nào cần nhắc' };

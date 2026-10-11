@@ -1,6 +1,7 @@
 // API cho giao diện. Mọi hàm nhận phien (người dùng và tổ chức đã xác định) và chỉ đọc ghi
 // dữ liệu của phien.to_chuc.id.
 
+import { LOAI_GHI_NHO } from './ghi-nho.js';
 import { docCaiDat } from './hop-tin.js';
 import { caiBot, layBot, maNoiTelegram } from './telegram.js';
 import { chuanHoaCauHinhAi, dangViecMoi, docTichHop, guiDiaChiNhan, kiemDiaChiNhan, luuTichHop, thuAiNgoai, xoaTichHop } from './tich-hop.js';
@@ -35,6 +36,19 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   if (p === '/api/viec' && m === 'GET') return json(await dsViec(env, tc, url));
   if (p === '/api/viec' && m === 'POST') return taoViec(env, tc, await yeuCau.json().catch(() => ({})));
   if ((khop = p.match(/^\/api\/viec\/(\d+)$/)) && m === 'PATCH') return suaViec(env, tc, Number(khop[1]), await yeuCau.json().catch(() => ({})));
+
+  if (p === '/api/ghi-nho' && m === 'GET') return json(await dsGhiNho(env, tc, url));
+  if (p === '/api/ghi-nho' && m === 'POST') return taoGhiNho(env, tc, await yeuCau.json().catch(() => ({})));
+  if (p === '/api/ghi-nho' && m === 'DELETE') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức xóa toàn bộ được.');
+    const kq = await env.CSDL.prepare('DELETE FROM ghi_nho WHERE to_chuc_id = ?1').bind(tc).run();
+    return json({ da_xoa: kq.meta.changes || 0 });
+  }
+  if ((khop = p.match(/^\/api\/ghi-nho\/(\d+)$/)) && m === 'PATCH') return suaGhiNho(env, tc, Number(khop[1]), await yeuCau.json().catch(() => ({})));
+  if ((khop = p.match(/^\/api\/ghi-nho\/(\d+)$/)) && m === 'DELETE') {
+    await env.CSDL.prepare('DELETE FROM ghi_nho WHERE id = ?1 AND to_chuc_id = ?2').bind(Number(khop[1]), tc).run();
+    return json({ ok: true });
+  }
 
   if (p === '/api/tep' && m === 'GET') return json(await dsTep(env, tc, url));
   if ((khop = p.match(/^\/api\/tep\/(\d+)\/tai$/)) && m === 'GET') return taiTep(env, tc, Number(khop[1]));
@@ -448,4 +462,66 @@ async function tinHoiThoaiZalo(env, tc, url) {
     await env.CSDL.prepare(`UPDATE tin_nhan SET da_xem = 1 WHERE ${dieuKien} AND da_xem = 0`).bind(tc, loai, ten).run();
   }
   return json({ tin, tep, con_nua: conNua });
+}
+
+// ---- Ghi nhớ ----
+
+async function dsGhiNho(env, tc, url) {
+  const loai = url.searchParams.get('loai');
+  const q = (url.searchParams.get('q') || '').trim().slice(0, 80);
+  const moi = url.searchParams.get('moi') === '1';
+  const dieuKien = ['to_chuc_id = ?1'];
+  const thamSo = [tc];
+  if (LOAI_GHI_NHO.includes(loai)) { thamSo.push(loai); dieuKien.push(`loai = ?${thamSo.length}`); }
+  if (moi) dieuKien.push('da_duyet = 0 AND nguon = \'ai\'');
+  if (q) { thamSo.push(`%${q.replace(/[%_]/g, '')}%`); dieuKien.push(`(tieu_de LIKE ?${thamSo.length} OR noi_dung LIKE ?${thamSo.length})`); }
+  const [ds, dem] = await env.CSDL.batch([
+    env.CSDL.prepare(`SELECT id, loai, tieu_de, noi_dung, nguon, do_tin_cay, ghim, da_duyet, tao_luc, cap_nhat_luc FROM ghi_nho WHERE ${dieuKien.join(' AND ')} ORDER BY ghim DESC, cap_nhat_luc DESC LIMIT 200`).bind(...thamSo),
+    env.CSDL.prepare(`SELECT COUNT(*) AS tong, SUM(CASE WHEN da_duyet = 0 AND nguon = 'ai' THEN 1 ELSE 0 END) AS moi FROM ghi_nho WHERE to_chuc_id = ?1`).bind(tc),
+  ]);
+  return { ghi_nho: ds.results, tong: dem.results[0].tong || 0, moi: dem.results[0].moi || 0 };
+}
+
+async function taoGhiNho(env, tc, du) {
+  const loai = String(du.loai || '');
+  const tieuDe = String(du.tieu_de || '').trim().slice(0, 120);
+  const noiDung = String(du.noi_dung || '').trim().slice(0, 600);
+  if (!LOAI_GHI_NHO.includes(loai) || !tieuDe || !noiDung) return loi(400, 'Chọn loại, nhập tiêu đề và nội dung.');
+  const bayGio = new Date().toISOString();
+  const kq = await env.CSDL.prepare(
+    `INSERT INTO ghi_nho (to_chuc_id, loai, tieu_de, noi_dung, nguon, da_duyet, tao_luc, cap_nhat_luc) VALUES (?1, ?2, ?3, ?4, 'tay', 1, ?5, ?5)
+     ON CONFLICT (to_chuc_id, loai, tieu_de) DO UPDATE SET noi_dung = excluded.noi_dung, nguon = 'tay', da_duyet = 1, cap_nhat_luc = excluded.cap_nhat_luc RETURNING id`,
+  ).bind(tc, loai, tieuDe, noiDung, bayGio).first();
+  return json({ id: kq.id });
+}
+
+// Sửa nội dung hoặc tiêu đề thì thành mục "tay" (AI không ghi đè nữa); ghim và duyệt giữ nguyên nguồn.
+async function suaGhiNho(env, tc, id, du) {
+  const dat = [];
+  const thamSo = [id, tc];
+  const them = (cot, gt) => { thamSo.push(gt); dat.push(`${cot} = ?${thamSo.length}`); };
+  if (typeof du.noi_dung === 'string') {
+    const nd = du.noi_dung.trim().slice(0, 600);
+    if (!nd) return loi(400, 'Nội dung không được để trống.');
+    them('noi_dung', nd);
+    dat.push(`nguon = 'tay'`, 'da_duyet = 1');
+  }
+  if (typeof du.tieu_de === 'string') {
+    const td = du.tieu_de.trim().slice(0, 120);
+    if (!td) return loi(400, 'Tiêu đề không được để trống.');
+    them('tieu_de', td);
+    dat.push(`nguon = 'tay'`, 'da_duyet = 1');
+  }
+  if (du.ghim === true || du.ghim === false) them('ghim', du.ghim ? 1 : 0);
+  if (du.da_duyet === true) dat.push('da_duyet = 1');
+  if (!dat.length) return loi(400, 'Không có gì để sửa.');
+  them('cap_nhat_luc', new Date().toISOString());
+  try {
+    const kq = await env.CSDL.prepare(`UPDATE ghi_nho SET ${[...new Set(dat)].join(', ')} WHERE id = ?1 AND to_chuc_id = ?2`).bind(...thamSo).run();
+    if (!kq.meta.changes) return loi(404, 'Không thấy mục ghi nhớ này.');
+  } catch (e) {
+    if (/UNIQUE/i.test(String(e.message))) return loi(409, 'Đã có mục cùng loại và tiêu đề này.');
+    throw e;
+  }
+  return json({ ok: true });
 }
