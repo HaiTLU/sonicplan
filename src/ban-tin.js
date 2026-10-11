@@ -6,7 +6,7 @@ import { keHoachNgayAi, phanTichTuanAi } from './ai.js';
 import { docCaiDat } from './hop-tin.js';
 import { docLuong } from './luong.js';
 import { docTichHop } from './tich-hop.js';
-import { ghiNhoChoAi } from './ghi-nho.js';
+import { docHoSo, ghiNhoChoAi } from './ghi-nho.js';
 import { baoToChuc } from './telegram.js';
 import { congNgay, gioVN, ngayVN } from './tien-ich.js';
 
@@ -66,7 +66,7 @@ export async function banTinNgay(env, bayGio, { ep = false } = {}) {
           env.CSDL.prepare(`SELECT tieu_de, han_ngay, gio_hen, uu_tien FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' ORDER BY han_ngay IS NULL, han_ngay, gio_hen LIMIT 40`).bind(tc.id).all(),
           ghiNhoChoAi(env, tc.id, results.map((v) => v.tieu_de).join(' ')),
         ]);
-        const keHoach = await keHoachNgayAi(env, moRong.results, gn, homNay, { ngoai: await docTichHop(env, tc.id, 'ai') });
+        const keHoach = await keHoachNgayAi(env, moRong.results, gn, homNay, { ngoai: await docTichHop(env, tc.id, 'ai'), hoSo: await docHoSo(env, tc.id) });
         if (keHoach) noiDung += `\n\nKế hoạch hôm nay:\n${keHoach}`;
       } catch (e) {
         console.error('Lập kế hoạch ngày lỗi', e);
@@ -125,7 +125,7 @@ export async function baoCaoTuan(env, bayGio, { ep = false } = {}) {
         env.CSDL.prepare(`SELECT t.nguoi_gui AS ten, COUNT(*) AS so FROM viec v JOIN tin_nhan t ON t.id = v.tin_nhan_id WHERE v.to_chuc_id = ?1 AND v.tao_luc >= ?2 AND COALESCE(t.nguoi_gui, '') <> '' GROUP BY t.nguoi_gui ORDER BY so DESC LIMIT 4`).bind(tc.id, tuan),
         env.CSDL.prepare(`SELECT tieu_de FROM ghi_nho WHERE to_chuc_id = ?1 AND loai = 'du_an' AND cap_nhat_luc < ?2 LIMIT 6`).bind(tc.id, tuan),
       ]);
-      const pt = await phanTichTuanAi(env, { xong, mo, qua, xong_muon: muon.results.map((v) => v.tieu_de), qua_han: quaHan.results.map((v) => v.tieu_de), nguoi_giao_nhieu_viec: nguoi.results, du_an_khong_cap_nhat_tuan_nay: duAn.results.map((v) => v.tieu_de) }, { ngoai: await docTichHop(env, tc.id, 'ai') });
+      const pt = await phanTichTuanAi(env, { xong, mo, qua, xong_muon: muon.results.map((v) => v.tieu_de), qua_han: quaHan.results.map((v) => v.tieu_de), nguoi_giao_nhieu_viec: nguoi.results, du_an_khong_cap_nhat_tuan_nay: duAn.results.map((v) => v.tieu_de) }, { ngoai: await docTichHop(env, tc.id, 'ai'), hoSo: await docHoSo(env, tc.id) });
       if (pt) dong.push('', `Phân tích:\n${pt}`);
     } catch (e) {
       console.error('Phân tích tuần lỗi', e);
@@ -153,10 +153,11 @@ export async function goiYMoi(env, bayGio) {
     const chon = results.filter((v) => SO_LAN_LOI(v.ghi_chu) < 2).slice(0, lg.nguong.goi_y_toi_da);
     if (!chon.length) continue;
     const ngoai = await docTichHop(env, tc.id, 'ai');
+    const hoSo = await docHoSo(env, tc.id);
     for (const v of chon) {
       try {
         const boiCanh = results.filter((x) => x.id !== v.id).map((x) => x.tieu_de);
-        const kq = await goiYViec(env, v, boiCanh, { ngoai });
+        const kq = await goiYViec(env, v, boiCanh, { ngoai, hoSo });
         await env.CSDL.prepare(
           `UPDATE viec SET ghi_chu = COALESCE(ghi_chu || char(10) || char(10), '') || ?3, nhom = ?4, cap_nhat_luc = ?5 WHERE id = ?1 AND to_chuc_id = ?2`,
         ).bind(v.id, tc.id, kq.ghi_them, NHOM_THEO_SO[kq.nhom], bayGio).run();

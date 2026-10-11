@@ -1,6 +1,7 @@
 // Bộ nhớ lâu dài của tổ chức: người, dự án, quyết định, sự thật cần nhớ.
 // AI chỉ thêm hoặc cập nhật (gộp theo loại và tiêu đề); người dùng sửa, ghim, xóa ở trang Ghi nhớ.
 
+import { docCaiDat, ghiCaiDat } from './hop-tin.js';
 import { chuanHoa } from './tien-ich.js';
 
 export const LOAI_GHI_NHO = ['nguoi', 'du_an', 'quyet_dinh', 'su_that'];
@@ -65,4 +66,20 @@ export function chonGhiNho(ds, vanBan) {
     .sort((a, b) => b.d - a.d || a.i - b.i)
     .slice(0, TOI_DA_DUA_VAO_AI)
     .map(({ g }) => `[${g.loai}] ${g.tieu_de}: ${g.noi_dung}`);
+}
+
+// Hồ sơ: vài dòng người dùng tự khai về mình (vai trò, dự án, người hay gặp, cách xưng hô, quy tắc riêng).
+// Được đưa vào mọi lần AI chạy để hiểu ngữ cảnh. Trả chuỗi lỗi nếu không lưu được, null nếu xong.
+export const TOI_DA_HO_SO = 2000;
+
+export async function docHoSo(env, toChucId) {
+  return (await docCaiDat(env, toChucId, 'ho_so')) || '';
+}
+
+export async function luuHoSo(env, toChucId, chu) {
+  const sach = String(chu || '').trim().slice(0, TOI_DA_HO_SO);
+  if (sach && nhayCam(sach)) return 'Hồ sơ có vẻ chứa mật khẩu, mã xác nhận hoặc số thẻ, số giấy tờ. Bỏ phần đó đi rồi lưu lại.';
+  if (!sach) await env.CSDL.prepare(`DELETE FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = 'ho_so'`).bind(toChucId).run();
+  else await ghiCaiDat(env, toChucId, 'ho_so', sach);
+  return null;
 }
