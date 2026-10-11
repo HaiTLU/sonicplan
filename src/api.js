@@ -2,6 +2,7 @@
 // dữ liệu của phien.to_chuc.id.
 
 import { LOAI_GHI_NHO } from './ghi-nho.js';
+import { coMaNhanViec, goMaNhanViec, taoMaNhanViec } from './nhan-ngoai.js';
 import { docLuong, luuLuong, NGUONG } from './luong.js';
 import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from './google.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
@@ -115,6 +116,15 @@ export async function xuLyApi(yeuCau, env, phien, url) {
     } catch (e) {
       return veTrang(e.message);
     }
+  }
+  if (p === '/api/ket-noi/nhan-viec' && m === 'POST') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức tạo được mã.');
+    return json({ dia_chi: `${url.origin}/nhan/viec`, ma: await taoMaNhanViec(env, tc) });
+  }
+  if (p === '/api/ket-noi/nhan-viec' && m === 'DELETE') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
+    await goMaNhanViec(env, tc);
+    return json({ ok: true });
   }
   if (p === '/api/ket-noi/webhook' && m === 'POST') {
     if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
@@ -243,6 +253,7 @@ async function tinhKetNoi(env, tc, khoa, tinHieu) {
     else if (Date.now() - Date.parse(z.lan_cuoi) > 6 * 3600000) ds.push({ loai: 'zalo', trang_thai: 'loi', mo_ta: `Máy Mac im ${gioTruoc(z.lan_cuoi).replace(' trước', '')}`, cap_nhat_luc: z.lan_cuoi });
     else ds.push({ loai: 'zalo', trang_thai: 'dang_chay', mo_ta: `Tín hiệu ${gioTruoc(z.lan_cuoi)}`, cap_nhat_luc: z.lan_cuoi });
   }
+  if (th['api-vao']) ds.push({ loai: 'api-vao', trang_thai: th['api-vao'].ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th['api-vao'].ghi_chu || 'Đang nhận', cap_nhat_luc: th['api-vao'].lan_cuoi });
   if (th.google) ds.push({ loai: 'google', trang_thai: th.google.ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th.google.ghi_chu?.startsWith('Lỗi') ? th.google.ghi_chu.slice(0, 120) : `Đồng bộ ${gioTruoc(th.google.lan_cuoi)}`, cap_nhat_luc: th.google.lan_cuoi });
   if (env.TEP) ds.push({ loai: 'tep', trang_thai: 'dang_chay', mo_ta: 'Kho R2 sẵn sàng' });
   if (coKhoa.lich) ds.push({ loai: 'lich', trang_thai: 'dang_chay', mo_ta: coKhoa.lich.dung_luc ? `Lịch đọc ${gioTruoc(coKhoa.lich.dung_luc)}` : 'Chờ ứng dụng lịch đọc lần đầu' });
@@ -427,6 +438,7 @@ async function layKetNoi(env, tc, url, phien) {
       webhook: tichWebhook ? { host: new URL(tichWebhook.url).host, lan_cuoi: th.webhook || null } : null,
       vai_tro: phien.to_chuc.vai_tro,
     },
+    nhan_viec: { co: await coMaNhanViec(env, tc), dia_chi: `${url.origin}/nhan/viec`, lan_cuoi: th['api-vao'] || null },
     google: { co_client: Boolean(tichClient), da_noi: tichGoogle ? { email: tichGoogle.email || null } : null, dia_chi_goi_lai: diaChiGoiLai(url.origin), lan_cuoi: th.google || null },
     thu: { dia_chi: env.EMAIL_DOMAIN && maNhan ? `${maNhan}@${env.EMAIL_DOMAIN}` : null, lan_cuoi: th.thu || null, xac_nhan: xacNhan },
     zalo: { khoa: khoaTheo('zalo'), lan_cuoi: th.zalo || null },

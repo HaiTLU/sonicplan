@@ -2,10 +2,14 @@
 // một lần ở trang Kết nối, mã được mã hóa rồi lưu trong D1. Mỗi tổ chức nối bằng cách bấm đường dẫn
 // t.me/<bot>?start=<mã nối> rồi bấm Start.
 
+import { traLoiTuBoNho } from './ai.js';
 import { goiNgoai } from './goi-ngoai.js';
+import { chonGhiNho, nhayCam } from './ghi-nho.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { giaiMa, maHoa } from './ma-hoa.js';
+import { docTichHop } from './tich-hop.js';
 import { bam, maNgauNhien, ngayVN, sangUTC } from './tien-ich.js';
+import { xuLyVanBanTrucTiep } from './viec.js';
 
 // Thiết lập chung của hệ thống nằm ở cai_dat với to_chuc_id rỗng.
 const HE_THONG = '';
@@ -100,6 +104,49 @@ export function soPhutTomTat(doiSo) {
   return Math.min(Math.max(phut, 5), 48 * 60);
 }
 
+// Một dòng việc cho tin Telegram: "- 09:00 12/10 Họp với chị Lan".
+export function dongViecTelegram(v) {
+  const ngay = v.han_ngay ? `${v.han_ngay.slice(8, 10)}/${v.han_ngay.slice(5, 7)}` : '';
+  const han = [v.gio_hen, ngay].filter(Boolean).join(' ');
+  return `- ${han ? `${han} ` : ''}${v.tieu_de}`;
+}
+
+// /nho <nội dung>: tiêu đề là vài chữ đầu, nội dung là cả câu. Mục do tay nhập nên AI không ghi đè.
+export function ghiNhoTuLenh(doiSo) {
+  const nd = String(doiSo || '').trim().slice(0, 600);
+  if (!nd) return { loi: 'Gõ kèm điều cần nhớ, ví dụ: /nho Chị Lan là trưởng phòng đào tạo.' };
+  if (nhayCam(nd)) return { loi: 'Em không lưu mật khẩu, mã xác nhận, số thẻ hay số giấy tờ.' };
+  return { tieu_de: nd.split(/\s+/).slice(0, 8).join(' ').slice(0, 80), noi_dung: nd };
+}
+
+async function lenhViec(env, tc) {
+  const { results } = await env.CSDL.prepare(
+    `SELECT tieu_de, han_ngay, gio_hen FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' ORDER BY han_ngay IS NULL, han_ngay, gio_hen, id LIMIT 12`,
+  ).bind(tc).all();
+  if (!results.length) return 'Không có việc nào đang mở.';
+  return `Việc đang mở:\n${results.map(dongViecTelegram).join('\n')}`;
+}
+
+async function lenhHoi(env, tc, cauHoi) {
+  if (!cauHoi) return 'Gõ kèm câu hỏi, ví dụ: /hoi chị Lan phụ trách gì?';
+  const [gn, viec] = await env.CSDL.batch([
+    env.CSDL.prepare('SELECT loai, tieu_de, noi_dung, ghim FROM ghi_nho WHERE to_chuc_id = ?1 ORDER BY ghim DESC, cap_nhat_luc DESC LIMIT 300').bind(tc),
+    env.CSDL.prepare(`SELECT tieu_de, han_ngay FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' ORDER BY id DESC LIMIT 40`).bind(tc),
+  ]);
+  const ghiNho = chonGhiNho(gn.results, cauHoi);
+  return (await traLoiTuBoNho(env, cauHoi, ghiNho, viec.results.map((v) => `${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay})` : ''}`), { ngoai: await docTichHop(env, tc, 'ai') })) || 'Em chưa nhớ điều này.';
+}
+
+// Nhắn thường: AI đọc như một tin, thấy việc thì tạo việc và báo lại.
+async function nhanTinThuong(env, tc, van, tenNguoi) {
+  const kq = await xuLyVanBanTrucTiep(env, tc, { nguon: 'telegram', nguoi_gui: tenNguoi || 'Tôi', noi_dung: van });
+  if (kq.tat) return 'Khâu đọc tin và tách việc đang tắt ở trang Luồng nên em chưa tạo việc được.';
+  if (!kq.viec.length) return 'Em chưa thấy việc nào trong tin này. Muốn em nhớ điều gì thì gõ /nho, muốn hỏi thì gõ /hoi.';
+  const moi = kq.viec.filter((v) => !v.trung);
+  const trung = kq.viec.length - moi.length;
+  return [moi.length ? `Đã thêm ${moi.length} việc:\n${moi.map(dongViecTelegram).join('\n')}` : '', trung ? `${trung} việc đã có sẵn nên không thêm lại.` : ''].filter(Boolean).join('\n');
+}
+
 export async function nhanWebhook(yeuCau, env, ctx) {
   const bot = await layBot(env);
   if (!bot || yeuCau.headers.get('x-telegram-bot-api-secret-token') !== (await biMatWebhook(bot.token))) {
@@ -156,6 +203,26 @@ export async function nhanWebhook(yeuCau, env, ctx) {
     return new Response('ok');
   }
 
-  tra('Lệnh có thể dùng:\n/tomtat - tóm tắt tin Zalo từ 0h hôm nay\n/tomtat24 - tóm tắt 24 giờ qua\n/tomtat 3h - tóm tắt 3 giờ qua');
+  const lam = (viec) => ctx.waitUntil(Promise.resolve().then(viec).then(tra, (e) => { console.error('Lệnh Telegram lỗi', e); tra(`Em chưa làm được: ${String(e.message || e).slice(0, 150)}`); }));
+  if (lenh === 'viec') { lam(() => lenhViec(env, toChuc.to_chuc_id)); return new Response('ok'); }
+  if (lenh === 'hoi') { lam(() => lenhHoi(env, toChuc.to_chuc_id, doiSo)); return new Response('ok'); }
+  if (lenh === 'nho') {
+    const g = ghiNhoTuLenh(doiSo);
+    if (g.loi) { tra(g.loi); return new Response('ok'); }
+    const bayGio = new Date().toISOString();
+    await env.CSDL.prepare(
+      `INSERT INTO ghi_nho (to_chuc_id, loai, tieu_de, noi_dung, nguon, da_duyet, tao_luc, cap_nhat_luc) VALUES (?1, 'su_that', ?2, ?3, 'tay', 1, ?4, ?4)
+       ON CONFLICT (to_chuc_id, loai, tieu_de) DO UPDATE SET noi_dung = excluded.noi_dung, nguon = 'tay', da_duyet = 1, cap_nhat_luc = excluded.cap_nhat_luc`,
+    ).bind(toChuc.to_chuc_id, g.tieu_de, g.noi_dung, bayGio).run();
+    tra('Đã nhớ. Xem hoặc sửa ở trang Ghi nhớ.');
+    return new Response('ok');
+  }
+  if (!lenh && String(doiSo).trim().length >= 4) {
+    await ghiTinHieu(env, toChuc.to_chuc_id, 'telegram', 'Nhận tin nhắn');
+    lam(() => nhanTinThuong(env, toChuc.to_chuc_id, doiSo, [tin.from?.first_name, tin.from?.last_name].filter(Boolean).join(' ')));
+    return new Response('ok');
+  }
+
+  tra('Nhắn bình thường, ví dụ "mai 9h họp với chị Lan", em sẽ tạo việc.\n/viec - việc đang mở\n/nho <điều cần nhớ>\n/hoi <câu hỏi> - hỏi từ ghi nhớ\n/tomtat - tóm tắt tin Zalo từ 0h hôm nay\n/tomtat 3h - tóm tắt 3 giờ qua');
   return new Response('ok');
 }
