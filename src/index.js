@@ -3,7 +3,7 @@
 import { xuLyApi } from './api.js';
 import { nhanViecNgoai } from './nhan-ngoai.js';
 import { taoIcs } from './lich-ics.js';
-import { tacVuTheoLich } from './lich-chay.js';
+import { TAC_VU, tacVuTheoLich } from './lich-chay.js';
 import { nhanThu } from './nhan-thu.js';
 import { lenhCaiZalo, nhanZalo, toChucTheoKhoa } from './nhan-zalo.js';
 import { xacDinhPhien } from './phien.js';
@@ -33,6 +33,14 @@ export default {
         return loi(phien.ma, phien.ma === 403 ? 'Tài khoản chưa được mời dùng hệ thống.' : 'Bạn cần đăng nhập lại.');
       }
 
+      // Chạy ngay một tác vụ hẹn giờ (nút "Chạy ngay" ở trang Luồng và Nhật ký). Chỉ chủ tổ chức.
+      if (url.pathname === '/api/chay-ngay' && yeuCau.method === 'POST') {
+        if (phien.to_chuc.vai_tro !== 'chu') return json({ loi: 'Chỉ chủ tổ chức chạy tay được.' }, 403);
+        const { tac_vu: ma } = await yeuCau.json().catch(() => ({}));
+        const tv = TAC_VU.find((t) => t.ma === ma && t.ma !== 'tu-kiem');
+        if (!tv) return json({ loi: 'Không có tác vụ này.' }, 400);
+        return json(await chayTacVu(env, tv, new Date().toISOString(), { ep: true }));
+      }
       if (url.pathname.startsWith('/api/')) return xuLyApi(yeuCau, env, phien, url);
       return env.ASSETS.fetch(yeuCau);
     } catch (e) {
@@ -69,25 +77,27 @@ async function docLich(env, khoa, url) {
   return new Response(ics, { headers: { 'content-type': 'text/calendar; charset=utf-8', 'cache-control': 'no-store' } });
 }
 
-export async function chayTacVu(env, tv, bayGio = new Date().toISOString()) {
+export async function chayTacVu(env, tv, bayGio = new Date().toISOString(), tuyChon = {}) {
   const lam = CAC_TAC_VU[tv.ma];
-  if (!lam) return;
+  if (!lam) return { trang_thai: 'khong-co', ghi_chu: 'Không có tác vụ này' };
   const { meta } = await env.CSDL.prepare(
     `INSERT INTO nhat_ky_chay (to_chuc_id, tac_vu, bat_dau, trang_thai) VALUES ('', ?1, ?2, 'dang_chay')`,
   ).bind(tv.ma, bayGio).run();
   const id = meta.last_row_id;
   try {
-    const kq = await lam(env, bayGio);
+    const kq = await lam(env, bayGio, tuyChon);
     if (kq.bo_qua) {
       // Chưa đến giờ của tác vụ: không ghi nhật ký.
       await env.CSDL.prepare('DELETE FROM nhat_ky_chay WHERE id = ?1').bind(id).run();
-      return;
+      return { trang_thai: 'bo-qua', ghi_chu: 'Chưa có gì cần làm lúc này' };
     }
     await ghiKetQua(env, id, 'xong', kq.so_muc, kq.ghi_chu);
+    return { trang_thai: 'xong', ghi_chu: kq.ghi_chu };
   } catch (e) {
     console.error('Tác vụ lỗi', tv.ma, e);
     await ghiKetQua(env, id, 'loi', 0, String(e.message || e).slice(0, 500));
     await baoLoiTacVu(env, tv, bayGio, e.message || e).catch((e2) => console.error('Báo lỗi tác vụ lỗi', e2));
+    return { trang_thai: 'loi', ghi_chu: String(e.message || e).slice(0, 300) };
   }
 }
 

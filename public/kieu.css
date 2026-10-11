@@ -737,3 +737,4 @@ dialog::backdrop { background: rgba(6, 9, 15, .6); }
   .chip { height: 40px; }
 }
 .ban-luong.tra-ve { transition: transform .4s var(--em); }
+.chi-doc-man-hinh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

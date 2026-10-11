@@ -377,6 +377,8 @@ async function suaViec(env, tc, id, than) {
     `UPDATE viec SET ${gan.join(', ')}, cap_nhat_luc = ?${cot.length + 3} WHERE id = ?1 AND to_chuc_id = ?2`,
   ).bind(id, tc, ...giaTri, bayGio).run();
   if (!kq.meta.changes) return loi(404, 'Không tìm thấy việc này.');
+  // Đổi hạn hoặc giờ thì cho phép nhắc lại theo mốc mới.
+  if ('han_ngay' in k.viec || 'gio_hen' in k.viec) await env.CSDL.prepare('DELETE FROM nhac_da_gui WHERE viec_id = ?1').bind(id).run();
   return json({ ok: true });
 }
 
