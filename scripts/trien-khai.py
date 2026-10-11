@@ -111,6 +111,8 @@ def main():
         'observability': ch.get('observability', {'enabled': False}),
         'keep_bindings': ['secret_text'],  # giữ khóa bí mật đã đặt bằng wrangler secret put
     }
+    if 'placement' in ch:
+        meta['placement'] = ch['placement']
     if 'assets' in ch:
         a = ch['assets']
         rang_buoc.append({'type': 'assets', 'name': a['binding']})
