@@ -2,7 +2,8 @@
 
 import { docLuong, dangYenLang } from './luong.js';
 import { banTinNgay, baoCaoTuan, cacToChuc, goiYMoi, gioDayDuVN } from './ban-tin.js';
-import { docCaiDat, ghiCaiDat } from './hop-tin.js';
+import { dongBoGoogle } from './google.js';
+import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { nhacViec } from './nhac-viec.js';
 import { baoToChuc } from './telegram.js';
 import { cat, congNgay, gioVN, ngayVN } from './tien-ich.js';
@@ -16,6 +17,29 @@ export const CAC_TAC_VU = {
        ON CONFLICT (to_chuc_id, nguon) DO UPDATE SET lan_cuoi = excluded.lan_cuoi`,
     ).bind(bayGio).run();
     return { so_muc: 1, ghi_chu: 'Hẹn giờ chạy bình thường' };
+  },
+
+  'dong-bo-google': async (env) => {
+    const { results } = await env.CSDL.prepare(`SELECT DISTINCT to_chuc_id FROM cai_dat WHERE khoa = 'tich_hop_google'`).all();
+    if (!results.length) return { bo_qua: true };
+    let thu = 0;
+    let viec = 0;
+    const loi = [];
+    for (const { to_chuc_id: id } of results) {
+      if (!(await docLuong(env, id)).bat['dong-bo-google']) continue;
+      try {
+        const kq = await dongBoGoogle(env, id);
+        if (!kq) continue;
+        thu += kq.thu;
+        viec += kq.day_len + kq.ve_lai;
+        loi.push(...kq.loi);
+      } catch (e) {
+        await ghiTinHieu(env, id, 'google', `Lỗi ${String(e.message).slice(0, 120)}`);
+        loi.push(String(e.message).slice(0, 80));
+      }
+    }
+    if (loi.length && !thu && !viec) throw new Error(loi.join('; '));
+    return { so_muc: thu + viec, ghi_chu: `${thu} thư mới, ${viec} việc đồng bộ${loi.length ? `, ${loi.length} lỗi` : ''}` };
   },
 
   'tach-viec': async (env) => {
@@ -131,7 +155,7 @@ export const CAC_TAC_VU = {
         env.CSDL.prepare('SELECT * FROM viec WHERE to_chuc_id = ?1').bind(tc.id),
         env.CSDL.prepare('SELECT * FROM tin_nhan WHERE to_chuc_id = ?1 AND thoi_diem >= ?2').bind(tc.id, new Date(Date.now() - 90 * 86400000).toISOString()),
         env.CSDL.prepare('SELECT * FROM tep WHERE to_chuc_id = ?1').bind(tc.id),
-        env.CSDL.prepare(`SELECT khoa, gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa NOT LIKE '%ma_noi%'`).bind(tc.id),
+        env.CSDL.prepare(`SELECT khoa, gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa NOT LIKE '%ma_noi%' AND khoa NOT LIKE 'tich_hop%' AND khoa <> 'google_state'`).bind(tc.id),
         env.CSDL.prepare('SELECT * FROM ghi_nho WHERE to_chuc_id = ?1').bind(tc.id),
       ]);
       const banSao = { to_chuc: tc, luc: bayGio, viec: viec.results, tin_nhan: tin.results, tep: tep.results, cai_dat: caiDat.results, ghi_nho: ghiNho.results };

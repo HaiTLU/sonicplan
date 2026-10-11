@@ -947,9 +947,60 @@ async function veKetNoi(goc) {
   const daoTrangThai = (den, chu) => h('span', { class: `trang-thai-kn ${den}`, text: chu });
   const dau = (ten, tieuDe, moTa, den, chu) => h('header', {}, h('span', { class: 'tp-icon', dataset: { den } }, icon(ten)), h('div', {}, h('h2', { text: tieuDe }), h('p', { text: moTa })), daoTrangThai(den, chu));
 
+  // Google: đăng nhập một lần cho Gmail, Lịch, Tasks
+  const gg = kn.google;
+  const laChuGg = kn.tich_hop.vai_tro === 'chu';
+  const ketQuaGg = new URLSearchParams(location.search).get('google');
+  if (ketQuaGg) {
+    history.replaceState(null, '', `${location.pathname}#ket-noi`);
+    if (ketQuaGg === 'ok') bao('Đã nối Google. Thư mới, việc và lịch sẽ đồng bộ mỗi 5 phút.');
+    else bao(ketQuaGg, { loi: true });
+  }
+  const oIdGg = h('input', { type: 'text', placeholder: 'Client ID (….apps.googleusercontent.com)', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Client ID' });
+  const oBiMatGg = h('input', { type: 'password', placeholder: 'Client Secret', autocomplete: 'off', 'aria-label': 'Client Secret' });
+  const khoiGg = [];
+  if (gg.da_noi) {
+    khoiGg.push(
+      h('p', { class: 'mo-ta', text: `Đã nối ${gg.da_noi.email || 'tài khoản Google'}. ${gg.lan_cuoi ? `${gg.lan_cuoi.ghi_chu}, ${luc(gg.lan_cuoi.lan_cuoi)}.` : 'Chờ lượt đồng bộ đầu tiên.'} Thư mới vào hộp tin; việc mới sang Google Tasks, việc có ngày sang Lịch; việc bấm xong bên Tasks sẽ xong ở đây.` }),
+      laChuGg ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/google', { method: 'DELETE' }); bao('Đã gỡ kết nối Google.'); ve(); } }, 'Gỡ kết nối Google')) : null,
+    );
+  } else if (gg.co_client) {
+    khoiGg.push(
+      h('p', { class: 'mo-ta', text: 'Đã có Client ID. Bấm nút để chọn tài khoản Google và đồng ý các quyền Gmail, Lịch, Tasks. Nhớ tick đủ ba quyền.' }),
+      laChuGg ? h('div', { class: 'hang-nut' },
+        h('a', { class: 'nut nut-chinh', href: '/api/google/bat-dau' }, icon('thu'), 'Đăng nhập Google'),
+        h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/google?het=1', { method: 'DELETE' }); ve(); } }, 'Đổi Client ID')) : null,
+    );
+  } else {
+    khoiGg.push(
+      h('p', { class: 'mo-ta', text: 'Làm một lần, khoảng 5 phút, rồi chỉ cần bấm Đăng nhập Google:' }),
+      h('ol', { class: 'buoc' },
+        h('li', {}, 'Vào console.cloud.google.com, tạo một dự án mới, rồi ở mục APIs & Services bật ba API: Gmail API, Google Calendar API, Google Tasks API.'),
+        h('li', {}, 'Mục OAuth consent screen: chọn External, đặt tên ứng dụng, để chế độ Testing và thêm email của bạn vào Test users.'),
+        h('li', {}, 'Mục Credentials, Create credentials, OAuth client ID, loại Web application. Ở Authorized redirect URIs dán địa chỉ bên dưới.'),
+        h('li', {}, 'Chép Client ID và Client Secret dán vào hai ô dưới đây.'),
+      ),
+      oChep(gg.dia_chi_goi_lai),
+      laChuGg ? h('div', { class: 'luoi-nhap' }, oIdGg, oBiMatGg, h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
+        ev.target.disabled = true;
+        try {
+          await api('/api/ket-noi/google', { method: 'POST', body: JSON.stringify({ client_id: oIdGg.value, client_secret: oBiMatGg.value }) });
+          bao('Đã lưu. Bấm Đăng nhập Google để chọn tài khoản.');
+          ve();
+        } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
+      } }, 'Lưu')) : null,
+    );
+  }
+  const lanCuoiLoiGg = gg.lan_cuoi?.ghi_chu?.startsWith('Lỗi');
+  const theGoogle = h('section', { class: 'bang the-kn rong' },
+    dau('thu', 'Google: Gmail, Lịch, Tasks', 'Đăng nhập một lần, hệ thống đọc thư, ghi việc sang Tasks và Lịch giúp bạn.', gg.da_noi ? (lanCuoiLoiGg ? 'do' : 'xanh') : gg.co_client ? 'vang' : 'xam', gg.da_noi ? (lanCuoiLoiGg ? 'Đang lỗi' : 'Đã nối') : gg.co_client ? 'Chờ đăng nhập' : 'Chưa nối'),
+    lanCuoiLoiGg ? h('p', { class: 'canh-bao-nho', text: gg.lan_cuoi.ghi_chu }) : null,
+    ...khoiGg,
+  );
+
   // Thư
   const theThu = h('section', { class: 'bang the-kn' },
-    dau('thu', 'Thư Gmail', 'Thư mới trong Gmail tự về hộp tin, kèm tệp đính kèm.', kn.thu.lan_cuoi ? 'xanh' : kn.thu.dia_chi ? 'vang' : 'xam', kn.thu.lan_cuoi ? `Thư cuối ${luc(kn.thu.lan_cuoi.lan_cuoi)}` : kn.thu.xac_nhan ? 'Chờ bấm xác nhận' : kn.thu.dia_chi ? 'Chưa nối' : 'Chưa bật'),
+    dau('thu', 'Thư chuyển tiếp', 'Cách không cần đăng nhập: Gmail chuyển bản sao thư về đây, kèm tệp đính kèm.', kn.thu.lan_cuoi ? 'xanh' : kn.thu.dia_chi ? 'vang' : 'xam', kn.thu.lan_cuoi ? `Thư cuối ${luc(kn.thu.lan_cuoi.lan_cuoi)}` : kn.thu.xac_nhan ? 'Chờ bấm xác nhận' : kn.thu.dia_chi ? 'Chưa nối' : 'Chưa bật'),
   );
   if (kn.thu.xac_nhan) {
     const xn = kn.thu.xac_nhan;
@@ -1093,7 +1144,7 @@ async function veKetNoi(goc) {
     ),
   );
 
-  thay(goc, h('div', { class: 'ds-kn vao' }, theThu, theZalo, theLich, theTele, theApi, theNen));
+  thay(goc, h('div', { class: 'ds-kn vao' }, theGoogle, theThu, theZalo, theLich, theTele, theApi, theNen));
 }
 
 // =====================================================================

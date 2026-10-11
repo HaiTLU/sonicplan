@@ -8,6 +8,7 @@ const HEN_GIO_TRE_PHUT = 75;
 
 export const KET_NOI = [
   { loai: 'thu', ten: 'Thư chuyển tiếp', chua_noi: 'Chưa có thư nào về, cài chuyển tiếp ở trang Kết nối' },
+  { loai: 'google', ten: 'Google (Gmail, Lịch, Tasks)', chua_noi: 'Chưa đăng nhập Google' },
   { loai: 'zalo', ten: 'Tin Zalo', chua_noi: 'Chưa nối máy gửi Zalo' },
   { loai: 'tep', ten: 'Kho tệp', chua_noi: 'Chưa gắn kho tệp R2' },
   { loai: 'lich', ten: 'Lịch', chua_noi: 'Chưa tạo đường dẫn lịch' },
