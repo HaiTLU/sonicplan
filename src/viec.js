@@ -28,6 +28,13 @@ export async function tinTruocChoLo(env, toChucId, tin) {
   return results.reverse().map((t) => `[${t.thoi_diem?.slice(0, 16) || ''}${t.nhom ? ` nhóm "${t.nhom}"` : ''} từ ${t.nguoi_gui || 'không rõ'}] ${t.tieu_de ? `${t.tieu_de}: ` : ''}${String(t.noi_dung || '').replace(/\s+/g, ' ').slice(0, 300)}`);
 }
 
+// Việc đủ rõ để làm: tên có từ 3 chữ, hoặc 2 chữ kèm hạn hoặc ghi chú. Tên một chữ hay mơ hồ ("Hơi", "Vote") không phải việc.
+export function laViecRo(v) {
+  const chu = String(v?.tieu_de || '').trim().split(/\s+/).filter(Boolean).length;
+  const ghiChu = String(v?.ghi_chu || '').trim().length;
+  return chu >= 3 || (chu === 2 && Boolean(v?.han_ngay || ghiChu >= 20));
+}
+
 export function timTrung(tieuDe, cacViec) {
   return cacViec.find((v) => doGiong(v.tieu_de, tieuDe) >= NGUONG_TRUNG) || null;
 }
@@ -89,7 +96,7 @@ async function chayLoTin(env, toChucId, tin, bayGio) {
 
   let soViec = 0;
   const viecRa = [];
-  for (const v of ketQua.viec.slice(0, 10)) {
+  for (const v of ketQua.viec.filter((x) => laViecRo(x) || String(x?.tieu_de || '').trim().split(/\s+/).length >= 2 && x.han_ngay).slice(0, 10)) {
     const nguon = v.tin_so && tin[v.tin_so - 1];
     const keHoach = ghiChuKeHoach(v);
     const ghiChu = [v.ghi_chu, keHoach].filter(Boolean).join('\n\n') || null;

@@ -7,6 +7,7 @@ import { docCaiDat } from './hop-tin.js';
 import { docLuong } from './luong.js';
 import { docTichHop } from './tich-hop.js';
 import { docHoSo, ghiNhoChoAi } from './ghi-nho.js';
+import { laViecRo } from './viec.js';
 import { baoToChuc } from './telegram.js';
 import { congNgay, gioVN, ngayVN } from './tien-ich.js';
 
@@ -136,6 +137,7 @@ export async function baoCaoTuan(env, bayGio, { ep = false } = {}) {
   return { so_muc: soBao, ghi_chu: `Gửi báo cáo tuần cho ${soBao} tổ chức` };
 }
 
+const NHAN_NGAN = { 1: 'AI tự làm', 2: 'AI chuẩn bị, bạn quyết định', 3: 'bạn tự làm' };
 const SO_LAN_LOI = (ghiChu) => (String(ghiChu || '').match(/\[Gợi ý: lỗi/g) || []).length;
 
 // Mỗi giờ gợi ý tối đa 5 việc mới, mỗi việc một lần. AI lỗi hai lần thì bỏ hẳn việc đó.
@@ -150,10 +152,12 @@ export async function goiYMoi(env, bayGio) {
        WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND tao_luc >= ?2 AND (ghi_chu IS NULL OR ghi_chu NOT LIKE '%[Gợi ý] Nhóm%')
        ORDER BY id DESC LIMIT 40`,
     ).bind(tc.id, new Date(Date.parse(bayGio) - 60 * 86400000).toISOString()).all();
-    const chon = results.filter((v) => SO_LAN_LOI(v.ghi_chu) < 2).slice(0, lg.nguong.goi_y_toi_da);
+    // Việc quá mơ hồ (tên một chữ, không hạn, không ghi chú) không phải việc thật: bỏ qua, không gợi ý.
+    const chon = results.filter((v) => laViecRo(v) && SO_LAN_LOI(v.ghi_chu) < 2).slice(0, lg.nguong.goi_y_toi_da);
     if (!chon.length) continue;
     const ngoai = await docTichHop(env, tc.id, 'ai');
     const hoSo = await docHoSo(env, tc.id);
+    const dong = [];
     for (const v of chon) {
       try {
         const boiCanh = results.filter((x) => x.id !== v.id).map((x) => x.tieu_de);
@@ -161,18 +165,19 @@ export async function goiYMoi(env, bayGio) {
         await env.CSDL.prepare(
           `UPDATE viec SET ghi_chu = COALESCE(ghi_chu || char(10) || char(10), '') || ?3, nhom = ?4, cap_nhat_luc = ?5 WHERE id = ?1 AND to_chuc_id = ?2`,
         ).bind(v.id, tc.id, kq.ghi_them, NHOM_THEO_SO[kq.nhom], bayGio).run();
-        await baoToChuc(env, tc.id, `Việc mới: ${v.tieu_de}\n${kq.ghi_them}\n(Đã ghi vào ghi chú của việc)`.slice(0, 3900));
+        const buoc = /^1\. (.+)$/m.exec(kq.ghi_them)?.[1];
+        dong.push(`- ${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay})` : ''}: ${NHAN_NGAN[kq.nhom] || 'xem trong ghi chú'}${buoc ? `. Bước tiếp: ${buoc}` : ''}`);
         soViec++;
       } catch (e) {
         console.error('Gợi ý việc lỗi', v.id, e);
         soLoi++;
-        const lan = SO_LAN_LOI(v.ghi_chu) + 1;
         await env.CSDL.prepare(
           `UPDATE viec SET ghi_chu = COALESCE(ghi_chu || char(10), '') || ?3 WHERE id = ?1 AND to_chuc_id = ?2`,
         ).bind(v.id, tc.id, `[Gợi ý: lỗi ${gioDayDuVN(bayGio)}]`).run();
-        if (lan >= 2) await baoToChuc(env, tc.id, `Không soạn được gợi ý cho việc: ${v.tieu_de} (AI lỗi ${lan} lần). Đã bỏ qua việc này, bạn xem tay giúp.`);
       }
     }
+    // Một tin gộp cho cả lượt, chỉ việc thật và bước tiếp theo. Lỗi AI chỉ ghi vào Nhật ký, không nhắn.
+    if (dong.length) await baoToChuc(env, tc.id, `Việc mới (${dong.length}):\n${dong.join('\n')}`.slice(0, 3900));
   }
   if (!soViec && !soLoi) return { bo_qua: true };
   return { so_muc: soViec, ghi_chu: `Gợi ý ${soViec} việc${soLoi ? `, lỗi ${soLoi}` : ''}` };

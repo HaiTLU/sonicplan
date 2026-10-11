@@ -84,3 +84,12 @@ test('tổng hợp: gửi toàn bộ dữ liệu một lần kèm hồ sơ, tr�
   assert.ok(goi.messages[0].content.includes('2026-10-11'));
   assert.ok(goi.messages[1].content.includes('Gửi báo cáo'));
 });
+
+import { laViecRo } from '../src/viec.js';
+
+test('việc mơ hồ (tên một chữ, hai chữ trơ trọi) không phải việc thật', () => {
+  for (const t of ['Hơi', 'Vote', 'Báo cáo', 'Làm PM', 'Hồi Ngán']) assert.equal(laViecRo({ tieu_de: t }), false, t);
+  assert.equal(laViecRo({ tieu_de: 'Báo cáo', han_ngay: '2026-10-12' }), true);
+  assert.equal(laViecRo({ tieu_de: 'Báo cáo', ghi_chu: 'Gửi chị Lan số liệu tuần này' }), true);
+  assert.equal(laViecRo({ tieu_de: 'Gửi báo cáo tuần' }), true);
+});
