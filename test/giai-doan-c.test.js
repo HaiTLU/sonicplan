@@ -44,3 +44,30 @@ test('bấm Xong, Bỏ, Dời mai, Dời tuần sau', async () => {
   env = envGia(null);
   assert.equal(await apDungNutViec(env, 't', { viec_id: 9, hanh_dong: 'xong' }, bayGio), null);
 });
+
+import { themHoSo, loiNhacTachViec } from '../src/ai.js';
+import { luuHoSo } from '../src/ghi-nho.js';
+
+test('hồ sơ được nối vào lời nhắc hệ thống, rỗng thì giữ nguyên', () => {
+  const m = [{ role: 'system', content: 'A' }, { role: 'user', content: 'B' }];
+  assert.equal(themHoSo(m, '').length, 2);
+  assert.equal(themHoSo(m, '  ')[0].content, 'A');
+  const r = themHoSo(m, 'Chị Lan là trưởng phòng');
+  assert.ok(r[0].content.startsWith('A') && r[0].content.includes('Chị Lan là trưởng phòng'));
+  assert.equal(r[1].content, 'B');
+  assert.equal(m[0].content, 'A');
+});
+
+test('tin trước đó chỉ xuất hiện khi có, và dặn AI không trích việc từ đó', () => {
+  const tin = [{ so: 1, nguon: 'zalo', nguoi_gui: 'Lan', nhom: 'Dự án A', noi_dung: 'ok', thoi_diem: '2026-10-11T01:00:00Z' }];
+  const co = loiNhacTachViec(tin, '2026-10-11', 'Hải', [], [], ['[x] gửi báo cáo trước thứ Sáu']);
+  assert.ok(co[1].content.includes('Tin trước đó') && co[1].content.includes('gửi báo cáo trước thứ Sáu'));
+  assert.ok(co[0].content.includes('KHÔNG trích việc từ phần đó'));
+  assert.ok(!loiNhacTachViec(tin, '2026-10-11', 'Hải')[1].content.includes('Tin trước đó (chỉ'));
+});
+
+test('hồ sơ chứa mật khẩu hoặc số thẻ thì từ chối lưu', async () => {
+  const env = { CSDL: { prepare: () => { throw new Error('không được chạm CSDL'); } } };
+  assert.match(await luuHoSo(env, 't', 'mật khẩu của tôi là abc'), /mật khẩu/);
+  assert.match(await luuHoSo(env, 't', 'thẻ 1234 5678 9012 3456'), /số thẻ/);
+});

@@ -4,7 +4,7 @@
 
 import { traLoiTuBoNho } from './ai.js';
 import { goiNgoai } from './goi-ngoai.js';
-import { chonGhiNho, nhayCam } from './ghi-nho.js';
+import { chonGhiNho, docHoSo, nhayCam } from './ghi-nho.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { giaiMa, maHoa } from './ma-hoa.js';
 import { docTichHop } from './tich-hop.js';
@@ -188,7 +188,7 @@ async function lenhHoi(env, tc, cauHoi) {
     env.CSDL.prepare(`SELECT tieu_de, han_ngay FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' ORDER BY id DESC LIMIT 40`).bind(tc),
   ]);
   const ghiNho = chonGhiNho(gn.results, cauHoi);
-  return (await traLoiTuBoNho(env, cauHoi, ghiNho, viec.results.map((v) => `${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay})` : ''}`), { ngoai: await docTichHop(env, tc, 'ai') })) || 'Em chưa nhớ điều này.';
+  return (await traLoiTuBoNho(env, cauHoi, ghiNho, viec.results.map((v) => `${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay})` : ''}`), { ngoai: await docTichHop(env, tc, 'ai'), hoSo: await docHoSo(env, tc) })) || 'Em chưa nhớ điều này.';
 }
 
 // Nhắn thường: AI đọc như một tin, thấy việc thì tạo việc và báo lại.

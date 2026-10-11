@@ -725,7 +725,24 @@ async function veGhiNho(goc) {
       bao(err.message, { loi: true });
     }
   });
-  thay(goc, h('p', { class: 'tom-tat-phu', style: 'margin-bottom:14px', text: 'Hệ thống tự nhớ người, dự án và quyết định từ tin đến, rồi dùng lại khi đọc tin sau. Mục mới do AI thêm có nhãn chờ duyệt: bấm dấu tích nếu đúng, sửa hoặc xóa nếu sai.' }), form, dauMuc, ds);
+  // Hồ sơ: vài dòng tự khai, đưa vào mọi lần AI chạy
+  const oHoSo = h('textarea', { rows: '6', maxlength: '2000', placeholder: 'Ví dụ:\nTôi là quản lý dự án, phụ trách mảng đào tạo ngắn hạn.\nChị Lan là trưởng phòng, việc chị giao luôn ưu tiên cao.\nNhóm "Dự án A" trên Zalo là việc khách hàng.\nTôi hay làm việc buổi sáng, họp chiều. Xưng "em" với cấp trên.', 'aria-label': 'Hồ sơ của bạn' });
+  const demHoSo = h('span', { class: 'mo-ta', text: '' });
+  const capNhatDem = () => { demHoSo.textContent = `${oHoSo.value.length}/2000 ký tự`; };
+  oHoSo.addEventListener('input', capNhatDem);
+  const nutHoSo = h('button', { class: 'nut nut-chinh', type: 'button', onclick: async () => {
+    nutHoSo.disabled = true;
+    try { await api('/api/ho-so', { method: 'PUT', body: JSON.stringify({ noi_dung: oHoSo.value }) }); bao('Đã lưu hồ sơ. Lần sau AI đọc tin sẽ dùng nó.'); } catch (err) { bao(err.message, { loi: true }); }
+    nutHoSo.disabled = false;
+  } }, 'Lưu hồ sơ');
+  api('/api/ho-so').then((r) => { oHoSo.value = r.noi_dung || ''; capNhatDem(); }).catch(() => {});
+  const theHoSo = h('section', { class: 'bang ho-so' },
+    h('h3', { text: 'Hồ sơ của bạn' }),
+    h('p', { class: 'mo-ta', text: 'Vài dòng giúp AI hiểu bạn là ai và ai là ai trong công việc. AI đọc hồ sơ này mỗi lần tách việc, gợi ý, lập kế hoạch ngày và trả lời trên Telegram. Không ghi mật khẩu hay số thẻ.' }),
+    oHoSo,
+    h('div', { class: 'hang-nut' }, nutHoSo, demHoSo),
+  );
+  thay(goc, theHoSo, h('p', { class: 'tom-tat-phu', style: 'margin-bottom:14px', text: 'Hệ thống tự nhớ người, dự án và quyết định từ tin đến, rồi dùng lại khi đọc tin sau. Mục mới do AI thêm có nhãn chờ duyệt: bấm dấu tích nếu đúng, sửa hoặc xóa nếu sai.' }), form, dauMuc, ds);
 
   async function hanhDong(id, thanDu, thongBao) {
     try {

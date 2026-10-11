@@ -3,6 +3,7 @@
 // đổi N8N_WEBHOOK_URL và N8N_HEADER_VALUE trong tệp .env, không phải sửa mã.
 
 import { tomTatTin } from './ai.js';
+import { docHoSo } from './ghi-nho.js';
 import { ghiTinHieu, luuTep, luuTin, TEP_TOI_DA } from './hop-tin.js';
 import { baoToChuc } from './telegram.js';
 import { docTichHop } from './tich-hop.js';
@@ -67,7 +68,7 @@ export async function nhanZalo(yeuCau, env, ctx, duongDan) {
     const tin = Array.isArray(than.messages) ? than.messages : [];
     ctx.waitUntil(
       (async () => {
-        const tomTat = tin.length ? await tomTatTin(env, tin, than.label, { ngoai: await docTichHop(env, toChucId, 'ai') }) : 'Không có tin Zalo nào trong khoảng này.';
+        const tomTat = tin.length ? await tomTatTin(env, tin, than.label, { ngoai: await docTichHop(env, toChucId, 'ai'), hoSo: await docHoSo(env, toChucId) }) : 'Không có tin Zalo nào trong khoảng này.';
         await baoToChuc(env, toChucId, `Tóm tắt Zalo ${than.label || ''} (${tin.length} tin)\n\n${tomTat}`);
       })().catch((e) => console.error('Tóm tắt lỗi', e)),
     );

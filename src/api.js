@@ -1,7 +1,7 @@
 // API cho giao diện. Mọi hàm nhận phien (người dùng và tổ chức đã xác định) và chỉ đọc ghi
 // dữ liệu của phien.to_chuc.id.
 
-import { LOAI_GHI_NHO } from './ghi-nho.js';
+import { docHoSo, LOAI_GHI_NHO, luuHoSo, TOI_DA_HO_SO } from './ghi-nho.js';
 import { coMaNhanViec, goMaNhanViec, taoMaNhanViec } from './nhan-ngoai.js';
 import { docLuong, luuLuong, NGUONG } from './luong.js';
 import { kiemCauHinhGithub, thuGithub } from './github.js';
@@ -48,6 +48,12 @@ export async function xuLyApi(yeuCau, env, phien, url) {
     return e ? loi(400, e) : json(await layLuong(env, tc));
   }
 
+  if (p === '/api/ho-so' && m === 'GET') return json({ noi_dung: await docHoSo(env, tc), toi_da: TOI_DA_HO_SO });
+  if (p === '/api/ho-so' && m === 'PUT') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức sửa được hồ sơ.');
+    const e = await luuHoSo(env, tc, (await yeuCau.json().catch(() => ({}))).noi_dung);
+    return e ? loi(400, e) : json({ noi_dung: await docHoSo(env, tc), toi_da: TOI_DA_HO_SO });
+  }
   if (p === '/api/ghi-nho' && m === 'GET') return json(await dsGhiNho(env, tc, url));
   if (p === '/api/ghi-nho' && m === 'POST') return taoGhiNho(env, tc, await yeuCau.json().catch(() => ({})));
   if (p === '/api/ghi-nho' && m === 'DELETE') {

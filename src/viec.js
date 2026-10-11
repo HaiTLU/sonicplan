@@ -2,7 +2,7 @@
 
 import { NHOM_THEO_SO, tachViec } from './ai.js';
 import { ghiChuKeHoach } from './ai.js';
-import { ghiNhoChoAi, luuGhiNho } from './ghi-nho.js';
+import { docHoSo, ghiNhoChoAi, luuGhiNho } from './ghi-nho.js';
 import { ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { docLuong } from './luong.js';
 import { baoSuKien, dangViecMoi, docTichHop } from './tich-hop.js';
@@ -10,6 +10,23 @@ import { doGiong, ngayVN } from './tien-ich.js';
 
 // Tiêu đề giống từ 80% với một việc đang mở trong 14 ngày gần đây thì coi là trùng.
 export const NGUONG_TRUNG = 0.8;
+
+// Vài tin đã xử lý cùng nhóm (Zalo) hoặc cùng người gửi, trong 3 ngày, để AI hiểu câu trả lời ngắn như "ok", "đồng ý".
+export async function tinTruocChoLo(env, toChucId, tin) {
+  const ids = tin.map((t) => t.id).filter(Boolean);
+  const nhom = [...new Set(tin.map((t) => t.nhom).filter(Boolean))].slice(0, 5);
+  const nguoi = [...new Set(tin.filter((t) => !t.nhom && t.nguoi_gui).map((t) => t.nguoi_gui))].slice(0, 5);
+  if (!ids.length || (!nhom.length && !nguoi.length)) return [];
+  const tham = [toChucId, Math.min(...ids), new Date(Date.now() - 3 * 86400000).toISOString(), ...nhom, ...nguoi];
+  const dk = [];
+  if (nhom.length) dk.push(`nhom IN (${nhom.map((_, i) => `?${4 + i}`).join(',')})`);
+  if (nguoi.length) dk.push(`(nhom IS NULL AND nguoi_gui IN (${nguoi.map((_, i) => `?${4 + nhom.length + i}`).join(',')}))`);
+  const { results } = await env.CSDL.prepare(
+    `SELECT nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem FROM tin_nhan
+     WHERE to_chuc_id = ?1 AND da_tach = 1 AND id < ?2 AND tao_luc >= ?3 AND (${dk.join(' OR ')}) ORDER BY id DESC LIMIT 8`,
+  ).bind(...tham).all();
+  return results.reverse().map((t) => `[${t.thoi_diem?.slice(0, 16) || ''}${t.nhom ? ` nhóm "${t.nhom}"` : ''} từ ${t.nguoi_gui || 'không rõ'}] ${t.tieu_de ? `${t.tieu_de}: ` : ''}${String(t.noi_dung || '').replace(/\s+/g, ' ').slice(0, 300)}`);
+}
 
 export function timTrung(tieuDe, cacViec) {
   return cacViec.find((v) => doGiong(v.tieu_de, tieuDe) >= NGUONG_TRUNG) || null;
@@ -54,6 +71,8 @@ async function chayLoTin(env, toChucId, tin, bayGio) {
   try {
     const ngoai = await docTichHop(env, toChucId, 'ai');
     tuyChon.ngoai = ngoai;
+    tuyChon.hoSo = await docHoSo(env, toChucId);
+    tuyChon.tinTruoc = await tinTruocChoLo(env, toChucId, tin).catch(() => []);
     ketQua = await tachViec(env, tin.map((t, i) => ({ ...t, so: i + 1 })), ngayVN(), ten?.ten, Object.assign(tuyChon, {
       daCo,
       ghiNho,
