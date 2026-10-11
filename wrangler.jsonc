@@ -8,6 +8,9 @@
   "observability": { "enabled": true },
   "preview_urls": false,
 
+  // Dịch vụ AI ngoài (Anthropic, OpenAI) chặn yêu cầu từ một số vùng, nên chạy Worker gần máy chủ ở Mỹ.
+  "placement": { "region": "aws:us-east-1" },
+
   // Địa chỉ trang. Khi triển khai, Cloudflare tự tạo bản ghi DNS và chứng chỉ cho tên miền này
   // (tên miền sonicrec.app phải nằm trong cùng tài khoản Cloudflare).
   // Tắt địa chỉ *.workers.dev để chỉ có một cửa vào, cửa này được Access bảo vệ.

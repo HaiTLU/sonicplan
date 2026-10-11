@@ -43,6 +43,11 @@ export function chuanHoaCauHinhAi({ loai, khoa, mo_hinh: moHinh, dia_chi: diaChi
   throw new Error('Chọn Claude hoặc loại tương thích OpenAI.');
 }
 
+function loiAi(ten, ma, chiTiet) {
+  const goiY = ma === 401 ? 'Khóa sai hoặc đã bị thu hồi.' : ma === 403 ? 'Khóa không được phép dùng hoặc nhà cung cấp chặn vùng máy chủ.' : ma === 429 ? 'Hết hạn mức, thử lại sau.' : '';
+  return `${ten} từ chối (${ma}). ${goiY} ${chiTiet || ''}`.replace(/\s+/g, ' ').trim();
+}
+
 // messages: [{ role: 'system'|'user', content }]. Trả về chuỗi trả lời.
 export async function chayAiNgoai(cauHinh, messages, { maxTokens = 1500, nhietDo = 0.1, json = false } = {}) {
   const he = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
@@ -54,7 +59,7 @@ export async function chayAiNgoai(cauHinh, messages, { maxTokens = 1500, nhietDo
       body: JSON.stringify({ model: cauHinh.mo_hinh, max_tokens: maxTokens, temperature: nhietDo, system: he || undefined, messages: hoi }),
     }, { hetGioMs: 60000 });
     const kq = await ph.json().catch(() => ({}));
-    if (!ph.ok) throw new Error(`Claude từ chối (${ph.status}): ${kq?.error?.message || ''}`.trim());
+    if (!ph.ok) throw new Error(loiAi('Claude', ph.status, kq?.error?.message));
     return (kq.content || []).map((c) => c.text || '').join('');
   }
   const ph = await goiNgoai(`${cauHinh.dia_chi}/chat/completions`, {
@@ -69,7 +74,7 @@ export async function chayAiNgoai(cauHinh, messages, { maxTokens = 1500, nhietDo
     }),
   }, { hetGioMs: 60000 });
   const kq = await ph.json().catch(() => ({}));
-  if (!ph.ok) throw new Error(`Dịch vụ AI từ chối (${ph.status}): ${kq?.error?.message || ''}`.trim());
+  if (!ph.ok) throw new Error(loiAi('Dịch vụ AI', ph.status, kq?.error?.message));
   return kq.choices?.[0]?.message?.content || '';
 }
 
