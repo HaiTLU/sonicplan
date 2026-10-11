@@ -14,6 +14,11 @@ export const QUYEN = [
   'https://www.googleapis.com/auth/tasks',
   'https://www.googleapis.com/auth/calendar.events',
 ];
+// Drive chỉ xin quyền hẹp (drive.file): hệ thống chỉ thấy tệp và thư mục do chính nó tạo. Không bắt buộc.
+export const QUYEN_DRIVE = 'https://www.googleapis.com/auth/drive.file';
+const TEN_THU_MUC_GOC = 'Sonicplan';
+const TEN_THU_MUC_NGUON = { zalo: 'Zalo', gmail: 'Gmail', tay: 'Tải lên' };
+const TOI_DA_TEP_DRIVE = 8;
 const DIA_CHI_DANG_NHAP = 'https://accounts.google.com/o/oauth2/v2/auth';
 const DIA_CHI_MA = 'https://oauth2.googleapis.com/token';
 const MUI_GIO = 'Asia/Ho_Chi_Minh';
@@ -38,7 +43,7 @@ export function taoDiaChiDangNhap(clientId, goiLai, state) {
     client_id: clientId,
     redirect_uri: goiLai,
     response_type: 'code',
-    scope: QUYEN.join(' '),
+    scope: [...QUYEN, QUYEN_DRIVE].join(' '),
     access_type: 'offline',
     prompt: 'consent',
     include_granted_scopes: 'true',
@@ -126,9 +131,11 @@ export async function hoanTatDangNhap(env, tc, code, goiLai) {
   if (!kq.refresh_token) throw new Error('Google không trả khóa làm mới. Gỡ quyền của ứng dụng ở myaccount.google.com/permissions rồi đăng nhập lại.');
   const duQuyen = QUYEN.slice(2).every((q) => String(kq.scope || '').includes(q));
   if (!duQuyen) throw new Error('Chưa tick đủ quyền Gmail, Lịch và Tasks ở màn hình Google. Đăng nhập lại và tick hết.');
+  const coDrive = String(kq.scope || '').includes(QUYEN_DRIVE);
   const email = emailTuIdToken(kq.id_token);
-  await luuTichHop(env, tc, 'google', { refresh_token: kq.refresh_token, email, truy_cap: kq.access_token, het_han: Date.now() + (kq.expires_in - 120) * 1000 });
+  await luuTichHop(env, tc, 'google', { refresh_token: kq.refresh_token, email, co_drive: coDrive, truy_cap: kq.access_token, het_han: Date.now() + (kq.expires_in - 120) * 1000 });
   await ghiCaiDat(env, tc, 'google_gmail_moc', String(Math.floor(Date.now() / 1000) - 86400));
+  await env.CSDL.prepare(`DELETE FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = 'google_drive_thu_muc'`).bind(tc).run();
   await ghiTinHieu(env, tc, 'google', 'Vừa nối xong');
   return email;
 }
@@ -237,16 +244,80 @@ async function dongBoViec(env, tc, token) {
   return { dayLen, veLai, lich: canLich.length };
 }
 
+// ---- Drive: tệp đính kèm lưu thêm vào thư mục Sonicplan (R2 vẫn giữ bản gốc) ----
+
+// Dựng thân multipart: phần JSON mô tả tệp rồi đến nội dung.
+export function thanTaiLen(meta, noiDung, loai) {
+  const ranh = `sp${crypto.randomUUID().replace(/-/g, '')}`;
+  const ma = new TextEncoder();
+  const dau = ma.encode(`--${ranh}\r\ncontent-type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${ranh}\r\ncontent-type: ${loai || 'application/octet-stream'}\r\n\r\n`);
+  const cuoi = ma.encode(`\r\n--${ranh}--`);
+  const nd = new Uint8Array(noiDung);
+  const thanBody = new Uint8Array(dau.length + nd.length + cuoi.length);
+  thanBody.set(dau, 0);
+  thanBody.set(nd, dau.length);
+  thanBody.set(cuoi, dau.length + nd.length);
+  return { ranh, thanBody };
+}
+
+async function taoThuMuc(token, ten, cha) {
+  const r = await goiGoogle(token, 'www.googleapis.com/drive/v3/files?fields=id', {
+    method: 'POST',
+    body: { name: ten, mimeType: 'application/vnd.google-apps.folder', ...(cha ? { parents: [cha] } : {}) },
+  });
+  return r.id;
+}
+
+// Thư mục gốc Sonicplan và thư mục con theo nguồn; nhớ mã để lần sau khỏi tạo lại.
+async function thuMucDrive(env, tc, token, nguon) {
+  let nho = {};
+  try { nho = JSON.parse((await docCaiDat(env, tc, 'google_drive_thu_muc')) || '{}'); } catch { nho = {}; }
+  if (!nho.goc) nho.goc = await taoThuMuc(token, TEN_THU_MUC_GOC, null);
+  const khoa = TEN_THU_MUC_NGUON[nguon] ? nguon : 'tay';
+  if (!nho[khoa]) nho[khoa] = await taoThuMuc(token, TEN_THU_MUC_NGUON[khoa], nho.goc);
+  await ghiCaiDat(env, tc, 'google_drive_thu_muc', JSON.stringify(nho));
+  return nho[khoa];
+}
+
+async function dongBoDrive(env, tc, token) {
+  const tk = await docTichHop(env, tc, 'google');
+  if (!tk?.co_drive || !env.TEP) return 0;
+  const ds = (await env.CSDL.prepare(
+    `SELECT id, ten, loai, nguon, r2_khoa FROM tep WHERE to_chuc_id = ?1 AND drive_id IS NULL AND r2_khoa IS NOT NULL ORDER BY id LIMIT ?2`,
+  ).bind(tc, TOI_DA_TEP_DRIVE).all()).results;
+  let xong = 0;
+  for (const t of ds) {
+    const vat = await env.TEP.get(t.r2_khoa);
+    if (!vat) {
+      await env.CSDL.prepare(`UPDATE tep SET drive_id = '' WHERE id = ?1`).bind(t.id).run();
+      continue;
+    }
+    const cha = await thuMucDrive(env, tc, token, t.nguon);
+    const { ranh, thanBody } = thanTaiLen({ name: t.ten, parents: [cha] }, await vat.arrayBuffer(), t.loai);
+    const ph = await goiNgoai('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': `multipart/related; boundary=${ranh}` },
+      body: thanBody,
+    }, { hetGioMs: 60000 });
+    const kq = await ph.json().catch(() => ({}));
+    if (!ph.ok) throw new Error(`drive ${ph.status}: ${kq.error?.message || ''}`.trim());
+    await env.CSDL.prepare('UPDATE tep SET drive_id = ?1 WHERE id = ?2').bind(kq.id, t.id).run();
+    xong++;
+  }
+  return xong;
+}
+
 // Chạy mỗi 5 phút cho một tổ chức đã nối Google. Lỗi một phần không chặn các phần còn lại.
 export async function dongBoGoogle(env, tc, { thu = true, viec = true } = {}) {
   const token = await layTruyCap(env, tc);
   if (!token) return null;
-  const kq = { thu: 0, day_len: 0, ve_lai: 0, lich: 0, loi: [] };
+  const kq = { thu: 0, day_len: 0, ve_lai: 0, lich: 0, tep: 0, loi: [] };
   const lam = async (ten, f) => {
     try { await f(); } catch (e) { kq.loi.push(`${ten}: ${String(e.message).slice(0, 100)}`); }
   };
   if (thu) await lam('Gmail', async () => { kq.thu = await dongBoGmail(env, tc, token); });
   if (viec) await lam('Tasks, Lịch', async () => { const r = await dongBoViec(env, tc, token); kq.day_len = r.dayLen; kq.ve_lai = r.veLai; kq.lich = r.lich; });
-  await ghiTinHieu(env, tc, 'google', kq.loi.length ? `Lỗi ${kq.loi.join('; ')}` : `Đồng bộ xong: ${kq.thu} thư, ${kq.day_len} việc sang Google, ${kq.ve_lai} việc xong về`);
+  if (viec) await lam('Drive', async () => { kq.tep = await dongBoDrive(env, tc, token); });
+  await ghiTinHieu(env, tc, 'google', kq.loi.length ? `Lỗi ${kq.loi.join('; ')}` : `Đồng bộ xong: ${kq.thu} thư, ${kq.day_len} việc sang Google, ${kq.ve_lai} việc xong về${kq.tep ? `, ${kq.tep} tệp lên Drive` : ''}`);
   return kq;
 }

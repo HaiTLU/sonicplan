@@ -1,7 +1,7 @@
 // Kiểm thử phần thuần của nối Google: địa chỉ đăng nhập, đọc thư Gmail, dựng việc và sự kiện.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { diaChiGoiLai, emailTuIdToken, kiemClient, QUYEN, taoDiaChiDangNhap, thanSuKien, thanTask, tinTuThuGmail } from '../src/google.js';
+import { QUYEN_DRIVE, thanTaiLen, diaChiGoiLai, emailTuIdToken, kiemClient, QUYEN, taoDiaChiDangNhap, thanSuKien, thanTask, tinTuThuGmail } from '../src/google.js';
 
 const b64 = (s) => Buffer.from(s).toString('base64url');
 
@@ -44,4 +44,22 @@ test('việc thành Task và sự kiện Lịch', () => {
   assert.deepEqual(thanTask({ tieu_de: 'Nộp', han_ngay: '2026-10-12', gio_hen: '14:00', ghi_chu: 'bản in' }), { title: 'Nộp', notes: 'bản in\nGiờ: 14:00', due: '2026-10-12T00:00:00.000Z' });
   assert.deepEqual(thanSuKien({ tieu_de: 'Họp', han_ngay: '2026-10-12', gio_hen: '23:45' }).end, { dateTime: '2026-10-13T00:15:00', timeZone: 'Asia/Ho_Chi_Minh' });
   assert.deepEqual(thanSuKien({ tieu_de: 'Nộp', han_ngay: '2026-10-12' }).end, { date: '2026-10-13' });
+});
+
+test('đăng nhập xin thêm quyền Drive hẹp (drive.file)', () => {
+  const u = new URL(taoDiaChiDangNhap('id.apps.googleusercontent.com', 'https://x/api/google/goi-lai', 's'));
+  assert.equal(QUYEN_DRIVE, 'https://www.googleapis.com/auth/drive.file');
+  assert.ok(u.searchParams.get('scope').split(' ').includes(QUYEN_DRIVE));
+});
+
+test('thân tải lên Drive: JSON mô tả rồi nội dung nhị phân nguyên vẹn', () => {
+  const nd = new Uint8Array([0, 255, 10, 13, 65]);
+  const { ranh, thanBody } = thanTaiLen({ name: 'bản vẽ.pdf', parents: ['abc'] }, nd.buffer, 'application/pdf');
+  const chu = Buffer.from(thanBody).toString('latin1');
+  assert.ok(chu.startsWith(`--${ranh}\r\n`));
+  assert.ok(chu.endsWith(`\r\n--${ranh}--`));
+  assert.ok(chu.includes('content-type: application/pdf\r\n\r\n'));
+  const vt = Buffer.from(thanBody).indexOf(Buffer.from(nd));
+  assert.ok(vt > 0);
+  assert.equal(Buffer.from(thanBody).subarray(0, vt).toString().includes('"parents":["abc"]'), true);
 });

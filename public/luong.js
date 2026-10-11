@@ -12,7 +12,7 @@ const COT = [
 // ma_tv: mã tác vụ có công tắc; den: mã đèn kết nối ở /api/tinh-trang; nguong: các ô chỉnh số.
 const NUT = [
   { id: 'zalo', cot: 'vao', ten: 'Zalo', icon: 'zalo', den: 'zalo', ma_tv: 'canh-zalo', bat_nhan: 'Canh máy Mac gửi Zalo', nguong: ['zalo_im_gio'], mo_ta: 'Tin nhóm và cá nhân từ máy Mac. Công tắc là việc canh: báo Telegram khi máy im quá lâu.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
-  { id: 'google', cot: 'vao', ten: 'Google', icon: 'thu', den: 'google', ma_tv: 'dong-bo-google', bat_nhan: 'Đồng bộ Gmail, Tasks, Lịch', mo_ta: 'Đăng nhập Google một lần: thư mới vào hộp tin, việc sang Tasks, việc có ngày sang Lịch, việc xong bên Tasks về lại.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
+  { id: 'google', cot: 'vao', ten: 'Google', icon: 'thu', den: 'google', ma_tv: 'dong-bo-google', bat_nhan: 'Đồng bộ Gmail, Tasks, Lịch', mo_ta: 'Đăng nhập Google một lần: thư mới vào hộp tin, việc sang Tasks, việc có ngày sang Lịch, việc xong bên Tasks về lại, tệp đính kèm lưu thêm vào Drive.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
   { id: 'thu', cot: 'vao', ten: 'Thư', icon: 'thu', den: 'thu', mo_ta: 'Thư chuyển tiếp từ Gmail vào hộp tin.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
   { id: 'telegram-vao', cot: 'vao', ten: 'Telegram', icon: 'telegram', den: 'telegram', mo_ta: 'Nhắn thường để tạo việc; /viec, /nho, /hoi, /tomtat.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
   { id: 'api-vao', cot: 'vao', ten: 'Dịch vụ ngoài', icon: 'ai', den: 'api-vao', mo_ta: 'Zapier, Make, biểu mẫu gửi việc vào qua một địa chỉ riêng có mã. Việc có tiêu đề tạo ngay, văn bản tự do thì AI đọc.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },

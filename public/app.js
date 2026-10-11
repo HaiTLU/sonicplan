@@ -961,12 +961,14 @@ async function veKetNoi(goc) {
   const khoiGg = [];
   if (gg.da_noi) {
     khoiGg.push(
-      h('p', { class: 'mo-ta', text: `Đã nối ${gg.da_noi.email || 'tài khoản Google'}. ${gg.lan_cuoi ? `${gg.lan_cuoi.ghi_chu}, ${luc(gg.lan_cuoi.lan_cuoi)}.` : 'Chờ lượt đồng bộ đầu tiên.'} Thư mới vào hộp tin; việc mới sang Google Tasks, việc có ngày sang Lịch; việc bấm xong bên Tasks sẽ xong ở đây.` }),
+      h('p', { class: 'mo-ta', text: `Đã nối ${gg.da_noi.email || 'tài khoản Google'}. ${gg.lan_cuoi ? `${gg.lan_cuoi.ghi_chu}, ${luc(gg.lan_cuoi.lan_cuoi)}.` : 'Chờ lượt đồng bộ đầu tiên.'} Thư mới vào hộp tin; việc mới sang Google Tasks, việc có ngày sang Lịch; việc bấm xong bên Tasks sẽ xong ở đây.${gg.da_noi.co_drive ? ' Tệp đính kèm lưu thêm vào thư mục Sonicplan trên Drive.' : ''}` }),
+      gg.da_noi.co_drive ? null : h('p', { class: 'canh-bao-nho', text: 'Chưa có quyền Drive nên tệp đính kèm mới chỉ nằm ở kho của hệ thống. Bật Google Drive API trong dự án Google Cloud, rồi bấm Đăng nhập lại và tick quyền Drive.' }),
+      laChuGg && !gg.da_noi.co_drive ? h('div', { class: 'hang-nut' }, h('a', { class: 'nut nut-chinh', href: '/api/google/bat-dau' }, icon('thu'), 'Đăng nhập lại để thêm Drive')) : null,
       laChuGg ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/google', { method: 'DELETE' }); bao('Đã gỡ kết nối Google.'); ve(); } }, 'Gỡ kết nối Google')) : null,
     );
   } else if (gg.co_client) {
     khoiGg.push(
-      h('p', { class: 'mo-ta', text: 'Đã có Client ID. Bấm nút để chọn tài khoản Google và đồng ý các quyền Gmail, Lịch, Tasks. Nhớ tick đủ ba quyền.' }),
+      h('p', { class: 'mo-ta', text: 'Đã có Client ID. Bấm nút để chọn tài khoản Google và đồng ý các quyền Gmail, Lịch, Tasks, Drive. Nhớ tick đủ quyền.' }),
       laChuGg ? h('div', { class: 'hang-nut' },
         h('a', { class: 'nut nut-chinh', href: '/api/google/bat-dau' }, icon('thu'), 'Đăng nhập Google'),
         h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/google?het=1', { method: 'DELETE' }); ve(); } }, 'Đổi Client ID')) : null,
@@ -975,7 +977,7 @@ async function veKetNoi(goc) {
     khoiGg.push(
       h('p', { class: 'mo-ta', text: 'Làm một lần, khoảng 5 phút, rồi chỉ cần bấm Đăng nhập Google:' }),
       h('ol', { class: 'buoc' },
-        h('li', {}, 'Vào console.cloud.google.com, tạo một dự án mới, rồi ở mục APIs & Services bật ba API: Gmail API, Google Calendar API, Google Tasks API.'),
+        h('li', {}, 'Vào console.cloud.google.com, tạo một dự án mới, rồi ở mục APIs & Services bật bốn API: Gmail API, Google Calendar API, Google Tasks API, Google Drive API.'),
         h('li', {}, 'Mục OAuth consent screen: chọn External, đặt tên ứng dụng, để chế độ Testing và thêm email của bạn vào Test users.'),
         h('li', {}, 'Mục Credentials, Create credentials, OAuth client ID, loại Web application. Ở Authorized redirect URIs dán địa chỉ bên dưới.'),
         h('li', {}, 'Chép Client ID và Client Secret dán vào hai ô dưới đây.'),
@@ -993,7 +995,7 @@ async function veKetNoi(goc) {
   }
   const lanCuoiLoiGg = gg.lan_cuoi?.ghi_chu?.startsWith('Lỗi');
   const theGoogle = h('section', { class: 'bang the-kn rong' },
-    dau('thu', 'Google: Gmail, Lịch, Tasks', 'Đăng nhập một lần, hệ thống đọc thư, ghi việc sang Tasks và Lịch giúp bạn.', gg.da_noi ? (lanCuoiLoiGg ? 'do' : 'xanh') : gg.co_client ? 'vang' : 'xam', gg.da_noi ? (lanCuoiLoiGg ? 'Đang lỗi' : 'Đã nối') : gg.co_client ? 'Chờ đăng nhập' : 'Chưa nối'),
+    dau('thu', 'Google: Gmail, Lịch, Tasks, Drive', 'Đăng nhập một lần, hệ thống đọc thư, ghi việc sang Tasks và Lịch, lưu tệp đính kèm vào Drive giúp bạn.', gg.da_noi ? (lanCuoiLoiGg ? 'do' : 'xanh') : gg.co_client ? 'vang' : 'xam', gg.da_noi ? (lanCuoiLoiGg ? 'Đang lỗi' : 'Đã nối') : gg.co_client ? 'Chờ đăng nhập' : 'Chưa nối'),
     lanCuoiLoiGg ? h('p', { class: 'canh-bao-nho', text: gg.lan_cuoi.ghi_chu }) : null,
     ...khoiGg,
   );
