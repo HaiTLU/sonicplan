@@ -3,6 +3,7 @@
 
 import { goiYViec, NHOM_THEO_SO } from './ai.js';
 import { docCaiDat } from './hop-tin.js';
+import { docLuong } from './luong.js';
 import { docTichHop } from './tich-hop.js';
 import { baoToChuc } from './telegram.js';
 import { congNgay, gioVN, ngayVN } from './tien-ich.js';
@@ -37,33 +38,42 @@ export function dungBanTin(viec, homNay, buoiSang, luuY = '') {
 
 export async function banTinNgay(env, bayGio) {
   const gio = gioVN(bayGio);
-  if (gio !== 8 && gio !== 17) return { bo_qua: true };
   const homNay = ngayVN(bayGio);
   let soBao = 0;
+  let coGio = false;
   for (const tc of await cacToChuc(env)) {
+    const lg = await docLuong(env, tc.id);
+    const sang = gio === lg.nguong.gio_ban_tin;
+    if (!lg.bat['ban-tin'] || (!sang && gio !== lg.nguong.gio_nhac_chieu)) continue;
+    coGio = true;
     const { results } = await env.CSDL.prepare(
       `SELECT tieu_de, han_ngay, gio_hen FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay IS NOT NULL`,
     ).bind(tc.id).all();
     let luuY = '';
-    if (gio === 8) {
+    if (sang) {
       try {
         const pt = JSON.parse((await docCaiDat(env, tc.id, 'phan_tich_cuoi')) || 'null');
         if (pt && Date.parse(bayGio) - Date.parse(pt.luc) < 24 * 3600000) luuY = pt.noi_dung;
       } catch { /* bỏ qua phân tích hỏng */ }
     }
-    const noiDung = dungBanTin(results, homNay, gio === 8, luuY);
+    const noiDung = dungBanTin(results, homNay, sang, luuY);
     if (noiDung && (await baoToChuc(env, tc.id, noiDung))) soBao++;
   }
+  if (!coGio) return { bo_qua: true };
   return { so_muc: soBao, ghi_chu: soBao ? `Gửi bản tin cho ${soBao} tổ chức` : 'Không có việc nào cần nhắc' };
 }
 
 export async function baoCaoTuan(env, bayGio) {
   const thu = new Date(Date.parse(bayGio) + 7 * 3600000).getUTCDay();
-  if (thu !== 1 || gioVN(bayGio) !== 8) return { bo_qua: true };
+  if (thu !== 1) return { bo_qua: true };
   const homNay = ngayVN(bayGio);
   const tuan = new Date(Date.parse(bayGio) - 7 * 86400000).toISOString();
   let soBao = 0;
+  let coGio = false;
   for (const tc of await cacToChuc(env)) {
+    const lg = await docLuong(env, tc.id);
+    if (!lg.bat['bao-cao-tuan'] || gioVN(bayGio) !== lg.nguong.gio_ban_tin) continue;
+    coGio = true;
     const dem = (dieuKien, ...thamSo) =>
       env.CSDL.prepare(`SELECT COUNT(*) AS n FROM viec WHERE to_chuc_id = ?1 AND ${dieuKien}`).bind(tc.id, ...thamSo).first().then((r) => r.n);
     const [xong, mo, qua, tuTin, loiGoiY] = await Promise.all([
@@ -94,23 +104,25 @@ export async function baoCaoTuan(env, bayGio) {
     if (loiGoiY.results.length) dong.push('', `Việc AI không soạn được gợi ý (${loiGoiY.results.length}): ${loiGoiY.results.map((v) => v.tieu_de).join('; ')}`);
     if (await baoToChuc(env, tc.id, dong.join('\n'))) soBao++;
   }
+  if (!coGio) return { bo_qua: true };
   return { so_muc: soBao, ghi_chu: `Gửi báo cáo tuần cho ${soBao} tổ chức` };
 }
 
 const SO_LAN_LOI = (ghiChu) => (String(ghiChu || '').match(/\[Gợi ý: lỗi/g) || []).length;
-const TOI_DA_GOI_Y = 5;
 
 // Mỗi giờ gợi ý tối đa 5 việc mới, mỗi việc một lần. AI lỗi hai lần thì bỏ hẳn việc đó.
 export async function goiYMoi(env, bayGio) {
   let soViec = 0;
   let soLoi = 0;
   for (const tc of await cacToChuc(env)) {
+    const lg = await docLuong(env, tc.id);
+    if (!lg.bat['goi-y']) continue;
     const { results } = await env.CSDL.prepare(
       `SELECT id, tieu_de, han_ngay, ghi_chu FROM viec
        WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND tao_luc >= ?2 AND (ghi_chu IS NULL OR ghi_chu NOT LIKE '%[Gợi ý] Nhóm%')
        ORDER BY id DESC LIMIT 40`,
     ).bind(tc.id, new Date(Date.parse(bayGio) - 60 * 86400000).toISOString()).all();
-    const chon = results.filter((v) => SO_LAN_LOI(v.ghi_chu) < 2).slice(0, TOI_DA_GOI_Y);
+    const chon = results.filter((v) => SO_LAN_LOI(v.ghi_chu) < 2).slice(0, lg.nguong.goi_y_toi_da);
     if (!chon.length) continue;
     const ngoai = await docTichHop(env, tc.id, 'ai');
     for (const v of chon) {

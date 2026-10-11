@@ -2,6 +2,7 @@
 // dữ liệu của phien.to_chuc.id.
 
 import { LOAI_GHI_NHO } from './ghi-nho.js';
+import { docLuong, luuLuong, NGUONG } from './luong.js';
 import { docCaiDat } from './hop-tin.js';
 import { caiBot, layBot, maNoiTelegram } from './telegram.js';
 import { chuanHoaCauHinhAi, dangViecMoi, docTichHop, guiDiaChiNhan, kiemDiaChiNhan, luuTichHop, thuAiNgoai, xoaTichHop } from './tich-hop.js';
@@ -36,6 +37,13 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   if (p === '/api/viec' && m === 'GET') return json(await dsViec(env, tc, url));
   if (p === '/api/viec' && m === 'POST') return taoViec(env, tc, await yeuCau.json().catch(() => ({})));
   if ((khop = p.match(/^\/api\/viec\/(\d+)$/)) && m === 'PATCH') return suaViec(env, tc, Number(khop[1]), await yeuCau.json().catch(() => ({})));
+
+  if (p === '/api/luong' && m === 'GET') return json(await layLuong(env, tc));
+  if (p === '/api/luong' && m === 'PATCH') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức chỉnh được luồng.');
+    const e = await luuLuong(env, tc, await yeuCau.json().catch(() => ({})));
+    return e ? loi(400, e) : json(await layLuong(env, tc));
+  }
 
   if (p === '/api/ghi-nho' && m === 'GET') return json(await dsGhiNho(env, tc, url));
   if (p === '/api/ghi-nho' && m === 'POST') return taoGhiNho(env, tc, await yeuCau.json().catch(() => ({})));
@@ -524,4 +532,28 @@ async function suaGhiNho(env, tc, id, du) {
     throw e;
   }
   return json({ ok: true });
+}
+
+// ---- Luồng: cài đặt từng khâu và số liệu hiện trên sơ đồ ----
+
+async function layLuong(env, tc) {
+  const [lg, dem, ai, webhook] = await Promise.all([
+    docLuong(env, tc),
+    env.CSDL.batch([
+      env.CSDL.prepare(`SELECT COUNT(*) AS n FROM ghi_nho WHERE to_chuc_id = ?1`).bind(tc),
+      env.CSDL.prepare(`SELECT COUNT(*) AS n FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo'`).bind(tc),
+      env.CSDL.prepare(`SELECT COUNT(*) AS n FROM tin_nhan WHERE to_chuc_id = ?1 AND da_tach = 0`).bind(tc),
+      env.CSDL.prepare(`SELECT COUNT(*) AS n FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND gio_hen IS NOT NULL AND han_ngay >= ?2`).bind(tc, ngayVN()),
+    ]),
+    docTichHop(env, tc, 'ai'),
+    docTichHop(env, tc, 'webhook'),
+  ]);
+  const [nho, viec, tinCho, nhac] = dem.map((d) => d.results[0].n);
+  return {
+    ...lg,
+    gioi_han: Object.fromEntries(Object.entries(NGUONG).map(([k, v]) => [k, { min: v.min, max: v.max, mac_dinh: v.mac_dinh }])),
+    so_lieu: { ghi_nho: nho, viec_mo: viec, tin_cho: tinCho, nhac_sap_toi: nhac },
+    ai: ai ? { loai: ai.loai, mo_hinh: ai.mo_hinh } : null,
+    webhook: Boolean(webhook),
+  };
 }

@@ -1,26 +1,25 @@
 // Nhắc việc theo giờ hẹn, chạy mỗi 5 phút: nhắc trước 30 phút và nhắc đúng giờ, mỗi lời một lần.
-// Giờ yên lặng 22h-8h: không gửi, đến 8h các lời nhắc còn trong hạn được gửi gộp một tin.
+// Giờ yên lặng (chỉnh ở trang Luồng): không gửi, hết giờ yên lặng các lời nhắc còn trong hạn được gửi gộp một tin.
 
+import { dangYenLang, docLuong } from './luong.js';
 import { baoToChuc } from './telegram.js';
 import { gioVN, sangUTC } from './tien-ich.js';
 
-const TRUOC_PHUT = 30;
+const TRUOC_PHUT_MAC_DINH = 30;
 const QUA_GIO_TOI_DA = 3; // nhắc "đến giờ" muộn nhất 3 tiếng sau giờ hẹn
 const TOI_DA_MOI_LUOT = 5;
-const TRUOC_MS = TRUOC_PHUT * 60000;
 
 // Quyết định lời nhắc cho một việc tại thời điểm bayGio (ms). Trả 'truoc', 'dung' hoặc null.
-export function loaiNhac(hanNgay, gioHen, bayGio) {
+export function loaiNhac(hanNgay, gioHen, bayGio, truocPhut = TRUOC_PHUT_MAC_DINH) {
   if (!hanNgay || !gioHen) return null;
   const den = sangUTC(hanNgay, gioHen).getTime();
   if (bayGio >= den && bayGio < den + QUA_GIO_TOI_DA * 3600000) return 'dung';
-  if (bayGio >= den - TRUOC_MS && bayGio < den) return 'truoc';
+  if (bayGio >= den - truocPhut * 60000 && bayGio < den) return 'truoc';
   return null;
 }
 
 export async function nhacViec(env, bayGio) {
   const gio = gioVN(bayGio);
-  if (gio >= 22 || gio < 8) return { bo_qua: true };
   const bay = Date.parse(bayGio);
   const { results } = await env.CSDL.prepare(
     `SELECT id, to_chuc_id, tieu_de, han_ngay, gio_hen FROM viec
@@ -29,8 +28,12 @@ export async function nhacViec(env, bayGio) {
   ).bind(new Date(bay - 86400000).toISOString().slice(0, 10), new Date(bay + 86400000).toISOString().slice(0, 10)).all();
 
   const theoToChuc = new Map();
+  const luongTheoToChuc = new Map();
   for (const v of results) {
-    const loai = loaiNhac(v.han_ngay, v.gio_hen, bay);
+    if (!luongTheoToChuc.has(v.to_chuc_id)) luongTheoToChuc.set(v.to_chuc_id, await docLuong(env, v.to_chuc_id));
+    const lg = luongTheoToChuc.get(v.to_chuc_id);
+    if (!lg.bat['nhac-viec'] || dangYenLang(gio, lg.nguong)) continue;
+    const loai = loaiNhac(v.han_ngay, v.gio_hen, bay, lg.nguong.nhac_truoc_phut);
     if (!loai) continue;
     const them = await env.CSDL.prepare('INSERT OR IGNORE INTO nhac_da_gui (viec_id, loai, luc) VALUES (?1, ?2, ?3)').bind(v.id, loai, bayGio).run();
     if (!them.meta.changes) continue; // đã nhắc rồi
