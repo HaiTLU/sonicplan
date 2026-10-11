@@ -56,7 +56,7 @@ export async function chayAiNgoai(cauHinh, messages, { maxTokens = 1500, nhietDo
     const ph = await goiNgoai('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': cauHinh.khoa, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: cauHinh.mo_hinh, max_tokens: maxTokens, temperature: nhietDo, system: he || undefined, messages: hoi }),
+      body: JSON.stringify({ model: cauHinh.mo_hinh, max_tokens: maxTokens, system: he || undefined, messages: hoi }),
     }, { hetGioMs: 60000 });
     const kq = await ph.json().catch(() => ({}));
     if (!ph.ok) throw new Error(loiAi('Claude', ph.status, kq?.error?.message));
