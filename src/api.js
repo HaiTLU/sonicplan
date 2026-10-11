@@ -1,6 +1,7 @@
 // API cho giao diện. Mọi hàm nhận phien (người dùng và tổ chức đã xác định) và chỉ đọc ghi
 // dữ liệu của phien.to_chuc.id.
 
+import { docTongHopCuoi, tongHopChoToChuc } from './tong-hop.js';
 import { docHoSo, LOAI_GHI_NHO, luuHoSo, TOI_DA_HO_SO } from './ghi-nho.js';
 import { coMaNhanViec, goMaNhanViec, taoMaNhanViec } from './nhan-ngoai.js';
 import { docLuong, luuLuong, NGUONG } from './luong.js';
@@ -48,6 +49,10 @@ export async function xuLyApi(yeuCau, env, phien, url) {
     return e ? loi(400, e) : json(await layLuong(env, tc));
   }
 
+  if (p === '/api/tong-hop' && m === 'GET') return json({ cuoi: await docTongHopCuoi(env, tc) });
+  if (p === '/api/tong-hop' && m === 'POST') {
+    try { return json({ cuoi: await tongHopChoToChuc(env, tc) }); } catch (e) { return loi(502, `Chưa tổng hợp được: ${String(e.message || e).slice(0, 150)}`); }
+  }
   if (p === '/api/ho-so' && m === 'GET') return json({ noi_dung: await docHoSo(env, tc), toi_da: TOI_DA_HO_SO });
   if (p === '/api/ho-so' && m === 'PUT') {
     if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức sửa được hồ sơ.');
