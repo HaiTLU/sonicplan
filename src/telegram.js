@@ -1,16 +1,39 @@
-// Báo qua Telegram. Một bot dùng chung cho cả hệ thống (TELEGRAM_BOT_TOKEN là biến bí mật);
-// mỗi tổ chức nối bằng cách bấm đường dẫn t.me/<bot>?start=<mã nối> trong trang Kết nối.
+// Báo qua Telegram. Một bot dùng chung cho cả hệ thống: người quản trị dán mã bot (lấy từ @BotFather)
+// một lần ở trang Kết nối, mã được mã hóa rồi lưu trong D1. Mỗi tổ chức nối bằng cách bấm đường dẫn
+// t.me/<bot>?start=<mã nối> rồi bấm Start.
 
 import { goiNgoai } from './goi-ngoai.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
-import { maNgauNhien } from './tien-ich.js';
+import { giaiMa, maHoa } from './ma-hoa.js';
+import { bam, maNgauNhien } from './tien-ich.js';
 
-export function coTelegram(env) {
-  return Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_BOT_TEN);
+// Thiết lập chung của hệ thống nằm ở cai_dat với to_chuc_id rỗng.
+const HE_THONG = '';
+let botDaLuu = { luc: 0, bot: null };
+
+// Bot đang dùng: { token, ten } hoặc null nếu chưa cài.
+export async function layBot(env) {
+  if (Date.now() - botDaLuu.luc < 60000) return botDaLuu.bot;
+  let bot = null;
+  const banMa = await docCaiDat(env, HE_THONG, 'telegram_bot');
+  if (banMa && env.KHOA_MA_HOA) {
+    try {
+      bot = await giaiMa(banMa, env.KHOA_MA_HOA);
+    } catch (e) {
+      console.error('Không đọc được mã bot Telegram', e);
+    }
+  }
+  botDaLuu = { luc: Date.now(), bot };
+  return bot;
 }
 
-export async function goiBot(env, phuongThuc, duLieu) {
-  const ph = await goiNgoai(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${phuongThuc}`, {
+// Chuỗi bí mật Telegram gửi kèm mỗi lần gọi vào, suy ra từ mã bot nên không phải cất thêm khóa nào.
+export async function biMatWebhook(token) {
+  return (await bam(`sonicplan-webhook:${token}`)).slice(0, 64);
+}
+
+async function goiTelegram(token, phuongThuc, duLieu) {
+  const ph = await goiNgoai(`https://api.telegram.org/bot${token}/${phuongThuc}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(duLieu),
@@ -20,9 +43,27 @@ export async function goiBot(env, phuongThuc, duLieu) {
   return kq.result;
 }
 
+export async function goiBot(env, phuongThuc, duLieu) {
+  const bot = await layBot(env);
+  if (!bot) throw new Error('Chưa cài bot Telegram');
+  return goiTelegram(bot.token, phuongThuc, duLieu);
+}
+
+// Người quản trị dán mã bot: kiểm mã với Telegram, lưu (đã mã hóa), đăng ký địa chỉ nhận tin. Trả tên bot.
+export async function caiBot(env, token, goc) {
+  const ma = String(token || '').trim();
+  if (!/^\d{5,15}:[\w-]{30,}$/.test(ma)) throw new Error('Mã bot không đúng dạng. Chép nguyên dòng mã @BotFather gửi.');
+  if (!env.KHOA_MA_HOA) throw new Error('Hệ thống chưa có khóa mã hóa, liên hệ người quản trị.');
+  const toi = await goiTelegram(ma, 'getMe', {});
+  await goiTelegram(ma, 'setWebhook', { url: `${goc}/nhan/telegram`, secret_token: await biMatWebhook(ma), allowed_updates: ['message'] });
+  await ghiCaiDat(env, HE_THONG, 'telegram_bot', await maHoa({ token: ma, ten: toi.username }, env.KHOA_MA_HOA));
+  botDaLuu = { luc: 0, bot: null };
+  return toi.username;
+}
+
 // Gửi tin cho tổ chức; chưa nối Telegram thì bỏ qua và trả false.
 export async function baoToChuc(env, toChucId, noiDung) {
-  if (!coTelegram(env)) return false;
+  if (!(await layBot(env))) return false;
   const chat = await docCaiDat(env, toChucId, 'telegram_chat_id');
   if (!chat) return false;
   for (let i = 0; i < noiDung.length; i += 3900) {
@@ -60,7 +101,8 @@ export function soPhutTomTat(doiSo) {
 }
 
 export async function nhanWebhook(yeuCau, env, ctx) {
-  if (!env.TELEGRAM_WEBHOOK_SECRET || yeuCau.headers.get('x-telegram-bot-api-secret-token') !== env.TELEGRAM_WEBHOOK_SECRET) {
+  const bot = await layBot(env);
+  if (!bot || yeuCau.headers.get('x-telegram-bot-api-secret-token') !== (await biMatWebhook(bot.token))) {
     return new Response('', { status: 401 });
   }
   const cap = await yeuCau.json().catch(() => ({}));

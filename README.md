@@ -11,7 +11,7 @@ Tiến độ và quyết định: `LO_TRINH.md`. Kế hoạch đầy đủ nằm
 | `wrangler.jsonc` | Cấu hình Worker: trang tĩnh, D1, R2, Workers AI, hẹn giờ, biến |
 | `src/index.js` | Nhận yêu cầu, thư (Email Routing), chạy tác vụ hẹn giờ |
 | `src/api.js` | API cho giao diện: tổng quan, hộp tin, việc, tệp, kết nối |
-| `src/nhan-zalo.js`, `src/nhan-thu.js` | Nhận tin Zalo từ máy Mac và thư chuyển tiếp |
+| `src/nhan-zalo.js`, `src/nhan-thu.js`, `src/doc-thu.js` | Nhận tin Zalo từ máy Mac, thư chuyển tiếp, bộ đọc thư MIME tự viết |
 | `src/hop-tin.js` | Lưu tin, lưu tệp vào R2, cài đặt từng tổ chức |
 | `src/ai.js`, `src/viec.js` | AI tách việc từ tin, chống trùng việc |
 | `src/tac-vu.js` | Báo việc mới, canh Zalo, canh việc mất, dọn cuối ngày, sao lưu |
@@ -54,8 +54,8 @@ Cơ sở dữ liệu D1 `tro-ly-rieng` đã được tạo và dựng bảng ng�
 2. **Bật R2** (kho tệp và bản sao lưu): R2 Object Storage, bấm bật (gói miễn phí 10 GB). Sau đó Claude tạo thùng `sonicplan-tep`.
 3. **Bật Access cho trang.** Zero Trust, Access, Applications, Add, Self-hosted. Tên miền: `plan.sonicrec.app` (Worker tự gắn tên miền này khi triển khai, xem `routes` trong `wrangler.jsonc`). Chính sách: chỉ email của anh. Thêm các ứng dụng cùng tên miền với chính sách **Bypass** cho các đường dẫn máy móc tự gọi (tự kiểm bằng mã riêng): `nhan/*`, `lich/*`, `api/suc-khoe`. Gửi Claude Team domain (dạng `ten-nhom.cloudflareaccess.com`) và Application Audience (AUD) tag để ghi vào `wrangler.jsonc`. Chưa có hai giá trị này thì Worker từ chối mọi yêu cầu.
 4. **Nhận thư.** Cần một tên miền đặt ở Cloudflare. Email, Email Routing, bật cho tên miền, Routing rules, Catch-all: Send to a Worker, chọn `sonicplan`. Gửi Claude tên miền để ghi vào `EMAIL_DOMAIN`. Sau đó trong Gmail đặt chuyển tiếp tới địa chỉ hiện ở trang Kết nối.
-5. **Khóa mã hóa:** `openssl rand -base64 32 | npx wrangler secret put KHOA_MA_HOA`. Không dán khóa vào chat.
-6. **Bot Telegram.** Nhắn @BotFather, `/newbot`, đặt tên. Ghi tên bot (không có @) vào `TELEGRAM_BOT_TEN`. Đặt hai bí mật: `npx wrangler secret put TELEGRAM_BOT_TOKEN` (mã BotFather đưa) và `npx wrangler secret put TELEGRAM_WEBHOOK_SECRET` (chuỗi ngẫu nhiên, ví dụ `openssl rand -hex 24`). Rồi ở trang Kết nối bấm "Đăng ký lại bot" rồi bấm đường dẫn nối Telegram.
-7. **Máy Mac nghe Zalo.** Ở trang Kết nối bấm "Tạo mã cho máy Mac", chép hai dòng vào `~/.zalo-listener/.env` thay hai dòng cũ, rồi khởi động lại chương trình.
+5. **Khóa mã hóa:** `openssl rand -base64 32 | npx wrangler secret put KHOA_MA_HOA` (đã đặt ngày 11/10/2026). Không dán khóa vào chat.
+6. **Bot Telegram.** Nhắn @BotFather, `/newbot`, đặt tên. Người quản trị (email trong `QUAN_TRI`) dán mã bot vào ô ở trang Kết nối, bấm Lưu bot; hệ thống tự đăng ký địa chỉ nhận tin. Sau đó mỗi người bấm Nối Telegram rồi Start.
+7. **Máy Mac nghe Zalo.** Ở trang Kết nối bấm Tạo lệnh, dán lệnh vào Terminal trên máy Mac. Lệnh tự ghi địa chỉ và mã vào `~/.zalo-listener/.env` (giữ bản cũ) rồi khởi động lại chương trình.
 
 Hẹn giờ chạy theo giờ UTC: `0 16 * * *` là 23:00 giờ Việt Nam.

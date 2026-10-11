@@ -700,6 +700,7 @@ async function veTep(goc) {
 // Kết nối
 // =====================================================================
 async function veKetNoi(goc) {
+  const ve = () => veKetNoi(goc).catch((e) => bao(e.message, { loi: true }));
   thay(goc, h('div', { class: 'ds-kn' }, ...[1, 2, 3, 4].map(() => h('div', { class: 'bang the-kn' }, xuong(44, '44px'), xuong(16, '60%'), xuong(80)))));
   const kn = await api('/api/ket-noi');
   const daoTrangThai = (den, chu) => h('span', { class: `trang-thai-kn ${den}`, text: chu });
@@ -707,55 +708,63 @@ async function veKetNoi(goc) {
 
   // Thư
   const theThu = h('section', { class: 'bang the-kn' },
-    dau('thu', 'Thư chuyển tiếp', 'Thư gửi tới địa chỉ riêng của bạn vào thẳng hộp tin, kèm tệp đính kèm.', kn.thu.lan_cuoi ? 'xanh' : kn.thu.dia_chi ? 'vang' : 'xam', kn.thu.lan_cuoi ? `Thư cuối ${luc(kn.thu.lan_cuoi.lan_cuoi)}` : kn.thu.dia_chi ? 'Chờ thư đầu tiên' : 'Chưa bật'),
+    dau('thu', 'Thư Gmail', 'Thư mới trong Gmail tự về hộp tin, kèm tệp đính kèm.', kn.thu.lan_cuoi ? 'xanh' : kn.thu.dia_chi ? 'vang' : 'xam', kn.thu.lan_cuoi ? `Thư cuối ${luc(kn.thu.lan_cuoi.lan_cuoi)}` : kn.thu.xac_nhan ? 'Chờ bấm xác nhận' : kn.thu.dia_chi ? 'Chưa nối' : 'Chưa bật'),
   );
+  if (kn.thu.xac_nhan) {
+    const xn = kn.thu.xac_nhan;
+    theThu.append(
+      h('p', { text: `Gmail ${xn.tu || ''} vừa xin chuyển thư về đây. Bấm nút để đồng ý${xn.ma ? ` (mã ${xn.ma})` : ''}, rồi làm bước 3 bên dưới.` }),
+      h('div', { class: 'hang-nut' }, xn.duong_dan ? h('a', { class: 'nut nut-chinh', href: xn.duong_dan, target: '_blank', rel: 'noopener' }, icon('thu'), 'Xác nhận chuyển thư') : oChep(xn.ma || '')),
+    );
+  }
   if (kn.thu.dia_chi) {
     theThu.append(oChep(kn.thu.dia_chi), h('ol', { class: 'buoc' },
-      h('li', {}, 'Trong Gmail, mở Cài đặt, Chuyển tiếp và POP/IMAP, bấm Thêm địa chỉ chuyển tiếp, dán địa chỉ trên.'),
-      h('li', {}, 'Gmail gửi thư xác nhận tới địa chỉ đó. Thư sẽ hiện ở Hộp tin sau vài giây; mở thư, bấm đường dẫn xác nhận.'),
-      h('li', {}, 'Chọn Chuyển tiếp bản sao thư đến, lưu lại. Từ giờ mọi thư mới cũng về Sonicplan.'),
+      h('li', {}, 'Bấm nút Mở cài đặt Gmail, chọn Thêm địa chỉ chuyển tiếp, dán địa chỉ trên.'),
+      h('li', {}, 'Quay lại trang này, nút Xác nhận chuyển thư sẽ hiện sau vài giây. Bấm nút đó.'),
+      h('li', {}, 'Trong cài đặt Gmail, chọn Chuyển tiếp bản sao thư đến địa chỉ trên, bấm Lưu thay đổi.'),
+    ), h('div', { class: 'hang-nut' },
+      h('a', { class: 'nut nut-phu', href: 'https://mail.google.com/mail/u/0/#settings/fwdandpop', target: '_blank', rel: 'noopener' }, icon('thu'), 'Mở cài đặt Gmail'),
+      h('button', { class: 'nut nut-phu', type: 'button', onclick: () => ve() }, icon('lap'), 'Kiểm tra lại'),
     ));
   } else {
-    theThu.append(h('p', { class: 'canh-bao-nho', text: 'Hệ thống chưa có tên miền nhận thư. Người quản trị đặt EMAIL_DOMAIN và bật Email Routing (README bước 4).' }));
+    theThu.append(h('p', { class: 'canh-bao-nho', text: 'Hệ thống đang chuẩn bị địa chỉ nhận thư.' }));
   }
 
   // Zalo
-  const oKhoaZalo = h('div');
+  const oLenhZalo = h('div');
   const theZalo = h('section', { class: 'bang the-kn' },
-    dau('zalo', 'Tin Zalo từ máy Mac', 'Chương trình trên máy Mac đọc tin Zalo cá nhân rồi gửi về theo lô.',
+    dau('zalo', 'Zalo trên máy Mac', 'Tin và tệp Zalo cá nhân tự về hộp tin.',
       !kn.zalo.khoa ? 'xam' : !kn.zalo.lan_cuoi ? 'vang' : Date.now() - Date.parse(kn.zalo.lan_cuoi.lan_cuoi) > 6 * 3600000 ? 'do' : 'xanh',
       !kn.zalo.khoa ? 'Chưa nối' : !kn.zalo.lan_cuoi ? 'Chờ máy Mac' : `Tín hiệu ${luc(kn.zalo.lan_cuoi.lan_cuoi)}`),
     h('ol', { class: 'buoc' },
-      h('li', {}, 'Bấm Tạo mã cho máy Mac. Mã chỉ hiện một lần; tạo mã mới thì mã cũ hết hiệu lực.'),
-      h('li', {}, 'Trên máy Mac, mở tệp ~/.zalo-listener/.env, thay hai dòng N8N_WEBHOOK_URL và N8N_HEADER_VALUE bằng hai dòng hiện ra.'),
-      h('li', {}, 'Khởi động lại chương trình nghe Zalo trên máy Mac, hoặc khởi động lại máy.'),
+      h('li', {}, 'Bấm Tạo lệnh, rồi bấm nút chép.'),
+      h('li', {}, 'Trên máy Mac, mở ứng dụng Terminal, dán lệnh, nhấn Enter.'),
     ),
-    oKhoaZalo,
-    h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => {
-      if (kn.zalo.khoa && !confirm('Tạo mã mới sẽ làm mã đang dùng trên máy Mac hết hiệu lực. Tiếp tục?')) return;
+    oLenhZalo,
+    h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-chinh', type: 'button', onclick: async () => {
+      if (kn.zalo.khoa && !confirm('Tạo lệnh mới thì máy Mac đang nối sẽ ngừng gửi cho đến khi chạy lệnh mới. Tiếp tục?')) return;
       try {
         const kq = await api('/api/ket-noi/zalo', { method: 'POST' });
-        thay(oKhoaZalo, oChep(`N8N_WEBHOOK_URL=${kq.dia_chi}\nN8N_HEADER_VALUE=${kq.khoa}`, { lo: true }), h('p', { class: 'canh-bao-nho', style: 'margin-top:10px', text: 'Chép ngay, mã này sẽ không hiện lại.' }));
+        thay(oLenhZalo, oChep(kq.lenh, { lo: true }), h('p', { class: 'canh-bao-nho', style: 'margin-top:10px', text: 'Lệnh này chỉ hiện một lần, đừng gửi cho người khác.' }));
       } catch (e) { bao(e.message, { loi: true }); }
-    } }, icon('lap'), kn.zalo.khoa ? 'Tạo mã mới' : 'Tạo mã cho máy Mac')),
+    } }, icon('lap'), kn.zalo.khoa ? 'Tạo lệnh mới' : 'Tạo lệnh')),
   );
 
   // Lịch
   const oLich = h('div');
   const theLich = h('section', { class: 'bang the-kn' },
-    dau('lich', 'Lịch', 'Việc có hạn hiện trên Google Calendar, Apple Calendar hay Outlook, tự cập nhật mỗi vài giờ.', kn.lich.khoa ? 'xanh' : 'xam', kn.lich.khoa ? (kn.lich.khoa.dung_luc ? `Đọc ${luc(kn.lich.khoa.dung_luc)}` : 'Chờ lịch đọc') : 'Chưa tạo'),
-    h('ol', { class: 'buoc' },
-      h('li', {}, 'Bấm Tạo đường dẫn lịch rồi chép đường dẫn.'),
-      h('li', {}, 'Google Calendar trên máy tính: Lịch khác, dấu +, Từ URL, dán đường dẫn.'),
-    ),
+    dau('lich', 'Lịch', 'Việc có hạn hiện trên Google Lịch (hoặc lịch iPhone, Outlook), tự cập nhật.', kn.lich.khoa ? 'xanh' : 'xam', kn.lich.khoa ? (kn.lich.khoa.dung_luc ? `Đọc ${luc(kn.lich.khoa.dung_luc)}` : 'Chờ lịch đọc') : 'Chưa nối'),
     oLich,
-    h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => {
-      if (kn.lich.khoa && !confirm('Tạo đường dẫn mới thì đường dẫn cũ ngừng chạy, phải thêm lại vào lịch. Tiếp tục?')) return;
+    h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-chinh', type: 'button', onclick: async () => {
+      if (kn.lich.khoa && !confirm('Nối lại thì lịch cũ ngừng cập nhật, phải thêm lại vào Google Lịch. Tiếp tục?')) return;
       try {
         const kq = await api('/api/ket-noi/lich', { method: 'POST' });
-        thay(oLich, oChep(kq.duong_dan), h('p', { class: 'canh-bao-nho', style: 'margin-top:10px', text: 'Ai có đường dẫn này cũng xem được việc của bạn, đừng gửi cho người khác.' }));
+        thay(oLich,
+          h('div', { class: 'hang-nut' }, h('a', { class: 'nut nut-chinh', href: kq.google, target: '_blank', rel: 'noopener' }, icon('lich'), 'Thêm vào Google Lịch')),
+          h('p', { class: 'canh-bao-nho', style: 'margin-top:10px', text: 'Lịch khác (iPhone, Outlook): chép đường dẫn dưới rồi thêm lịch theo đường dẫn.' }),
+          oChep(kq.duong_dan));
       } catch (e) { bao(e.message, { loi: true }); }
-    } }, icon('lich'), kn.lich.khoa ? 'Tạo đường dẫn mới' : 'Tạo đường dẫn lịch')),
+    } }, icon('lich'), kn.lich.khoa ? 'Nối lại' : 'Nối lịch')),
   );
 
   // Telegram
@@ -764,14 +773,27 @@ async function veKetNoi(goc) {
   );
   if (kn.telegram.co_bot) {
     theTele.append(
-      h('ol', { class: 'buoc' }, h('li', {}, 'Bấm nút dưới, Telegram mở ra cuộc trò chuyện với bot.'), h('li', {}, 'Bấm Start. Bot trả lời "Đã nối" là xong.')),
+      h('ol', { class: 'buoc' }, h('li', {}, 'Bấm Nối Telegram, Telegram mở ra.'), h('li', {}, 'Bấm Start. Bot trả lời "Đã nối" là xong.')),
       h('div', { class: 'hang-nut' },
         h('a', { class: 'nut nut-chinh', href: kn.telegram.duong_dan, target: '_blank', rel: 'noopener' }, icon('telegram'), kn.telegram.da_noi ? 'Nối lại Telegram' : 'Nối Telegram'),
-        trang.toi?.to_chuc?.vai_tro === 'chu' ? h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { try { await api('/api/ket-noi/telegram/dang-ky', { method: 'POST' }); bao('Đã đăng ký địa chỉ nhận tin cho bot.'); } catch (e) { bao(e.message, { loi: true }); } } }, 'Đăng ký lại bot') : null,
+        h('button', { class: 'nut nut-phu', type: 'button', onclick: () => ve() }, icon('lap'), 'Kiểm tra lại'),
       ),
     );
-  } else {
-    theTele.append(h('p', { class: 'canh-bao-nho', text: 'Người quản trị cần tạo bot với @BotFather rồi đặt TELEGRAM_BOT_TEN và TELEGRAM_BOT_TOKEN (README bước 6).' }));
+  }
+  if (kn.telegram.quan_tri) {
+    const oMa = h('input', { type: 'password', placeholder: 'Dán mã bot @BotFather gửi', autocomplete: 'off', 'aria-label': 'Mã bot Telegram', style: 'flex:1;min-width:0' });
+    theTele.append(
+      h('p', { class: 'canh-bao-nho', style: 'margin-top:12px', text: kn.telegram.co_bot ? `Bot chung đang dùng: @${kn.telegram.ten_bot}. Dán mã khác nếu muốn đổi bot.` : 'Cài bot chung một lần: trong Telegram nhắn @BotFather, gõ /newbot, đặt tên, rồi dán mã nó gửi vào ô dưới.' }),
+      h('div', { class: 'hang-nut' }, oMa, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => {
+        try {
+          const kq = await api('/api/ket-noi/telegram/bot', { method: 'POST', body: JSON.stringify({ token: oMa.value }) });
+          bao(`Đã cài bot @${kq.ten}.`);
+          ve();
+        } catch (e) { bao(e.message, { loi: true }); }
+      } }, 'Lưu bot')),
+    );
+  } else if (!kn.telegram.co_bot) {
+    theTele.append(h('p', { class: 'canh-bao-nho', text: 'Hệ thống đang chuẩn bị bot Telegram.' }));
   }
 
   const theNen = h('section', { class: 'bang the-kn rong' },
