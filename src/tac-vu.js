@@ -5,7 +5,7 @@ import { banTinNgay, baoCaoTuan, cacToChuc, goiYMoi, gioDayDuVN } from './ban-ti
 import { dongBoGoogle } from './google.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { nhacViec } from './nhac-viec.js';
-import { baoToChuc } from './telegram.js';
+import { bamNutDuocChua, baoToChuc } from './telegram.js';
 import { cat, congNgay, gioVN, ngayVN } from './tien-ich.js';
 import { tachViecChoToChuc } from './viec.js';
 
@@ -16,6 +16,8 @@ export const CAC_TAC_VU = {
       `INSERT INTO tin_hieu (to_chuc_id, nguon, lan_cuoi, ghi_chu) VALUES ('', 'hen-gio', ?1, 'Tự kiểm mỗi giờ')
        ON CONFLICT (to_chuc_id, nguon) DO UPDATE SET lan_cuoi = excluded.lan_cuoi`,
     ).bind(bayGio).run();
+    // Bảo đảm Telegram gửi cả lượt bấm nút (đăng ký lại một lần sau khi nâng cấp); lỗi thì bỏ qua.
+    await bamNutDuocChua(env).catch((e) => console.error('Đăng ký nút Telegram lỗi', e));
     return { so_muc: 1, ghi_chu: 'Hẹn giờ chạy bình thường' };
   },
 
