@@ -5,7 +5,7 @@
 import { goiNgoai } from './goi-ngoai.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { giaiMa, maHoa } from './ma-hoa.js';
-import { bam, maNgauNhien } from './tien-ich.js';
+import { bam, maNgauNhien, ngayVN, sangUTC } from './tien-ich.js';
 
 // Thiết lập chung của hệ thống nằm ở cai_dat với to_chuc_id rỗng.
 const HE_THONG = '';
@@ -134,18 +134,28 @@ export async function nhanWebhook(yeuCau, env, ctx) {
     return new Response('ok');
   }
 
-  if (lenh === 'tomtat') {
-    const phut = soPhutTomTat(doiSo);
-    const tu = new Date(Date.now() - phut * 60000).toISOString();
-    const nhan = phut % 60 === 0 ? `${phut / 60} giờ qua` : `${phut} phút qua`;
+  if (lenh === 'tomtat' || lenh === 'tomtat24') {
+    // /tomtat24: 24 giờ qua. /tomtat không kèm gì: từ 0h hôm nay. /tomtat 3h hoặc 30p: theo số đã nêu.
+    let tu, nhan;
+    if (lenh === 'tomtat24') {
+      tu = new Date(Date.now() - 24 * 3600000).toISOString();
+      nhan = '24 giờ qua';
+    } else if (!doiSo) {
+      tu = sangUTC(ngayVN(), '00:00').toISOString();
+      nhan = 'từ 0h hôm nay';
+    } else {
+      const phut = soPhutTomTat(doiSo);
+      tu = new Date(Date.now() - phut * 60000).toISOString();
+      nhan = phut % 60 === 0 ? `${phut / 60} giờ qua` : `${phut} phút qua`;
+    }
     await env.CSDL.prepare(
       `INSERT INTO lenh_cho (to_chuc_id, lenh, tu_luc, nhan, tao_luc) VALUES (?1, 'tomtat', ?2, ?3, ?4)
        ON CONFLICT (to_chuc_id) DO UPDATE SET lenh = excluded.lenh, tu_luc = excluded.tu_luc, nhan = excluded.nhan, tao_luc = excluded.tao_luc`,
     ).bind(toChuc.to_chuc_id, tu, nhan, new Date().toISOString()).run();
-    tra(`Đang lấy tin Zalo ${nhan} từ máy Mac, có tóm tắt trong vài phút.`);
+    tra(`Đang lấy tin Zalo ${nhan}, khoảng 1-2 phút nữa có bản tóm tắt.`);
     return new Response('ok');
   }
 
-  tra('Lệnh dùng được: /tomtat 3h (tóm tắt tin Zalo 3 giờ qua).');
+  tra('Lệnh có thể dùng:\n/tomtat - tóm tắt tin Zalo từ 0h hôm nay\n/tomtat24 - tóm tắt 24 giờ qua\n/tomtat 3h - tóm tắt 3 giờ qua');
   return new Response('ok');
 }

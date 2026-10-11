@@ -6,7 +6,7 @@ import { tacVuTheoLich } from './lich-chay.js';
 import { nhanThu } from './nhan-thu.js';
 import { lenhCaiZalo, nhanZalo, toChucTheoKhoa } from './nhan-zalo.js';
 import { xacDinhPhien } from './phien.js';
-import { CAC_TAC_VU } from './tac-vu.js';
+import { baoLoiTacVu, CAC_TAC_VU } from './tac-vu.js';
 import { nhanWebhook } from './telegram.js';
 import { bam, json, loi } from './tien-ich.js';
 
@@ -76,10 +76,16 @@ export async function chayTacVu(env, tv, bayGio = new Date().toISOString()) {
   const id = meta.last_row_id;
   try {
     const kq = await lam(env, bayGio);
+    if (kq.bo_qua) {
+      // Chưa đến giờ của tác vụ: không ghi nhật ký.
+      await env.CSDL.prepare('DELETE FROM nhat_ky_chay WHERE id = ?1').bind(id).run();
+      return;
+    }
     await ghiKetQua(env, id, 'xong', kq.so_muc, kq.ghi_chu);
   } catch (e) {
     console.error('Tác vụ lỗi', tv.ma, e);
     await ghiKetQua(env, id, 'loi', 0, String(e.message || e).slice(0, 500));
+    await baoLoiTacVu(env, tv, bayGio, e.message || e).catch((e2) => console.error('Báo lỗi tác vụ lỗi', e2));
   }
 }
 

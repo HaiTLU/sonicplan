@@ -63,6 +63,8 @@ export async function nhanThu(thu, env, ctx) {
   for (const tep of docThu.attachments || []) {
     const kichThuoc = tep.content?.byteLength ?? 0;
     if (!kichThuoc || kichThuoc > TEP_TOI_DA) continue;
+    // Bỏ âm thanh, video và lời mời lịch (.ics): không có gì để lưu trữ hay đọc.
+    if (/^(audio|video)\//.test(tep.mimeType) || tep.mimeType === 'text/calendar' || /\.ics$/i.test(tep.filename || '')) continue;
     // Bỏ ảnh nhúng trong thân thư (logo, chữ ký), chỉ giữ tệp đính kèm thật.
     if (tep.disposition === 'inline' && /^image\//.test(tep.mimeType) && kichThuoc < 100 * 1024) continue;
     await luuTep(env, toChuc.id, {
