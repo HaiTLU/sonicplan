@@ -4,6 +4,9 @@ import { cat } from './tien-ich.js';
 
 export const TEP_TOI_DA = 25 * 1024 * 1024;
 
+// Gói miễn phí của R2 là 10 GB mỗi tháng. Chặn ở 9 GB để chừa chỗ cho bản sao lưu và sai số đếm.
+export const KHO_TOI_DA = 9 * 1000 * 1000 * 1000;
+
 // Ghi một tin; tin trùng mã gốc trong cùng tổ chức thì bỏ qua. Trả id tin mới hoặc null nếu trùng.
 export async function luuTin(env, toChucId, tin) {
   const bayGio = new Date().toISOString();
@@ -27,7 +30,13 @@ export async function luuTin(env, toChucId, tin) {
 }
 
 // Lưu tệp vào R2 và ghi một dòng vào bảng tep. duLieu là ArrayBuffer, Uint8Array hoặc ReadableStream.
+// Trả id dòng mới, hoặc null khi kho đã đầy (tin nhắn chữ vẫn được lưu, chỉ bỏ tệp).
 export async function luuTep(env, toChucId, tep) {
+  const daDung = (await env.CSDL.prepare('SELECT COALESCE(SUM(kich_thuoc), 0) AS tong FROM tep').first())?.tong ?? 0;
+  if (daDung + (tep.kich_thuoc ?? TEP_TOI_DA) > KHO_TOI_DA) {
+    console.warn(`Kho tệp đã dùng ${daDung} byte, chạm mức ${KHO_TOI_DA}, bỏ tệp ${tep.ten}`);
+    return null;
+  }
   const bayGio = new Date();
   const tenAnToan = String(tep.ten || 'tep').replace(/[\\/\u0000-\u001f]/g, '_').slice(-150);
   const khoa = `${toChucId}/${bayGio.toISOString().slice(0, 7)}/${crypto.randomUUID()}-${tenAnToan}`;
