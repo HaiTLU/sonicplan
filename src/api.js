@@ -2,7 +2,7 @@
 // dữ liệu của phien.to_chuc.id.
 
 import { docCaiDat } from './hop-tin.js';
-import { coTelegram, goiBot, maNoiTelegram } from './telegram.js';
+import { caiBot, layBot, maNoiTelegram } from './telegram.js';
 import { bam, cat, json, loi, maNgauNhien, ngayVN } from './tien-ich.js';
 import { tinhTinhTrang } from './tinh-trang.js';
 import { themViec } from './viec.js';
@@ -35,13 +35,16 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   if (p === '/api/tep' && m === 'GET') return json(await dsTep(env, tc, url));
   if ((khop = p.match(/^\/api\/tep\/(\d+)\/tai$/)) && m === 'GET') return taiTep(env, tc, Number(khop[1]));
 
-  if (p === '/api/ket-noi' && m === 'GET') return json(await layKetNoi(env, tc, url));
+  if (p === '/api/ket-noi' && m === 'GET') return json(await layKetNoi(env, tc, url, phien));
   if ((khop = p.match(/^\/api\/ket-noi\/(zalo|lich)$/)) && m === 'POST') return taoKhoa(env, tc, khop[1], url);
-  if (p === '/api/ket-noi/telegram/dang-ky' && m === 'POST') {
-    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
-    if (!coTelegram(env) || !env.TELEGRAM_WEBHOOK_SECRET) return loi(400, 'Chưa cài bot Telegram cho hệ thống (xem README).');
-    await goiBot(env, 'setWebhook', { url: `${url.origin}/nhan/telegram`, secret_token: env.TELEGRAM_WEBHOOK_SECRET, allowed_updates: ['message'] });
-    return json({ ok: true });
+  if (p === '/api/ket-noi/telegram/bot' && m === 'POST') {
+    if (!laQuanTri(env, phien)) return loi(403, 'Chỉ người quản trị hệ thống cài được bot.');
+    const { token } = await yeuCau.json().catch(() => ({}));
+    try {
+      return json({ ten: await caiBot(env, token, url.origin) });
+    } catch (e) {
+      return loi(400, e.message);
+    }
   }
 
   return loi(404, 'Không có chức năng này.');
@@ -287,7 +290,12 @@ async function taiTep(env, tc, id) {
 
 // ---- Kết nối ----
 
-async function layKetNoi(env, tc, url) {
+// Người quản trị hệ thống (cài bot chung...): danh sách email trong biến QUAN_TRI, cách nhau dấu phẩy.
+function laQuanTri(env, phien) {
+  return String(env.QUAN_TRI || '').toLowerCase().split(',').map((x) => x.trim()).includes(phien.email);
+}
+
+async function layKetNoi(env, tc, url, phien) {
   const [toChuc, khoa, tinHieu] = await env.CSDL.batch([
     env.CSDL.prepare('SELECT ma_nhan FROM to_chuc WHERE id = ?1').bind(tc),
     env.CSDL.prepare('SELECT loai, tao_luc, dung_luc FROM khoa_truy_cap WHERE to_chuc_id = ?1 ORDER BY tao_luc DESC').bind(tc),
@@ -297,15 +305,24 @@ async function layKetNoi(env, tc, url) {
   const khoaTheo = (loai) => khoa.results.find((k) => k.loai === loai) || null;
   const th = Object.fromEntries(tinHieu.results.map((t) => [t.nguon, t]));
   const chat = await docCaiDat(env, tc, 'telegram_chat_id');
+  const bot = await layBot(env);
+  let xacNhan = null;
+  try {
+    xacNhan = JSON.parse((await docCaiDat(env, tc, 'gmail_xac_nhan')) || 'null');
+  } catch {}
+  // Đã có thư thật về sau lần xác nhận thì không cần hiện nút xác nhận nữa.
+  if (xacNhan && th.thu && th.thu.lan_cuoi > xacNhan.luc) xacNhan = null;
   return {
     goc: url.origin,
-    thu: { dia_chi: env.EMAIL_DOMAIN && maNhan ? `${maNhan}@${env.EMAIL_DOMAIN}` : null, lan_cuoi: th.thu || null },
+    thu: { dia_chi: env.EMAIL_DOMAIN && maNhan ? `${maNhan}@${env.EMAIL_DOMAIN}` : null, lan_cuoi: th.thu || null, xac_nhan: xacNhan },
     zalo: { khoa: khoaTheo('zalo'), lan_cuoi: th.zalo || null },
     lich: { khoa: khoaTheo('lich') },
     telegram: {
-      co_bot: coTelegram(env),
+      co_bot: Boolean(bot),
+      ten_bot: bot?.ten || null,
+      quan_tri: laQuanTri(env, phien),
       da_noi: Boolean(chat),
-      duong_dan: coTelegram(env) ? `https://t.me/${env.TELEGRAM_BOT_TEN}?start=${await maNoiTelegram(env, tc)}` : null,
+      duong_dan: bot ? `https://t.me/${bot.ten}?start=${await maNoiTelegram(env, tc)}` : null,
       lan_cuoi: th.telegram || null,
     },
     ai: { co: Boolean(env.AI) },
@@ -320,6 +337,9 @@ async function taoKhoa(env, tc, loai, url) {
     env.CSDL.prepare('DELETE FROM khoa_truy_cap WHERE to_chuc_id = ?1 AND loai = ?2').bind(tc, loai),
     env.CSDL.prepare('INSERT INTO khoa_truy_cap (ma_bam, to_chuc_id, loai, tao_luc) VALUES (?1, ?2, ?3, ?4)').bind(await bam(khoa), tc, loai, new Date().toISOString()),
   ]);
-  if (loai === 'lich') return json({ duong_dan: `${url.origin}/lich/${khoa}.ics` });
-  return json({ khoa, dia_chi: `${url.origin}/nhan/zalo-tong-hop` });
+  if (loai === 'lich') {
+    const duongDan = `${url.origin}/lich/${khoa}.ics`;
+    return json({ duong_dan: duongDan, google: `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(duongDan.replace(/^https:/, 'webcal:'))}` });
+  }
+  return json({ lenh: `curl -fsSL ${url.origin}/nhan/zalo-cai/${khoa} | bash` });
 }

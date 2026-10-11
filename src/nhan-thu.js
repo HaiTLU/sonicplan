@@ -1,8 +1,8 @@
 // Nhận thư qua Cloudflare Email Routing. Mỗi tổ chức có một địa chỉ <ma_nhan>@<EMAIL_DOMAIN>;
 // người dùng cài chuyển tiếp thư từ Gmail (hay hộp thư khác) về địa chỉ đó. Không cần xin quyền đọc Gmail.
 
-import PostalMime from 'postal-mime';
-import { ghiTinHieu, luuTep, luuTin, TEP_TOI_DA } from './hop-tin.js';
+import { docThu as docThuTho } from './doc-thu.js';
+import { ghiCaiDat, ghiTinHieu, luuTep, luuTin, TEP_TOI_DA } from './hop-tin.js';
 import { tachViecChoToChuc } from './viec.js';
 
 export function maNhanTuDiaChi(diaChi, mien) {
@@ -28,6 +28,18 @@ export function chuTuHtml(html) {
     .trim();
 }
 
+// Thư Gmail gửi khi người dùng thêm địa chỉ chuyển tiếp: lấy mã và đường dẫn xác nhận
+// để trang Kết nối hiện nút bấm, người dùng không phải tìm thư.
+export function xacNhanGmail(docThu) {
+  if (docThu.from?.address !== 'forwarding-noreply@google.com') return null;
+  const chu = `${docThu.subject || ''}\n${docThu.text || chuTuHtml(docThu.html)}`;
+  const ma = chu.match(/\(#(\d{6,12})\)/)?.[1] || chu.match(/(?:code|mã)[^0-9]{0,30}(\d{6,12})/i)?.[1] || null;
+  const duongDan = `${docThu.text || ''}\n${docThu.html || ''}`.match(/https:\/\/(?:mail-settings\.google\.com|mail\.google\.com)\/mail\/[^\s"'<>]*vf-[^\s"'<>]+/)?.[0] || null;
+  const tu = chu.match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g)?.find((e) => !/google\.com$/i.test(e)) || null;
+  if (!ma && !duongDan) return null;
+  return { ma, duong_dan: duongDan ? duongDan.replace(/&amp;/g, '&') : null, tu };
+}
+
 export async function nhanThu(thu, env, ctx) {
   const maNhan = maNhanTuDiaChi(thu.to, env.EMAIL_DOMAIN);
   const toChuc = maNhan && (await env.CSDL.prepare('SELECT id FROM to_chuc WHERE ma_nhan = ?1').bind(maNhan).first());
@@ -35,7 +47,9 @@ export async function nhanThu(thu, env, ctx) {
     thu.setReject('Không có hộp thư này.');
     return;
   }
-  const docThu = await PostalMime.parse(thu.raw);
+  const docThu = await docThuTho(thu.raw);
+  const xacNhan = xacNhanGmail(docThu);
+  if (xacNhan) await ghiCaiDat(env, toChuc.id, 'gmail_xac_nhan', JSON.stringify({ ...xacNhan, luc: new Date().toISOString() }));
   const nguoiGui = docThu.from?.name ? `${docThu.from.name} <${docThu.from.address}>` : docThu.from?.address || thu.from;
   const tinId = await luuTin(env, toChuc.id, {
     nguon: 'gmail',
@@ -61,6 +75,7 @@ export async function nhanThu(thu, env, ctx) {
       tin_nhan_id: tinId,
     });
   }
+  if (xacNhan) return; // thư xác nhận chưa phải thư thật, chưa tính là đã nối
   await ghiTinHieu(env, toChuc.id, 'thu', `Thư từ ${docThu.from?.address || thu.from}`);
   ctx.waitUntil(tachViecChoToChuc(env, toChuc.id).catch((e) => console.error('Tách việc lỗi', e)));
 }

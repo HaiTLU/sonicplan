@@ -8,8 +8,7 @@ tên miền riêng và tắt địa chỉ workers.dev. Có mạng npm thì dùng
 Cần biến môi trường CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID.
 Chạy: python3 scripts/trien-khai.py
 
-Giới hạn: gói postal-mime (đọc thư Email Routing) không đóng gói được theo cách này nên
-được thay bằng bản tạm báo lỗi; khi bật nhận thư (EMAIL_DOMAIN) phải triển khai bằng wrangler.
+Mã trong src/ không được import gói npm: cách này tải từng tệp, không đóng gói.
 """
 
 import base64
@@ -27,15 +26,6 @@ GOC = pathlib.Path(__file__).resolve().parent.parent
 API = 'https://api.cloudflare.com/client/v4'
 TK = os.environ['CLOUDFLARE_ACCOUNT_ID']
 DAU = {'Authorization': f"Bearer {os.environ['CLOUDFLARE_API_TOKEN']}"}
-
-BAN_TAM_POSTAL_MIME = """// Bản tạm: triển khai bằng scripts/trien-khai.py không đóng gói được postal-mime.
-export default {
-  parse() {
-    throw new Error('Chưa có bộ đọc thư: triển khai bằng npx wrangler deploy để bật nhận thư.');
-  },
-};
-"""
-
 
 def bo_chu_thich(chu):
     """Bỏ chú thích // và /* */ ngoài chuỗi trong JSONC."""
@@ -131,10 +121,9 @@ def main():
     phan = [('metadata', (None, json.dumps(meta), 'application/json'))]
     for p in sorted(thu_muc_ma.glob('*.js')):
         ma = p.read_text()
-        if "from 'postal-mime'" in ma:
-            ma = ma.replace("from 'postal-mime'", "from './postal-mime-tam.js'")
+        if re.search(r"""from\s+['"][^./]""", ma):
+            sys.exit(f'{p.name} import gói npm, không tải từng tệp được')
         phan.append((p.name, (p.name, ma, 'application/javascript+module')))
-    phan.append(('postal-mime-tam.js', ('postal-mime-tam.js', BAN_TAM_POSTAL_MIME, 'application/javascript+module')))
     kq = goi('PUT', f'/accounts/{TK}/workers/scripts/{ten}', files=phan)
     print(f'Mã Worker: đã tải ({kq.get("etag", "")[:12]})')
 

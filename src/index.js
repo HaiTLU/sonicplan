@@ -4,7 +4,7 @@ import { xuLyApi } from './api.js';
 import { taoIcs } from './lich-ics.js';
 import { tacVuTheoLich } from './lich-chay.js';
 import { nhanThu } from './nhan-thu.js';
-import { nhanZalo, toChucTheoKhoa } from './nhan-zalo.js';
+import { lenhCaiZalo, nhanZalo, toChucTheoKhoa } from './nhan-zalo.js';
 import { xacDinhPhien } from './phien.js';
 import { CAC_TAC_VU } from './tac-vu.js';
 import { nhanWebhook } from './telegram.js';
@@ -17,6 +17,8 @@ export default {
       if (url.pathname === '/api/suc-khoe') return json({ ok: true });
 
       // Địa chỉ cho máy móc gọi vào, tự kiểm bằng mã riêng, không qua đăng nhập Access.
+      const cai = url.pathname.match(/^\/nhan\/zalo-cai\/([^/]+)$/);
+      if (cai && yeuCau.method === 'GET') return lenhCaiZalo(env, cai[1], url);
       if (url.pathname.startsWith('/nhan/zalo-')) return nhanZalo(yeuCau, env, ctx, url.pathname);
       if (url.pathname === '/nhan/telegram' && yeuCau.method === 'POST') return nhanWebhook(yeuCau, env, ctx);
       const lich = url.pathname.match(/^\/lich\/([a-z0-9]{20,64})\.ics$/);

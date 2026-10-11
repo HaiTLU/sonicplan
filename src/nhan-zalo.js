@@ -109,3 +109,38 @@ export async function nhanZalo(yeuCau, env, ctx, duongDan) {
 
   return loi(404, 'Không có địa chỉ này.');
 }
+
+// Lệnh cài một dòng hiện ở trang Kết nối: curl -fsSL <gốc>/nhan/zalo-cai/<mã> | bash
+// Trả một đoạn lệnh trỏ chương trình đọc Zalo trên Mac về Sonicplan rồi khởi động lại nó.
+// Chỉ trả khi mã đúng, vì đoạn lệnh có chứa mã.
+export async function lenhCaiZalo(env, khoa, url) {
+  if (!/^[a-z0-9]{20,64}$/.test(khoa) || !(await toChucTheoKhoa(env, khoa, 'zalo'))) {
+    return new Response('echo "Mã không đúng hoặc đã thay. Mở trang Kết nối của Sonicplan và bấm Tạo lệnh mới."; exit 1\n', {
+      status: 404,
+      headers: { 'content-type': 'text/plain; charset=utf-8' },
+    });
+  }
+  const diaChi = `${url.origin}/nhan/zalo-tong-hop`;
+  const lenh = `#!/bin/bash
+# Nối chương trình đọc Zalo trên máy Mac với Sonicplan.
+set -e
+THU_MUC="$HOME/.zalo-listener"
+if [ ! -f "$THU_MUC/.env" ]; then
+  echo "Máy này chưa có chương trình đọc Zalo. Bản cài cho máy mới đang được chuẩn bị."
+  exit 1
+fi
+cp "$THU_MUC/.env" "$THU_MUC/.env.truoc-sonicplan-$(date +%Y%m%d%H%M%S)"
+grep -vE '^(N8N_WEBHOOK_URL|N8N_HEADER_NAME|N8N_HEADER_VALUE|N8N_POLL_URL|N8N_SUMMARY_URL|N8N_TEP_URL)=' "$THU_MUC/.env" > "$THU_MUC/.env.moi" || true
+printf 'N8N_WEBHOOK_URL=%s\\nN8N_HEADER_NAME=x-zalo-token\\nN8N_HEADER_VALUE=%s\\n' '${diaChi}' '${khoa}' >> "$THU_MUC/.env.moi"
+mv "$THU_MUC/.env.moi" "$THU_MUC/.env"
+chmod 600 "$THU_MUC/.env"
+NHAN=$(launchctl list | awk '/zalo/ {print $3; exit}')
+if [ -n "$NHAN" ]; then
+  launchctl kickstart -k "gui/$(id -u)/$NHAN"
+  echo "Xong. Zalo trên máy này đã gửi về Sonicplan. Mở lại trang Kết nối sau vài phút để thấy đèn xanh."
+else
+  echo "Đã ghi cấu hình nhưng không thấy chương trình đang chạy. Khởi động lại máy Mac để chương trình chạy lại."
+fi
+`;
+  return new Response(lenh, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
+}
