@@ -241,13 +241,18 @@ export async function veLuong(goc, tro) {
 
   // Nghiêng theo con trỏ một chút (chỉ khi người dùng di chuột; tắt khi giảm chuyển động).
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    let cho = null;
     sanKhau.addEventListener('pointermove', (e) => {
-      if (e.pointerType !== 'mouse') return;
-      const r = sanKhau.getBoundingClientRect();
-      sanKhau.style.setProperty('--ry', `${(((e.clientX - r.left) / r.width) - 0.5) * 7}deg`);
-      sanKhau.style.setProperty('--rx', `${(((e.clientY - r.top) / r.height) - 0.5) * -3}deg`);
-    });
-    sanKhau.addEventListener('pointerleave', () => { sanKhau.style.setProperty('--ry', '0deg'); sanKhau.style.setProperty('--rx', '0deg'); });
+      if (e.pointerType !== 'mouse' || cho) return;
+      const { clientX, clientY } = e;
+      cho = requestAnimationFrame(() => {
+        cho = null;
+        const r = sanKhau.getBoundingClientRect();
+        sanKhau.style.setProperty('--ry', `${(((clientX - r.left) / r.width) - 0.5) * 7}deg`);
+        sanKhau.style.setProperty('--rx', `${(((clientY - r.top) / r.height) - 0.5) * -3}deg`);
+      });
+    }, { passive: true });
+    sanKhau.addEventListener('pointerleave', () => { stage.classList.add('tra-ve'); sanKhau.style.setProperty('--ry', '0deg'); sanKhau.style.setProperty('--rx', '0deg'); setTimeout(() => stage.classList.remove('tra-ve'), 450); });
   }
 
   veNut();
