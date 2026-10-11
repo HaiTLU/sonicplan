@@ -45,9 +45,9 @@
 
   "vars": {
     // Tên miền nhóm Access, dạng ten-nhom.cloudflareaccess.com (README bước 5).
-    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_TEAM_DOMAIN": "autumn-bar-9932.cloudflareaccess.com",
     // Mã AUD của ứng dụng Access (README bước 5).
-    "ACCESS_AUD": "",
+    "ACCESS_AUD": "3c6d37c2645cc2d9276921c4684b8a5e9a175f346ee93b79ff1736910e161f1c",
     // Tên miền nhận thư qua Email Routing, ví dụ "sonicplan.vn". Để trống thì chưa nhận thư.
     "EMAIL_DOMAIN": "",
     // Tên bot Telegram (không có @). Mã bot đặt bằng: npx wrangler secret put TELEGRAM_BOT_TOKEN
