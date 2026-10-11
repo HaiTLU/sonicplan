@@ -1,5 +1,8 @@
-// Gọi Workers AI của Cloudflare: tách việc từ tin nhắn và tóm tắt tin. Không cần khóa ngoài.
-// Đổi mô hình bằng biến AI_MODEL trong wrangler.jsonc.
+// Tách việc từ tin nhắn và tóm tắt tin. Mặc định dùng Workers AI của Cloudflare, không cần khóa.
+// Tổ chức dán khóa Claude hoặc loại tương thích OpenAI ở trang Kết nối thì dùng dịch vụ đó,
+// lỗi thì tự quay về Workers AI. Đổi mô hình mặc định bằng biến AI_MODEL trong wrangler.jsonc.
+
+import { chayAiNgoai } from './tich-hop.js';
 
 const MO_HINH_MAC_DINH = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 
@@ -77,23 +80,39 @@ export function docKetQuaViec(phanHoi) {
     }));
 }
 
-export async function tachViec(env, tin, homNay, tenNguoiDung) {
+// Chạy AI: ưu tiên dịch vụ ngoài của tổ chức (ngoai), lỗi thì dùng Workers AI và gọi baoLoi(thongBao).
+async function chayAi(env, { ngoai, baoLoi }, messages, { maxTokens, nhietDo, khuon }) {
+  if (ngoai) {
+    try {
+      return await chayAiNgoai(ngoai, messages, { maxTokens, nhietDo, json: Boolean(khuon) });
+    } catch (e) {
+      console.error('AI ngoài lỗi, dùng Workers AI', e);
+      if (baoLoi) await baoLoi(String(e.message || e).slice(0, 150));
+    }
+  }
   const phanHoi = await env.AI.run(moHinh(env), {
-    messages: loiNhacTachViec(tin, homNay, tenNguoiDung),
-    response_format: { type: 'json_schema', json_schema: KHUON_VIEC },
-    max_tokens: 1500,
-    temperature: 0.1,
+    messages,
+    ...(khuon ? { response_format: { type: 'json_schema', json_schema: khuon } } : {}),
+    max_tokens: maxTokens,
+    temperature: nhietDo,
   });
-  return docKetQuaViec(phanHoi);
+  return phanHoi?.response ?? phanHoi;
 }
 
-export async function tomTatTin(env, tin, nhan) {
+export async function tachViec(env, tin, homNay, tenNguoiDung, tuyChon = {}) {
+  const tra = await chayAi(env, tuyChon, loiNhacTachViec(tin, homNay, tenNguoiDung), { maxTokens: 1500, nhietDo: 0.1, khuon: KHUON_VIEC });
+  return docKetQuaViec(tra);
+}
+
+export async function tomTatTin(env, tin, nhan, tuyChon = {}) {
   const noiDung = tin
     .map((t) => `${t.time || t.thoi_diem} ${t.thread || t.nhom || ''} ${t.sender || t.nguoi_gui || ''}: ${t.text || t.noi_dung || ''}`)
     .join('\n')
     .slice(0, 24000);
-  const phanHoi = await env.AI.run(moHinh(env), {
-    messages: [
+  const tra = await chayAi(
+    env,
+    tuyChon,
+    [
       {
         role: 'system',
         content:
@@ -101,8 +120,7 @@ export async function tomTatTin(env, tin, nhan) {
       },
       { role: 'user', content: `Khoảng thời gian: ${nhan || ''}\n\n${noiDung || '(không có tin nào)'}` },
     ],
-    max_tokens: 1200,
-    temperature: 0.2,
-  });
-  return String(phanHoi?.response ?? '').trim();
+    { maxTokens: 1200, nhietDo: 0.2 },
+  );
+  return String(typeof tra === 'string' ? tra : tra?.response ?? '').trim();
 }

@@ -5,6 +5,7 @@
 import { tomTatTin } from './ai.js';
 import { ghiTinHieu, luuTep, luuTin, TEP_TOI_DA } from './hop-tin.js';
 import { baoToChuc } from './telegram.js';
+import { docTichHop } from './tich-hop.js';
 import { bam, json, loi } from './tien-ich.js';
 import { tachViecChoToChuc } from './viec.js';
 
@@ -65,7 +66,7 @@ export async function nhanZalo(yeuCau, env, ctx, duongDan) {
     const tin = Array.isArray(than.messages) ? than.messages : [];
     ctx.waitUntil(
       (async () => {
-        const tomTat = tin.length ? await tomTatTin(env, tin, than.label) : 'Không có tin Zalo nào trong khoảng này.';
+        const tomTat = tin.length ? await tomTatTin(env, tin, than.label, { ngoai: await docTichHop(env, toChucId, 'ai') }) : 'Không có tin Zalo nào trong khoảng này.';
         await baoToChuc(env, toChucId, `Tóm tắt Zalo ${than.label || ''}\n\n${tomTat}`);
       })().catch((e) => console.error('Tóm tắt lỗi', e)),
     );

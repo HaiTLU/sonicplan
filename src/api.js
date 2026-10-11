@@ -3,6 +3,7 @@
 
 import { docCaiDat } from './hop-tin.js';
 import { caiBot, layBot, maNoiTelegram } from './telegram.js';
+import { chuanHoaCauHinhAi, dangViecMoi, docTichHop, guiDiaChiNhan, kiemDiaChiNhan, luuTichHop, thuAiNgoai, xoaTichHop } from './tich-hop.js';
 import { bam, cat, json, loi, maNgauNhien, ngayVN } from './tien-ich.js';
 import { tinhTinhTrang } from './tinh-trang.js';
 import { themViec } from './viec.js';
@@ -21,6 +22,9 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   if (p === '/api/tinh-trang' && m === 'GET') return json(await layTinhTrang(env, tc));
   if (p === '/api/nhat-ky' && m === 'GET') return json(await layNhatKy(env, tc, url));
 
+  if (p === '/api/zalo/hoi-thoai' && m === 'GET') return json(await dsHoiThoaiZalo(env, tc, url));
+  if (p === '/api/zalo/tin' && m === 'GET') return tinHoiThoaiZalo(env, tc, url);
+
   if (p === '/api/tin' && m === 'GET') return json(await dsTin(env, tc, url));
   if (p === '/api/tin/da-xem-het' && m === 'POST') {
     await env.CSDL.prepare('UPDATE tin_nhan SET da_xem = 1 WHERE to_chuc_id = ?1 AND da_xem = 0').bind(tc).run();
@@ -37,6 +41,49 @@ export async function xuLyApi(yeuCau, env, phien, url) {
 
   if (p === '/api/ket-noi' && m === 'GET') return json(await layKetNoi(env, tc, url, phien));
   if ((khop = p.match(/^\/api\/ket-noi\/(zalo|lich)$/)) && m === 'POST') return taoKhoa(env, tc, khop[1], url);
+  if (p === '/api/ket-noi/ai' && m === 'POST') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức nối được dịch vụ AI.');
+    try {
+      const cauHinh = chuanHoaCauHinhAi(await yeuCau.json().catch(() => ({})));
+      await thuAiNgoai(cauHinh);
+      await luuTichHop(env, tc, 'ai', cauHinh);
+      return json({ loai: cauHinh.loai, mo_hinh: cauHinh.mo_hinh });
+    } catch (e) {
+      return loi(400, e.message);
+    }
+  }
+  if (p === '/api/ket-noi/ai' && m === 'DELETE') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
+    await xoaTichHop(env, tc, 'ai');
+    return json({ ok: true });
+  }
+  if (p === '/api/ket-noi/webhook' && m === 'POST') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
+    try {
+      const { url: diaChi } = await yeuCau.json().catch(() => ({}));
+      const u = kiemDiaChiNhan(diaChi);
+      await guiDiaChiNhan(u, { su_kien: 'thu', luc: new Date().toISOString(), tin: 'Sonicplan nối thành công' });
+      await luuTichHop(env, tc, 'webhook', { url: u });
+      return json({ host: new URL(u).host });
+    } catch (e) {
+      return loi(400, `Không gửi thử được: ${e.message}`);
+    }
+  }
+  if (p === '/api/ket-noi/webhook' && m === 'DELETE') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
+    await xoaTichHop(env, tc, 'webhook');
+    return json({ ok: true });
+  }
+  if (p === '/api/ket-noi/webhook/thu' && m === 'POST') {
+    const cauHinh = await docTichHop(env, tc, 'webhook');
+    if (!cauHinh) return loi(400, 'Chưa nối địa chỉ nhận việc mới.');
+    try {
+      await guiDiaChiNhan(cauHinh.url, dangViecMoi({ id: 0, tieu_de: 'Việc thử từ Sonicplan', han_ngay: ngayVN() }));
+      return json({ ok: true });
+    } catch (e) {
+      return loi(400, `Không gửi được: ${e.message}`);
+    }
+  }
   if (p === '/api/ket-noi/telegram/bot' && m === 'POST') {
     if (!laQuanTri(env, phien)) return loi(403, 'Chỉ người quản trị hệ thống cài được bot.');
     const { token } = await yeuCau.json().catch(() => ({}));
@@ -312,8 +359,14 @@ async function layKetNoi(env, tc, url, phien) {
   } catch {}
   // Đã có thư thật về sau lần xác nhận thì không cần hiện nút xác nhận nữa.
   if (xacNhan && th.thu && th.thu.lan_cuoi > xacNhan.luc) xacNhan = null;
+  const [tichAi, tichWebhook] = [await docTichHop(env, tc, 'ai'), await docTichHop(env, tc, 'webhook')];
   return {
     goc: url.origin,
+    tich_hop: {
+      ai: tichAi ? { loai: tichAi.loai, mo_hinh: tichAi.mo_hinh, dia_chi: tichAi.dia_chi || null, loi: th.ai?.ghi_chu?.startsWith('Dịch vụ AI ngoài lỗi') ? th.ai : null } : null,
+      webhook: tichWebhook ? { host: new URL(tichWebhook.url).host, lan_cuoi: th.webhook || null } : null,
+      vai_tro: phien.to_chuc.vai_tro,
+    },
     thu: { dia_chi: env.EMAIL_DOMAIN && maNhan ? `${maNhan}@${env.EMAIL_DOMAIN}` : null, lan_cuoi: th.thu || null, xac_nhan: xacNhan },
     zalo: { khoa: khoaTheo('zalo'), lan_cuoi: th.zalo || null },
     lich: { khoa: khoaTheo('lich') },
@@ -342,4 +395,57 @@ async function taoKhoa(env, tc, loai, url) {
     return json({ duong_dan: duongDan, google: `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(duongDan.replace(/^https:/, 'webcal:'))}` });
   }
   return json({ lenh: `curl -fsSL ${url.origin}/nhan/zalo-cai/${khoa} | bash` });
+}
+
+// ---- Zalo: danh sách hội thoại và tin theo dòng thời gian, giống ứng dụng Zalo ----
+
+// Nhóm có tên nhóm; tin riêng gom theo tên người đối diện (tieu_de), thiếu thì theo người gửi.
+const TEN_TIN_ZALO = `CASE WHEN COALESCE(nhom, '') <> '' THEN nhom ELSE COALESCE(NULLIF(tieu_de, ''), NULLIF(nguoi_gui, ''), 'Không rõ') END`;
+const LOAI_TIN_ZALO = `CASE WHEN COALESCE(nhom, '') <> '' THEN 'nhom' ELSE 'ca-nhan' END`;
+
+async function dsHoiThoaiZalo(env, tc, url) {
+  const q = (url.searchParams.get('q') || '').trim().replace(/[%_]/g, '');
+  const { results } = await env.CSDL.prepare(
+    `WITH t AS (
+       SELECT id, ${LOAI_TIN_ZALO} AS loai, ${TEN_TIN_ZALO} AS ten, nguoi_gui, noi_dung, thoi_diem, da_xem
+       FROM tin_nhan WHERE to_chuc_id = ?1 AND nguon = 'zalo'
+     ), x AS (
+       SELECT *, ROW_NUMBER() OVER (PARTITION BY loai, ten ORDER BY thoi_diem DESC, id DESC) AS rn,
+         COUNT(*) OVER (PARTITION BY loai, ten) AS n,
+         SUM(CASE WHEN da_xem = 0 THEN 1 ELSE 0 END) OVER (PARTITION BY loai, ten) AS chua_xem
+       FROM t
+     )
+     SELECT loai, ten, n, chua_xem, thoi_diem AS cuoi, nguoi_gui AS nguoi_cuoi, substr(noi_dung, 1, 120) AS trich
+     FROM x WHERE rn = 1 AND ten LIKE ?2 ORDER BY thoi_diem DESC LIMIT 300`,
+  ).bind(tc, `%${q}%`).all();
+  return { ds: results };
+}
+
+async function tinHoiThoaiZalo(env, tc, url) {
+  const loai = url.searchParams.get('loai');
+  const ten = (url.searchParams.get('ten') || '').slice(0, 300);
+  if ((loai !== 'nhom' && loai !== 'ca-nhan') || !ten) return loi(400, 'Thiếu hội thoại cần xem.');
+  const truocLuc = url.searchParams.get('truoc_luc');
+  const truocId = Number(url.searchParams.get('truoc_id')) || 0;
+  const dieuKien = `to_chuc_id = ?1 AND nguon = 'zalo' AND ${LOAI_TIN_ZALO} = ?2 AND ${TEN_TIN_ZALO} = ?3`;
+  const thamSo = [tc, loai, ten];
+  let them = '';
+  if (truocLuc) {
+    thamSo.push(truocLuc, truocId);
+    them = ' AND (thoi_diem < ?4 OR (thoi_diem = ?4 AND id < ?5))';
+  }
+  const { results } = await env.CSDL.prepare(
+    `SELECT id, nguoi_gui, noi_dung, thoi_diem, da_xem FROM tin_nhan WHERE ${dieuKien}${them} ORDER BY thoi_diem DESC, id DESC LIMIT 81`,
+  ).bind(...thamSo).all();
+  const conNua = results.length > 80;
+  const tin = results.slice(0, 80).reverse();
+  let tep = [];
+  if (tin.length) {
+    const ids = tin.map((t) => Number(t.id)).join(',');
+    tep = (await env.CSDL.prepare(`SELECT id, tin_nhan_id, ten, loai, kich_thuoc FROM tep WHERE to_chuc_id = ?1 AND tin_nhan_id IN (${ids})`).bind(tc).all()).results;
+  }
+  if (!truocLuc) {
+    await env.CSDL.prepare(`UPDATE tin_nhan SET da_xem = 1 WHERE ${dieuKien} AND da_xem = 0`).bind(tc, loai, ten).run();
+  }
+  return json({ tin, tep, con_nua: conNua });
 }

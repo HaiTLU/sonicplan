@@ -111,8 +111,8 @@ function tenNhom(ten) {
   return /^nh[oó]m\s/i.test(ten) ? ten : `Nhóm ${ten}`;
 }
 
-const trang = { toi: null, tin: { loc: 'tat-ca', q: '', chon: null, ds: [] }, viec: { tab: 'mo' }, tep: { q: '' } };
-const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', viec: 'Việc', tep: 'Tệp', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy' };
+const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', q: '', chon: null, ds: [] }, viec: { tab: 'mo' }, tep: { q: '' } };
+const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', tep: 'Tệp', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy' };
 const KET_QUA = { xong: 'Xong', loi: 'Lỗi', dang_chay: 'Đang chạy' };
 const ICON_TP = { 'may-chu': 'he-thong', csdl: 'kho', 'hen-gio': 'dong-ho', thu: 'thu', zalo: 'zalo', tep: 'tep', lich: 'lich', ai: 'ai', telegram: 'telegram' };
 const TEN_DEN = { xanh: 'ổn', vang: 'đang chờ', do: 'lỗi', xam: 'chưa dùng' };
@@ -697,6 +697,153 @@ async function veTep(goc) {
 }
 
 // =====================================================================
+// Zalo: danh sách nhóm và cá nhân, bấm vào đọc theo dòng thời gian như ứng dụng Zalo
+// =====================================================================
+function mauAnh(ten) {
+  let b = 7;
+  for (const c of ten) b = (b * 31 + c.codePointAt(0)) >>> 0;
+  return b % 360;
+}
+function chuDau(ten) {
+  const tu = ten.replace(/^Nhóm\s+/i, '').trim().split(/\s+/).filter(Boolean);
+  const chu = tu.length > 1 ? Array.from(tu[0])[0] + Array.from(tu[tu.length - 1])[0] : Array.from(tu[0] || '?').slice(0, 2).join('');
+  return chu.toUpperCase();
+}
+function anhZalo(ten, loai) {
+  return h('span', { class: `anh-zalo${loai === 'nhom' ? ' nhom' : ''}`, style: `--h:${mauAnh(ten)}`, 'aria-hidden': 'true', text: chuDau(ten) });
+}
+function nhanNgayTin(iso) {
+  const d = new Date(iso);
+  const ngay = fmt.ngayISO.format(d);
+  if (ngay === homNay()) return 'Hôm nay';
+  if (ngay === congNgay(homNay(), -1)) return 'Hôm qua';
+  return fmt.ngayDai.format(d);
+}
+const khoaHoiThoai = (loai, ten) => `${loai}~${encodeURIComponent(ten)}`;
+
+async function veZalo(goc, thamSo) {
+  const z = trang.zalo;
+  let chon = null;
+  if (thamSo) {
+    const [loai, ten] = thamSo.split('~');
+    if ((loai === 'nhom' || loai === 'ca-nhan') && ten) chon = { loai, ten: decodeURIComponent(ten) };
+  }
+  const khungDs = h('div', { class: 'bang ds-tin ds-zalo', 'aria-label': 'Danh sách hội thoại Zalo' }, ...[1, 2, 3, 4, 5, 6].map(() => h('div', { style: 'padding:12px 10px' }, xuong(14, '60%'), h('div', { style: 'height:8px' }), xuong(28))));
+  const khungDoc = h('div', { class: 'bang doc-zalo', 'aria-live': 'polite' });
+  const hop = h('div', { class: `hop-zalo${chon ? ' dang-doc' : ''}` }, khungDs, khungDoc);
+  const nutLoc = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(z.loc === ma), onclick: () => { z.loc = ma; veZalo(goc, thamSo); } }, nhan);
+  const oTim = h('input', { type: 'search', placeholder: 'Tìm nhóm hoặc người…', value: z.q, 'aria-label': 'Tìm hội thoại' });
+  let hen;
+  oTim.addEventListener('input', () => { clearTimeout(hen); hen = setTimeout(() => { z.q = oTim.value.trim(); napDs(); }, 300); });
+  thay(goc, h('div', { class: 'thanh-loc' }, nutLoc('tat-ca', 'Tất cả'), nutLoc('nhom', 'Nhóm'), nutLoc('ca-nhan', 'Cá nhân'), h('label', { class: 'o-tim' }, icon('tim'), oTim)), hop);
+
+  let ds = [];
+  async function napDs() {
+    try {
+      ds = (await api(`/api/zalo/hoi-thoai${z.q ? `?q=${encodeURIComponent(z.q)}` : ''}`)).ds;
+      veDs();
+      if (!chon) thay(khungDoc, h('div', { class: 'trong-trai' }, icon('zalo'), h('h3', { text: 'Chọn một hội thoại' }), h('p', { text: 'Tin Zalo hiện theo từng nhóm và từng người, mới nhất ở dưới.' })));
+    } catch (e) {
+      thay(khungDs, khungLoi(e, napDs));
+    }
+  }
+  function veDs() {
+    const loc = ds.filter((x) => z.loc === 'tat-ca' || x.loai === z.loc);
+    if (!loc.length) {
+      thay(khungDs, h('div', { class: 'trong-trai' }, icon('zalo'), h('h3', { text: z.q ? 'Không tìm thấy' : 'Chưa có tin Zalo' }), h('p', { text: z.q ? 'Thử từ khóa khác.' : 'Nối máy Mac ở mục Kết nối, tin Zalo sẽ về đây.' }), z.q ? null : h('a', { class: 'nut nut-chinh', href: '#ket-noi', style: 'margin-top:14px' }, 'Mở Kết nối')));
+      return;
+    }
+    thay(khungDs, h('ul', {}, ...loc.map((x) => {
+      const dang = chon && chon.loai === x.loai && chon.ten === x.ten;
+      const ai = x.nguoi_cuoi === 'Tôi' ? 'Bạn: ' : x.loai === 'nhom' && x.nguoi_cuoi ? `${x.nguoi_cuoi.split(' ').slice(-1)[0]}: ` : '';
+      return h('li', { class: x.chua_xem ? 'chua-xem' : '' },
+        h('button', { type: 'button', 'aria-current': String(Boolean(dang)), onclick: () => { location.hash = `zalo/${khoaHoiThoai(x.loai, x.ten)}`; } },
+          anhZalo(x.ten, x.loai),
+          h('div', { style: 'min-width:0' },
+            h('div', { class: 'dong-1' }, h('strong', { text: x.ten }), h('time', { datetime: x.cuoi, text: luc(x.cuoi) })),
+            h('div', { class: 'dong-2' }, h('p', { text: `${ai}${(x.trich || '').replace(/\s+/g, ' ')}` }), x.chua_xem ? h('b', { class: 'dem-zalo', text: x.chua_xem > 99 ? '99+' : String(x.chua_xem), 'aria-label': `${x.chua_xem} tin chưa xem` }) : null),
+          ),
+        ));
+    })));
+  }
+
+  async function moHoiThoai({ loai, ten }) {
+    thay(khungDoc, xuong(40, '40%'), h('div', { style: 'height:16px' }), xuong(60, '55%'), h('div', { style: 'height:12px' }), xuong(40, '45%'));
+    const tai = async (truoc) => {
+      const q = new URLSearchParams({ loai, ten });
+      if (truoc) { q.set('truoc_luc', truoc.thoi_diem); q.set('truoc_id', truoc.id); }
+      return api(`/api/zalo/tin?${q}`);
+    };
+    let tin = [];
+    let tep = [];
+    let conNua = false;
+    const luong = h('div', { class: 'luong-zalo', tabindex: '0', 'aria-label': `Tin trong ${ten}` });
+    const veLuong = () => {
+      const theoTin = new Map();
+      for (const f of tep) (theoTin.get(f.tin_nhan_id) || theoTin.set(f.tin_nhan_id, []).get(f.tin_nhan_id)).push(f);
+      const con = [];
+      if (conNua) con.push(h('button', { class: 'nut nut-phu nut-nho tin-cu', type: 'button', onclick: async (ev) => {
+        ev.target.disabled = true;
+        try {
+          const cu = await tai(tin[0]);
+          const caoCu = luong.scrollHeight;
+          tin = [...cu.tin, ...tin]; tep = [...cu.tep, ...tep]; conNua = cu.con_nua;
+          veLuong();
+          luong.scrollTop = luong.scrollHeight - caoCu;
+        } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
+      } }, 'Xem tin cũ hơn'));
+      let truoc = null;
+      for (const m of tin) {
+        const ngay = nhanNgayTin(m.thoi_diem);
+        const ngayMoi = !truoc || nhanNgayTin(truoc.thoi_diem) !== ngay;
+        if (ngayMoi) con.push(h('div', { class: 'ngay-phan' }, h('span', { text: ngay })));
+        const lien = truoc && !ngayMoi && truoc.nguoi_gui === m.nguoi_gui && Date.parse(m.thoi_diem) - Date.parse(truoc.thoi_diem) < 5 * 60000;
+        const toi = m.nguoi_gui === 'Tôi';
+        const files = theoTin.get(m.id) || [];
+        const chiTep = files.length && /^Gửi tệp:/.test(m.noi_dung || '');
+        con.push(h('div', { class: `tin-zalo${toi ? ' toi' : ''}${lien ? ' lien' : ''}` },
+          !toi && loai === 'nhom' && !lien ? h('span', { class: 'ten-gui', text: m.nguoi_gui || 'Không rõ' }) : null,
+          h('div', { class: 'bong-chat' },
+            chiTep ? null : h('span', { class: 'chu-tin', text: m.noi_dung || '' }),
+            ...files.map((f) => h('a', { class: 'tep-dinh', href: `/api/tep/${f.id}/tai` }, icon('tai'), f.ten, h('small', { text: kichThuoc(f.kich_thuoc) }))),
+            h('time', { datetime: m.thoi_diem, text: fmt.gioPhut.format(new Date(m.thoi_diem)) }),
+          ),
+        ));
+        truoc = m;
+      }
+      thay(luong, con);
+    };
+    try {
+      const kq = await tai(null);
+      tin = kq.tin; tep = kq.tep; conNua = kq.con_nua;
+      thay(khungDoc,
+        h('header', { class: 'dau-zalo' },
+          h('button', { class: 'nut nut-phu nut-nho nut-quay', type: 'button', 'aria-label': 'Quay lại danh sách', onclick: () => { location.hash = 'zalo'; } }, icon('mui-ten')),
+          anhZalo(ten, loai),
+          h('div', {}, h('h2', { text: ten }), h('p', { text: loai === 'nhom' ? 'Nhóm Zalo' : 'Tin riêng' })),
+        ),
+        luong,
+        h('p', { class: 'zalo-chi-doc', text: 'Sonicplan chỉ đọc tin Zalo, không gửi tin thay bạn.' }),
+      );
+      veLuong();
+      luong.scrollTop = luong.scrollHeight;
+      const muc = ds.find((x) => x.loai === loai && x.ten === ten);
+      if (muc?.chua_xem) {
+        muc.chua_xem = 0;
+        veDs();
+        api('/api/tong-quan').then((k) => capNhatDem(k.so_lieu.tin_chua_xem, k.so_lieu.viec_mo)).catch(() => {});
+      }
+    } catch (e) {
+      thay(khungDoc, khungLoi(e, () => moHoiThoai({ loai, ten })));
+    }
+  }
+
+  await napDs();
+  if (chon) moHoiThoai(chon);
+  else if (window.matchMedia('(min-width: 861px)').matches && ds[0]) location.replace(`#zalo/${khoaHoiThoai(ds[0].loai, ds[0].ten)}`);
+}
+
+// =====================================================================
 // Kết nối
 // =====================================================================
 async function veKetNoi(goc) {
@@ -796,6 +943,53 @@ async function veKetNoi(goc) {
     theTele.append(h('p', { class: 'canh-bao-nho', text: 'Hệ thống đang chuẩn bị bot Telegram.' }));
   }
 
+  // API: AI của riêng bạn và địa chỉ nhận việc mới
+  const th = kn.tich_hop;
+  const laChu = th.vai_tro === 'chu';
+  const oLoaiAi = h('select', { 'aria-label': 'Loại dịch vụ AI' }, h('option', { value: 'claude', text: 'Claude (Anthropic)' }), h('option', { value: 'openai', text: 'Loại tương thích OpenAI' }));
+  const oKhoaAi = h('input', { type: 'password', placeholder: 'Dán khóa API', autocomplete: 'off', 'aria-label': 'Khóa API' });
+  const oMoHinh = h('input', { type: 'text', placeholder: 'Mô hình (bỏ trống để dùng mặc định)', autocomplete: 'off', 'aria-label': 'Mô hình' });
+  const oDiaChiAi = h('input', { type: 'url', placeholder: 'Địa chỉ dịch vụ, ví dụ https://api.openai.com/v1', autocomplete: 'off', 'aria-label': 'Địa chỉ dịch vụ', hidden: true });
+  oLoaiAi.addEventListener('change', () => { oDiaChiAi.hidden = oLoaiAi.value !== 'openai'; });
+  const aiNut = h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
+    ev.target.disabled = true;
+    try {
+      await api('/api/ket-noi/ai', { method: 'POST', body: JSON.stringify({ loai: oLoaiAi.value, khoa: oKhoaAi.value, mo_hinh: oMoHinh.value, dia_chi: oDiaChiAi.value }) });
+      bao('Đã nối dịch vụ AI. Từ lượt tách việc sau sẽ dùng dịch vụ này.');
+      ve();
+    } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
+  } }, icon('ai'), 'Kiểm tra và lưu');
+  const khoiAi = h('div', { class: 'khoi-api' },
+    h('h3', { text: 'AI của bạn' }),
+    h('p', { class: 'mo-ta', text: th.ai ? `Đang dùng ${th.ai.loai === 'claude' ? 'Claude' : 'dịch vụ tương thích OpenAI'}, mô hình ${th.ai.mo_hinh}. Gặp lỗi thì tự quay về AI có sẵn.` : 'Mặc định tách việc bằng AI có sẵn của hệ thống. Dán khóa API của bạn nếu muốn dùng mô hình mạnh hơn.' }),
+    th.ai?.loi ? h('p', { class: 'canh-bao-nho', text: th.ai.loi.ghi_chu }) : null,
+    laChu ? (th.ai
+      ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/ai', { method: 'DELETE' }); bao('Đã gỡ, quay về AI có sẵn.'); ve(); } }, 'Gỡ dịch vụ này'))
+      : h('div', { class: 'luoi-nhap' }, oLoaiAi, oKhoaAi, oMoHinh, oDiaChiAi, aiNut)) : null,
+  );
+
+  const oDiaChiNhan = h('input', { type: 'url', placeholder: 'https://… địa chỉ nhận việc mới', autocomplete: 'off', 'aria-label': 'Địa chỉ nhận việc mới' });
+  const khoiNhan = h('div', { class: 'khoi-api' },
+    h('h3', { text: 'Báo việc mới tới dịch vụ khác' }),
+    h('p', { class: 'mo-ta', text: th.webhook ? `Mỗi việc mới gửi tới ${th.webhook.host}. ${th.webhook.lan_cuoi ? `${th.webhook.lan_cuoi.ghi_chu}, ${luc(th.webhook.lan_cuoi.lan_cuoi)}.` : 'Chưa có việc nào được gửi.'}` : 'Mỗi việc mới (AI tách từ tin, hoặc bạn tự thêm) được gửi dạng JSON tới địa chỉ này. Dùng được với Zapier, Make, Google Apps Script, Slack, Notion và mọi dịch vụ có địa chỉ nhận (webhook).' }),
+    laChu ? (th.webhook
+      ? h('div', { class: 'hang-nut' },
+        h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { try { await api('/api/ket-noi/webhook/thu', { method: 'POST' }); bao('Đã gửi một việc thử.'); } catch (e) { bao(e.message, { loi: true }); } } }, 'Gửi thử'),
+        h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/webhook', { method: 'DELETE' }); bao('Đã gỡ địa chỉ.'); ve(); } }, 'Gỡ'))
+      : h('div', { class: 'luoi-nhap' }, oDiaChiNhan, h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
+        ev.target.disabled = true;
+        try {
+          await api('/api/ket-noi/webhook', { method: 'POST', body: JSON.stringify({ url: oDiaChiNhan.value }) });
+          bao('Đã nối. Em vừa gửi một tin thử tới địa chỉ này.');
+          ve();
+        } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
+      } }, 'Kiểm tra và lưu'))) : null,
+  );
+  const theApi = h('section', { class: 'bang the-kn rong' },
+    dau('ai', 'API trong luồng việc', 'Tin về, AI đọc, việc mới ra, rồi báo tiếp tới dịch vụ bạn dùng.', th.ai || th.webhook ? 'xanh' : 'xam', th.ai || th.webhook ? 'Đã nối' : 'Chưa nối'),
+    h('div', { class: 'luoi-api' }, khoiAi, khoiNhan),
+  );
+
   const theNen = h('section', { class: 'bang the-kn rong' },
     dau('ai', 'AI và kho tệp', 'Workers AI đọc tin mới mỗi 5 phút để tách việc; tệp và bản sao lưu hằng đêm nằm trong kho R2.', kn.ai.co && kn.tep.co ? 'xanh' : 'vang', kn.ai.co && kn.tep.co ? 'Sẵn sàng' : 'Thiếu cấu hình'),
     h('div', { class: 'luoi-tp', style: 'padding:0' },
@@ -805,7 +999,7 @@ async function veKetNoi(goc) {
     ),
   );
 
-  thay(goc, h('div', { class: 'ds-kn vao' }, theThu, theZalo, theLich, theTele, theNen));
+  thay(goc, h('div', { class: 'ds-kn vao' }, theThu, theZalo, theLich, theTele, theApi, theNen));
 }
 
 // =====================================================================
@@ -840,7 +1034,7 @@ async function veNhatKy(goc) {
 // =====================================================================
 // Chuyển mục
 // =====================================================================
-const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, viec: veViec, tep: veTep, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy };
+const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, tep: veTep, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy };
 let mucTruoc = null;
 
 async function moMuc() {
@@ -871,6 +1065,7 @@ const dsLenh = document.getElementById('ds-lenh');
 const LENH = [
   { nhan: 'Tổng quan', icon: 'tong-quan', lam: () => (location.hash = 'tong-quan'), goi: 'G T' },
   { nhan: 'Hộp tin', icon: 'hop-tin', lam: () => (location.hash = 'hop-tin'), goi: 'G H' },
+  { nhan: 'Zalo', icon: 'zalo', lam: () => (location.hash = 'zalo'), goi: 'G Z' },
   { nhan: 'Việc', icon: 'viec', lam: () => (location.hash = 'viec'), goi: 'G V' },
   { nhan: 'Tệp', icon: 'tep', lam: () => (location.hash = 'tep') },
   { nhan: 'Kết nối', icon: 'ket-noi', lam: () => (location.hash = 'ket-noi') },
