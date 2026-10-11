@@ -57,6 +57,7 @@ export function loiNhacTachViec(tin, homNay, tenNguoiDung, daCo = [], ghiNho = [
     'tieu_de ngắn gọn, bắt đầu bằng động từ, tiếng Việt, không biểu tượng, tối đa 80 ký tự.',
     'ghi_chu: với Zalo ghi tên cuộc trò chuyện và người gửi; với thư ghi 1-2 câu tóm tắt ngữ cảnh (ai yêu cầu, để làm gì, chi tiết như địa điểm, số lượng, tài liệu hoặc tệp đính kèm), rồi ghi "Nguồn: thư của <người gửi>, tiêu đề <tiêu đề>".',
     'Danh sách "Đã có sẵn" là việc đã nằm trong danh sách việc của người dùng. Nếu một việc trong tin có cùng nội dung với mục đã có, dù diễn đạt khác, thì KHÔNG trích lại. Chỉ trích lại khi tin nêu thông tin mới (đổi giờ, đổi hạn, việc khác hẳn).',
+    'Chỉ tạo việc khi tin nêu rõ hành động cần làm (có động từ và đối tượng). Tin mơ hồ, một hai chữ, nói chuyện phiếm, câu hỏi suông thì KHÔNG tạo việc, trả mảng rỗng.',
     'Nếu nhiều tin trong lô cùng nói về một việc thì gộp thành MỘT việc, ghi_chu nêu đủ ai, cái gì, hạn, vì sao. Dùng hồ sơ người dùng và phần "Đã nhớ" để đánh giá ai là người quan trọng, dự án nào đang gấp, rồi đặt uu_tien cho đúng.',
     'uu_tien: "cao" nếu có hạn trong 2 ngày hoặc người có vai trò quan trọng yêu cầu, "thap" nếu không gấp, còn lại "vua".',
     'nhom: 1 = AI tự làm được toàn bộ (soạn văn bản, tra cứu, tổng hợp); 2 = AI chỉ chuẩn bị, cần người dùng quyết định hoặc ký; 3 = người dùng phải tự làm (họp, gặp người, gọi điện). ly_do: một câu. cac_buoc: 3-5 bước ngắn theo thứ tự, tính cả hạn. ban_nhap: bản nháp ngắn dưới 600 ký tự nếu việc cần soạn chữ, còn không thì rỗng.',

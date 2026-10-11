@@ -68,7 +68,11 @@ export async function nhanZalo(yeuCau, env, ctx, duongDan) {
     const tin = Array.isArray(than.messages) ? than.messages : [];
     ctx.waitUntil(
       (async () => {
-        const tomTat = tin.length ? await tomTatTin(env, tin, than.label, { ngoai: await docTichHop(env, toChucId, 'ai'), hoSo: await docHoSo(env, toChucId) }) : 'Không có tin Zalo nào trong khoảng này.';
+        if (!tin.length) {
+          await baoToChuc(env, toChucId, `Không có tin Zalo ${than.label || 'trong khoảng này'}.`);
+          return;
+        }
+        const tomTat = await tomTatTin(env, tin, than.label, { ngoai: await docTichHop(env, toChucId, 'ai'), hoSo: await docHoSo(env, toChucId) });
         await baoToChuc(env, toChucId, `Tóm tắt Zalo ${than.label || ''} (${tin.length} tin)\n\n${tomTat}`);
       })().catch((e) => console.error('Tóm tắt lỗi', e)),
     );
