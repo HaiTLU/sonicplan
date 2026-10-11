@@ -111,8 +111,8 @@ function tenNhom(ten) {
   return /^nh[oó]m\s/i.test(ten) ? ten : `Nhóm ${ten}`;
 }
 
-const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', q: '', chon: null, ds: [] }, viec: { tab: 'mo' }, tep: { q: '' } };
-const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', tep: 'Tệp', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy' };
+const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', q: '', chon: null, ds: [] }, viec: { tab: 'mo' }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
+const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy' };
 const KET_QUA = { xong: 'Xong', loi: 'Lỗi', dang_chay: 'Đang chạy' };
 const ICON_TP = { 'may-chu': 'he-thong', csdl: 'kho', 'hen-gio': 'dong-ho', thu: 'thu', zalo: 'zalo', tep: 'tep', lich: 'lich', ai: 'ai', telegram: 'telegram' };
 const TEN_DEN = { xanh: 'ổn', vang: 'đang chờ', do: 'lỗi', xam: 'chưa dùng' };
@@ -697,6 +697,100 @@ async function veTep(goc) {
 }
 
 // =====================================================================
+// Ghi nhớ: điều hệ thống nhớ về người, dự án, quyết định; người dùng duyệt, sửa, ghim, xóa
+// =====================================================================
+const LOAI_NHO = { nguoi: 'Người', du_an: 'Dự án', quyet_dinh: 'Quyết định', su_that: 'Thông tin' };
+
+async function veGhiNho(goc) {
+  const n = trang.nho;
+  const oTim = h('input', { type: 'search', placeholder: 'Tìm trong ghi nhớ…', value: n.q, 'aria-label': 'Tìm ghi nhớ' });
+  const chip = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(n.loai === ma), onclick: () => { n.loai = ma; veGhiNho(goc); } }, nhan);
+  const ds = h('div', { class: 'ds-nho' }, ...[1, 2, 3].map(() => h('div', { class: 'bang the-nho' }, xuong(16, '40%'), xuong(14, '90%'))));
+  const dauMuc = h('div', { class: 'thanh-loc' }, chip('tat-ca', 'Tất cả'), chip('moi', 'Mới, chờ duyệt'), ...Object.entries(LOAI_NHO).map(([ma, nhan]) => chip(ma, nhan)), h('label', { class: 'o-tim' }, icon('tim'), oTim));
+  let hen;
+  oTim.addEventListener('input', () => { clearTimeout(hen); hen = setTimeout(() => { n.q = oTim.value.trim(); nap(); }, 300); });
+
+  const oLoai = h('select', { 'aria-label': 'Loại' }, ...Object.entries(LOAI_NHO).map(([ma, nhan]) => h('option', { value: ma, text: nhan })));
+  const oTieu = h('input', { type: 'text', placeholder: 'Tiêu đề, ví dụ: Chị Lan', maxlength: '120', required: true, 'aria-label': 'Tiêu đề' });
+  const oNoi = h('input', { type: 'text', placeholder: 'Điều cần nhớ, ví dụ: Trưởng phòng đào tạo', maxlength: '600', required: true, 'aria-label': 'Nội dung' });
+  const form = h('form', { class: 'bang them-nho' }, oLoai, oTieu, oNoi, h('button', { class: 'nut nut-chinh', type: 'submit' }, icon('cong'), 'Thêm'));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await api('/api/ghi-nho', { method: 'POST', body: JSON.stringify({ loai: oLoai.value, tieu_de: oTieu.value, noi_dung: oNoi.value }) });
+      oTieu.value = ''; oNoi.value = '';
+      bao('Đã ghi nhớ.');
+      nap();
+    } catch (err) {
+      bao(err.message, { loi: true });
+    }
+  });
+  thay(goc, h('p', { class: 'tom-tat-phu', style: 'margin-bottom:14px', text: 'Hệ thống tự nhớ người, dự án và quyết định từ tin đến, rồi dùng lại khi đọc tin sau. Mục mới do AI thêm có nhãn chờ duyệt: bấm dấu tích nếu đúng, sửa hoặc xóa nếu sai.' }), form, dauMuc, ds);
+
+  async function hanhDong(id, thanDu, thongBao) {
+    try {
+      await api(`/api/ghi-nho/${id}`, { method: 'PATCH', body: JSON.stringify(thanDu) });
+      if (thongBao) bao(thongBao);
+      nap();
+    } catch (err) {
+      bao(err.message, { loi: true });
+    }
+  }
+  function the(g) {
+    const tren = h('div', { class: 'dau-nho' },
+      h('span', { class: 'nhan-nho', text: LOAI_NHO[g.loai] }),
+      g.nguon === 'ai' && !g.da_duyet ? h('span', { class: 'nhan-nho moi', text: 'Mới, chờ duyệt' }) : null,
+      g.do_tin_cay === 'thap' && !g.da_duyet ? h('span', { class: 'nhan-nho thap', text: 'AI dự phòng, cần kiểm' }) : null,
+    );
+    const noi = h('p', { class: 'noi-nho', text: g.noi_dung });
+    const nut = (nhan, ten, lam, loiNut = false) => h('button', { class: `nut-icon${loiNut ? ' nguy' : ''}`, type: 'button', title: nhan, 'aria-label': nhan, onclick: lam }, icon(ten));
+    const hang = h('div', { class: 'tac-nho' },
+      g.nguon === 'ai' && !g.da_duyet ? nut('Đúng, giữ lại', 'xong', () => hanhDong(g.id, { da_duyet: true })) : null,
+      nut(g.ghim ? 'Bỏ ghim' : 'Ghim', 'ghim', () => hanhDong(g.id, { ghim: !g.ghim })),
+      nut('Sửa', 'sua', () => sua()),
+      nut('Xóa', 'xoa', async () => {
+        try {
+          await api(`/api/ghi-nho/${g.id}`, { method: 'DELETE' });
+          bao('Đã xóa.');
+          nap();
+        } catch (err) {
+          bao(err.message, { loi: true });
+        }
+      }, true),
+    );
+    const el = h('article', { class: `bang the-nho${g.ghim ? ' ghim' : ''}` }, h('div', { class: 'hang-nho' }, tren, hang), h('h3', { text: g.tieu_de }), noi);
+    function sua() {
+      const o = h('textarea', { rows: '3', maxlength: '600', 'aria-label': 'Sửa nội dung' });
+      o.value = g.noi_dung;
+      const luu = h('button', { class: 'nut nut-chinh nut-nho', type: 'button', text: 'Lưu', onclick: () => hanhDong(g.id, { noi_dung: o.value }, 'Đã lưu.') });
+      const huy = h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: 'Hủy', onclick: () => noi.replaceWith(noi) });
+      huy.onclick = () => { khung.replaceWith(noi); };
+      const khung = h('div', { class: 'sua-nho' }, o, h('div', { class: 'tac-nho' }, luu, huy));
+      noi.replaceWith(khung);
+      o.focus();
+    }
+    return el;
+  }
+  async function nap() {
+    try {
+      const tham = new URLSearchParams();
+      if (n.loai === 'moi') tham.set('moi', '1');
+      else if (n.loai !== 'tat-ca') tham.set('loai', n.loai);
+      if (n.q) tham.set('q', n.q);
+      const kq = await api(`/api/ghi-nho${tham.size ? `?${tham}` : ''}`);
+      if (!kq.ghi_nho.length) {
+        thay(ds, h('div', { class: 'bang trong-trai', style: 'min-height:260px' }, icon('ghi-nho'), h('h3', { text: kq.tong ? 'Không có mục nào khớp' : 'Chưa nhớ gì' }), h('p', { text: kq.tong ? 'Thử bỏ bộ lọc hoặc đổi từ khóa.' : 'Khi có tin mới, hệ thống tự ghi lại người, dự án và quyết định ở đây. Anh cũng thêm tay được ở ô phía trên.' })));
+        return;
+      }
+      thay(ds, ...kq.ghi_nho.map(the));
+    } catch (e) {
+      thay(ds, khungLoi(e, nap));
+    }
+  }
+  nap();
+}
+
+// =====================================================================
 // Zalo: danh sách nhóm và cá nhân, bấm vào đọc theo dòng thời gian như ứng dụng Zalo
 // =====================================================================
 function mauAnh(ten) {
@@ -1034,7 +1128,7 @@ async function veNhatKy(goc) {
 // =====================================================================
 // Chuyển mục
 // =====================================================================
-const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, tep: veTep, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy };
+const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'ghi-nho': veGhiNho, tep: veTep, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy };
 let mucTruoc = null;
 
 async function moMuc() {
@@ -1067,6 +1161,7 @@ const LENH = [
   { nhan: 'Hộp tin', icon: 'hop-tin', lam: () => (location.hash = 'hop-tin'), goi: 'G H' },
   { nhan: 'Zalo', icon: 'zalo', lam: () => (location.hash = 'zalo'), goi: 'G Z' },
   { nhan: 'Việc', icon: 'viec', lam: () => (location.hash = 'viec'), goi: 'G V' },
+  { nhan: 'Ghi nhớ', icon: 'ghi-nho', lam: () => (location.hash = 'ghi-nho') },
   { nhan: 'Tệp', icon: 'tep', lam: () => (location.hash = 'tep') },
   { nhan: 'Kết nối', icon: 'ket-noi', lam: () => (location.hash = 'ket-noi') },
   { nhan: 'Nhật ký chạy', icon: 'nhat-ky', lam: () => (location.hash = 'nhat-ky') },

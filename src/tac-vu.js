@@ -2,6 +2,7 @@
 
 import { banTinNgay, baoCaoTuan, cacToChuc, goiYMoi, gioDayDuVN } from './ban-tin.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
+import { nhacViec } from './nhac-viec.js';
 import { baoToChuc } from './telegram.js';
 import { cat, congNgay, gioVN, ngayVN } from './tien-ich.js';
 import { tachViecChoToChuc } from './viec.js';
@@ -99,6 +100,7 @@ export const CAC_TAC_VU = {
     return { so_muc: soBao, ghi_chu: soBao ? `Cảnh báo ${soBao} tổ chức` : 'Không có việc nào mất bất thường' };
   },
 
+  'nhac-viec': nhacViec,
   'ban-tin': banTinNgay,
   'goi-y': goiYMoi,
   'bao-cao-tuan': baoCaoTuan,

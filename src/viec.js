@@ -1,7 +1,9 @@
 // Việc: thêm việc (có chống trùng), tách việc từ tin bằng AI.
 
-import { tachViec } from './ai.js';
-import { ghiTinHieu } from './hop-tin.js';
+import { NHOM_THEO_SO, tachViec } from './ai.js';
+import { ghiChuKeHoach } from './ai.js';
+import { ghiNhoChoAi, luuGhiNho } from './ghi-nho.js';
+import { ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { baoSuKien, dangViecMoi, docTichHop } from './tich-hop.js';
 import { doGiong, ngayVN } from './tien-ich.js';
 
@@ -23,9 +25,9 @@ export async function themViec(env, toChucId, viec, { tinNhanId = null, boQuaTru
   }
   const bayGio = new Date().toISOString();
   const dong = await env.CSDL.prepare(
-    `INSERT INTO viec (to_chuc_id, tieu_de, ghi_chu, han_ngay, gio_hen, trang_thai, tin_nhan_id, tao_luc, cap_nhat_luc)
-     VALUES (?1, ?2, ?3, ?4, ?5, 'mo', ?6, ?7, ?7) RETURNING id`,
-  ).bind(toChucId, viec.tieu_de, viec.ghi_chu || null, viec.han_ngay || null, viec.gio_hen || null, tinNhanId, bayGio).first();
+    `INSERT INTO viec (to_chuc_id, tieu_de, ghi_chu, han_ngay, gio_hen, trang_thai, tin_nhan_id, tao_luc, cap_nhat_luc, nhom, uu_tien)
+     VALUES (?1, ?2, ?3, ?4, ?5, 'mo', ?6, ?7, ?7, ?8, ?9) RETURNING id`,
+  ).bind(toChucId, viec.tieu_de, viec.ghi_chu || null, viec.han_ngay || null, viec.gio_hen || null, tinNhanId, bayGio, NHOM_THEO_SO[viec.nhom] || null, viec.uu_tien || null).first();
   await baoSuKien(env, toChucId, dangViecMoi({ ...viec, id: dong.id }));
   return { id: dong.id, trung: false };
 }
@@ -52,14 +54,18 @@ export async function tachViecChoToChuc(env, toChucId) {
   ).bind(toChucId, new Date(Date.now() - 3 * 86400000).toISOString()).all();
   const daCo = daCoDong.map((v) => `${v.trang_thai === 'xong' ? '[đã xong] ' : ''}${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay})` : ''}`);
 
+  const ghiNho = await ghiNhoChoAi(env, toChucId, tin.map((t) => `${t.nguoi_gui || ''} ${t.nhom || ''} ${t.tieu_de || ''} ${t.noi_dung || ''}`).join(' '));
+
   let ketQua;
+  const tuyChon = {};
   try {
     const ngoai = await docTichHop(env, toChucId, 'ai');
-    ketQua = await tachViec(env, tin.map((t, i) => ({ ...t, so: i + 1 })), ngayVN(), ten?.ten, {
-      ngoai,
+    tuyChon.ngoai = ngoai;
+    ketQua = await tachViec(env, tin.map((t, i) => ({ ...t, so: i + 1 })), ngayVN(), ten?.ten, Object.assign(tuyChon, {
       daCo,
+      ghiNho,
       baoLoi: (thongBao) => ghiTinHieu(env, toChucId, 'ai', `Dịch vụ AI ngoài lỗi, đã dùng AI có sẵn: ${thongBao}`),
-    });
+    }));
   } catch (e) {
     // Lỗi AI: trả tin về hàng chờ để lượt sau thử lại; tin đã nằm chờ quá 6 giờ thì bỏ qua.
     await env.CSDL.prepare(
@@ -70,10 +76,19 @@ export async function tachViecChoToChuc(env, toChucId) {
   }
 
   let soViec = 0;
-  for (const v of ketQua) {
+  for (const v of ketQua.viec.slice(0, 10)) {
     const nguon = v.tin_so && tin[v.tin_so - 1];
-    const r = await themViec(env, toChucId, v, { tinNhanId: nguon ? nguon.id : null });
+    const keHoach = ghiChuKeHoach(v);
+    const ghiChu = [v.ghi_chu, keHoach].filter(Boolean).join('\n\n') || null;
+    const r = await themViec(env, toChucId, { ...v, ghi_chu: ghiChu }, { tinNhanId: nguon ? nguon.id : null });
     if (!r.trung) soViec++;
+  }
+  // Ghi nhớ và phân tích: lỗi ở đây không được làm hỏng việc đã tạo.
+  try {
+    await luuGhiNho(env, toChucId, ketQua.ghi_nho, { tinNhanId: tin[0]?.id ?? null, doTinCay: tuyChon.duPhong ? 'thap' : 'cao' });
+    if (ketQua.phan_tich) await ghiCaiDat(env, toChucId, 'phan_tich_cuoi', JSON.stringify({ luc: bayGio, noi_dung: ketQua.phan_tich }));
+  } catch (e) {
+    console.error('Lưu ghi nhớ lỗi', e);
   }
   await env.CSDL.prepare(
     `UPDATE tin_nhan SET da_tach = 1 WHERE to_chuc_id = ?1 AND da_tach = 2 AND id IN (${tin.map((_, i) => `?${i + 2}`).join(',')})`,

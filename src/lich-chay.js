@@ -4,6 +4,7 @@
 export const TAC_VU = [
   { ma: 'tu-kiem', ten: 'Tự kiểm hẹn giờ', lich: '0 * * * *', bat: true, giai_doan: 0 },
   { ma: 'tach-viec', ten: 'Tách việc từ tin mới', lich: '*/5 * * * *', bat: true, giai_doan: 1 },
+  { ma: 'nhac-viec', ten: 'Nhắc việc theo giờ hẹn', lich: '*/5 * * * *', bat: true, giai_doan: 2 },
   { ma: 'bao-viec-moi', ten: 'Báo việc mới qua Telegram', lich: '0 * * * *', bat: true, giai_doan: 2 },
   { ma: 'canh-zalo', ten: 'Canh tín hiệu Zalo', lich: '0 * * * *', bat: true, giai_doan: 3 },
   { ma: 'ban-tin', ten: 'Bản tin 8h sáng và nhắc 17h', lich: '0 * * * *', bat: true, giai_doan: 2 },
