@@ -112,7 +112,7 @@ function tenNhom(ten) {
 }
 
 const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', q: '', chon: null, ds: [] }, viec: { tab: 'mo' }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
-const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy' };
+const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy' };
 const KET_QUA = { xong: 'Xong', loi: 'Lỗi', dang_chay: 'Đang chạy' };
 const ICON_TP = { 'may-chu': 'he-thong', csdl: 'kho', 'hen-gio': 'dong-ho', thu: 'thu', zalo: 'zalo', tep: 'tep', lich: 'lich', ai: 'ai', telegram: 'telegram' };
 const TEN_DEN = { xanh: 'ổn', vang: 'đang chờ', do: 'lỗi', xam: 'chưa dùng' };
@@ -1128,7 +1128,11 @@ async function veNhatKy(goc) {
 // =====================================================================
 // Chuyển mục
 // =====================================================================
-const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'ghi-nho': veGhiNho, tep: veTep, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy };
+async function veLuongTrang(goc) {
+  const { veLuong } = await import('/luong.js');
+  await veLuong(goc, { h, icon, api, bao, thay, khungLoi, xuong, luc });
+}
+const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy };
 let mucTruoc = null;
 
 async function moMuc() {
@@ -1163,6 +1167,7 @@ const LENH = [
   { nhan: 'Việc', icon: 'viec', lam: () => (location.hash = 'viec'), goi: 'G V' },
   { nhan: 'Ghi nhớ', icon: 'ghi-nho', lam: () => (location.hash = 'ghi-nho') },
   { nhan: 'Tệp', icon: 'tep', lam: () => (location.hash = 'tep') },
+  { nhan: 'Luồng (sơ đồ, chỉnh giờ)', icon: 'lap', lam: () => (location.hash = 'luong') },
   { nhan: 'Kết nối', icon: 'ket-noi', lam: () => (location.hash = 'ket-noi') },
   { nhan: 'Nhật ký chạy', icon: 'nhat-ky', lam: () => (location.hash = 'nhat-ky') },
   { nhan: 'Thêm việc mới', icon: 'cong', lam: () => moNganViec(null), goi: 'N' },

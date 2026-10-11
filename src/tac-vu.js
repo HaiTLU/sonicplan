@@ -1,5 +1,6 @@
 // Việc từng tác vụ hẹn giờ làm. Tác vụ chạy cho mọi tổ chức một lượt, ghi một dòng nhật ký chung.
 
+import { docLuong, dangYenLang } from './luong.js';
 import { banTinNgay, baoCaoTuan, cacToChuc, goiYMoi, gioDayDuVN } from './ban-tin.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
 import { nhacViec } from './nhac-viec.js';
@@ -7,9 +8,6 @@ import { baoToChuc } from './telegram.js';
 import { cat, congNgay, gioVN, ngayVN } from './tien-ich.js';
 import { tachViecChoToChuc } from './viec.js';
 
-const ZALO_IM_GIO = 6;
-const MAT_VIEC_TOI_THIEU = 10;
-const MAT_MO_TOI_THIEU = 5;
 
 export const CAC_TAC_VU = {
   'tu-kiem': async (env, bayGio) => {
@@ -29,6 +27,7 @@ export const CAC_TAC_VU = {
     let soTin = 0;
     let soViec = 0;
     for (const { to_chuc_id: id } of results) {
+      if (!(await docLuong(env, id)).bat['tach-viec']) continue;
       const kq = await tachViecChoToChuc(env, id);
       soTin += kq.so_tin;
       soViec += kq.so_viec;
@@ -38,21 +37,23 @@ export const CAC_TAC_VU = {
 
   'bao-viec-moi': async (env, bayGio) => {
     const gio = gioVN(bayGio);
-    // Giờ yên lặng 22h-8h: không báo, mốc không tiến nên 8h sáng gộp thành một tin.
-    if (gio >= 22 || gio < 8) return { bo_qua: true };
     let soBao = 0;
     for (const tc of await cacToChuc(env)) {
+      const lg = await docLuong(env, tc.id);
+      // Giờ yên lặng: không báo, mốc không tiến nên buổi sáng gộp thành một tin.
+      if (!lg.bat['bao-viec-moi'] || dangYenLang(gio, lg.nguong)) continue;
       const moc = (await docCaiDat(env, tc.id, 'bao_viec_luc')) || new Date(Date.now() - 3600000).toISOString();
       const { results } = await env.CSDL.prepare(
         `SELECT tieu_de, han_ngay, gio_hen FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND tao_luc > ?2 ORDER BY id LIMIT 15`,
       ).bind(tc.id, moc).all();
       if (!results.length) continue;
       const dong = results.map((v) => `- ${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay.slice(8, 10)}/${v.han_ngay.slice(5, 7)}${v.gio_hen ? ` ${v.gio_hen}` : ''})` : ''}`);
-      const dau = gio === 8 ? `Trong đêm có ${results.length} việc mới từ tin nhắn:` : `${results.length} việc mới từ tin nhắn:`;
+      const dau = gio === lg.nguong.yen_den ? `Trong đêm có ${results.length} việc mới từ tin nhắn:` : `${results.length} việc mới từ tin nhắn:`;
       if (await baoToChuc(env, tc.id, `${dau}\n${dong.join('\n')}`)) soBao++;
       await ghiCaiDat(env, tc.id, 'bao_viec_luc', bayGio);
     }
-    return { so_muc: soBao, ghi_chu: soBao ? `Báo ${soBao} tổ chức` : 'Không có việc mới' };
+    if (!soBao) return { bo_qua: true };
+    return { so_muc: soBao, ghi_chu: `Báo ${soBao} tổ chức` };
   },
 
   'canh-zalo': async (env, bayGio) => {
@@ -64,8 +65,9 @@ export const CAC_TAC_VU = {
     let soBao = 0;
     for (const r of results) {
       if (!r.lan_cuoi) continue;
+      const lg = await docLuong(env, r.to_chuc_id);
       const gioIm = (Date.parse(bayGio) - Date.parse(r.lan_cuoi)) / 3600000;
-      if (gioIm < ZALO_IM_GIO || gio < 8 || gio >= 22) continue;
+      if (!lg.bat['canh-zalo'] || gioIm < lg.nguong.zalo_im_gio || dangYenLang(gio, lg.nguong)) continue;
       // Mỗi lần mất tín hiệu chỉ báo một lần: nhớ mốc đã báo.
       if ((await docCaiDat(env, r.to_chuc_id, 'zalo_da_bao')) === r.lan_cuoi) continue;
       await baoToChuc(env, r.to_chuc_id, `Cảnh báo: ${Math.floor(gioIm)} tiếng không nhận được tin Zalo (lần cuối ${gioDayDuVN(r.lan_cuoi)}). Kiểm tra máy Mac và phiên Zalo (có mã QR chờ quét không).`);
@@ -79,6 +81,8 @@ export const CAC_TAC_VU = {
     // So danh sách việc với lần trước: việc biến mất (xóa hoặc hủy) từ 10 việc, hoặc từ 5 việc chưa xong, thì báo.
     let soBao = 0;
     for (const tc of await cacToChuc(env)) {
+      const lg = await docLuong(env, tc.id);
+      if (!lg.bat['canh-viec']) continue;
       const { results } = await env.CSDL.prepare(`SELECT id, tieu_de, trang_thai FROM viec WHERE to_chuc_id = ?1 AND trang_thai != 'huy'`).bind(tc.id).all();
       const khoa = `canh-viec/${tc.id}/gan-nhat.json`;
       const cu = await env.TEP.get(khoa);
@@ -87,7 +91,7 @@ export const CAC_TAC_VU = {
         const con = new Set(results.map((v) => v.id));
         const mat = truoc.filter((v) => !con.has(v.id));
         const matMo = mat.filter((v) => v.trang_thai === 'mo');
-        if (mat.length >= MAT_VIEC_TOI_THIEU || matMo.length >= MAT_MO_TOI_THIEU) {
+        if (mat.length >= lg.nguong.mat_viec || matMo.length >= lg.nguong.mat_viec_mo) {
           // Giữ danh sách trước khi mất để khôi phục.
           await env.TEP.put(`canh-viec/${tc.id}/truoc-${bayGio.slice(0, 13).replace('T', '-')}.json`, JSON.stringify(truoc), { httpMetadata: { contentType: 'application/json' } });
           const ten = mat.slice(0, 15).map((v) => `- ${v.tieu_de}`).join('\n');
@@ -108,23 +112,29 @@ export const CAC_TAC_VU = {
   'don-cuoi-ngay': async (env, bayGio) => {
     const homNay = ngayVN(bayGio);
     const mai = congNgay(homNay, 1);
-    const kq = await env.CSDL.prepare(
-      `UPDATE viec SET han_ngay = ?1, cap_nhat_luc = ?2 WHERE trang_thai = 'mo' AND han_ngay IS NOT NULL AND han_ngay <= ?3`,
-    ).bind(mai, bayGio, homNay).run();
-    const so = kq.meta.changes || 0;
+    let so = 0;
+    for (const tc of await cacToChuc(env)) {
+      if (!(await docLuong(env, tc.id)).bat['don-cuoi-ngay']) continue;
+      const kq = await env.CSDL.prepare(
+        `UPDATE viec SET han_ngay = ?1, cap_nhat_luc = ?2 WHERE to_chuc_id = ?4 AND trang_thai = 'mo' AND han_ngay IS NOT NULL AND han_ngay <= ?3`,
+      ).bind(mai, bayGio, homNay, tc.id).run();
+      so += kq.meta.changes || 0;
+    }
     return { so_muc: so, ghi_chu: so ? `Dời ${so} việc sang ${mai}` : 'Không có việc nào phải dời' };
   },
 
   'sao-luu': async (env, bayGio) => {
     let soToChuc = 0;
     for (const tc of await cacToChuc(env)) {
-      const [viec, tin, tep, caiDat] = await env.CSDL.batch([
+      if (!(await docLuong(env, tc.id)).bat['sao-luu']) continue;
+      const [viec, tin, tep, caiDat, ghiNho] = await env.CSDL.batch([
         env.CSDL.prepare('SELECT * FROM viec WHERE to_chuc_id = ?1').bind(tc.id),
         env.CSDL.prepare('SELECT * FROM tin_nhan WHERE to_chuc_id = ?1 AND thoi_diem >= ?2').bind(tc.id, new Date(Date.now() - 90 * 86400000).toISOString()),
         env.CSDL.prepare('SELECT * FROM tep WHERE to_chuc_id = ?1').bind(tc.id),
         env.CSDL.prepare(`SELECT khoa, gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa NOT LIKE '%ma_noi%'`).bind(tc.id),
+        env.CSDL.prepare('SELECT * FROM ghi_nho WHERE to_chuc_id = ?1').bind(tc.id),
       ]);
-      const banSao = { to_chuc: tc, luc: bayGio, viec: viec.results, tin_nhan: tin.results, tep: tep.results, cai_dat: caiDat.results };
+      const banSao = { to_chuc: tc, luc: bayGio, viec: viec.results, tin_nhan: tin.results, tep: tep.results, cai_dat: caiDat.results, ghi_nho: ghiNho.results };
       await env.TEP.put(`sao-luu/${tc.id}/${ngayVN(bayGio)}.json`, JSON.stringify(banSao), {
         httpMetadata: { contentType: 'application/json' },
       });

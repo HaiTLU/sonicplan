@@ -4,6 +4,7 @@ import { NHOM_THEO_SO, tachViec } from './ai.js';
 import { ghiChuKeHoach } from './ai.js';
 import { ghiNhoChoAi, luuGhiNho } from './ghi-nho.js';
 import { ghiCaiDat, ghiTinHieu } from './hop-tin.js';
+import { docLuong } from './luong.js';
 import { baoSuKien, dangViecMoi, docTichHop } from './tich-hop.js';
 import { doGiong, ngayVN } from './tien-ich.js';
 
@@ -34,6 +35,7 @@ export async function themViec(env, toChucId, viec, { tinNhanId = null, boQuaTru
 
 // Lấy tối đa 20 tin chưa tách của một tổ chức, đánh dấu "đang xử lý" để hai lượt chạy không làm trùng.
 export async function tachViecChoToChuc(env, toChucId) {
+  if (!(await docLuong(env, toChucId)).bat['tach-viec']) return { so_tin: 0, so_viec: 0 };
   const bayGio = new Date().toISOString();
   const { results: tin } = await env.CSDL.prepare(
     `UPDATE tin_nhan SET da_tach = 2, tach_luc = ?2
