@@ -33,18 +33,9 @@ export async function themViec(env, toChucId, viec, { tinNhanId = null, boQuaTru
   return { id: dong.id, trung: false };
 }
 
-// Lấy tối đa 20 tin chưa tách của một tổ chức, đánh dấu "đang xử lý" để hai lượt chạy không làm trùng.
-export async function tachViecChoToChuc(env, toChucId) {
-  if (!(await docLuong(env, toChucId)).bat['tach-viec']) return { so_tin: 0, so_viec: 0 };
-  const bayGio = new Date().toISOString();
-  const { results: tin } = await env.CSDL.prepare(
-    `UPDATE tin_nhan SET da_tach = 2, tach_luc = ?2
-     WHERE id IN (SELECT id FROM tin_nhan WHERE to_chuc_id = ?1 AND da_tach = 0 ORDER BY id LIMIT 20)
-     RETURNING id, nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem`,
-  ).bind(toChucId, bayGio).all();
-  if (!tin.length) return { so_tin: 0, so_viec: 0 };
-  tin.sort((a, b) => a.id - b.id);
-
+// Lõi xử lý một lô tin: AI đọc cùng ghi nhớ, tạo việc, lưu ghi nhớ. Dùng cho tin trong hộp tin và cho tin nhắn trực tiếp.
+// tin: [{ id (hoặc null), nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem }]. Trả { soViec, viec: [{ id, tieu_de, han_ngay, gio_hen, trung }] }.
+async function chayLoTin(env, toChucId, tin, bayGio) {
   const ten = await env.CSDL.prepare(
     `SELECT n.ten FROM thanh_vien v JOIN nguoi_dung n ON n.id = v.nguoi_dung_id WHERE v.to_chuc_id = ?1 AND v.vai_tro = 'chu' LIMIT 1`,
   ).bind(toChucId).first();
@@ -70,7 +61,7 @@ export async function tachViecChoToChuc(env, toChucId) {
     }));
   } catch (e) {
     // Lỗi AI: trả tin về hàng chờ để lượt sau thử lại; tin đã nằm chờ quá 6 giờ thì bỏ qua.
-    await env.CSDL.prepare(
+    if (tin.some((t) => t.id)) await env.CSDL.prepare(
       `UPDATE tin_nhan SET da_tach = CASE WHEN tao_luc < ?2 THEN 3 ELSE 0 END
        WHERE to_chuc_id = ?1 AND da_tach = 2`,
     ).bind(toChucId, new Date(Date.now() - 6 * 3600000).toISOString()).run();
@@ -78,12 +69,14 @@ export async function tachViecChoToChuc(env, toChucId) {
   }
 
   let soViec = 0;
+  const viecRa = [];
   for (const v of ketQua.viec.slice(0, 10)) {
     const nguon = v.tin_so && tin[v.tin_so - 1];
     const keHoach = ghiChuKeHoach(v);
     const ghiChu = [v.ghi_chu, keHoach].filter(Boolean).join('\n\n') || null;
     const r = await themViec(env, toChucId, { ...v, ghi_chu: ghiChu }, { tinNhanId: nguon ? nguon.id : null });
     if (!r.trung) soViec++;
+    viecRa.push({ id: r.id, tieu_de: v.tieu_de, han_ngay: v.han_ngay || null, gio_hen: v.gio_hen || null, trung: r.trung });
   }
   // Ghi nhớ và phân tích: lỗi ở đây không được làm hỏng việc đã tạo.
   try {
@@ -92,8 +85,34 @@ export async function tachViecChoToChuc(env, toChucId) {
   } catch (e) {
     console.error('Lưu ghi nhớ lỗi', e);
   }
+  return { soViec, viec: viecRa };
+}
+
+// Lấy tối đa 20 tin chưa tách của một tổ chức, đánh dấu "đang xử lý" để hai lượt chạy không làm trùng.
+export async function tachViecChoToChuc(env, toChucId) {
+  if (!(await docLuong(env, toChucId)).bat['tach-viec']) return { so_tin: 0, so_viec: 0 };
+  const bayGio = new Date().toISOString();
+  const { results: tin } = await env.CSDL.prepare(
+    `UPDATE tin_nhan SET da_tach = 2, tach_luc = ?2
+     WHERE id IN (SELECT id FROM tin_nhan WHERE to_chuc_id = ?1 AND da_tach = 0 ORDER BY id LIMIT 20)
+     RETURNING id, nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem`,
+  ).bind(toChucId, bayGio).all();
+  if (!tin.length) return { so_tin: 0, so_viec: 0 };
+  tin.sort((a, b) => a.id - b.id);
+
+  const { soViec } = await chayLoTin(env, toChucId, tin, bayGio);
   await env.CSDL.prepare(
     `UPDATE tin_nhan SET da_tach = 1 WHERE to_chuc_id = ?1 AND da_tach = 2 AND id IN (${tin.map((_, i) => `?${i + 2}`).join(',')})`,
   ).bind(toChucId, ...tin.map((t) => t.id)).run();
   return { so_tin: tin.length, so_viec: soViec };
+}
+
+// Tin nhắn trực tiếp (Telegram, dịch vụ ngoài): đi qua cùng lõi AI như tin Zalo nhưng không nằm trong hộp tin.
+// Trả { tat: true } nếu người dùng đã tắt khâu tách việc, hoặc { viec: [...] } (rỗng nếu AI không thấy việc nào).
+export async function xuLyVanBanTrucTiep(env, toChucId, { nguon, nguoi_gui: nguoiGui, noi_dung: noiDung }) {
+  if (!(await docLuong(env, toChucId)).bat['tach-viec']) return { tat: true };
+  const bayGio = new Date().toISOString();
+  const tin = [{ id: null, nguon, nguoi_gui: nguoiGui || 'Tôi', nhom: null, tieu_de: null, noi_dung: String(noiDung || '').slice(0, 3000), thoi_diem: bayGio }];
+  const { viec } = await chayLoTin(env, toChucId, tin, bayGio);
+  return { viec };
 }

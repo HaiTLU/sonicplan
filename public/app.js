@@ -1061,7 +1061,7 @@ async function veKetNoi(goc) {
 
   // Telegram
   const theTele = h('section', { class: 'bang the-kn' },
-    dau('telegram', 'Báo qua Telegram', 'Báo việc mới mỗi giờ (trừ 22h đến 7h), cảnh báo khi máy Zalo im lặng, lệnh /tomtat.', kn.telegram.da_noi ? 'xanh' : 'xam', kn.telegram.da_noi ? 'Đã nối' : kn.telegram.co_bot ? 'Chưa nối' : 'Chưa cài bot'),
+    dau('telegram', 'Báo qua Telegram', 'Nhắn thường để tạo việc, lệnh /viec /nho /hoi /tomtat; báo việc mới và cảnh báo khi máy Zalo im lặng.', kn.telegram.da_noi ? 'xanh' : 'xam', kn.telegram.da_noi ? 'Đã nối' : kn.telegram.co_bot ? 'Chưa nối' : 'Chưa cài bot'),
   );
   if (kn.telegram.co_bot) {
     theTele.append(
@@ -1130,9 +1130,30 @@ async function veKetNoi(goc) {
         } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
       } }, 'Kiểm tra và lưu'))) : null,
   );
+  const nv = kn.nhan_viec;
+  const khungMa = h('div');
+  const khoiVao = h('div', { class: 'khoi-api' },
+    h('h3', { text: 'Nhận việc từ dịch vụ khác' }),
+    h('p', { class: 'mo-ta', text: nv.co ? `Đã có mã nhận việc. ${nv.lan_cuoi ? `${nv.lan_cuoi.ghi_chu}, ${luc(nv.lan_cuoi.lan_cuoi)}.` : 'Chưa nhận việc nào.'} Mã chỉ hiện một lần lúc tạo, mất thì tạo mã mới.` : 'Zapier, Make, Apps Script, biểu mẫu gửi việc vào đây. Gửi tieu_de để tạo việc ngay, hoặc noi_dung (văn bản tự do) để AI đọc và tách việc.' }),
+    laChu ? h('div', { class: 'hang-nut' },
+      h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
+        ev.target.disabled = true;
+        try {
+          const kq = await api('/api/ket-noi/nhan-viec', { method: 'POST' });
+          khungMa.replaceChildren(
+            h('p', { class: 'canh-bao-nho', text: 'Chép mã ngay, sẽ không hiện lại. Gửi POST tới địa chỉ dưới, kèm Authorization: Bearer <mã>.' }),
+            oChep(kq.ma),
+            oChep(`curl -X POST ${kq.dia_chi} -H "Authorization: Bearer ${kq.ma}" -H "content-type: application/json" -d '{"tieu_de":"Nộp báo cáo","han_ngay":"2026-10-15"}'`),
+          );
+        } catch (e) { bao(e.message, { loi: true }); }
+        ev.target.disabled = false;
+      } }, nv.co ? 'Tạo mã mới' : 'Tạo mã nhận việc'),
+      nv.co ? h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/nhan-viec', { method: 'DELETE' }); bao('Đã gỡ mã.'); ve(); } }, 'Gỡ mã') : null) : null,
+    khungMa,
+  );
   const theApi = h('section', { class: 'bang the-kn rong' },
-    dau('ai', 'API trong luồng việc', 'Tin về, AI đọc, việc mới ra, rồi báo tiếp tới dịch vụ bạn dùng.', th.ai || th.webhook ? 'xanh' : 'xam', th.ai || th.webhook ? 'Đã nối' : 'Chưa nối'),
-    h('div', { class: 'luoi-api' }, khoiAi, khoiNhan),
+    dau('ai', 'API trong luồng việc', 'Tin về, AI đọc, việc mới ra, rồi báo tiếp tới dịch vụ bạn dùng.', th.ai || th.webhook || nv.co ? 'xanh' : 'xam', th.ai || th.webhook || nv.co ? 'Đã nối' : 'Chưa nối'),
+    h('div', { class: 'luoi-api' }, khoiAi, khoiNhan, khoiVao),
   );
 
   const theNen = h('section', { class: 'bang the-kn rong' },

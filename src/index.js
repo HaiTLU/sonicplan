@@ -1,6 +1,7 @@
 // Sonicplan: giao diện, API, nhận tin và hẹn giờ trong một Worker, dùng chung cho nhiều tổ chức (khách).
 
 import { xuLyApi } from './api.js';
+import { nhanViecNgoai } from './nhan-ngoai.js';
 import { taoIcs } from './lich-ics.js';
 import { tacVuTheoLich } from './lich-chay.js';
 import { nhanThu } from './nhan-thu.js';
@@ -20,6 +21,7 @@ export default {
       const cai = url.pathname.match(/^\/nhan\/zalo-cai\/([^/]+)$/);
       if (cai && yeuCau.method === 'GET') return lenhCaiZalo(env, cai[1], url);
       if (url.pathname.startsWith('/nhan/zalo-')) return nhanZalo(yeuCau, env, ctx, url.pathname);
+      if (url.pathname === '/nhan/viec') return nhanViecNgoai(yeuCau, env, ctx);
       if (url.pathname === '/nhan/telegram' && yeuCau.method === 'POST') return nhanWebhook(yeuCau, env, ctx);
       const lich = url.pathname.match(/^\/lich\/([a-z0-9]{20,64})\.ics$/);
       if (lich && yeuCau.method === 'GET') return docLich(env, lich[1], url);

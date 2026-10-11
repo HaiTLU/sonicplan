@@ -10,7 +10,7 @@ const TOI_DA_DUA_VAO_AI = 30;
 // Số thẻ, mật khẩu, mã OTP, số giấy tờ: không bao giờ được nhớ.
 const SO_THE = /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/;
 const TU_NHAY_CAM = /\b(mat khau|password|passcode|otp|ma xac (nhan|thuc)|so (cmnd|cccd|ho chieu|tai khoan|the))\b/;
-const nhayCam = (chu) => SO_THE.test(chu) || TU_NHAY_CAM.test(chuanHoa(chu));
+export const nhayCam = (chu) => SO_THE.test(chu) || TU_NHAY_CAM.test(chuanHoa(chu));
 
 // Làm sạch danh sách ghi nhớ do AI trả về: đúng loại, có chữ, bỏ mục nhạy cảm, tối đa 10 mục.
 export function chuanHoaGhiNho(ds) {
