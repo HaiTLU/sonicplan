@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="light dark">
+  <title>Sonicplan</title>
+  <meta name="theme-color" content="#EEF2F5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0F141C" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 18'%3E%3Cpath d='M1 9h5l3-7 4 14 3-7h9' fill='none' stroke='%231F7A63' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preload" href="/fonts/be-vietnam-pro-vietnamese-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/be-vietnam-pro-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/kieu.css">
+</head>
+<body>
+  <a class="bo-qua" href="#noi-dung">Bỏ qua thanh điều hướng</a>
+  <div class="khung">
+    <header class="cot-trai">
+      <span class="ten-sp" translate="no">
+        <svg class="dau-nhip" viewBox="0 0 26 18" aria-hidden="true"><path d="M1 9h5l3-7 4 14 3-7h9" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Sonicplan
+      </span>
+      <nav class="cac-muc" aria-label="Các mục">
+        <a href="#tinh-trang" data-muc="tinh-trang">Tình trạng</a>
+        <a href="#hop-tin" data-muc="hop-tin">Hộp tin</a>
+        <a href="#viec" data-muc="viec">Việc</a>
+        <a href="#tep" data-muc="tep">Tệp</a>
+        <a href="#ket-noi" data-muc="ket-noi">Kết nối</a>
+        <a href="#nhat-ky" data-muc="nhat-ky">Nhật ký chạy</a>
+      </nav>
+      <p class="nguoi-dung" id="nguoi-dung" aria-live="polite"></p>
+    </header>
+    <main id="noi-dung" tabindex="-1">
+      <section data-trang="tinh-trang">
+        <h1 class="tom-tat" id="tom-tat">Đang xem tình trạng…</h1>
+        <p class="dong-phu" id="dong-phu"></p>
+
+        <div class="nhip" aria-labelledby="nhip-tieu-de">
+          <div class="nhip-dau">
+            <h2 id="nhip-tieu-de">Nhịp hôm nay</h2>
+            <p id="nhip-tom-tat"></p>
+          </div>
+          <div class="dai" id="dai" role="img"></div>
+          <div class="thuoc" id="thuoc" aria-hidden="true"></div>
+          <ul class="chu-thich" aria-hidden="true">
+            <li><i></i>Chạy xong</li>
+            <li><i class="loi"></i>Chạy lỗi</li>
+            <li><i class="cho"></i>Giờ chưa tới</li>
+          </ul>
+        </div>
+
+        <div class="nhom">
+          <div>
+            <h2>Hệ thống</h2>
+            <ul class="dong-tp" id="tp-he-thong"></ul>
+          </div>
+          <div>
+            <h2>Kết nối</h2>
+            <ul class="dong-tp" id="tp-ket-noi"></ul>
+          </div>
+        </div>
+
+        <h2>Tác vụ hẹn giờ</h2>
+        <div class="bang-cuon"><table id="bang-tac-vu">
+          <thead><tr><th scope="col">Tác vụ</th><th scope="col">Lịch</th><th scope="col">Lần chạy gần nhất</th><th scope="col">Kết quả</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+      <section data-trang="hop-tin" hidden>
+        <h1 class="tieu-de-trang">Hộp tin</h1>
+        <p class="trong">Tin Zalo và thư Gmail sẽ về đây, kèm tóm tắt và tệp đính kèm. <strong>Mở ở giai đoạn 1.</strong></p>
+      </section>
+      <section data-trang="viec" hidden>
+        <h1 class="tieu-de-trang">Việc</h1>
+        <p class="trong">Việc tách ra từ tin nhắn, giờ hẹn và gợi ý bước làm sẽ nằm ở đây. <strong>Mở ở giai đoạn 2.</strong></p>
+      </section>
+      <section data-trang="tep" hidden>
+        <h1 class="tieu-de-trang">Tệp</h1>
+        <p class="trong">Tệp đính kèm đã lưu lên Drive, kèm đề xuất thư mục và tên mới. <strong>Mở ở giai đoạn 1.</strong></p>
+      </section>
+      <section data-trang="ket-noi" hidden>
+        <h1 class="tieu-de-trang">Kết nối</h1>
+        <p class="trong">Nối Gmail, Drive, Lịch, Telegram, Zalo và AI tại đây. <strong>Mở ở giai đoạn 1.</strong></p>
+      </section>
+      <section data-trang="nhat-ky" hidden>
+        <h1 class="tieu-de-trang">Nhật ký chạy</h1>
+        <div class="bang-cuon"><table id="bang-nhat-ky">
+          <thead><tr><th scope="col">Bắt đầu</th><th scope="col">Tác vụ</th><th scope="col">Kết quả</th><th scope="col" class="so">Số mục</th><th scope="col">Ghi chú</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+      <p class="bao-loi" id="bao-loi" role="alert" hidden></p>
+    </main>
+  </div>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "sonicplan",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "node --test test/*.test.js",
+    "kiem": "node --test test/*.test.js && wrangler deploy --dry-run --outdir .dung-thu",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "4.141.0"
+  }
+}
