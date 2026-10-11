@@ -1,0 +1,51 @@
+// Sonicplan: một Worker lo cả giao diện, API và hẹn giờ.
+// Dữ liệu ở D1, đăng nhập bằng Cloudflare Access. Hướng dẫn cài: README.md.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sonicplan",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-25",
+  "observability": { "enabled": true },
+  "preview_urls": false,
+
+  // Mọi yêu cầu đi qua Worker trước để kiểm đăng nhập, kể cả trang tĩnh.
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "single-page-application"
+  },
+
+  // Cơ sở dữ liệu tạo ngày 11/10/2026, vùng châu Á - Thái Bình Dương.
+  "d1_databases": [
+    {
+      "binding": "CSDL",
+      "database_name": "tro-ly-rieng", // tên đặt trước khi có tên công ty; D1 không đổi tên được
+      "database_id": "1eda092c-b538-4bb0-bb39-e660cf027338",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // Kho tệp đính kèm và bản sao lưu hằng đêm (cần bật R2 trong trang Cloudflare, README bước 2).
+  "r2_buckets": [{ "binding": "TEP", "bucket_name": "sonicplan-tep" }],
+
+  // Workers AI để tách việc và tóm tắt tin, không cần khóa ngoài.
+  "ai": { "binding": "AI" },
+
+  // Giờ UTC. 16:00 UTC = 23:00 giờ Việt Nam. Tác vụ nào chạy ở lịch nào: src/lich-chay.js.
+  "triggers": {
+    "crons": ["*/5 * * * *", "0 * * * *", "0 16 * * *"]
+  },
+
+  "vars": {
+    // Tên miền nhóm Access, dạng ten-nhom.cloudflareaccess.com (README bước 5).
+    "ACCESS_TEAM_DOMAIN": "",
+    // Mã AUD của ứng dụng Access (README bước 5).
+    "ACCESS_AUD": "",
+    // Tên miền nhận thư qua Email Routing, ví dụ "sonicplan.vn". Để trống thì chưa nhận thư.
+    "EMAIL_DOMAIN": "",
+    // Tên bot Telegram (không có @). Mã bot đặt bằng: npx wrangler secret put TELEGRAM_BOT_TOKEN
+    "TELEGRAM_BOT_TEN": "",
+    "AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+  }
+}

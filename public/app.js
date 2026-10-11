@@ -1,0 +1,945 @@
+// Giao diện Sonicplan: một trang, chuyển mục theo dấu #, đọc ghi dữ liệu qua /api.
+
+const MUI_GIO = 'Asia/Ho_Chi_Minh';
+const fmt = {
+  gioPhut: new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: MUI_GIO }),
+  ngayGio: new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short', timeZone: MUI_GIO }),
+  ngayDai: new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: MUI_GIO }),
+  ngayNgan: new Intl.DateTimeFormat('vi-VN', { weekday: 'short', day: 'numeric', month: 'numeric', timeZone: 'UTC' }),
+  ngayISO: new Intl.DateTimeFormat('en-CA', { timeZone: MUI_GIO }),
+  gioSo: new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hourCycle: 'h23', timeZone: MUI_GIO }),
+  so: new Intl.NumberFormat('vi-VN'),
+};
+const homNay = () => fmt.ngayISO.format(new Date());
+const congNgay = (ngay, n) => {
+  const d = new Date(`${ngay}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const ngayHienThi = (ngay) => fmt.ngayNgan.format(new Date(`${ngay}T00:00:00Z`));
+function luc(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const phut = Math.round((Date.now() - d) / 60000);
+  if (phut < 1) return 'vừa xong';
+  if (phut < 60) return `${phut} phút`;
+  if (fmt.ngayISO.format(d) === homNay()) return fmt.gioPhut.format(d);
+  return fmt.ngayGio.format(d);
+}
+function kichThuoc(b) {
+  if (b == null) return '';
+  if (b < 1024) return `${b} B`;
+  if (b < 1048576) return `${fmt.so.format(Math.round(b / 102.4) / 10)} KB`;
+  return `${fmt.so.format(Math.round(b / 104857.6) / 10)} MB`;
+}
+
+// ---------- Dựng phần tử ----------
+function h(the, thuocTinh = {}, ...con) {
+  const el = document.createElement(the);
+  for (const [k, v] of Object.entries(thuocTinh || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'dataset') Object.assign(el.dataset, v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of con.flat()) if (c != null && c !== false) el.append(c.nodeType ? c : String(c));
+  return el;
+}
+const NS = 'http://www.w3.org/2000/svg';
+function s(the, thuocTinh = {}, ...con) {
+  const el = document.createElementNS(NS, the);
+  for (const [k, v] of Object.entries(thuocTinh)) if (v != null) el.setAttribute(k, v);
+  for (const c of con.flat()) if (c) el.append(c);
+  return el;
+}
+function icon(ten) {
+  const el = s('svg', { 'aria-hidden': 'true' });
+  el.append(s('use', { href: `#i-${ten}` }));
+  return el;
+}
+
+// ---------- Gọi API ----------
+async function api(duongDan, tuyChon = {}) {
+  const ph = await fetch(duongDan, {
+    ...tuyChon,
+    headers: { accept: 'application/json', ...(tuyChon.body ? { 'content-type': 'application/json' } : {}) },
+  });
+  const duLieu = await ph.json().catch(() => ({}));
+  if (!ph.ok) throw new Error(duLieu.loi || 'Không đọc được dữ liệu. Tải lại trang để thử lại.');
+  return duLieu;
+}
+
+function bao(noiDung, { loi = false, hanhDong } = {}) {
+  const el = h('div', { class: `bao${loi ? ' loi' : ''}` }, h('span', { text: noiDung }));
+  if (hanhDong) el.append(h('button', { type: 'button', text: hanhDong.nhan, onclick: () => { hanhDong.lam(); el.remove(); } }));
+  document.getElementById('vung-bao').append(el);
+  setTimeout(() => el.remove(), hanhDong ? 6000 : 3500);
+}
+
+function khungLoi(e, thuLai) {
+  return h('div', { class: 'bao-loi-trang', role: 'alert' }, h('span', { text: e.message }), h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: 'Thử lại', onclick: thuLai }));
+}
+
+function xuong(cao, rong = '100%') {
+  return h('div', { class: 'xuong', style: `height:${cao}px;width:${rong}` });
+}
+
+async function chep(van, nut) {
+  try {
+    await navigator.clipboard.writeText(van);
+    bao('Đã chép.');
+    if (nut) nut.setAttribute('aria-label', 'Đã chép');
+  } catch {
+    bao('Trình duyệt chặn chép, hãy bôi đen rồi chép tay.', { loi: true });
+  }
+}
+function oChep(van, { lo = false } = {}) {
+  const nut = h('button', { class: 'nut-icon', type: 'button', 'aria-label': 'Chép', onclick: () => chep(van, nut) }, icon('chep'));
+  return h('div', { class: `o-chep${lo ? ' lo' : ''}` }, h('code', { translate: 'no', text: van }), nut);
+}
+
+// ---------- Trạng thái chung ----------
+// Thay con của một phần tử, bỏ qua giá trị rỗng (null, false) để không hiện chữ "null".
+function thay(el, ...con) {
+  el.replaceChildren(...con.flat().filter((c) => c != null && c !== false));
+}
+
+// Tên nhóm Zalo thường đã bắt đầu bằng "Nhóm", tránh hiện "Nhóm Nhóm ...".
+function tenNhom(ten) {
+  return /^nh[oó]m\s/i.test(ten) ? ten : `Nhóm ${ten}`;
+}
+
+const trang = { toi: null, tin: { loc: 'tat-ca', q: '', chon: null, ds: [] }, viec: { tab: 'mo' }, tep: { q: '' } };
+const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', viec: 'Việc', tep: 'Tệp', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy' };
+const KET_QUA = { xong: 'Xong', loi: 'Lỗi', dang_chay: 'Đang chạy' };
+const ICON_TP = { 'may-chu': 'he-thong', csdl: 'kho', 'hen-gio': 'dong-ho', thu: 'thu', zalo: 'zalo', tep: 'tep', lich: 'lich', ai: 'ai', telegram: 'telegram' };
+const TEN_DEN = { xanh: 'ổn', vang: 'đang chờ', do: 'lỗi', xam: 'chưa dùng' };
+
+function capNhatDem(soTin, soViec) {
+  const dat = (id, n) => {
+    const el = document.getElementById(id);
+    el.textContent = n > 99 ? '99+' : String(n);
+    el.hidden = !n;
+  };
+  if (soTin != null) dat('dem-tin', soTin);
+  if (soViec != null) dat('dem-viec', soViec);
+}
+
+// =====================================================================
+// Tổng quan
+// =====================================================================
+async function veTongQuan(goc) {
+  thay(goc, 
+    h('div', { class: 'luoi-tq' },
+      h('div', { class: 'bang anh-hung' }, xuong(22, '30%'), h('div', { style: 'height:10px' }), xuong(56, '60%'), h('div', { style: 'height:26px' }), xuong(150)),
+      h('div', { class: 'bang dai-so' }, ...[1, 2, 3, 4].map(() => h('div', { class: 'o-so' }, xuong(14, '50%'), h('div', { style: 'height:10px' }), xuong(36, '40%')))),
+    ),
+  );
+  const kq = await api('/api/tong-quan');
+  const sl = kq.so_lieu;
+  capNhatDem(sl.tin_chua_xem, sl.viec_mo);
+  const tp = kq.tinh_trang.thanh_phan;
+  const tt = tomTat(tp, sl);
+
+  const luoi = h('div', { class: 'luoi-tq vao' });
+  // Phần đầu: lời chào, câu tóm tắt, vòng sức khỏe, sóng 24 giờ.
+  const gio = Number(fmt.gioSo.format(new Date()));
+  const loiChao = gio < 11 ? 'Chào buổi sáng' : gio < 14 ? 'Chào buổi trưa' : gio < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
+  const dungDuoc = tp.filter((p) => p.den !== 'xam');
+  const on = dungDuoc.filter((p) => p.den === 'xanh').length;
+  const vong = vongSucKhoe(on, dungDuoc.length, tt.den);
+  luoi.append(
+    h('section', { class: 'bang anh-hung', 'aria-labelledby': 'tq-tom-tat' },
+      h('div', { class: 'anh-hung-tren' },
+        h('div', {},
+          h('p', { class: 'chao', text: `${loiChao}, ${trang.toi?.nguoi_dung?.ten?.split(' ').slice(-2).join(' ') || 'bạn'}.` }),
+          h('h2', { class: 'tom-tat', id: 'tq-tom-tat', dataset: { den: tt.den }, text: tt.cau }),
+          h('p', { class: 'tom-tat-phu', text: tt.phu }),
+        ),
+        vong,
+      ),
+      veSong(kq.nhip),
+    ),
+  );
+
+  // Dải số liệu: một bảng chia vạch, không phải bốn thẻ giống nhau.
+  const tin7 = Array.from({ length: 7 }, (_, i) => {
+    const ngay = congNgay(kq.hom_nay, i - 6);
+    return kq.tin_7_ngay.find((r) => r.ngay === ngay)?.n || 0;
+  });
+  luoi.append(
+    h('dl', { class: 'bang dai-so' },
+      oSo('hop-tin', 'Tin hôm nay', sl.tin_hom_nay, sl.tin_chua_xem ? h('span', { class: 'ghi' }, h('b', { text: `${sl.tin_chua_xem} chưa xem` })) : h('span', { class: 'ghi', text: 'Đã xem hết' }), dongNho(tin7)),
+      oSo('viec', 'Việc đang mở', sl.viec_mo, h('span', { class: 'ghi' }, sl.viec_qua_han ? h('b', { text: `${sl.viec_qua_han} quá hạn` }) : h('b', { class: 'tot', text: 'Không việc nào trễ' }))),
+      oSo('dong-ho', 'Hạn hôm nay', sl.viec_hom_nay, h('span', { class: 'ghi', text: `${sl.xong_hom_nay} việc đã xong hôm nay` })),
+      oSo('tep', 'Tệp tuần này', sl.tep_tuan, h('span', { class: 'ghi', text: 'Lưu trong kho tệp' })),
+    ),
+  );
+
+  luoi.append(bangViecSapToi(kq.viec_sap_toi, kq.hom_nay), bangTinMoi(kq.tin_moi));
+
+  luoi.append(
+    h('section', { class: 'bang bang-suc-khoe', 'aria-labelledby': 'tq-sk' },
+      h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-sk' }, icon('he-thong'), 'Các bộ phận'), h('a', { class: 'lien-ket-nho', href: '#ket-noi' }, 'Cài kết nối', icon('mui-ten'))),
+      h('div', { class: 'luoi-tp' }, ...tp.map((p) =>
+        h('div', { class: 'tp' },
+          h('span', { class: 'tp-icon', dataset: { den: p.den }, role: 'img', 'aria-label': `${p.ten}: ${TEN_DEN[p.den]}` }, icon(ICON_TP[p.ma] || 'he-thong')),
+          h('div', {}, h('strong', { text: p.ten }), h('span', { text: p.mo_ta })),
+        ))),
+      h('div', { class: 'bang-cuon' }, bangTacVu(kq.tinh_trang.tac_vu)),
+    ),
+  );
+  thay(goc, luoi);
+  requestAnimationFrame(() => vong.querySelector('.day-vong')?.style.setProperty('stroke-dashoffset', vong.dataset.dich));
+}
+
+function tomTat(tp, sl) {
+  const loi = tp.filter((p) => p.den === 'do');
+  const cho = tp.filter((p) => p.den === 'vang');
+  const chuaNoi = tp.filter((p) => p.den === 'xam').length;
+  const phuViec = sl.viec_mo ? `Còn ${sl.viec_mo} việc mở${sl.viec_qua_han ? `, ${sl.viec_qua_han} việc quá hạn` : ''}.` : 'Không còn việc nào mở.';
+  if (loi.length) return { den: 'do', cau: loi.length === 1 ? `${loi[0].ten} đang lỗi.` : `${loi.length} bộ phận đang lỗi.`, phu: `${loi.map((p) => `${p.ten}: ${p.mo_ta}`).join('. ')}. ${phuViec}` };
+  if (sl.viec_qua_han) return { den: 'vang', cau: `${sl.viec_qua_han} việc đã quá hạn.`, phu: `Hệ thống chạy ổn. ${phuViec}` };
+  if (cho.length) return { den: 'vang', cau: 'Đang chờ tín hiệu đầu tiên.', phu: `${cho.map((p) => p.mo_ta).join('. ')}. ${chuaNoi ? `${chuaNoi} kết nối chưa cài.` : ''}` };
+  return { den: 'xanh', cau: sl.viec_hom_nay ? `Hôm nay có ${sl.viec_hom_nay} việc tới hạn.` : 'Mọi thứ đang chạy êm.', phu: `${phuViec}${chuaNoi ? ` ${chuaNoi} kết nối chưa cài.` : ''}` };
+}
+
+function vongSucKhoe(on, tong, den) {
+  const r = 52;
+  const chuVi = 2 * Math.PI * r;
+  const dich = tong ? chuVi * (1 - on / tong) : chuVi;
+  const el = h('div', { class: 'vong', dataset: { den, dich: String(dich) }, role: 'img', 'aria-label': `${on} trên ${tong} bộ phận đang ổn` });
+  const ve = s('svg', { viewBox: '0 0 132 132' },
+    s('circle', { class: 'ray-vong', cx: 66, cy: 66, r }),
+    s('circle', { class: 'day-vong', cx: 66, cy: 66, r, 'stroke-dasharray': chuVi, 'stroke-dashoffset': chuVi }),
+  );
+  el.append(ve, h('div', { class: 'vong-chu', 'aria-hidden': 'true' }, h('b', { text: `${on}/${tong}` }), h('small', { text: 'bộ phận ổn' })));
+  return el;
+}
+
+function oSo(ten, nhan, so, ghi, phu) {
+  return h('div', { class: 'o-so' },
+    h('dt', {}, icon(ten), nhan),
+    h('dd', {}, h('div', {}, h('span', { class: 'so-lon', text: fmt.so.format(so || 0) }), ghi), phu || null),
+  );
+}
+
+function dongNho(ds) {
+  const max = Math.max(1, ...ds);
+  const W = 92;
+  const H = 34;
+  const diem = ds.map((v, i) => [(i / (ds.length - 1)) * (W - 4) + 2, H - 3 - (v / max) * (H - 8)]);
+  const d = diem.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
+  return s('svg', { class: 'dong-nho', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Số tin 7 ngày qua: ${ds.join(', ')}` },
+    s('path', { class: 'vung', d: `${d} L${W - 2} ${H} L2 ${H} Z` }),
+    s('path', { d }),
+    s('circle', { cx: diem.at(-1)[0], cy: diem.at(-1)[1], r: 2.6, fill: 'currentColor', stroke: 'none', style: 'color:var(--nhan)' }),
+  );
+}
+
+// Sóng 24 giờ: nửa trên là tin đến, nửa dưới là việc tạo ra và lượt chạy tự động.
+function veSong(nhip) {
+  const gioNay = Number(fmt.gioSo.format(new Date()));
+  const W = 1000;
+  const H = 150;
+  const giua = H / 2;
+  const cot = W / 24;
+  const maxTren = Math.max(4, ...nhip.tin);
+  const maxDuoi = Math.max(4, ...nhip.viec.map((v, i) => v + nhip.chay[i]));
+  const ve = s('svg', { class: 've', viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'none', 'aria-hidden': 'true' });
+  ve.append(s('line', { class: 'duong-giua', x1: 0, x2: W, y1: giua, y2: giua }));
+  const tongTin = nhip.tin.reduce((a, b) => a + b, 0);
+  const tongViec = nhip.viec.reduce((a, b) => a + b, 0);
+  const tongChay = nhip.chay.reduce((a, b) => a + b, 0);
+  const tongLoi = nhip.loi.reduce((a, b) => a + b, 0);
+  for (let g = 0; g < 24; g++) {
+    const x = g * cot + cot * 0.22;
+    const w = cot * 0.56;
+    const nhom = s('g', { class: 'cot-gio' });
+    if (g > gioNay) {
+      nhom.append(s('rect', { class: 'cot cot-tuong-lai', x: x + w / 2 - 2, y: giua - 2, width: 4, height: 4, rx: 2 }));
+    } else {
+      const caoTin = Math.max(nhip.tin[g] ? 6 : 2, (nhip.tin[g] / maxTren) * (giua - 8));
+      nhom.append(s('rect', { class: 'cot cot-tin', x, y: giua - 3 - caoTin, width: w, height: caoTin, rx: Math.min(4, w / 2), style: `animation-delay:${g * 22}ms` }));
+      const caoViec = (nhip.viec[g] / maxDuoi) * (giua - 8);
+      const caoChay = Math.max(2, (nhip.chay[g] / maxDuoi) * (giua - 8));
+      nhom.append(s('rect', { class: `cot ${nhip.loi[g] ? 'cot-loi' : 'cot-chay'}`, x, y: giua + 3, width: w, height: caoChay, rx: Math.min(3, w / 2), style: `animation-delay:${g * 22 + 80}ms` }));
+      if (caoViec) nhom.append(s('rect', { class: 'cot cot-viec', x, y: giua + 3 + caoChay + 2, width: w, height: caoViec, rx: Math.min(3, w / 2), style: `animation-delay:${g * 22 + 140}ms` }));
+    }
+    ve.append(s('rect', { class: 'vung-gio', x: g * cot, y: 0, width: cot, height: H, 'data-gio': g }), nhom);
+  }
+  const xKim = gioNay * cot + cot / 2;
+  ve.append(s('line', { class: 'kim', x1: xKim, x2: xKim, y1: 4, y2: H - 4, 'vector-effect': 'non-scaling-stroke' }));
+
+  const goiY = h('div', { class: 'goi-y-song', 'aria-hidden': 'true' });
+  const khung = h('div', { class: 'song-ve', role: 'img', 'aria-label': `Hôm nay: ${tongTin} tin đến, ${tongViec} việc mới, ${tongChay} lượt chạy tự động, ${tongLoi} lượt lỗi.` }, ve, goiY);
+  ve.addEventListener('pointermove', (e) => {
+    const vung = e.target.closest('.vung-gio');
+    if (!vung) return;
+    const g = Number(vung.dataset.gio);
+    if (g > gioNay) {
+      goiY.classList.remove('hien');
+      return;
+    }
+    thay(goiY, 
+      h('b', { text: `${String(g).padStart(2, '0')}:00 - ${String(g).padStart(2, '0')}:59` }),
+      h('span', {}, 'Tin đến', h('strong', { text: nhip.tin[g] })),
+      h('span', {}, 'Việc mới', h('strong', { text: nhip.viec[g] })),
+      h('span', {}, 'Lượt chạy', h('strong', { text: `${nhip.chay[g]}${nhip.loi[g] ? ` (${nhip.loi[g]} lỗi)` : ''}` })),
+    );
+    const rect = khung.getBoundingClientRect();
+    const x = ((g + 0.5) / 24) * rect.width;
+    goiY.style.left = `${Math.min(Math.max(x, 90), rect.width - 90)}px`;
+    goiY.classList.add('hien');
+  });
+  ve.addEventListener('pointerleave', () => goiY.classList.remove('hien'));
+
+  return h('div', { class: 'song' },
+    h('div', { class: 'song-dau' }, h('h2', { text: 'Nhịp hôm nay' }), h('p', { text: `${tongTin} tin đến, ${tongViec} việc mới, ${tongChay} lượt chạy${tongLoi ? `, ${tongLoi} lỗi` : ''}` })),
+    khung,
+    h('div', { class: 'thuoc-gio', 'aria-hidden': 'true' }, ...Array.from({ length: 24 }, (_, g) => h('span', { text: `${g}h` }))),
+    h('ul', { class: 'chu-thich', 'aria-hidden': 'true' },
+      h('li', {}, h('i'), 'Tin đến'), h('li', {}, h('i', { class: 'viec' }), 'Việc mới'), h('li', {}, h('i', { class: 'chay' }), 'Lượt chạy tự động'), h('li', {}, h('i', { class: 'loi' }), 'Lượt lỗi'),
+    ),
+  );
+}
+
+function nhomTheoNgay(ds, hn) {
+  const nhom = new Map();
+  for (const v of ds) {
+    const k = !v.han_ngay ? 'khong' : v.han_ngay < hn ? 'qua' : v.han_ngay;
+    if (!nhom.has(k)) nhom.set(k, []);
+    nhom.get(k).push(v);
+  }
+  return nhom;
+}
+
+function nhanNgay(k, hn) {
+  if (k === 'qua') return h('span', { class: 'nhan qua-han', text: 'Quá hạn' });
+  if (k === 'khong') return h('span', { class: 'nhan', text: 'Chưa có hạn' });
+  if (k === hn) return h('span', { class: 'nhan hom-nay', text: 'Hôm nay' });
+  if (k === congNgay(hn, 1)) return h('span', { class: 'nhan', text: 'Ngày mai' });
+  return h('span', { class: 'nhan', text: ngayHienThi(k) });
+}
+
+function bangViecSapToi(ds, hn) {
+  const goc = h('section', { class: 'bang bang-viec-toi', 'aria-labelledby': 'tq-viec' },
+    h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-viec' }, icon('viec'), 'Việc sắp tới'), h('a', { class: 'lien-ket-nho', href: '#viec' }, 'Tất cả việc', icon('mui-ten'))),
+  );
+  if (!ds.length) {
+    goc.append(h('div', { class: 'trong-trai', style: 'min-height:220px' }, icon('viec'), h('h3', { text: 'Chưa có việc nào' }), h('p', { text: 'Việc tách từ tin nhắn sẽ hiện ở đây. Bạn cũng có thể bấm Thêm việc.' })));
+    return goc;
+  }
+  const ul = h('ul', { class: 'dong-thoi-gian' });
+  for (const [k, cac] of nhomTheoNgay(ds, hn)) {
+    ul.append(h('li', { class: 'ngay-nhom' }, h('h3', {}, nhanNgay(k, hn)), ...cac.map((v) => mucViec(v))));
+  }
+  goc.append(ul);
+  return goc;
+}
+
+function mucViec(v) {
+  const o = h('input', { class: 'o-xong', type: 'checkbox', 'aria-label': `Đánh dấu xong: ${v.tieu_de}` });
+  const dong = h('div', { class: 'muc-viec' },
+    o,
+    h('button', { class: 'ten-viec', type: 'button', text: v.tieu_de, onclick: () => moNganViec(v) }),
+    v.gio_hen ? h('span', { class: 'chip-gio', text: v.gio_hen }) : h('span'),
+  );
+  o.addEventListener('change', () => doiXong(v, o.checked, dong));
+  return dong;
+}
+
+async function doiXong(v, xong, el) {
+  try {
+    el?.classList.add('dang-xong');
+    await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: xong ? 'xong' : 'mo' }) });
+    bao(xong ? `Đã xong: ${v.tieu_de}` : 'Đã mở lại việc.', { hanhDong: xong ? { nhan: 'Hoàn tác', lam: () => doiXong(v, false) } : null });
+    setTimeout(() => moMuc(), 350);
+  } catch (e) {
+    el?.classList.remove('dang-xong');
+    bao(e.message, { loi: true });
+  }
+}
+
+function bangTinMoi(ds) {
+  const goc = h('section', { class: 'bang bang-tin-moi', 'aria-labelledby': 'tq-tin' },
+    h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-tin' }, icon('hop-tin'), 'Tin mới'), h('a', { class: 'lien-ket-nho', href: '#hop-tin' }, 'Mở hộp tin', icon('mui-ten'))),
+  );
+  if (!ds.length) {
+    goc.append(h('div', { class: 'trong-trai', style: 'min-height:220px' }, icon('hop-tin'), h('h3', { text: 'Hộp tin còn trống' }), h('p', { text: 'Nối Zalo và chuyển tiếp thư ở trang Kết nối để tin bắt đầu về.' })));
+    return goc;
+  }
+  goc.append(h('ul', { class: 'ds-tin-ngan' }, ...ds.map((t) =>
+    h('li', { class: t.da_xem ? '' : 'chua-xem' },
+      h('a', { href: `#hop-tin/${t.id}` },
+        h('span', { class: `huy-hieu ${t.nguon}` }, icon(t.nguon === 'zalo' ? 'zalo' : 'thu')),
+        h('div', { style: 'min-width:0' },
+          h('div', { class: 'dong-1' }, h('strong', { text: t.nguoi_gui || 'Không rõ' }), h('span', { text: t.nhom || t.tieu_de || '' })),
+          h('p', { text: (t.trich || '').replace(/\s+/g, ' ') }),
+        ),
+        h('time', { datetime: t.thoi_diem, text: luc(t.thoi_diem) }),
+      ),
+    ))));
+  return goc;
+}
+
+// Đổi biểu thức cron (giờ UTC) sang câu dễ đọc theo giờ Việt Nam.
+function lichDeDoc(cron) {
+  const [phut, gio] = String(cron || '').split(' ');
+  if (phut?.startsWith('*/') && gio === '*') return `${phut.slice(2)} phút một lần`;
+  if (phut === '0' && gio === '*') return 'Mỗi giờ';
+  if (/^\d+$/.test(phut) && /^\d+$/.test(gio)) return `${String((+gio + 7) % 24).padStart(2, '0')}:${phut.padStart(2, '0')} hằng ngày`;
+  return cron || '';
+}
+
+function bangTacVu(ds) {
+  return h('table', {},
+    h('thead', {}, h('tr', {}, h('th', { scope: 'col', text: 'Tác vụ tự động' }), h('th', { scope: 'col', text: 'Lịch' }), h('th', { scope: 'col', text: 'Lần gần nhất' }), h('th', { scope: 'col', text: 'Kết quả' }), h('th', { scope: 'col', text: 'Ghi chú' }))),
+    h('tbody', {}, ...ds.map((t) => {
+      const c = t.lan_cuoi;
+      return h('tr', {},
+        h('td', { text: t.ten }),
+        h('td', { class: 'lich', text: lichDeDoc(t.lich) }),
+        h('td', { class: 'gio', text: !t.bat ? 'Chưa bật' : c ? luc(c.bat_dau) : 'Chưa chạy' }),
+        h('td', {}, h('span', { class: `nhan-kq ${c?.trang_thai || 'mo'}`, text: c ? KET_QUA[c.trang_thai] : 'Chờ' })),
+        h('td', { class: 'ghi-chu', text: c?.ghi_chu || '' }),
+      );
+    })),
+  );
+}
+
+// =====================================================================
+// Hộp tin
+// =====================================================================
+async function veHopTin(goc, thamSo) {
+  const t = trang.tin;
+  if (thamSo) t.chon = Number(thamSo);
+  const khungDs = h('div', { class: 'bang ds-tin', 'aria-label': 'Danh sách tin' }, ...[1, 2, 3, 4, 5].map(() => h('div', { style: 'padding:12px 10px' }, xuong(14, '60%'), h('div', { style: 'height:8px' }), xuong(32))));
+  const khungDoc = h('div', { class: 'bang doc-tin', 'aria-live': 'polite' });
+  const hop = h('div', { class: `hop-tin${t.chon && thamSo ? ' dang-doc' : ''}` }, khungDs, khungDoc);
+
+  const nutLoc = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(t.loc === ma), onclick: () => { t.loc = ma; veHopTin(goc); } }, nhan);
+  const oTim = h('input', { type: 'search', placeholder: 'Tìm người gửi, nhóm, nội dung…', value: t.q, 'aria-label': 'Tìm tin' });
+  let hen;
+  oTim.addEventListener('input', () => {
+    clearTimeout(hen);
+    hen = setTimeout(() => { t.q = oTim.value.trim(); napDs(); }, 300);
+  });
+  thay(goc, 
+    h('div', { class: 'thanh-loc' },
+      nutLoc('tat-ca', 'Tất cả'), nutLoc('chua-xem', 'Chưa xem'), nutLoc('zalo', 'Zalo'), nutLoc('gmail', 'Thư'),
+      h('button', { class: 'chip', type: 'button', onclick: async () => { await api('/api/tin/da-xem-het', { method: 'POST' }); bao('Đã đánh dấu xem hết.'); capNhatDem(0); veHopTin(goc); } }, 'Đánh dấu xem hết'),
+      h('label', { class: 'o-tim' }, icon('tim'), oTim),
+    ),
+    hop,
+  );
+
+  async function napDs() {
+    const q = new URLSearchParams();
+    if (t.loc === 'chua-xem') q.set('chua_xem', '1');
+    if (t.loc === 'zalo' || t.loc === 'gmail') q.set('nguon', t.loc);
+    if (t.q) q.set('q', t.q);
+    try {
+      const { tin } = await api(`/api/tin?${q}`);
+      t.ds = tin;
+      veDs();
+      if (t.chon) docTin(t.chon);
+      else if (window.matchMedia('(min-width: 861px)').matches && tin[0]) docTin(tin[0].id);
+      else thay(khungDoc, trongDoc());
+    } catch (e) {
+      thay(khungDs, khungLoi(e, napDs));
+    }
+  }
+
+  function veDs() {
+    if (!t.ds.length) {
+      thay(khungDs, h('div', { class: 'trong-trai' }, icon('hop-tin'), h('h3', { text: t.q ? 'Không tìm thấy tin nào' : 'Chưa có tin' }), h('p', { text: t.q ? 'Thử từ khóa khác.' : 'Tin Zalo và thư chuyển tiếp sẽ về đây.' })));
+      return;
+    }
+    thay(khungDs, h('ul', {}, ...t.ds.map((x) =>
+      h('li', { class: x.da_xem ? '' : 'chua-xem' },
+        h('button', { type: 'button', 'aria-current': String(x.id === t.chon), dataset: { id: x.id }, onclick: () => { location.hash = `hop-tin/${x.id}`; } },
+          h('span', { class: `huy-hieu ${x.nguon}` }, icon(x.nguon === 'zalo' ? 'zalo' : 'thu')),
+          h('div', { style: 'min-width:0' },
+            h('div', { class: 'dong-1' }, h('strong', { text: x.nguoi_gui || 'Không rõ' }), h('time', { datetime: x.thoi_diem, text: luc(x.thoi_diem) })),
+            (x.nhom || x.tieu_de) ? h('div', { class: 'noi', text: x.nhom ? tenNhom(x.nhom) : x.tieu_de }) : null,
+            h('p', { text: (x.trich || '').replace(/\s+/g, ' ') }),
+            (x.so_tep || x.so_viec) ? h('div', { class: 'the-nho' }, x.so_tep ? h('span', { text: `${x.so_tep} tệp` }) : null, x.so_viec ? h('span', { class: 'viec', text: `${x.so_viec} việc` }) : null) : null,
+          ),
+        ),
+      ))));
+  }
+
+  function trongDoc() {
+    return h('div', { class: 'trong-trai' }, icon('hop-tin'), h('h3', { text: 'Chọn một tin để đọc' }), h('p', { text: 'Việc AI tách ra từ tin sẽ hiện ngay dưới nội dung.' }));
+  }
+
+  async function docTin(id) {
+    t.chon = id;
+    khungDs.querySelectorAll('button[data-id]').forEach((b) => b.setAttribute('aria-current', String(Number(b.dataset.id) === id)));
+    thay(khungDoc, xuong(14, '30%'), h('div', { style: 'height:16px' }), xuong(34, '70%'), h('div', { style: 'height:20px' }), xuong(160));
+    try {
+      const { tin, tep, viec } = await api(`/api/tin/${id}`);
+      const muc = t.ds.find((x) => x.id === id);
+      if (muc && !muc.da_xem) {
+        muc.da_xem = 1;
+        khungDs.querySelector(`button[data-id="${id}"]`)?.parentElement.classList.remove('chua-xem');
+      }
+      thay(khungDoc, 
+        h('button', { class: 'nut nut-phu nut-nho nut-quay', type: 'button', text: 'Quay lại danh sách', onclick: () => { t.chon = null; location.hash = 'hop-tin'; } }),
+        h('div', { class: 'nguon' }, h('span', { class: `huy-hieu ${tin.nguon}` }, icon(tin.nguon === 'zalo' ? 'zalo' : 'thu')), tin.nguon === 'zalo' ? (tin.nhom ? `Zalo, ${tenNhom(tin.nhom)}` : 'Zalo, tin riêng') : 'Thư chuyển tiếp'),
+        h('h2', { text: tin.tieu_de && tin.nguon === 'gmail' ? tin.tieu_de : tin.nguoi_gui || 'Không rõ người gửi' }),
+        h('p', { class: 'meta', text: `${tin.nguon === 'gmail' ? `Từ ${tin.nguoi_gui || 'không rõ'}, ` : ''}${fmt.ngayGio.format(new Date(tin.thoi_diem))}` }),
+        h('div', { class: 'than', text: tin.noi_dung || '(Không có nội dung)' }),
+        tep.length ? h('div', { class: 'khoi' }, h('h3', { text: 'Tệp đính kèm' }), ...tep.map((f) => h('a', { class: 'tep-dinh', href: `/api/tep/${f.id}/tai` }, icon('tai'), f.ten, h('small', { text: kichThuoc(f.kich_thuoc) })))) : null,
+        h('div', { class: 'khoi' },
+          h('h3', { text: viec.length ? 'Việc tách từ tin này' : 'Chưa có việc nào từ tin này' }),
+          ...viec.map((v) => h('div', { class: 'muc-viec' }, h('span', { class: `nhan-kq ${v.trang_thai === 'xong' ? 'xong' : 'dang_chay'}`, text: v.trang_thai === 'xong' ? 'Xong' : 'Mở' }), h('button', { class: 'ten-viec', type: 'button', text: v.tieu_de, onclick: () => moNganViec(v) }), v.han_ngay ? h('span', { class: 'chip-gio', text: `${ngayHienThi(v.han_ngay)}${v.gio_hen ? ` ${v.gio_hen}` : ''}` }) : h('span'))),
+          h('button', { class: 'nut nut-phu nut-nho', type: 'button', style: 'margin-top:10px', onclick: () => moNganViec(null, { tieu_de: '', ghi_chu: `Từ ${tin.nguoi_gui || ''}: ${(tin.noi_dung || '').slice(0, 300)}` }) }, icon('cong'), 'Tạo việc từ tin này'),
+        ),
+      );
+      api('/api/tong-quan').then((kq) => capNhatDem(kq.so_lieu.tin_chua_xem, kq.so_lieu.viec_mo)).catch(() => {});
+    } catch (e) {
+      thay(khungDoc, khungLoi(e, () => docTin(id)));
+    }
+  }
+
+  napDs();
+}
+
+// =====================================================================
+// Việc
+// =====================================================================
+async function veViec(goc) {
+  const v = trang.viec;
+  const oTen = h('input', { name: 'tieu_de', placeholder: 'Thêm nhanh một việc rồi nhấn Enter…', maxlength: '200', 'aria-label': 'Tên việc', autocomplete: 'off' });
+  const oNgay = h('input', { name: 'han_ngay', type: 'date', 'aria-label': 'Hạn', value: homNay() });
+  const oGio = h('input', { name: 'gio_hen', type: 'time', step: '300', 'aria-label': 'Giờ hẹn' });
+  const form = h('form', { class: 'bang them-nhanh' }, oTen, oNgay, oGio, h('button', { class: 'nut nut-chinh', type: 'submit' }, icon('cong'), 'Thêm'));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!oTen.value.trim()) {
+      oTen.focus();
+      bao('Nhập tên việc trước đã.', { loi: true });
+      return;
+    }
+    try {
+      await api('/api/viec', { method: 'POST', body: JSON.stringify({ tieu_de: oTen.value, han_ngay: oNgay.value || null, gio_hen: oGio.value || null }) });
+      bao('Đã thêm việc.');
+      oTen.value = '';
+      napViec();
+    } catch (err) {
+      bao(err.message, { loi: true });
+    }
+  });
+
+  const tab = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.tab === ma), onclick: () => { v.tab = ma; veViec(goc); } }, nhan);
+  const vung = h('div', { class: 'cot-viec-wrap' }, ...[1, 2, 3].map(() => h('div', { class: 'cot-viec', style: 'padding:16px' }, xuong(16, '40%'), h('div', { style: 'height:14px' }), xuong(70), h('div', { style: 'height:8px' }), xuong(70))));
+  thay(goc, form, h('div', { class: 'thanh-loc' }, tab('mo', 'Đang mở'), tab('xong', 'Đã xong')), vung);
+
+  async function napViec() {
+    try {
+      const { viec, hom_nay: hn } = await api(`/api/viec?trang_thai=${v.tab}`);
+      if (v.tab === 'mo') capNhatDem(null, viec.length);
+      thay(vung, ...(v.tab === 'mo' ? cotTheoHan(viec, hn) : [cotXong(viec)]));
+    } catch (e) {
+      thay(vung, khungLoi(e, napViec));
+    }
+  }
+  napViec();
+}
+
+function cotTheoHan(ds, hn) {
+  const mai = congNgay(hn, 1);
+  const cuoiTuan = congNgay(hn, 7);
+  const cot = [
+    { ma: 'qua-han', ten: 'Quá hạn', loc: (x) => x.han_ngay && x.han_ngay < hn },
+    { ma: 'hom-nay', ten: 'Hôm nay', loc: (x) => x.han_ngay === hn },
+    { ma: 'ngay-mai', ten: 'Ngày mai', loc: (x) => x.han_ngay === mai },
+    { ma: 'tuan', ten: '7 ngày tới', loc: (x) => x.han_ngay > mai && x.han_ngay <= cuoiTuan },
+    { ma: 'sau', ten: 'Sau đó', loc: (x) => x.han_ngay > cuoiTuan },
+    { ma: 'khong', ten: 'Chưa có hạn', loc: (x) => !x.han_ngay },
+  ];
+  return cot
+    .map((c) => ({ ...c, ds: ds.filter(c.loc) }))
+    .filter((c) => c.ds.length || ['hom-nay', 'ngay-mai'].includes(c.ma))
+    .map((c) => h('section', { class: 'cot-viec', dataset: { cot: c.ma }, 'aria-label': c.ten },
+      h('header', {}, h('h2', { text: c.ten }), h('span', { text: String(c.ds.length) })),
+      c.ds.length ? h('ul', {}, ...c.ds.map((x) => theViec(x, hn))) : h('p', { class: 'cot-trong', text: c.ma === 'hom-nay' ? 'Không có việc tới hạn hôm nay.' : 'Trống.' }),
+    ));
+}
+
+function cotXong(ds) {
+  return h('section', { class: 'cot-viec', 'aria-label': 'Đã xong', style: 'grid-column: 1 / -1' },
+    h('header', {}, h('h2', { text: 'Đã xong gần đây' }), h('span', { text: String(ds.length) })),
+    ds.length ? h('ul', {}, ...ds.map((x) => theViec(x))) : h('p', { class: 'cot-trong', text: 'Chưa xong việc nào.' }),
+  );
+}
+
+function theViec(v, hn) {
+  const o = h('input', { class: 'o-xong', type: 'checkbox', checked: v.trang_thai === 'xong', 'aria-label': `${v.trang_thai === 'xong' ? 'Mở lại' : 'Đánh dấu xong'}: ${v.tieu_de}` });
+  const the = h('li', { class: 'the-viec' },
+    o,
+    h('div', { style: 'min-width:0' },
+      h('button', { class: 'ten-viec', type: 'button', text: v.tieu_de, onclick: () => moNganViec(v) }),
+      v.ghi_chu ? h('p', { class: 'ghi', text: v.ghi_chu }) : null,
+      h('div', { class: 'chan' },
+        v.han_ngay ? h('span', { class: hn && v.han_ngay < hn ? 'tre' : '' }, icon('lich'), ngayHienThi(v.han_ngay)) : null,
+        v.gio_hen ? h('span', {}, icon('dong-ho'), v.gio_hen) : null,
+        v.tin_nguon ? h('span', { class: v.tin_nguon, title: v.tin_nhom || v.tin_nguoi_gui || '' }, icon(v.tin_nguon === 'zalo' ? 'zalo' : 'thu'), v.tin_nguoi_gui?.split('<')[0].trim() || (v.tin_nguon === 'zalo' ? 'Zalo' : 'Thư')) : null,
+        v.xong_luc ? h('span', {}, `Xong ${luc(v.xong_luc)}`) : null,
+      ),
+    ),
+  );
+  o.addEventListener('change', () => doiXong(v, o.checked, the));
+  return the;
+}
+
+// Ngăn kéo thêm và sửa việc, dùng chung cho mọi trang.
+const ngan = document.getElementById('ngan-viec');
+const formViec = document.getElementById('form-viec');
+let viecDangSua = null;
+function moNganViec(v, macDinh = {}) {
+  viecDangSua = v;
+  formViec.reset();
+  formViec.querySelector('.loi-form').hidden = true;
+  document.getElementById('ngan-viec-tieu-de').textContent = v ? 'Sửa việc' : 'Thêm việc';
+  document.getElementById('nut-huy-viec').hidden = !v;
+  const du = v || { han_ngay: homNay(), ...macDinh };
+  for (const k of ['tieu_de', 'han_ngay', 'gio_hen', 'ghi_chu']) formViec.elements[k].value = du[k] || '';
+  ngan.showModal();
+  formViec.elements.tieu_de.focus();
+}
+ngan.addEventListener('click', (e) => {
+  if (e.target === ngan || e.target.closest('[data-dong]')) ngan.close();
+});
+formViec.querySelectorAll('[data-han]').forEach((b) => b.addEventListener('click', () => {
+  formViec.elements.han_ngay.value = b.dataset.han === '' ? '' : congNgay(homNay(), Number(b.dataset.han));
+}));
+formViec.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const loiEl = formViec.querySelector('.loi-form');
+  const du = Object.fromEntries(['tieu_de', 'han_ngay', 'gio_hen', 'ghi_chu'].map((k) => [k, formViec.elements[k].value.trim() || null]));
+  if (!du.tieu_de) {
+    loiEl.textContent = 'Nhập tên việc.';
+    loiEl.hidden = false;
+    formViec.elements.tieu_de.focus();
+    return;
+  }
+  try {
+    if (viecDangSua) await api(`/api/viec/${viecDangSua.id}`, { method: 'PATCH', body: JSON.stringify(du) });
+    else await api('/api/viec', { method: 'POST', body: JSON.stringify(du) });
+    ngan.close();
+    bao(viecDangSua ? 'Đã lưu thay đổi.' : 'Đã thêm việc.');
+    moMuc();
+  } catch (err) {
+    loiEl.textContent = err.message;
+    loiEl.hidden = false;
+  }
+});
+document.getElementById('nut-huy-viec').addEventListener('click', async () => {
+  if (!viecDangSua) return;
+  const v = viecDangSua;
+  try {
+    await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'huy' }) });
+    ngan.close();
+    bao(`Đã hủy: ${v.tieu_de}`, { hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'mo' }) }); moMuc(); } } });
+    moMuc();
+  } catch (err) {
+    bao(err.message, { loi: true });
+  }
+});
+document.getElementById('nut-them-viec').addEventListener('click', () => moNganViec(null));
+
+// =====================================================================
+// Tệp
+// =====================================================================
+function loaiTep(ten, loai) {
+  const duoi = (ten.split('.').pop() || '').toLowerCase();
+  if (duoi === 'pdf') return ['pdf', 'PDF'];
+  if (['doc', 'docx', 'odt', 'rtf'].includes(duoi)) return ['doc', duoi.toUpperCase()];
+  if (['xls', 'xlsx', 'csv', 'ods'].includes(duoi)) return ['xls', duoi.toUpperCase()];
+  if (['ppt', 'pptx', 'odp'].includes(duoi)) return ['ppt', duoi.toUpperCase()];
+  if (/^image\//.test(loai || '') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'].includes(duoi)) return ['anh', duoi.toUpperCase() || 'ẢNH'];
+  if (['zip', 'rar', '7z'].includes(duoi)) return ['nen', duoi.toUpperCase()];
+  return ['khac', (duoi || 'TỆP').toUpperCase().slice(0, 4)];
+}
+
+async function veTep(goc) {
+  const t = trang.tep;
+  const oTim = h('input', { type: 'search', placeholder: 'Tìm tên tệp, người gửi…', value: t.q, 'aria-label': 'Tìm tệp' });
+  const luoi = h('div', { class: 'luoi-tep' }, ...[1, 2, 3, 4, 5, 6].map(() => h('div', { class: 'bang the-tep' }, xuong(54, '46px'), xuong(16, '80%'), xuong(12, '50%'))));
+  let hen;
+  oTim.addEventListener('input', () => { clearTimeout(hen); hen = setTimeout(() => { t.q = oTim.value.trim(); nap(); }, 300); });
+  thay(goc, h('div', { class: 'thanh-loc' }, h('label', { class: 'o-tim', style: 'margin-left:0' }, icon('tim'), oTim)), luoi);
+  async function nap() {
+    try {
+      const { tep } = await api(`/api/tep${t.q ? `?q=${encodeURIComponent(t.q)}` : ''}`);
+      if (!tep.length) {
+        thay(luoi, h('div', { class: 'bang trong-trai', style: 'grid-column:1/-1;min-height:280px' }, icon('tep'), h('h3', { text: t.q ? 'Không tìm thấy tệp' : 'Chưa có tệp nào' }), h('p', { text: 'Tệp đính kèm trong thư và tệp gửi qua Zalo sẽ tự lưu vào đây.' })));
+        return;
+      }
+      thay(luoi, ...tep.map((f) => {
+        const [lop, nhan] = loaiTep(f.ten, f.loai);
+        return h('a', { class: 'bang the-tep', href: `/api/tep/${f.id}/tai`, 'aria-label': `Tải ${f.ten}` },
+          h('div', { class: 'dau' }, h('span', { class: 'loai-tep', dataset: { loai: lop }, text: nhan }), h('span', { class: 'tai' }, icon('tai'))),
+          h('strong', { text: f.ten }),
+          h('div', { class: 'meta' }, h('span', { text: kichThuoc(f.kich_thuoc) }), h('span', { text: f.nguon === 'zalo' ? 'Zalo' : 'Thư' }), f.nguoi_gui ? h('span', { text: f.nguoi_gui.split('<')[0].trim() }) : null, h('span', { text: luc(f.tao_luc) })),
+        );
+      }));
+    } catch (e) {
+      thay(luoi, khungLoi(e, nap));
+    }
+  }
+  nap();
+}
+
+// =====================================================================
+// Kết nối
+// =====================================================================
+async function veKetNoi(goc) {
+  thay(goc, h('div', { class: 'ds-kn' }, ...[1, 2, 3, 4].map(() => h('div', { class: 'bang the-kn' }, xuong(44, '44px'), xuong(16, '60%'), xuong(80)))));
+  const kn = await api('/api/ket-noi');
+  const daoTrangThai = (den, chu) => h('span', { class: `trang-thai-kn ${den}`, text: chu });
+  const dau = (ten, tieuDe, moTa, den, chu) => h('header', {}, h('span', { class: 'tp-icon', dataset: { den } }, icon(ten)), h('div', {}, h('h2', { text: tieuDe }), h('p', { text: moTa })), daoTrangThai(den, chu));
+
+  // Thư
+  const theThu = h('section', { class: 'bang the-kn' },
+    dau('thu', 'Thư chuyển tiếp', 'Thư gửi tới địa chỉ riêng của bạn vào thẳng hộp tin, kèm tệp đính kèm.', kn.thu.lan_cuoi ? 'xanh' : kn.thu.dia_chi ? 'vang' : 'xam', kn.thu.lan_cuoi ? `Thư cuối ${luc(kn.thu.lan_cuoi.lan_cuoi)}` : kn.thu.dia_chi ? 'Chờ thư đầu tiên' : 'Chưa bật'),
+  );
+  if (kn.thu.dia_chi) {
+    theThu.append(oChep(kn.thu.dia_chi), h('ol', { class: 'buoc' },
+      h('li', {}, 'Trong Gmail, mở Cài đặt, Chuyển tiếp và POP/IMAP, bấm Thêm địa chỉ chuyển tiếp, dán địa chỉ trên.'),
+      h('li', {}, 'Gmail gửi thư xác nhận tới địa chỉ đó. Thư sẽ hiện ở Hộp tin sau vài giây; mở thư, bấm đường dẫn xác nhận.'),
+      h('li', {}, 'Chọn Chuyển tiếp bản sao thư đến, lưu lại. Từ giờ mọi thư mới cũng về Sonicplan.'),
+    ));
+  } else {
+    theThu.append(h('p', { class: 'canh-bao-nho', text: 'Hệ thống chưa có tên miền nhận thư. Người quản trị đặt EMAIL_DOMAIN và bật Email Routing (README bước 4).' }));
+  }
+
+  // Zalo
+  const oKhoaZalo = h('div');
+  const theZalo = h('section', { class: 'bang the-kn' },
+    dau('zalo', 'Tin Zalo từ máy Mac', 'Chương trình trên máy Mac đọc tin Zalo cá nhân rồi gửi về theo lô.',
+      !kn.zalo.khoa ? 'xam' : !kn.zalo.lan_cuoi ? 'vang' : Date.now() - Date.parse(kn.zalo.lan_cuoi.lan_cuoi) > 6 * 3600000 ? 'do' : 'xanh',
+      !kn.zalo.khoa ? 'Chưa nối' : !kn.zalo.lan_cuoi ? 'Chờ máy Mac' : `Tín hiệu ${luc(kn.zalo.lan_cuoi.lan_cuoi)}`),
+    h('ol', { class: 'buoc' },
+      h('li', {}, 'Bấm Tạo mã cho máy Mac. Mã chỉ hiện một lần; tạo mã mới thì mã cũ hết hiệu lực.'),
+      h('li', {}, 'Trên máy Mac, mở tệp ~/.zalo-listener/.env, thay hai dòng N8N_WEBHOOK_URL và N8N_HEADER_VALUE bằng hai dòng hiện ra.'),
+      h('li', {}, 'Khởi động lại chương trình nghe Zalo trên máy Mac, hoặc khởi động lại máy.'),
+    ),
+    oKhoaZalo,
+    h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => {
+      if (kn.zalo.khoa && !confirm('Tạo mã mới sẽ làm mã đang dùng trên máy Mac hết hiệu lực. Tiếp tục?')) return;
+      try {
+        const kq = await api('/api/ket-noi/zalo', { method: 'POST' });
+        thay(oKhoaZalo, oChep(`N8N_WEBHOOK_URL=${kq.dia_chi}\nN8N_HEADER_VALUE=${kq.khoa}`, { lo: true }), h('p', { class: 'canh-bao-nho', style: 'margin-top:10px', text: 'Chép ngay, mã này sẽ không hiện lại.' }));
+      } catch (e) { bao(e.message, { loi: true }); }
+    } }, icon('lap'), kn.zalo.khoa ? 'Tạo mã mới' : 'Tạo mã cho máy Mac')),
+  );
+
+  // Lịch
+  const oLich = h('div');
+  const theLich = h('section', { class: 'bang the-kn' },
+    dau('lich', 'Lịch', 'Việc có hạn hiện trên Google Calendar, Apple Calendar hay Outlook, tự cập nhật mỗi vài giờ.', kn.lich.khoa ? 'xanh' : 'xam', kn.lich.khoa ? (kn.lich.khoa.dung_luc ? `Đọc ${luc(kn.lich.khoa.dung_luc)}` : 'Chờ lịch đọc') : 'Chưa tạo'),
+    h('ol', { class: 'buoc' },
+      h('li', {}, 'Bấm Tạo đường dẫn lịch rồi chép đường dẫn.'),
+      h('li', {}, 'Google Calendar trên máy tính: Lịch khác, dấu +, Từ URL, dán đường dẫn.'),
+    ),
+    oLich,
+    h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => {
+      if (kn.lich.khoa && !confirm('Tạo đường dẫn mới thì đường dẫn cũ ngừng chạy, phải thêm lại vào lịch. Tiếp tục?')) return;
+      try {
+        const kq = await api('/api/ket-noi/lich', { method: 'POST' });
+        thay(oLich, oChep(kq.duong_dan), h('p', { class: 'canh-bao-nho', style: 'margin-top:10px', text: 'Ai có đường dẫn này cũng xem được việc của bạn, đừng gửi cho người khác.' }));
+      } catch (e) { bao(e.message, { loi: true }); }
+    } }, icon('lich'), kn.lich.khoa ? 'Tạo đường dẫn mới' : 'Tạo đường dẫn lịch')),
+  );
+
+  // Telegram
+  const theTele = h('section', { class: 'bang the-kn' },
+    dau('telegram', 'Báo qua Telegram', 'Báo việc mới mỗi giờ (trừ 22h đến 7h), cảnh báo khi máy Zalo im lặng, lệnh /tomtat.', kn.telegram.da_noi ? 'xanh' : 'xam', kn.telegram.da_noi ? 'Đã nối' : kn.telegram.co_bot ? 'Chưa nối' : 'Chưa cài bot'),
+  );
+  if (kn.telegram.co_bot) {
+    theTele.append(
+      h('ol', { class: 'buoc' }, h('li', {}, 'Bấm nút dưới, Telegram mở ra cuộc trò chuyện với bot.'), h('li', {}, 'Bấm Start. Bot trả lời "Đã nối" là xong.')),
+      h('div', { class: 'hang-nut' },
+        h('a', { class: 'nut nut-chinh', href: kn.telegram.duong_dan, target: '_blank', rel: 'noopener' }, icon('telegram'), kn.telegram.da_noi ? 'Nối lại Telegram' : 'Nối Telegram'),
+        trang.toi?.to_chuc?.vai_tro === 'chu' ? h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { try { await api('/api/ket-noi/telegram/dang-ky', { method: 'POST' }); bao('Đã đăng ký địa chỉ nhận tin cho bot.'); } catch (e) { bao(e.message, { loi: true }); } } }, 'Đăng ký lại bot') : null,
+      ),
+    );
+  } else {
+    theTele.append(h('p', { class: 'canh-bao-nho', text: 'Người quản trị cần tạo bot với @BotFather rồi đặt TELEGRAM_BOT_TEN và TELEGRAM_BOT_TOKEN (README bước 6).' }));
+  }
+
+  const theNen = h('section', { class: 'bang the-kn rong' },
+    dau('ai', 'AI và kho tệp', 'Workers AI đọc tin mới mỗi 5 phút để tách việc; tệp và bản sao lưu hằng đêm nằm trong kho R2.', kn.ai.co && kn.tep.co ? 'xanh' : 'vang', kn.ai.co && kn.tep.co ? 'Sẵn sàng' : 'Thiếu cấu hình'),
+    h('div', { class: 'luoi-tp', style: 'padding:0' },
+      h('div', { class: 'tp' }, h('span', { class: 'tp-icon', dataset: { den: kn.ai.co ? 'xanh' : 'do' } }, icon('ai')), h('div', {}, h('strong', { text: 'Workers AI' }), h('span', { text: kn.ai.co ? 'Đã gắn, không cần khóa riêng' : 'Chưa gắn' }))),
+      h('div', { class: 'tp' }, h('span', { class: 'tp-icon', dataset: { den: kn.tep.co ? 'xanh' : 'do' } }, icon('kho')), h('div', {}, h('strong', { text: 'Kho tệp R2' }), h('span', { text: kn.tep.co ? 'Đã gắn, sao lưu lúc 23h' : 'Chưa bật R2' }))),
+      h('div', { class: 'tp' }, h('span', { class: 'tp-icon', dataset: { den: 'xanh' } }, icon('he-thong')), h('div', {}, h('strong', { text: 'Địa chỉ trang' }), h('span', { translate: 'no', text: kn.goc }))),
+    ),
+  );
+
+  thay(goc, h('div', { class: 'ds-kn vao' }, theThu, theZalo, theLich, theTele, theNen));
+}
+
+// =====================================================================
+// Nhật ký chạy
+// =====================================================================
+let locNhatKy = 'tat-ca';
+async function veNhatKy(goc) {
+  thay(goc, h('div', { class: 'bang', style: 'padding:20px' }, ...[1, 2, 3, 4, 5, 6].map(() => h('div', { style: 'margin-bottom:12px' }, xuong(18)))));
+  const { dong } = await api('/api/nhat-ky?so_dong=300');
+  const cacTacVu = [...new Set(dong.map((d) => d.tac_vu))];
+  const loc = locNhatKy === 'tat-ca' ? dong : locNhatKy === 'loi' ? dong.filter((d) => d.trang_thai === 'loi') : dong.filter((d) => d.tac_vu === locNhatKy);
+  const soLoi = dong.filter((d) => d.trang_thai === 'loi').length;
+  const chip = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(locNhatKy === ma), onclick: () => { locNhatKy = ma; veNhatKy(goc); } }, nhan);
+  thay(goc, 
+    h('div', { class: 'thanh-loc' }, chip('tat-ca', 'Tất cả'), chip('loi', h('span', {}, 'Lỗi ', h('b', { text: String(soLoi) }))), ...cacTacVu.map((t) => chip(t, t))),
+    h('div', { class: 'bang' }, h('div', { class: 'bang-cuon' },
+      loc.length
+        ? h('table', {},
+          h('thead', {}, h('tr', {}, h('th', { scope: 'col', text: 'Bắt đầu' }), h('th', { scope: 'col', text: 'Tác vụ' }), h('th', { scope: 'col', text: 'Kết quả' }), h('th', { scope: 'col', class: 'so', text: 'Số mục' }), h('th', { scope: 'col', text: 'Ghi chú' }))),
+          h('tbody', {}, ...loc.map((d) => h('tr', {},
+            h('td', { class: 'gio', text: fmt.ngayGio.format(new Date(d.bat_dau)) }),
+            h('td', { translate: 'no', text: d.tac_vu }),
+            h('td', {}, h('span', { class: `nhan-kq ${d.trang_thai}`, text: KET_QUA[d.trang_thai] || d.trang_thai })),
+            h('td', { class: 'so', text: String(d.so_muc) }),
+            h('td', { class: 'ghi-chu', text: d.ghi_chu || '' }),
+          ))))
+        : h('div', { class: 'trong-trai', style: 'min-height:240px' }, icon('nhat-ky'), h('h3', { text: 'Chưa có lần chạy nào' }), h('p', { text: 'Hẹn giờ chạy lần đầu vào đầu giờ kế tiếp.' })),
+    )),
+  );
+}
+
+// =====================================================================
+// Chuyển mục
+// =====================================================================
+const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, viec: veViec, tep: veTep, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy };
+let mucTruoc = null;
+
+async function moMuc() {
+  const [ma, thamSo] = (location.hash.slice(1) || 'tong-quan').split('/');
+  const muc = VE[ma] ? ma : 'tong-quan';
+  document.querySelectorAll('[data-trang]').forEach((sec) => { sec.hidden = sec.dataset.trang !== muc; });
+  document.querySelectorAll('[data-muc]').forEach((a) => {
+    if (a.dataset.muc === muc) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  });
+  const tieuDe = document.getElementById('tieu-de-trang');
+  tieuDe.textContent = TEN_MUC[muc];
+  document.title = `${TEN_MUC[muc]} - Sonicplan`;
+  const goc = document.querySelector(`[data-trang="${muc}"]`);
+  if (mucTruoc && mucTruoc !== muc) tieuDe.focus({ preventScroll: true });
+  mucTruoc = muc;
+  try {
+    await VE[muc](goc, thamSo);
+  } catch (e) {
+    thay(goc, khungLoi(e, moMuc));
+  }
+}
+
+// ---------- Bảng lệnh (Ctrl K) ----------
+const bangLenh = document.getElementById('bang-lenh');
+const oLenh = document.getElementById('o-lenh');
+const dsLenh = document.getElementById('ds-lenh');
+const LENH = [
+  { nhan: 'Tổng quan', icon: 'tong-quan', lam: () => (location.hash = 'tong-quan'), goi: 'G T' },
+  { nhan: 'Hộp tin', icon: 'hop-tin', lam: () => (location.hash = 'hop-tin'), goi: 'G H' },
+  { nhan: 'Việc', icon: 'viec', lam: () => (location.hash = 'viec'), goi: 'G V' },
+  { nhan: 'Tệp', icon: 'tep', lam: () => (location.hash = 'tep') },
+  { nhan: 'Kết nối', icon: 'ket-noi', lam: () => (location.hash = 'ket-noi') },
+  { nhan: 'Nhật ký chạy', icon: 'nhat-ky', lam: () => (location.hash = 'nhat-ky') },
+  { nhan: 'Thêm việc mới', icon: 'cong', lam: () => moNganViec(null), goi: 'N' },
+  { nhan: 'Tin chưa xem', icon: 'hop-tin', lam: () => { trang.tin.loc = 'chua-xem'; location.hash = 'hop-tin'; moMuc(); } },
+  { nhan: 'Việc đã xong', icon: 'viec', lam: () => { trang.viec.tab = 'xong'; location.hash = 'viec'; moMuc(); } },
+];
+let chonLenh = 0;
+function veLenh() {
+  const q = oLenh.value.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
+  const khop = LENH.filter((l) => l.nhan.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').includes(q));
+  const ds = q ? [...khop, { nhan: `Tìm tin có "${oLenh.value.trim()}"`, icon: 'tim', lam: () => { trang.tin.q = oLenh.value.trim(); trang.tin.loc = 'tat-ca'; location.hash = 'hop-tin'; moMuc(); } }] : khop;
+  chonLenh = Math.min(chonLenh, ds.length - 1);
+  thay(dsLenh, ...ds.map((l, i) => {
+    const li = h('li', { role: 'option', id: `lenh-${i}`, 'aria-selected': String(i === chonLenh) }, icon(l.icon), l.nhan, l.goi ? h('small', { text: l.goi }) : null);
+    li.addEventListener('click', () => { bangLenh.close(); l.lam(); });
+    li.addEventListener('pointermove', () => { if (chonLenh !== i) { chonLenh = i; veLenh(); } });
+    return li;
+  }));
+  oLenh.setAttribute('aria-activedescendant', `lenh-${chonLenh}`);
+  dsLenh._ds = ds;
+}
+function moBangLenh() {
+  oLenh.value = '';
+  chonLenh = 0;
+  veLenh();
+  bangLenh.showModal();
+  oLenh.focus();
+}
+oLenh.addEventListener('input', () => { chonLenh = 0; veLenh(); });
+oLenh.addEventListener('keydown', (e) => {
+  const ds = dsLenh._ds || [];
+  if (e.key === 'ArrowDown') { e.preventDefault(); chonLenh = (chonLenh + 1) % ds.length; veLenh(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); chonLenh = (chonLenh - 1 + ds.length) % ds.length; veLenh(); }
+  else if (e.key === 'Enter') { e.preventDefault(); const l = ds[chonLenh]; bangLenh.close(); l?.lam(); }
+});
+bangLenh.addEventListener('click', (e) => { if (e.target === bangLenh) bangLenh.close(); });
+document.getElementById('mo-bang-lenh').addEventListener('click', moBangLenh);
+document.getElementById('mo-bang-lenh-2').addEventListener('click', moBangLenh);
+
+let phimTruoc = '';
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    if (bangLenh.open) bangLenh.close();
+    else moBangLenh();
+    return;
+  }
+  if (e.target.closest('input, textarea, select, dialog') || e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (phimTruoc === 'g') {
+    const dich = { t: 'tong-quan', h: 'hop-tin', v: 'viec' }[k];
+    if (dich) location.hash = dich;
+    phimTruoc = '';
+    return;
+  }
+  if (k === 'g') { phimTruoc = 'g'; setTimeout(() => { phimTruoc = ''; }, 900); return; }
+  if (k === 'n') { e.preventDefault(); moNganViec(null); }
+});
+
+// Viền sáng theo con trỏ trên các bảng.
+document.addEventListener('pointermove', (e) => {
+  const b = e.target.closest?.('.bang');
+  if (!b) return;
+  const r = b.getBoundingClientRect();
+  b.style.setProperty('--mx', `${e.clientX - r.left}px`);
+  b.style.setProperty('--my', `${e.clientY - r.top}px`);
+}, { passive: true });
+
+// ---------- Khởi động ----------
+async function batDau() {
+  const ngay = fmt.ngayDai.format(new Date());
+  document.getElementById('ngay-hom-nay').textContent = ngay.charAt(0).toUpperCase() + ngay.slice(1);
+  try {
+    trang.toi = await api('/api/toi');
+    const the = document.getElementById('nguoi-dung');
+    const ten = trang.toi.nguoi_dung?.ten || trang.toi.email;
+    the.querySelector('.anh-dai-dien').textContent = ten.split(' ').pop().charAt(0).toUpperCase();
+    the.querySelector('strong').textContent = ten;
+    the.querySelector('small').textContent = trang.toi.to_chuc.ten === ten ? trang.toi.email : trang.toi.to_chuc.ten;
+  } catch (e) {
+    bao(e.message, { loi: true });
+  }
+  window.addEventListener('hashchange', moMuc);
+  moMuc();
+  // Làm mới số đếm mỗi 2 phút khi trang đang mở.
+  setInterval(() => {
+    if (document.hidden) return;
+    api('/api/tong-quan').then((kq) => capNhatDem(kq.so_lieu.tin_chua_xem, kq.so_lieu.viec_mo)).catch(() => {});
+  }, 120000);
+}
+
+batDau();
