@@ -45,11 +45,19 @@ export async function tachViecChoToChuc(env, toChucId) {
     `SELECT n.ten FROM thanh_vien v JOIN nguoi_dung n ON n.id = v.nguoi_dung_id WHERE v.to_chuc_id = ?1 AND v.vai_tro = 'chu' LIMIT 1`,
   ).bind(toChucId).first();
 
+  // Việc đang mở và việc vừa xong 3 ngày qua, đưa cho AI để khỏi trích lại việc đã có.
+  const { results: daCoDong } = await env.CSDL.prepare(
+    `SELECT tieu_de, han_ngay, trang_thai FROM viec
+     WHERE to_chuc_id = ?1 AND (trang_thai = 'mo' OR (trang_thai = 'xong' AND xong_luc >= ?2)) ORDER BY id DESC LIMIT 80`,
+  ).bind(toChucId, new Date(Date.now() - 3 * 86400000).toISOString()).all();
+  const daCo = daCoDong.map((v) => `${v.trang_thai === 'xong' ? '[đã xong] ' : ''}${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay})` : ''}`);
+
   let ketQua;
   try {
     const ngoai = await docTichHop(env, toChucId, 'ai');
     ketQua = await tachViec(env, tin.map((t, i) => ({ ...t, so: i + 1 })), ngayVN(), ten?.ten, {
       ngoai,
+      daCo,
       baoLoi: (thongBao) => ghiTinHieu(env, toChucId, 'ai', `Dịch vụ AI ngoài lỗi, đã dùng AI có sẵn: ${thongBao}`),
     });
   } catch (e) {

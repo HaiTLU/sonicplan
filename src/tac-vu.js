@@ -1,5 +1,6 @@
 // Việc từng tác vụ hẹn giờ làm. Tác vụ chạy cho mọi tổ chức một lượt, ghi một dòng nhật ký chung.
 
+import { banTinNgay, baoCaoTuan, cacToChuc, goiYMoi, gioDayDuVN } from './ban-tin.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
 import { baoToChuc } from './telegram.js';
 import { cat, congNgay, gioVN, ngayVN } from './tien-ich.js';
@@ -7,11 +8,7 @@ import { tachViecChoToChuc } from './viec.js';
 
 const ZALO_IM_GIO = 6;
 const MAT_VIEC_TOI_THIEU = 10;
-
-async function cacToChuc(env) {
-  const { results } = await env.CSDL.prepare('SELECT id, ten FROM to_chuc').all();
-  return results;
-}
+const MAT_MO_TOI_THIEU = 5;
 
 export const CAC_TAC_VU = {
   'tu-kiem': async (env, bayGio) => {
@@ -40,7 +37,8 @@ export const CAC_TAC_VU = {
 
   'bao-viec-moi': async (env, bayGio) => {
     const gio = gioVN(bayGio);
-    if (gio >= 22 || gio < 7) return { so_muc: 0, ghi_chu: 'Giờ yên lặng, để sáng mai báo' };
+    // Giờ yên lặng 22h-8h: không báo, mốc không tiến nên 8h sáng gộp thành một tin.
+    if (gio >= 22 || gio < 8) return { bo_qua: true };
     let soBao = 0;
     for (const tc of await cacToChuc(env)) {
       const moc = (await docCaiDat(env, tc.id, 'bao_viec_luc')) || new Date(Date.now() - 3600000).toISOString();
@@ -49,7 +47,8 @@ export const CAC_TAC_VU = {
       ).bind(tc.id, moc).all();
       if (!results.length) continue;
       const dong = results.map((v) => `- ${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay.slice(8, 10)}/${v.han_ngay.slice(5, 7)}${v.gio_hen ? ` ${v.gio_hen}` : ''})` : ''}`);
-      if (await baoToChuc(env, tc.id, `${results.length} việc mới từ tin nhắn:\n${dong.join('\n')}`)) soBao++;
+      const dau = gio === 8 ? `Trong đêm có ${results.length} việc mới từ tin nhắn:` : `${results.length} việc mới từ tin nhắn:`;
+      if (await baoToChuc(env, tc.id, `${dau}\n${dong.join('\n')}`)) soBao++;
       await ghiCaiDat(env, tc.id, 'bao_viec_luc', bayGio);
     }
     return { so_muc: soBao, ghi_chu: soBao ? `Báo ${soBao} tổ chức` : 'Không có việc mới' };
@@ -68,26 +67,41 @@ export const CAC_TAC_VU = {
       if (gioIm < ZALO_IM_GIO || gio < 8 || gio >= 22) continue;
       // Mỗi lần mất tín hiệu chỉ báo một lần: nhớ mốc đã báo.
       if ((await docCaiDat(env, r.to_chuc_id, 'zalo_da_bao')) === r.lan_cuoi) continue;
-      await baoToChuc(env, r.to_chuc_id, `Máy Mac gửi Zalo đã im ${Math.floor(gioIm)} giờ (lần cuối ${r.lan_cuoi.slice(11, 16)} UTC). Kiểm tra máy còn bật, còn mạng và Zalo còn đăng nhập.`);
+      await baoToChuc(env, r.to_chuc_id, `Cảnh báo: ${Math.floor(gioIm)} tiếng không nhận được tin Zalo (lần cuối ${gioDayDuVN(r.lan_cuoi)}). Kiểm tra máy Mac và phiên Zalo (có mã QR chờ quét không).`);
       await ghiCaiDat(env, r.to_chuc_id, 'zalo_da_bao', r.lan_cuoi);
       soBao++;
     }
     return { so_muc: soBao, ghi_chu: soBao ? `Báo mất tín hiệu ${soBao} máy` : 'Tín hiệu ổn' };
   },
 
-  'canh-viec': async (env) => {
+  'canh-viec': async (env, bayGio) => {
+    // So danh sách việc với lần trước: việc biến mất (xóa hoặc hủy) từ 10 việc, hoặc từ 5 việc chưa xong, thì báo.
     let soBao = 0;
     for (const tc of await cacToChuc(env)) {
-      const { n } = await env.CSDL.prepare(`SELECT COUNT(*) AS n FROM viec WHERE to_chuc_id = ?1 AND trang_thai != 'huy'`).bind(tc.id).first();
-      const truoc = Number(await docCaiDat(env, tc.id, 'so_viec'));
-      if (Number.isFinite(truoc) && truoc - n >= MAT_VIEC_TOI_THIEU) {
-        await baoToChuc(env, tc.id, `Số việc giảm từ ${truoc} xuống ${n} trong một giờ. Nếu không phải anh/chị tự hủy, xem lại trang Việc; bản sao lưu đêm qua nằm trong kho tệp.`);
-        soBao++;
+      const { results } = await env.CSDL.prepare(`SELECT id, tieu_de, trang_thai FROM viec WHERE to_chuc_id = ?1 AND trang_thai != 'huy'`).bind(tc.id).all();
+      const khoa = `canh-viec/${tc.id}/gan-nhat.json`;
+      const cu = await env.TEP.get(khoa);
+      const truoc = cu ? await cu.json().catch(() => null) : null;
+      if (Array.isArray(truoc)) {
+        const con = new Set(results.map((v) => v.id));
+        const mat = truoc.filter((v) => !con.has(v.id));
+        const matMo = mat.filter((v) => v.trang_thai === 'mo');
+        if (mat.length >= MAT_VIEC_TOI_THIEU || matMo.length >= MAT_MO_TOI_THIEU) {
+          // Giữ danh sách trước khi mất để khôi phục.
+          await env.TEP.put(`canh-viec/${tc.id}/truoc-${bayGio.slice(0, 13).replace('T', '-')}.json`, JSON.stringify(truoc), { httpMetadata: { contentType: 'application/json' } });
+          const ten = mat.slice(0, 15).map((v) => `- ${v.tieu_de}`).join('\n');
+          await baoToChuc(env, tc.id, `Cảnh báo: ${mat.length} việc biến mất trong một giờ (${matMo.length} chưa xong). Nếu không phải bạn tự hủy, xem lại trang Việc.\n${ten}${mat.length > 15 ? `\n... và ${mat.length - 15} việc nữa` : ''}\nDanh sách trước khi mất đã được lưu trong kho tệp.`);
+          soBao++;
+        }
       }
-      await ghiCaiDat(env, tc.id, 'so_viec', String(n));
+      await env.TEP.put(khoa, JSON.stringify(results), { httpMetadata: { contentType: 'application/json' } });
     }
     return { so_muc: soBao, ghi_chu: soBao ? `Cảnh báo ${soBao} tổ chức` : 'Không có việc nào mất bất thường' };
   },
+
+  'ban-tin': banTinNgay,
+  'goi-y': goiYMoi,
+  'bao-cao-tuan': baoCaoTuan,
 
   'don-cuoi-ngay': async (env, bayGio) => {
     const homNay = ngayVN(bayGio);
@@ -117,3 +131,14 @@ export const CAC_TAC_VU = {
     return { so_muc: soToChuc, ghi_chu: cat(`Sao lưu ${soToChuc} tổ chức vào kho tệp`, 200) };
   },
 };
+
+// Tác vụ lỗi thì nhắn Telegram, mỗi tác vụ nhiều nhất một lần trong 6 giờ để khỏi dồn tin.
+export async function baoLoiTacVu(env, tv, bayGio, thongBao) {
+  const khoa = `loi_bao_${tv.ma}`;
+  const truoc = await docCaiDat(env, '', khoa);
+  if (truoc && Date.parse(bayGio) - Date.parse(truoc) < 6 * 3600000) return;
+  await ghiCaiDat(env, '', khoa, bayGio);
+  for (const tc of await cacToChuc(env)) {
+    await baoToChuc(env, tc.id, `Tác vụ "${tv.ten}" bị lỗi lúc ${gioDayDuVN(bayGio)}.\nLỗi: ${String(thongBao).slice(0, 300)}`).catch(() => {});
+  }
+}

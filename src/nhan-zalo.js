@@ -41,9 +41,10 @@ export async function nhanZalo(yeuCau, env, ctx, duongDan) {
 
   if (duongDan === '/nhan/zalo-lenh' && yeuCau.method === 'GET') {
     await ghiTinHieu(env, toChucId, 'zalo', 'Máy Mac hỏi lệnh');
-    const lenh = await env.CSDL.prepare('SELECT lenh, tu_luc, nhan FROM lenh_cho WHERE to_chuc_id = ?1').bind(toChucId).first();
+    const lenh = await env.CSDL.prepare('SELECT lenh, tu_luc, nhan, tao_luc FROM lenh_cho WHERE to_chuc_id = ?1').bind(toChucId).first();
     if (!lenh) return json({});
     await env.CSDL.prepare('DELETE FROM lenh_cho WHERE to_chuc_id = ?1').bind(toChucId).run();
+    if (Date.now() - Date.parse(lenh.tao_luc) > 15 * 60000) return json({}); // lệnh quá 15 phút thì bỏ
     return json({ cmd: lenh.lenh, since: lenh.tu_luc, label: lenh.nhan });
   }
 
@@ -67,7 +68,7 @@ export async function nhanZalo(yeuCau, env, ctx, duongDan) {
     ctx.waitUntil(
       (async () => {
         const tomTat = tin.length ? await tomTatTin(env, tin, than.label, { ngoai: await docTichHop(env, toChucId, 'ai') }) : 'Không có tin Zalo nào trong khoảng này.';
-        await baoToChuc(env, toChucId, `Tóm tắt Zalo ${than.label || ''}\n\n${tomTat}`);
+        await baoToChuc(env, toChucId, `Tóm tắt Zalo ${than.label || ''} (${tin.length} tin)\n\n${tomTat}`);
       })().catch((e) => console.error('Tóm tắt lỗi', e)),
     );
     return json({ ok: true, so_tin: tin.length });
