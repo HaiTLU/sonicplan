@@ -460,7 +460,7 @@ async function layKetNoi(env, tc, url, phien) {
     },
     github: tichGithub ? { repo: tichGithub.repo, nhan: tichGithub.nhan, lan_cuoi: th.github || null } : null,
     nhan_viec: { co: await coMaNhanViec(env, tc), dia_chi: `${url.origin}/nhan/viec`, lan_cuoi: th['api-vao'] || null },
-    google: { co_client: Boolean(tichClient), da_noi: tichGoogle ? { email: tichGoogle.email || null } : null, dia_chi_goi_lai: diaChiGoiLai(url.origin), lan_cuoi: th.google || null },
+    google: { co_client: Boolean(tichClient), da_noi: tichGoogle ? { email: tichGoogle.email || null, co_drive: Boolean(tichGoogle.co_drive) } : null, dia_chi_goi_lai: diaChiGoiLai(url.origin), lan_cuoi: th.google || null },
     thu: { dia_chi: env.EMAIL_DOMAIN && maNhan ? `${maNhan}@${env.EMAIL_DOMAIN}` : null, lan_cuoi: th.thu || null, xac_nhan: xacNhan },
     zalo: { khoa: khoaTheo('zalo'), lan_cuoi: th.zalo || null },
     lich: { khoa: khoaTheo('lich') },
