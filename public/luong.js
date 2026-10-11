@@ -20,6 +20,7 @@ const NUT = [
   { id: 'ghi-nho', cot: 'luu', ten: 'Ghi nhớ', icon: 'ghi-nho', so: ['ghi_nho', 'mục'], mo_ta: 'Người, dự án, quyết định hệ thống đã nhớ. Bạn duyệt, sửa, xóa được.', lien_ket: ['ghi-nho', 'Mở trang Ghi nhớ'] },
   { id: 'viec', cot: 'luu', ten: 'Việc', icon: 'viec', so: ['viec_mo', 'đang mở'], mo_ta: 'Việc có hạn, giờ hẹn, nhóm và kế hoạch các bước.', lien_ket: ['viec', 'Mở trang Việc'] },
   { id: 'nhac-viec', cot: 'chay', ten: 'Nhắc việc', icon: 'dong-ho', ma_tv: 'nhac-viec', bat_nhan: 'Nhắc theo giờ hẹn', nguong: ['nhac_truoc_phut'], so: ['nhac_sap_toi', 'sắp tới'], mo_ta: 'Nhắc trước giờ hẹn và đúng giờ, mỗi lời một lần.' },
+  { id: 'giao-github', cot: 'chay', ten: 'Giao việc cho Claude', icon: 'ai', den: 'github', ma_tv: 'giao-github', bat_nhan: 'Mở issue cho việc AI tự làm', mo_ta: 'Mỗi giờ mở GitHub issue cho việc nhóm AI tự làm, tối đa 5 việc mỗi lượt. Cần nối GitHub ở trang Kết nối.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
   { id: 'bao-viec-moi', cot: 'chay', ten: 'Báo việc mới', icon: 'telegram', ma_tv: 'bao-viec-moi', bat_nhan: 'Báo việc mới mỗi giờ', mo_ta: 'Gom việc mới thành một tin mỗi giờ.' },
   { id: 'ban-tin', cot: 'chay', ten: 'Bản tin sáng và chiều', icon: 'lich', ma_tv: 'ban-tin', bat_nhan: 'Gửi bản tin', nguong: ['gio_ban_tin', 'gio_nhac_chieu'], mo_ta: 'Sáng: quá hạn, hạn hôm nay, 3 ngày tới và lưu ý từ tin mới. Chiều: việc còn mở.' },
   { id: 'bao-cao-tuan', cot: 'chay', ten: 'Báo cáo tuần', icon: 'lich', ma_tv: 'bao-cao-tuan', bat_nhan: 'Gửi báo cáo tuần', mo_ta: 'Sáng thứ Hai: việc xong, còn mở, quá hạn, tín hiệu Zalo.' },
@@ -33,7 +34,7 @@ const NUT = [
 const LIEN_KET = [
   ['zalo', 'ai'], ['google', 'ai'], ['thu', 'ai'], ['telegram-vao', 'ai'], ['api-vao', 'ai'],
   ['ai', 'ghi-nho'], ['ai', 'viec'], ['ghi-nho', 'ai'],
-  ['viec', 'nhac-viec'], ['viec', 'bao-viec-moi'], ['viec', 'ban-tin'], ['viec', 'bao-cao-tuan'], ['viec', 'canh-viec'], ['viec', 'don-cuoi-ngay'], ['viec', 'sao-luu'],
+  ['viec', 'nhac-viec'], ['viec', 'giao-github'], ['viec', 'bao-viec-moi'], ['viec', 'ban-tin'], ['viec', 'bao-cao-tuan'], ['viec', 'canh-viec'], ['viec', 'don-cuoi-ngay'], ['viec', 'sao-luu'],
   ['nhac-viec', 'telegram-ra'], ['bao-viec-moi', 'telegram-ra'], ['ban-tin', 'telegram-ra'], ['bao-cao-tuan', 'telegram-ra'], ['canh-viec', 'telegram-ra'],
   ['viec', 'webhook-ra'],
 ];

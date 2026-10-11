@@ -1151,9 +1151,26 @@ async function veKetNoi(goc) {
       nv.co ? h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/nhan-viec', { method: 'DELETE' }); bao('Đã gỡ mã.'); ve(); } }, 'Gỡ mã') : null) : null,
     khungMa,
   );
+  const gh = kn.github;
+  const oTokenGh = h('input', { type: 'password', placeholder: 'Token GitHub (github_pat_…)', autocomplete: 'off', 'aria-label': 'Token GitHub' });
+  const oKhoGh = h('input', { type: 'text', placeholder: 'Kho nhận việc, ví dụ HaiTLU/ThangLong_KB', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Kho GitHub' });
+  const khoiGit = h('div', { class: 'khoi-api' },
+    h('h3', { text: 'Giao việc cho Claude qua GitHub' }),
+    h('p', { class: 'mo-ta', text: gh ? `Việc nhóm "AI tự làm" được mở thành issue ở ${gh.repo} (nhãn ${gh.nhan}). ${gh.lan_cuoi ? `${gh.lan_cuoi.ghi_chu}, ${luc(gh.lan_cuoi.lan_cuoi)}.` : 'Chờ lượt chạy đầu tiên.'}` : 'Mỗi giờ, việc AI xếp vào nhóm "AI tự làm" được mở thành một issue trong kho bạn chọn, để Claude nhận làm. Tạo token ở github.com/settings/personal-access-tokens, chọn đúng kho đó, quyền Issues: Read and write.' }),
+    laChu ? (gh
+      ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/github', { method: 'DELETE' }); bao('Đã gỡ GitHub.'); ve(); } }, 'Gỡ GitHub'))
+      : h('div', { class: 'luoi-nhap' }, oKhoGh, oTokenGh, h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
+        ev.target.disabled = true;
+        try {
+          await api('/api/ket-noi/github', { method: 'POST', body: JSON.stringify({ token: oTokenGh.value, repo: oKhoGh.value }) });
+          bao('Đã nối GitHub.');
+          ve();
+        } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
+      } }, 'Kiểm tra và lưu'))) : null,
+  );
   const theApi = h('section', { class: 'bang the-kn rong' },
-    dau('ai', 'API trong luồng việc', 'Tin về, AI đọc, việc mới ra, rồi báo tiếp tới dịch vụ bạn dùng.', th.ai || th.webhook || nv.co ? 'xanh' : 'xam', th.ai || th.webhook || nv.co ? 'Đã nối' : 'Chưa nối'),
-    h('div', { class: 'luoi-api' }, khoiAi, khoiNhan, khoiVao),
+    dau('ai', 'API trong luồng việc', 'Tin về, AI đọc, việc mới ra, rồi báo tiếp tới dịch vụ bạn dùng.', th.ai || th.webhook || nv.co || gh ? 'xanh' : 'xam', th.ai || th.webhook || nv.co || gh ? 'Đã nối' : 'Chưa nối'),
+    h('div', { class: 'luoi-api' }, khoiAi, khoiNhan, khoiVao, khoiGit),
   );
 
   const theNen = h('section', { class: 'bang the-kn rong' },
