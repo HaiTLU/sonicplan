@@ -1,0 +1,21 @@
+{
+  "name": "Sonicplan",
+  "short_name": "Sonicplan",
+  "description": "Gom tin Zalo và thư về một chỗ, tách việc bằng AI, nhắc việc đúng giờ.",
+  "lang": "vi",
+  "start_url": "/#tong-quan",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0E1117",
+  "theme_color": "#0E1117",
+  "icons": [
+    { "src": "/bieu-tuong-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/bieu-tuong-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/bieu-tuong-che.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Thêm việc", "url": "/#viec" },
+    { "name": "Hộp tin", "url": "/#hop-tin" }
+  ]
+}

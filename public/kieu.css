@@ -93,8 +93,8 @@ kbd { font: 600 11px/1 var(--phong); padding: 4px 6px; border-radius: 6px; borde
 .khung { position: relative; z-index: 1; display: grid; grid-template-columns: 252px minmax(0, 1fr); min-height: 100dvh; }
 .ray {
   position: sticky; top: 0; height: 100dvh; display: flex; flex-direction: column; gap: 22px;
-  padding: 22px 16px 18px; border-right: 1px solid var(--vach); background: color-mix(in srgb, var(--nen-2) 70%, transparent);
-  backdrop-filter: blur(12px); z-index: var(--z-ray);
+  padding: 22px 16px 18px; border-right: 1px solid var(--vach); background: var(--nen-2);
+  z-index: var(--z-ray);
 }
 .thuong-hieu { display: flex; align-items: center; gap: 11px; text-decoration: none; padding: 4px 8px; font: 700 19px/1 var(--phong-td); letter-spacing: -.01em; }
 .logo { width: 32px; height: 32px; stroke: none; }
@@ -225,7 +225,7 @@ main:focus { outline: none; }
 .chu-thich i.loi { background: var(--loi); }
 .goi-y-song {
   position: absolute; top: 0; z-index: 3; pointer-events: none; min-width: 168px; padding: 10px 12px; border-radius: 12px;
-  background: color-mix(in srgb, var(--mat-3) 92%, transparent); backdrop-filter: blur(10px); box-shadow: var(--bong-noi);
+  background: var(--mat-3); box-shadow: var(--bong-noi);
   font-size: 12.5px; line-height: 1.5; transform: translate(-50%, -8px); opacity: 0; transition: opacity .15s;
 }
 .goi-y-song.hien { opacity: 1; }
@@ -291,7 +291,7 @@ main:focus { outline: none; }
 .tp-icon[data-den="xam"] { color: var(--mo); }
 .tp strong { display: block; font-weight: 600; font-size: 14px; }
 .tp span:not(.tp-icon) { display: block; color: var(--phu); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@keyframes nhay { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--loi) 25%, transparent); } }
+@keyframes nhay { 50% { transform: scale(1.35); opacity: .65; } }
 
 /* ---------- Bảng dữ liệu ---------- */
 .bang-cuon { overflow-x: auto; padding: 4px 8px 10px; }
@@ -477,7 +477,7 @@ td.ghi-chu { max-width: 30rem; overflow-wrap: anywhere; color: var(--chu-2); }
 
 /* ---------- Ngăn kéo, bảng lệnh, thông báo ---------- */
 dialog { color: var(--chu); }
-dialog::backdrop { background: rgba(6, 9, 15, .55); backdrop-filter: blur(4px); }
+dialog::backdrop { background: rgba(6, 9, 15, .6); }
 .ngan-keo {
   margin: 0 0 0 auto; height: 100dvh; max-height: none; width: min(460px, 100vw); padding: 0; border: 0;
   background: var(--mat); box-shadow: var(--bong-noi); border-radius: 22px 0 0 22px;
@@ -636,14 +636,15 @@ dialog::backdrop { background: rgba(6, 9, 15, .55); backdrop-filter: blur(4px); 
     linear-gradient(180deg, var(--mat) 0%, var(--mat-2) 100%);
   border: 1px solid var(--vach); box-shadow: var(--bong), 0 40px 60px -40px rgba(2, 6, 14, .7);
   transform-style: preserve-3d; transform: rotateX(calc(14deg + var(--rx))) rotateY(var(--ry)); transform-origin: 50% 0%;
-  transition: transform .35s var(--em);
+  will-change: transform;
 }
 .cot-luong-wrap { position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 30px; transform-style: preserve-3d; z-index: 1; }
 .cot-luong { display: flex; flex-direction: column; gap: 14px; transform-style: preserve-3d; }
 .ten-cot { margin: 0 0 4px; font: 600 12.5px/1.2 var(--phong); color: var(--phu); letter-spacing: .01em; }
 .day-luong { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; overflow: visible; }
 .day-luong .lien { fill: none; stroke: var(--vach-2); stroke-width: 1.6; }
-.day-luong .lien.chay { stroke: var(--on); stroke-opacity: .75; stroke-dasharray: 3 9; animation: luong-chay 1.4s linear infinite; }
+.day-luong .lien.chay { stroke: var(--on); stroke-opacity: .75; }
+.day-luong .lien.chay.noi-bat { stroke-dasharray: 3 9; animation: luong-chay 1.4s linear infinite; }
 .day-luong .lien.sap-co { stroke-dasharray: 2 6; opacity: .5; animation: none; }
 .day-luong .lien.noi-bat { stroke: var(--nhan); stroke-opacity: 1; stroke-width: 2.2; }
 @keyframes luong-chay { to { stroke-dashoffset: -24; } }
@@ -651,7 +652,7 @@ dialog::backdrop { background: rgba(6, 9, 15, .55); backdrop-filter: blur(4px); 
 .nut-luong {
   position: relative; display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: start; gap: 4px 10px; padding: 11px 12px; min-width: 0;
   background: var(--mat); border: 1px solid var(--vach-2); border-radius: var(--r-vua); cursor: pointer;
-  transform: translateZ(10px); transition: transform .2s var(--em), box-shadow .2s var(--em), border-color .2s;
+  transform: translateZ(10px); transition: transform .2s var(--em); will-change: transform;
   box-shadow: 0 1px 0 rgba(255, 255, 255, .05) inset, 0 3px 0 -1px var(--vach-2), 0 14px 18px -10px rgba(2, 6, 14, .55);
 }
 .nut-luong:hover { transform: translateZ(20px) translateY(-2px); }
@@ -716,3 +717,23 @@ dialog::backdrop { background: rgba(6, 9, 15, .55); backdrop-filter: blur(4px); 
   .day-luong .lien.chay { animation: none; }
   .nut-luong, .cong-tac span, .bang-luong { transition: none; }
 }
+
+/* ---------- Mượt trên mọi máy: máy yếu bỏ hiệu ứng liên tục ---------- */
+.may-yeu .day-luong .lien.chay.noi-bat, .may-yeu .xuong::after, .may-yeu .tp-icon[data-den="do"]::after { animation: none; }
+.may-yeu .ban-luong { transform: rotateX(8deg); will-change: auto; }
+.may-yeu .vao > * { animation: none; }
+.tp-icon::after { will-change: auto; }
+@media (hover: none) { .nut-luong:hover { transform: translateZ(10px); } }
+
+/* ---------- Bản dùng như ứng dụng trên điện thoại (cài vào màn hình chính) ---------- */
+@media (display-mode: standalone) {
+  body { overscroll-behavior-y: contain; user-select: none; -webkit-user-select: none; }
+  input, textarea, [contenteditable], .oChep, pre, code { user-select: text; -webkit-user-select: text; }
+}
+@media (max-width: 860px) {
+  body { padding-top: env(safe-area-inset-top); }
+  .nut, .nut-icon, .chip, .cong-tac { touch-action: manipulation; }
+  .nut-icon { width: 44px; height: 44px; }
+  .chip { height: 40px; }
+}
+.ban-luong.tra-ve { transition: transform .4s var(--em); }

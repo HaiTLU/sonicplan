@@ -1311,3 +1311,9 @@ async function batDau() {
 }
 
 batDau();
+
+// Máy yếu (ít nhân hoặc ít RAM) thì bỏ hiệu ứng chạy liên tục; đăng ký bộ nhớ đệm để mở nhanh khi cài vào màn hình chính.
+try {
+  if ((navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 2) document.documentElement.classList.add('may-yeu');
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('/sw.js').catch(() => {});
+} catch { /* bỏ qua */ }
