@@ -8,7 +8,7 @@ import { chonGhiNho, nhayCam } from './ghi-nho.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { giaiMa, maHoa } from './ma-hoa.js';
 import { docTichHop } from './tich-hop.js';
-import { bam, maNgauNhien, ngayVN, sangUTC } from './tien-ich.js';
+import { bam, congNgay, maNgauNhien, ngayVN, sangUTC } from './tien-ich.js';
 import { xuLyVanBanTrucTiep } from './viec.js';
 
 // Thiết lập chung của hệ thống nằm ở cai_dat với to_chuc_id rỗng.
@@ -59,7 +59,7 @@ export async function caiBot(env, token, goc) {
   if (!/^\d{5,15}:[\w-]{30,}$/.test(ma)) throw new Error('Mã bot không đúng dạng. Chép nguyên dòng mã @BotFather gửi.');
   if (!env.KHOA_MA_HOA) throw new Error('Hệ thống chưa có khóa mã hóa, liên hệ người quản trị.');
   const toi = await goiTelegram(ma, 'getMe', {});
-  await goiTelegram(ma, 'setWebhook', { url: `${goc}/nhan/telegram`, secret_token: await biMatWebhook(ma), allowed_updates: ['message'] });
+  await goiTelegram(ma, 'setWebhook', { url: `${goc}/nhan/telegram`, secret_token: await biMatWebhook(ma), allowed_updates: ['message', 'callback_query'] });
   await ghiCaiDat(env, HE_THONG, 'telegram_bot', await maHoa({ token: ma, ten: toi.username }, env.KHOA_MA_HOA));
   botDaLuu = { luc: 0, bot: null };
   return toi.username;
@@ -74,6 +74,60 @@ export async function baoToChuc(env, toChucId, noiDung) {
     await goiBot(env, 'sendMessage', { chat_id: chat, text: noiDung.slice(i, i + 3900), disable_web_page_preview: true });
   }
   await ghiTinHieu(env, toChucId, 'telegram', 'Gửi tin');
+  return true;
+}
+
+// Gửi một tin kèm hàng nút bấm trả lời nhanh. nut: [[{ text, callback_data }]].
+export async function baoToChucNut(env, toChucId, noiDung, nut) {
+  if (!(await layBot(env))) return false;
+  const chat = await docCaiDat(env, toChucId, 'telegram_chat_id');
+  if (!chat) return false;
+  await goiBot(env, 'sendMessage', { chat_id: chat, text: noiDung.slice(0, 3900), reply_markup: { inline_keyboard: nut } });
+  await ghiTinHieu(env, toChucId, 'telegram', 'Gửi tin');
+  return true;
+}
+
+// Nút trả lời nhanh dưới lời nhắc việc. Dữ liệu nút dạng "v:<id>:<hành động>", tối đa 64 byte theo giới hạn của Telegram.
+export function nutNhacViec(viecId) {
+  return [[
+    { text: 'Xong', callback_data: `v:${viecId}:xong` },
+    { text: 'Dời mai', callback_data: `v:${viecId}:mai` },
+    { text: 'Dời tuần sau', callback_data: `v:${viecId}:tuan` },
+    { text: 'Bỏ', callback_data: `v:${viecId}:bo` },
+  ]];
+}
+
+export function phanTichNut(du) {
+  const m = String(du || '').match(/^v:(\d+):(xong|mai|tuan|bo)$/);
+  return m ? { viec_id: Number(m[1]), hanh_dong: m[2] } : null;
+}
+
+// Áp một lựa chọn nút lên việc của tổ chức. Trả câu ghi lại dưới tin nhắn, hoặc null nếu không tìm thấy việc.
+export async function apDungNutViec(env, tc, { viec_id: id, hanh_dong: hanhDong }, bayGio = new Date().toISOString()) {
+  const v = await env.CSDL.prepare('SELECT id, tieu_de, han_ngay FROM viec WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+  if (!v) return null;
+  if (hanhDong === 'xong' || hanhDong === 'bo') {
+    await env.CSDL.prepare(`UPDATE viec SET trang_thai = ?3, xong_luc = ?4, cap_nhat_luc = ?5 WHERE id = ?1 AND to_chuc_id = ?2`)
+      .bind(id, tc, hanhDong === 'xong' ? 'xong' : 'huy', hanhDong === 'xong' ? bayGio : null, bayGio).run();
+    return hanhDong === 'xong' ? 'Đã đánh dấu xong.' : 'Đã bỏ việc này.';
+  }
+  const goc = v.han_ngay && v.han_ngay > ngayVN(bayGio) ? v.han_ngay : ngayVN(bayGio);
+  const moi = congNgay(goc, hanhDong === 'mai' ? 1 : 7);
+  await env.CSDL.prepare(`UPDATE viec SET han_ngay = ?3, cap_nhat_luc = ?4 WHERE id = ?1 AND to_chuc_id = ?2`).bind(id, tc, moi, bayGio).run();
+  // Hạn đổi thì lời nhắc cũ hết nghĩa: xóa dấu đã nhắc để nhắc lại theo hạn mới.
+  await env.CSDL.prepare('DELETE FROM nhac_da_gui WHERE viec_id = ?1').bind(id).run();
+  return `Đã dời sang ${moi.slice(8, 10)}/${moi.slice(5, 7)}.`;
+}
+
+// Đăng ký lại địa chỉ nhận tin của Telegram để nhận cả lượt bấm nút (callback_query). Giữ nguyên địa chỉ đang dùng.
+export async function bamNutDuocChua(env) {
+  const bot = await layBot(env);
+  if (!bot) return false;
+  if ((await docCaiDat(env, HE_THONG, 'telegram_webhook_nut')) === bot.token.slice(-6)) return false;
+  const info = await goiTelegram(bot.token, 'getWebhookInfo', {});
+  if (!info.url) return false;
+  await goiTelegram(bot.token, 'setWebhook', { url: info.url, secret_token: await biMatWebhook(bot.token), allowed_updates: ['message', 'callback_query'] });
+  await ghiCaiDat(env, HE_THONG, 'telegram_webhook_nut', bot.token.slice(-6));
   return true;
 }
 
@@ -147,12 +201,29 @@ async function nhanTinThuong(env, tc, van, tenNguoi) {
   return [moi.length ? `Đã thêm ${moi.length} việc:\n${moi.map(dongViecTelegram).join('\n')}` : '', trung ? `${trung} việc đã có sẵn nên không thêm lại.` : ''].filter(Boolean).join('\n');
 }
 
+async function luotBamNut(env, ctx, cb) {
+  const chat = String(cb.message?.chat?.id || '');
+  const nut = phanTichNut(cb.data);
+  const toChuc = chat && (await env.CSDL.prepare(`SELECT to_chuc_id FROM cai_dat WHERE khoa = 'telegram_chat_id' AND gia_tri = ?1`).bind(chat).first());
+  const bot = await layBot(env);
+  const tra = (van) => ctx.waitUntil(goiTelegram(bot.token, 'answerCallbackQuery', { callback_query_id: cb.id, text: van }).catch(() => {}));
+  if (!nut || !toChuc) { tra('Nút này không còn dùng được.'); return new Response('ok'); }
+  const ketQua = await apDungNutViec(env, toChuc.to_chuc_id, nut);
+  tra(ketQua || 'Không tìm thấy việc này nữa.');
+  if (ketQua) {
+    // Bỏ hàng nút và ghi kết quả vào tin để khỏi bấm lần hai.
+    ctx.waitUntil(goiTelegram(bot.token, 'editMessageText', { chat_id: chat, message_id: cb.message.message_id, text: `${cb.message.text}\n${ketQua}` }).catch(() => {}));
+  }
+  return new Response('ok');
+}
+
 export async function nhanWebhook(yeuCau, env, ctx) {
   const bot = await layBot(env);
   if (!bot || yeuCau.headers.get('x-telegram-bot-api-secret-token') !== (await biMatWebhook(bot.token))) {
     return new Response('', { status: 401 });
   }
   const cap = await yeuCau.json().catch(() => ({}));
+  if (cap.callback_query) return luotBamNut(env, ctx, cap.callback_query);
   const tin = cap.message;
   if (!tin?.chat?.id) return new Response('ok');
   const chat = String(tin.chat.id);

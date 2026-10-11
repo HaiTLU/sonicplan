@@ -53,7 +53,7 @@ const NHAN_NGUONG = {
 const DEN_TEN = { xanh: 'Đang chạy', vang: 'Đang chờ', do: 'Đang lỗi', xam: 'Chưa nối' };
 
 export async function veLuong(goc, tro) {
-  const { h, icon, api, bao, thay, khungLoi, xuong, luc } = tro;
+  const { h, icon, api, bao, thay, khungLoi, xuong, luc, chayNgay } = tro;
   thay(goc, h('div', { class: 'bang', style: 'padding:24px' }, xuong(16, '30%'), xuong(200)));
   let lg, tt;
   try {
@@ -169,7 +169,18 @@ export async function veLuong(goc, tro) {
       phan.push(h('div', { class: 'khu-luong' },
         h('div', { class: 'hang-cong-tac' }, h('span', { text: nhan }), congTac(bat, nhan, (v) => dat({ bat: { [tv]: v } }))),
         lc ? h('p', { class: `lan-chay ${lc.trang_thai === 'loi' ? 'loi' : ''}`, text: `Lần gần nhất ${luc(lc.ket_thuc || lc.bat_dau)}: ${lc.ghi_chu || (lc.trang_thai === 'loi' ? 'lỗi' : 'xong')}` }) : h('p', { class: 'lan-chay', text: 'Chưa chạy lần nào, hoặc chưa đến giờ của khâu này.' }),
-        ...dsNguong.map(oSo)));
+        ...dsNguong.map(oSo),
+        h('button', { class: 'nut nut-phu', type: 'button', text: 'Chạy ngay', onclick: async (ev) => {
+          ev.target.disabled = true;
+          ev.target.textContent = 'Đang chạy…';
+          const kq = await chayNgay(tv);
+          if (kq) {
+            const tt2 = await api('/api/tinh-trang').catch(() => null);
+            if (tt2) for (const t of tt2.tac_vu) lanCuoi[t.ma] = t.lan_cuoi;
+          }
+          veNut();
+          veBang();
+        } })));
     };
     if (n.ma_tv) khuTv(n.ma_tv, n.bat_nhan, n.nguong || []);
     else if (n.nguong?.length) phan.push(h('div', { class: 'khu-luong' }, ...n.nguong.map(oSo)));

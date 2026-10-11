@@ -2,7 +2,7 @@
 // Giờ yên lặng (chỉnh ở trang Luồng): không gửi, hết giờ yên lặng các lời nhắc còn trong hạn được gửi gộp một tin.
 
 import { dangYenLang, docLuong } from './luong.js';
-import { baoToChuc } from './telegram.js';
+import { baoToChucNut, nutNhacViec } from './telegram.js';
 import { gioVN, sangUTC } from './tien-ich.js';
 
 const TRUOC_PHUT_MAC_DINH = 30;
@@ -43,9 +43,12 @@ export async function nhacViec(env, bayGio) {
 
   let soNhac = 0;
   for (const [tc, ds] of theoToChuc) {
-    const dong = ds.slice(0, TOI_DA_MOI_LUOT).map((v) => `- ${v.gio_hen} ${v.tieu_de}${v.loai === 'truoc' ? ` (còn ${Math.max(1, Math.round((sangUTC(v.han_ngay, v.gio_hen).getTime() - bay) / 60000))} phút)` : ' (đến giờ)'}`);
-    if (ds.length > TOI_DA_MOI_LUOT) dong.push(`... và ${ds.length - TOI_DA_MOI_LUOT} việc nữa`);
-    if (await baoToChuc(env, tc, `Nhắc việc:\n${dong.join('\n')}`)) soNhac += ds.length;
+    // Mỗi việc một tin kèm nút Xong, Dời mai, Dời tuần sau, Bỏ; quá 5 việc thì phần còn lại gom một dòng.
+    for (const v of ds.slice(0, TOI_DA_MOI_LUOT)) {
+      const dong = `Nhắc việc: ${v.gio_hen} ${v.tieu_de}${v.loai === 'truoc' ? ` (còn ${Math.max(1, Math.round((sangUTC(v.han_ngay, v.gio_hen).getTime() - bay) / 60000))} phút)` : ' (đến giờ)'}`;
+      if (await baoToChucNut(env, tc, dong, nutNhacViec(v.id))) soNhac++;
+    }
+    if (ds.length > TOI_DA_MOI_LUOT) await baoToChucNut(env, tc, `... và ${ds.length - TOI_DA_MOI_LUOT} việc nữa đến giờ, xem trang Việc.`, []).catch(() => {});
   }
   return soNhac ? { so_muc: soNhac, ghi_chu: `Nhắc ${soNhac} việc` } : { bo_qua: true };
 }
