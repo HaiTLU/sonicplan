@@ -26,6 +26,12 @@
     }
   ],
 
+  // Kho tệp đính kèm và bản sao lưu hằng đêm (cần bật R2 trong trang Cloudflare, README bước 2).
+  "r2_buckets": [{ "binding": "TEP", "bucket_name": "sonicplan-tep" }],
+
+  // Workers AI để tách việc và tóm tắt tin, không cần khóa ngoài.
+  "ai": { "binding": "AI" },
+
   // Giờ UTC. 16:00 UTC = 23:00 giờ Việt Nam. Tác vụ nào chạy ở lịch nào: src/lich-chay.js.
   "triggers": {
     "crons": ["*/5 * * * *", "0 * * * *", "0 16 * * *"]
@@ -35,6 +41,11 @@
     // Tên miền nhóm Access, dạng ten-nhom.cloudflareaccess.com (README bước 5).
     "ACCESS_TEAM_DOMAIN": "",
     // Mã AUD của ứng dụng Access (README bước 5).
-    "ACCESS_AUD": ""
+    "ACCESS_AUD": "",
+    // Tên miền nhận thư qua Email Routing, ví dụ "sonicplan.vn". Để trống thì chưa nhận thư.
+    "EMAIL_DOMAIN": "",
+    // Tên bot Telegram (không có @). Mã bot đặt bằng: npx wrangler secret put TELEGRAM_BOT_TOKEN
+    "TELEGRAM_BOT_TEN": "",
+    "AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
   }
 }

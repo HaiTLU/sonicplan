@@ -1,14 +1,26 @@
-// Sonicplan: giao diện, API và hẹn giờ trong một Worker, dùng chung cho nhiều tổ chức (khách).
+// Sonicplan: giao diện, API, nhận tin và hẹn giờ trong một Worker, dùng chung cho nhiều tổ chức (khách).
 
-import { xacDinhPhien } from './phien.js';
+import { xuLyApi } from './api.js';
+import { taoIcs } from './lich-ics.js';
 import { tacVuTheoLich } from './lich-chay.js';
-import { tinhTinhTrang } from './tinh-trang.js';
+import { nhanThu } from './nhan-thu.js';
+import { nhanZalo, toChucTheoKhoa } from './nhan-zalo.js';
+import { xacDinhPhien } from './phien.js';
+import { CAC_TAC_VU } from './tac-vu.js';
+import { nhanWebhook } from './telegram.js';
+import { bam, json, loi } from './tien-ich.js';
 
 export default {
-  async fetch(yeuCau, env) {
+  async fetch(yeuCau, env, ctx) {
     const url = new URL(yeuCau.url);
     try {
       if (url.pathname === '/api/suc-khoe') return json({ ok: true });
+
+      // Địa chỉ cho máy móc gọi vào, tự kiểm bằng mã riêng, không qua đăng nhập Access.
+      if (url.pathname.startsWith('/nhan/zalo-')) return nhanZalo(yeuCau, env, ctx, url.pathname);
+      if (url.pathname === '/nhan/telegram' && yeuCau.method === 'POST') return nhanWebhook(yeuCau, env, ctx);
+      const lich = url.pathname.match(/^\/lich\/([a-z0-9]{20,64})\.ics$/);
+      if (lich && yeuCau.method === 'GET') return docLich(env, lich[1], url);
 
       const phien = await xacDinhPhien(yeuCau, env);
       if (!phien.duoc) {
@@ -17,15 +29,20 @@ export default {
         return loi(phien.ma, phien.ma === 403 ? 'Tài khoản chưa được mời dùng hệ thống.' : 'Bạn cần đăng nhập lại.');
       }
 
-      if (url.pathname === '/api/toi' && yeuCau.method === 'GET') return json(thongTinToi(phien));
-      if (url.pathname === '/api/tinh-trang' && yeuCau.method === 'GET') return json(await layTinhTrang(env, phien.to_chuc.id));
-      if (url.pathname === '/api/nhat-ky' && yeuCau.method === 'GET') return json(await layNhatKy(env, phien.to_chuc.id, url));
-      if (url.pathname.startsWith('/api/')) return loi(404, 'Không có chức năng này.');
-
+      if (url.pathname.startsWith('/api/')) return xuLyApi(yeuCau, env, phien, url);
       return env.ASSETS.fetch(yeuCau);
     } catch (e) {
       console.error('Lỗi xử lý', url.pathname, e);
       return loi(500, 'Hệ thống đang gặp lỗi, thử lại sau ít phút.');
+    }
+  },
+
+  async email(thu, env, ctx) {
+    try {
+      await nhanThu(thu, env, ctx);
+    } catch (e) {
+      console.error('Nhận thư lỗi', e);
+      thu.setReject('Hệ thống tạm lỗi, gửi lại sau.');
     }
   },
 
@@ -36,17 +53,17 @@ export default {
   },
 };
 
-// Tác vụ của cả hệ thống ghi to_chuc_id rỗng. Tác vụ theo khách (giai đoạn 1 trở đi) sẽ lặp qua
-// từng tổ chức có kết nối đang chạy và ghi nhật ký riêng cho từng tổ chức.
-const CAC_TAC_VU = {
-  'tu-kiem': async (env, bayGio) => {
-    await env.CSDL.prepare(
-      `INSERT INTO tin_hieu (to_chuc_id, nguon, lan_cuoi, ghi_chu) VALUES ('', 'hen-gio', ?1, 'Tự kiểm mỗi giờ')
-       ON CONFLICT (to_chuc_id, nguon) DO UPDATE SET lan_cuoi = excluded.lan_cuoi`,
-    ).bind(bayGio).run();
-    return { so_muc: 1, ghi_chu: 'Hẹn giờ chạy bình thường' };
-  },
-};
+async function docLich(env, khoa, url) {
+  const toChucId = await toChucTheoKhoa(env, khoa, 'lich');
+  if (!toChucId) return new Response('Không tìm thấy lịch', { status: 404 });
+  const [viec, toChuc] = await env.CSDL.batch([
+    env.CSDL.prepare(`SELECT id, tieu_de, ghi_chu, han_ngay, gio_hen FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay IS NOT NULL`).bind(toChucId),
+    env.CSDL.prepare('SELECT ten FROM to_chuc WHERE id = ?1').bind(toChucId),
+    env.CSDL.prepare('UPDATE khoa_truy_cap SET dung_luc = ?2 WHERE ma_bam = ?1').bind(await bam(khoa), new Date().toISOString()),
+  ]);
+  const ics = taoIcs(viec.results, { ten: `Việc - ${toChuc.results[0]?.ten || 'Sonicplan'}`, mien: url.hostname });
+  return new Response(ics, { headers: { 'content-type': 'text/calendar; charset=utf-8', 'cache-control': 'no-store' } });
+}
 
 export async function chayTacVu(env, tv, bayGio = new Date().toISOString()) {
   const lam = CAC_TAC_VU[tv.ma];
@@ -70,55 +87,11 @@ function ghiKetQua(env, id, trangThai, soMuc, ghiChu) {
   ).bind(new Date().toISOString(), trangThai, soMuc, ghiChu, id).run();
 }
 
-function thongTinToi(phien) {
-  return { email: phien.email, nguoi_dung: phien.nguoi_dung, to_chuc: phien.to_chuc, cac_to_chuc: phien.cac_to_chuc };
-}
-
-// Người dùng thấy nhật ký của tổ chức mình và của cả hệ thống (to_chuc_id rỗng), không thấy của khách khác.
-async function layTinhTrang(env, toChucId) {
-  const [tinHieu, ketNoi, lanChayCuoi] = await env.CSDL.batch([
-    env.CSDL.prepare(`SELECT nguon, lan_cuoi FROM tin_hieu WHERE to_chuc_id = ''`),
-    env.CSDL.prepare('SELECT loai, trang_thai, cap_nhat_luc FROM ket_noi WHERE to_chuc_id = ?1').bind(toChucId),
-    env.CSDL.prepare(
-      `SELECT tac_vu, bat_dau, ket_thuc, trang_thai, so_muc, ghi_chu FROM nhat_ky_chay n
-       WHERE to_chuc_id IN ('', ?1)
-         AND id = (SELECT MAX(id) FROM nhat_ky_chay m WHERE m.tac_vu = n.tac_vu AND m.to_chuc_id = n.to_chuc_id)`,
-    ).bind(toChucId),
-  ]);
-  return tinhTinhTrang({
-    tinHieuHeThong: tinHieu.results,
-    ketNoi: ketNoi.results,
-    lanChayCuoi: lanChayCuoi.results,
-    bayGio: Date.now(),
-  });
-}
-
-async function layNhatKy(env, toChucId, url) {
-  const soDong = Math.min(Math.max(Number(url.searchParams.get('so_dong')) || 50, 1), 200);
-  const { results } = await env.CSDL.prepare(
-    `SELECT id, tac_vu, bat_dau, ket_thuc, trang_thai, so_muc, ghi_chu FROM nhat_ky_chay
-     WHERE to_chuc_id IN ('', ?1) ORDER BY id DESC LIMIT ?2`,
-  ).bind(toChucId, soDong).all();
-  return { dong: results };
-}
-
-function json(duLieu, trangThai = 200) {
-  return new Response(JSON.stringify(duLieu), {
-    status: trangThai,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
-  });
-}
-
-// Mọi lỗi API cùng một dạng: mã trạng thái và một câu tiếng Việt, không lộ chi tiết kỹ thuật.
-function loi(trangThai, thongBao) {
-  return json({ loi: thongBao }, trangThai);
-}
-
 function trangChuaMoi() {
   return new Response(
     '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chưa được mời</title>' +
       '<p style="font-family:system-ui;max-width:32rem;margin:4rem auto;padding:0 1rem;line-height:1.6">' +
-      'Tài khoản này chưa được mời dùng hệ thống. Liên hệ người quản trị để được thêm vào.</p>',
+      'Tài khoản này chưa được mời dùng Sonicplan. Liên hệ người quản trị để được thêm vào.</p>',
     { status: 403, headers: { 'content-type': 'text/html; charset=utf-8' } },
   );
 }

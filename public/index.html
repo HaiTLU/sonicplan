@@ -2,97 +2,137 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow">
-  <meta name="color-scheme" content="light dark">
+  <meta name="color-scheme" content="dark light">
+  <meta name="description" content="Sonicplan gom tin Zalo và thư về một chỗ, tách việc bằng AI, đặt lịch và nhắc qua Telegram.">
   <title>Sonicplan</title>
-  <meta name="theme-color" content="#EEF2F5" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0F141C" media="(prefers-color-scheme: dark)">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 18'%3E%3Cpath d='M1 9h5l3-7 4 14 3-7h9' fill='none' stroke='%231F7A63' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-  <link rel="preload" href="/fonts/be-vietnam-pro-vietnamese-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <meta name="theme-color" content="#0E1117" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F3F4F6" media="(prefers-color-scheme: light)">
+  <link rel="icon" href="/bieu-tuong.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/bricolage-grotesque-vietnamese-standard-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/be-vietnam-pro-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/kieu.css">
 </head>
 <body>
   <a class="bo-qua" href="#noi-dung">Bỏ qua thanh điều hướng</a>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-tong-quan" viewBox="0 0 24 24"><path d="M3 12h3l2.5-6 4 13 3-9 2 2H21"/></symbol>
+      <symbol id="i-hop-tin" viewBox="0 0 24 24"><path d="M3.5 13.5 6 5.5A2 2 0 0 1 7.9 4h8.2A2 2 0 0 1 18 5.5l2.5 8"/><path d="M3.5 13.5V18a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-4.5h-5l-1.5 2.5h-4L8.5 13.5z"/></symbol>
+      <symbol id="i-viec" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="m8.5 12.2 2.4 2.3 4.6-5"/></symbol>
+      <symbol id="i-tep" viewBox="0 0 24 24"><path d="M14 3.5H8a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.5z"/><path d="M14 3.5v4h4"/><path d="M9.5 13h5M9.5 16.5h3"/></symbol>
+      <symbol id="i-ket-noi" viewBox="0 0 24 24"><path d="M9 15 15 9"/><path d="M11 6.5 12.6 5a4 4 0 0 1 5.6 5.6L16.7 12"/><path d="M13 17.5 11.4 19a4 4 0 0 1-5.6-5.6L7.3 12"/></symbol>
+      <symbol id="i-nhat-ky" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+      <symbol id="i-tim" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></symbol>
+      <symbol id="i-cong" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-zalo" viewBox="0 0 24 24"><path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v7a2.5 2.5 0 0 1-2.5 2.5H11l-4 3.5V16h0A2 2 0 0 1 5 14z"/><path d="M9 8.5h5l-5 4h5"/></symbol>
+      <symbol id="i-thu" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="m4.5 7 7.5 6 7.5-6"/></symbol>
+      <symbol id="i-lich" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8 3.5v3M16 3.5v3M4 10h16"/></symbol>
+      <symbol id="i-telegram" viewBox="0 0 24 24"><path d="m20.5 4.5-17 6.8 5.8 2.1 2 6.1 3.3-4.1 4.4 3.3z"/><path d="m9.3 13.4 7.4-5.4"/></symbol>
+      <symbol id="i-ai" viewBox="0 0 24 24"><path d="M12 3.5 13.8 9 19.5 11l-5.7 2-1.8 5.5-1.8-5.5L4.5 11 10.2 9z"/><path d="M18.5 3.5v3M17 5h3"/></symbol>
+      <symbol id="i-kho" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7.5" ry="2.5"/><path d="M4.5 6v6c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5V6"/><path d="M4.5 12v6c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5v-6"/></symbol>
+      <symbol id="i-tai" viewBox="0 0 24 24"><path d="M12 4v11m0 0 4-4m-4 4-4-4"/><path d="M5 19.5h14"/></symbol>
+      <symbol id="i-chep" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></symbol>
+      <symbol id="i-dong" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+      <symbol id="i-mui-ten" viewBox="0 0 24 24"><path d="M5 12h13m0 0-5-5m5 5-5 5"/></symbol>
+      <symbol id="i-he-thong" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="6.5" rx="2"/><rect x="4" y="13.5" width="16" height="6.5" rx="2"/><path d="M7.5 7.2h.01M7.5 16.7h.01"/></symbol>
+      <symbol id="i-dong-ho" viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2 1.5M9.5 3h5"/></symbol>
+      <symbol id="i-lap" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 0 1 13-5.1L19.5 9"/><path d="M19.5 4.5V9H15"/><path d="M19.5 12a7.5 7.5 0 0 1-13 5.1L4.5 15"/><path d="M4.5 19.5V15H9"/></symbol>
+    </defs>
+  </svg>
+
   <div class="khung">
-    <header class="cot-trai">
-      <span class="ten-sp" translate="no">
-        <svg class="dau-nhip" viewBox="0 0 26 18" aria-hidden="true"><path d="M1 9h5l3-7 4 14 3-7h9" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Sonicplan
-      </span>
-      <nav class="cac-muc" aria-label="Các mục">
-        <a href="#tinh-trang" data-muc="tinh-trang">Tình trạng</a>
-        <a href="#hop-tin" data-muc="hop-tin">Hộp tin</a>
-        <a href="#viec" data-muc="viec">Việc</a>
-        <a href="#tep" data-muc="tep">Tệp</a>
-        <a href="#ket-noi" data-muc="ket-noi">Kết nối</a>
-        <a href="#nhat-ky" data-muc="nhat-ky">Nhật ký chạy</a>
+    <aside class="ray" aria-label="Thanh bên">
+      <a class="thuong-hieu" href="#tong-quan" translate="no" aria-label="Sonicplan, về trang tổng quan">
+        <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="1" y="1" width="30" height="30" rx="9" class="logo-nen"/>
+          <path d="M8 18.5v-5M12 22v-12M16 19v-6M20 24V8M24 17.5v-3" class="logo-song"/>
+        </svg>
+        <span>Sonicplan</span>
+      </a>
+      <nav class="dieu-huong" aria-label="Các mục">
+        <a href="#tong-quan" data-muc="tong-quan"><svg aria-hidden="true"><use href="#i-tong-quan"/></svg><span>Tổng quan</span></a>
+        <a href="#hop-tin" data-muc="hop-tin"><svg aria-hidden="true"><use href="#i-hop-tin"/></svg><span>Hộp tin</span><b class="dem" id="dem-tin" hidden></b></a>
+        <a href="#viec" data-muc="viec"><svg aria-hidden="true"><use href="#i-viec"/></svg><span>Việc</span><b class="dem" id="dem-viec" hidden></b></a>
+        <a href="#tep" data-muc="tep"><svg aria-hidden="true"><use href="#i-tep"/></svg><span>Tệp</span></a>
+        <a href="#ket-noi" data-muc="ket-noi"><svg aria-hidden="true"><use href="#i-ket-noi"/></svg><span>Kết nối</span></a>
+        <a href="#nhat-ky" data-muc="nhat-ky"><svg aria-hidden="true"><use href="#i-nhat-ky"/></svg><span>Nhật ký chạy</span></a>
       </nav>
-      <p class="nguoi-dung" id="nguoi-dung" aria-live="polite"></p>
-    </header>
-    <main id="noi-dung" tabindex="-1">
-      <section data-trang="tinh-trang">
-        <h1 class="tom-tat" id="tom-tat">Đang xem tình trạng…</h1>
-        <p class="dong-phu" id="dong-phu"></p>
+      <button class="nut-lenh" type="button" id="mo-bang-lenh" aria-haspopup="dialog">
+        <svg aria-hidden="true"><use href="#i-tim"/></svg><span>Tìm, chuyển mục</span><kbd>Ctrl K</kbd>
+      </button>
+      <div class="the-nguoi" id="nguoi-dung" aria-live="polite">
+        <span class="anh-dai-dien" aria-hidden="true"></span>
+        <span class="ten"><strong></strong><small></small></span>
+      </div>
+    </aside>
 
-        <div class="nhip" aria-labelledby="nhip-tieu-de">
-          <div class="nhip-dau">
-            <h2 id="nhip-tieu-de">Nhịp hôm nay</h2>
-            <p id="nhip-tom-tat"></p>
-          </div>
-          <div class="dai" id="dai" role="img"></div>
-          <div class="thuoc" id="thuoc" aria-hidden="true"></div>
-          <ul class="chu-thich" aria-hidden="true">
-            <li><i></i>Chạy xong</li>
-            <li><i class="loi"></i>Chạy lỗi</li>
-            <li><i class="cho"></i>Giờ chưa tới</li>
-          </ul>
+    <div class="vung-chinh">
+      <header class="dau-trang">
+        <div>
+          <p class="ngay" id="ngay-hom-nay"></p>
+          <h1 id="tieu-de-trang" tabindex="-1">Tổng quan</h1>
         </div>
-
-        <div class="nhom">
-          <div>
-            <h2>Hệ thống</h2>
-            <ul class="dong-tp" id="tp-he-thong"></ul>
-          </div>
-          <div>
-            <h2>Kết nối</h2>
-            <ul class="dong-tp" id="tp-ket-noi"></ul>
-          </div>
+        <div class="dau-trang-nut">
+          <button class="nut nut-phu chi-di-dong" type="button" id="mo-bang-lenh-2" aria-label="Tìm, chuyển mục"><svg aria-hidden="true"><use href="#i-tim"/></svg></button>
+          <button class="nut nut-chinh" type="button" id="nut-them-viec"><svg aria-hidden="true"><use href="#i-cong"/></svg><span>Thêm việc</span></button>
         </div>
+      </header>
 
-        <h2>Tác vụ hẹn giờ</h2>
-        <div class="bang-cuon"><table id="bang-tac-vu">
-          <thead><tr><th scope="col">Tác vụ</th><th scope="col">Lịch</th><th scope="col">Lần chạy gần nhất</th><th scope="col">Kết quả</th></tr></thead>
-          <tbody></tbody>
-        </table></div>
-      </section>
-      <section data-trang="hop-tin" hidden>
-        <h1 class="tieu-de-trang">Hộp tin</h1>
-        <p class="trong">Tin Zalo và thư Gmail sẽ về đây, kèm tóm tắt và tệp đính kèm. <strong>Mở ở giai đoạn 1.</strong></p>
-      </section>
-      <section data-trang="viec" hidden>
-        <h1 class="tieu-de-trang">Việc</h1>
-        <p class="trong">Việc tách ra từ tin nhắn, giờ hẹn và gợi ý bước làm sẽ nằm ở đây. <strong>Mở ở giai đoạn 2.</strong></p>
-      </section>
-      <section data-trang="tep" hidden>
-        <h1 class="tieu-de-trang">Tệp</h1>
-        <p class="trong">Tệp đính kèm đã lưu lên Drive, kèm đề xuất thư mục và tên mới. <strong>Mở ở giai đoạn 1.</strong></p>
-      </section>
-      <section data-trang="ket-noi" hidden>
-        <h1 class="tieu-de-trang">Kết nối</h1>
-        <p class="trong">Nối Gmail, Drive, Lịch, Telegram, Zalo và AI tại đây. <strong>Mở ở giai đoạn 1.</strong></p>
-      </section>
-      <section data-trang="nhat-ky" hidden>
-        <h1 class="tieu-de-trang">Nhật ký chạy</h1>
-        <div class="bang-cuon"><table id="bang-nhat-ky">
-          <thead><tr><th scope="col">Bắt đầu</th><th scope="col">Tác vụ</th><th scope="col">Kết quả</th><th scope="col" class="so">Số mục</th><th scope="col">Ghi chú</th></tr></thead>
-          <tbody></tbody>
-        </table></div>
-      </section>
-      <p class="bao-loi" id="bao-loi" role="alert" hidden></p>
-    </main>
+      <main id="noi-dung" tabindex="-1">
+        <section data-trang="tong-quan" aria-labelledby="tieu-de-trang"></section>
+        <section data-trang="hop-tin" hidden></section>
+        <section data-trang="viec" hidden></section>
+        <section data-trang="tep" hidden></section>
+        <section data-trang="ket-noi" hidden></section>
+        <section data-trang="nhat-ky" hidden></section>
+      </main>
+    </div>
   </div>
+
+  <dialog class="bang-lenh" id="bang-lenh" aria-label="Tìm và chuyển mục">
+    <form method="dialog" class="bang-lenh-o">
+      <svg aria-hidden="true"><use href="#i-tim"/></svg>
+      <input id="o-lenh" type="text" autocomplete="off" spellcheck="false" placeholder="Gõ để tìm: hộp tin, thêm việc, kết nối…" aria-controls="ds-lenh" aria-autocomplete="list">
+      <kbd>Esc</kbd>
+    </form>
+    <ul id="ds-lenh" role="listbox" aria-label="Kết quả"></ul>
+  </dialog>
+
+  <dialog class="ngan-keo" id="ngan-viec" aria-labelledby="ngan-viec-tieu-de">
+    <form class="form-viec" id="form-viec" novalidate>
+      <header>
+        <h2 id="ngan-viec-tieu-de">Thêm việc</h2>
+        <button class="nut-icon" type="button" data-dong aria-label="Đóng"><svg aria-hidden="true"><use href="#i-dong"/></svg></button>
+      </header>
+      <label class="truong">
+        <span>Tên việc</span>
+        <input name="tieu_de" type="text" required maxlength="200" autocomplete="off" placeholder="Ví dụ: Gửi báo cáo quý cho phòng kế toán…">
+      </label>
+      <div class="hang-2">
+        <label class="truong"><span>Hạn</span><input name="han_ngay" type="date"></label>
+        <label class="truong"><span>Giờ hẹn</span><input name="gio_hen" type="time" step="300"></label>
+      </div>
+      <div class="chon-nhanh" role="group" aria-label="Chọn nhanh hạn">
+        <button type="button" data-han="0">Hôm nay</button>
+        <button type="button" data-han="1">Ngày mai</button>
+        <button type="button" data-han="7">Tuần sau</button>
+        <button type="button" data-han="">Không hạn</button>
+      </div>
+      <label class="truong"><span>Ghi chú</span><textarea name="ghi_chu" rows="4" maxlength="2000" placeholder="Ai nhờ, cần chuẩn bị gì…"></textarea></label>
+      <p class="loi-form" role="alert" hidden></p>
+      <footer>
+        <button class="nut nut-nguy" type="button" id="nut-huy-viec" hidden>Hủy việc</button>
+        <span class="gian"></span>
+        <button class="nut nut-phu" type="button" data-dong>Đóng</button>
+        <button class="nut nut-chinh" type="submit">Lưu việc</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div class="vung-bao" id="vung-bao" role="status" aria-live="polite"></div>
   <script src="/app.js" type="module"></script>
 </body>
 </html>

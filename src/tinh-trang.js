@@ -6,17 +6,18 @@ import { TAC_VU } from './lich-chay.js';
 // Hẹn giờ tự kiểm chạy mỗi giờ; quá 75 phút không thấy là có vấn đề.
 const HEN_GIO_TRE_PHUT = 75;
 
-const KET_NOI = [
-  { loai: 'zalo', ten: 'Tin Zalo', giai_doan: 1 },
-  { loai: 'gmail', ten: 'Gmail', giai_doan: 1 },
-  { loai: 'drive', ten: 'Google Drive', giai_doan: 1 },
-  { loai: 'lich', ten: 'Lịch Google', giai_doan: 2 },
-  { loai: 'ai', ten: 'AI tách việc', giai_doan: 2 },
-  { loai: 'telegram', ten: 'Báo Telegram', giai_doan: 2 },
+export const KET_NOI = [
+  { loai: 'thu', ten: 'Thư chuyển tiếp', chua_noi: 'Chưa có thư nào về, cài chuyển tiếp ở trang Kết nối' },
+  { loai: 'zalo', ten: 'Tin Zalo', chua_noi: 'Chưa nối máy gửi Zalo' },
+  { loai: 'tep', ten: 'Kho tệp', chua_noi: 'Chưa gắn kho tệp R2' },
+  { loai: 'lich', ten: 'Lịch', chua_noi: 'Chưa tạo đường dẫn lịch' },
+  { loai: 'ai', ten: 'AI tách việc', chua_noi: 'Chưa gắn Workers AI' },
+  { loai: 'telegram', ten: 'Báo Telegram', chua_noi: 'Chưa nối Telegram' },
 ];
 
 const DEN_KET_NOI = {
   dang_chay: { den: 'xanh', mo_ta: 'Đang chạy' },
+  cho: { den: 'vang', mo_ta: 'Đang chờ' },
   loi: { den: 'do', mo_ta: 'Đang lỗi' },
   tat: { den: 'xam', mo_ta: 'Đã tắt' },
 };
@@ -30,8 +31,8 @@ export function tinhTinhTrang({ tinHieuHeThong, ketNoi, lanChayCuoi, bayGio }) {
     ...KET_NOI.map((k) => {
       const dong = ketNoiTheoLoai[k.loai];
       const den = dong && DEN_KET_NOI[dong.trang_thai];
-      if (den) return { ma: k.loai, ten: k.ten, ...den, lan_cuoi: dong.cap_nhat_luc };
-      return { ma: k.loai, ten: k.ten, den: 'xam', mo_ta: `Chưa nối, làm ở giai đoạn ${k.giai_doan}` };
+      if (den) return { ma: k.loai, ten: k.ten, den: den.den, mo_ta: dong.mo_ta || den.mo_ta, lan_cuoi: dong.cap_nhat_luc || null };
+      return { ma: k.loai, ten: k.ten, den: 'xam', mo_ta: k.chua_noi };
     }),
   ];
 

@@ -1,4 +1,4 @@
-# Tiến độ - Sonicplan, giai đoạn 0
+# Tiến độ - Sonicplan
 
 Cập nhật: 11/10/2026.
 
@@ -14,6 +14,10 @@ Cập nhật: 11/10/2026.
 - 11/10: `npm test` 9/9 đạt; chạy thử trên máy: `/api/suc-khoe` trả ok, hẹn giờ ghi nhật ký, `/api/tinh-trang` đúng, yêu cầu từ tên miền khác localhost không có vé thì 401; ảnh ở `/mnt/project-files/NenTangTuDong/`.
 - 11/10: D1 thật có đủ 10 bảng và dòng anh là chủ tổ chức `tc_namhai`.
 
+- 11/10 (đợt 2): thêm nhận tin Zalo, thư, tệp R2, AI tách việc, việc và lịch .ics, Telegram, dọn cuối ngày, sao lưu, canh Zalo, canh việc mất; bảng mới ở `migrations/0003`. `npm test` 17/17 đạt; đóng gói thử được.
+- 11/10 (đợt 2): giao diện mới chạy thử với dữ liệu mẫu, chụp 6 trang ở 1366 và 390, sáng và tối; thêm việc, sửa việc, bảng lệnh Ctrl K chạy đúng, không lỗi JS.
+
 ## Bước tiếp
 
-- Anh làm README bước 1-3, gửi team domain và AUD.
+- Anh làm README bước 1-7 (bước 2, 3, 4 cần gửi lại Claude giá trị để ghi vào cấu hình).
+- Claude: chạy migration 0003 trên D1 thật, tạo thùng R2 khi anh đã bật R2.
