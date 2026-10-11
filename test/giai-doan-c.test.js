@@ -71,3 +71,16 @@ test('hồ sơ chứa mật khẩu hoặc số thẻ thì từ chối lưu', asy
   assert.match(await luuHoSo(env, 't', 'mật khẩu của tôi là abc'), /mật khẩu/);
   assert.match(await luuHoSo(env, 't', 'thẻ 1234 5678 9012 3456'), /số thẻ/);
 });
+
+import { tongHopAi } from '../src/ai.js';
+
+test('tổng hợp: gửi toàn bộ dữ liệu một lần kèm hồ sơ, trả văn bản đã cắt gọn', async () => {
+  let goi;
+  const env = { AI: { run: async (_mh, tham) => { goi = tham; return { response: '  Tình hình:\n- ok  ' }; } } };
+  const kq = await tongHopAi(env, { homNay: '2026-10-11', viecMo: [{ tieu_de: 'Gửi báo cáo' }], tin: [] }, { hoSo: 'Chị Lan là trưởng phòng' });
+  assert.equal(kq, 'Tình hình:\n- ok');
+  assert.equal(goi.messages.length, 2);
+  assert.ok(goi.messages[0].content.includes('Chị Lan là trưởng phòng'));
+  assert.ok(goi.messages[0].content.includes('2026-10-11'));
+  assert.ok(goi.messages[1].content.includes('Gửi báo cáo'));
+});

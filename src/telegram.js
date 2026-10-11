@@ -4,6 +4,7 @@
 
 import { traLoiTuBoNho } from './ai.js';
 import { goiNgoai } from './goi-ngoai.js';
+import { tongHopChoToChuc } from './tong-hop.js';
 import { chonGhiNho, docHoSo, nhayCam } from './ghi-nho.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { giaiMa, maHoa } from './ma-hoa.js';
@@ -276,6 +277,12 @@ export async function nhanWebhook(yeuCau, env, ctx) {
 
   const lam = (viec) => ctx.waitUntil(Promise.resolve().then(viec).then(tra, (e) => { console.error('Lệnh Telegram lỗi', e); tra(`Em chưa làm được: ${String(e.message || e).slice(0, 150)}`); }));
   if (lenh === 'viec') { lam(() => lenhViec(env, toChuc.to_chuc_id)); return new Response('ok'); }
+  if (lenh === 'tonghop') {
+    lam(async () => {
+      try { return (await tongHopChoToChuc(env, toChuc.to_chuc_id)).noi_dung.slice(0, 3900); } catch (e) { return `Chưa tổng hợp được: ${String(e.message || e).slice(0, 150)}`; }
+    });
+    return new Response('ok');
+  }
   if (lenh === 'hoi') { lam(() => lenhHoi(env, toChuc.to_chuc_id, doiSo)); return new Response('ok'); }
   if (lenh === 'nho') {
     const g = ghiNhoTuLenh(doiSo);
@@ -294,6 +301,6 @@ export async function nhanWebhook(yeuCau, env, ctx) {
     return new Response('ok');
   }
 
-  tra('Nhắn bình thường, ví dụ "mai 9h họp với chị Lan", em sẽ tạo việc.\n/viec - việc đang mở\n/nho <điều cần nhớ>\n/hoi <câu hỏi> - hỏi từ ghi nhớ\n/tomtat - tóm tắt tin Zalo từ 0h hôm nay\n/tomtat 3h - tóm tắt 3 giờ qua');
+  tra('Nhắn bình thường, ví dụ "mai 9h họp với chị Lan", em sẽ tạo việc.\n/viec - việc đang mở\n/nho <điều cần nhớ>\n/hoi <câu hỏi> - hỏi từ ghi nhớ\n/tonghop - bản tổng hợp việc, tin, rủi ro\n/tomtat - tóm tắt tin Zalo từ 0h hôm nay\n/tomtat 3h - tóm tắt 3 giờ qua');
   return new Response('ok');
 }

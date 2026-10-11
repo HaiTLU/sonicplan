@@ -178,6 +178,19 @@ async function veTongQuan(goc) {
     ),
   );
 
+  // Tổng hợp một lần: AI đọc hồ sơ, ghi nhớ, việc, tin 48 giờ rồi viết bản tổng hợp
+  const khungTH = h('div', { class: 'tong-hop-noi-dung', 'aria-live': 'polite' });
+  const nutTH = h('button', { class: 'nut nut-chinh', type: 'button' }, icon('ai'), 'Tổng hợp ngay');
+  const veTH = (cuoi) => thay(khungTH, cuoi ? h('div', {}, h('p', { class: 'mo-ta', text: `Tổng hợp lúc ${luc(cuoi.luc)}` }), h('pre', { class: 'van-ban-tong-hop', text: cuoi.noi_dung })) : h('p', { class: 'mo-ta', text: 'Bấm nút để AI đọc toàn bộ việc, tin 48 giờ qua, hồ sơ và ghi nhớ rồi viết một bản: làm gì trước, rủi ro, ai đang chờ, việc nên giao trợ lý.' }));
+  nutTH.addEventListener('click', async () => {
+    nutTH.disabled = true;
+    thay(khungTH, xuong(14, '70%'), xuong(14, '90%'), xuong(14, '60%'));
+    try { veTH((await api('/api/tong-hop', { method: 'POST' })).cuoi); } catch (e) { bao(e.message, { loi: true }); veTH(null); }
+    nutTH.disabled = false;
+  });
+  api('/api/tong-hop').then((r) => veTH(r.cuoi)).catch(() => veTH(null));
+  luoi.append(h('section', { class: 'bang tong-hop' }, h('div', { class: 'bang-dau' }, h('h2', {}, icon('ai'), 'Tổng hợp'), nutTH), khungTH));
+
   luoi.append(bangViecSapToi(kq.viec_sap_toi, kq.hom_nay), bangTinMoi(kq.tin_moi));
 
   luoi.append(
