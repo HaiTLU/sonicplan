@@ -1,6 +1,8 @@
 // Việc: thêm việc (có chống trùng), tách việc từ tin bằng AI.
 
 import { tachViec } from './ai.js';
+import { ghiTinHieu } from './hop-tin.js';
+import { baoSuKien, dangViecMoi, docTichHop } from './tich-hop.js';
 import { doGiong, ngayVN } from './tien-ich.js';
 
 // Tiêu đề giống từ 80% với một việc đang mở trong 14 ngày gần đây thì coi là trùng.
@@ -24,6 +26,7 @@ export async function themViec(env, toChucId, viec, { tinNhanId = null, boQuaTru
     `INSERT INTO viec (to_chuc_id, tieu_de, ghi_chu, han_ngay, gio_hen, trang_thai, tin_nhan_id, tao_luc, cap_nhat_luc)
      VALUES (?1, ?2, ?3, ?4, ?5, 'mo', ?6, ?7, ?7) RETURNING id`,
   ).bind(toChucId, viec.tieu_de, viec.ghi_chu || null, viec.han_ngay || null, viec.gio_hen || null, tinNhanId, bayGio).first();
+  await baoSuKien(env, toChucId, dangViecMoi({ ...viec, id: dong.id }));
   return { id: dong.id, trung: false };
 }
 
@@ -44,7 +47,11 @@ export async function tachViecChoToChuc(env, toChucId) {
 
   let ketQua;
   try {
-    ketQua = await tachViec(env, tin.map((t, i) => ({ ...t, so: i + 1 })), ngayVN(), ten?.ten);
+    const ngoai = await docTichHop(env, toChucId, 'ai');
+    ketQua = await tachViec(env, tin.map((t, i) => ({ ...t, so: i + 1 })), ngayVN(), ten?.ten, {
+      ngoai,
+      baoLoi: (thongBao) => ghiTinHieu(env, toChucId, 'ai', `Dịch vụ AI ngoài lỗi, đã dùng AI có sẵn: ${thongBao}`),
+    });
   } catch (e) {
     // Lỗi AI: trả tin về hàng chờ để lượt sau thử lại; tin đã nằm chờ quá 6 giờ thì bỏ qua.
     await env.CSDL.prepare(
