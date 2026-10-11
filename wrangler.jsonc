@@ -8,6 +8,12 @@
   "observability": { "enabled": true },
   "preview_urls": false,
 
+  // Địa chỉ trang. Khi triển khai, Cloudflare tự tạo bản ghi DNS và chứng chỉ cho tên miền này
+  // (tên miền sonicrec.app phải nằm trong cùng tài khoản Cloudflare).
+  // Tắt địa chỉ *.workers.dev để chỉ có một cửa vào, cửa này được Access bảo vệ.
+  "routes": [{ "pattern": "plan.sonicrec.app", "custom_domain": true }],
+  "workers_dev": false,
+
   // Mọi yêu cầu đi qua Worker trước để kiểm đăng nhập, kể cả trang tĩnh.
   "assets": {
     "directory": "public",
