@@ -4,7 +4,7 @@
 // không lưu điểm riêng, nên sửa hay mở lại việc thì điểm tự đúng lại.
 
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
-import { phutCua, phutThuc } from './hieu-suat.js';
+import { giaiThich, phutCua, phutThuc } from './hieu-suat.js';
 import { baoToChuc } from './telegram.js';
 import { congNgay, json, loi, ngayVN } from './tien-ich.js';
 
@@ -74,7 +74,7 @@ export function quaiTuViec(v, conTheoCha, homNay, bayGio) {
   }
   const han = v.han_ngay;
   return {
-    id: v.id, tieu_de: v.tieu_de, loai, du_an_id: v.du_an_id || null, ten_loai: TEN_QUAI[loai], do_nang: v.do_nang, han_ngay: han, gio_hen: v.gio_hen,
+    id: v.id, tieu_de: v.tieu_de, loai, du_an_id: v.du_an_id || null, nguon: v.nguon || null, ...giaiThich(v), ten_loai: TEN_QUAI[loai], do_nang: v.do_nang, han_ngay: han, gio_hen: v.gio_hen,
     mau, mau_toi_da: mauToiDa, dang_danh: Boolean(v.bat_dau_luc), gian: Boolean(v.han_goc && v.han_goc < homNay),
     con: con ? { tong: con.tong, xong: con.xong, don: con.don.sort((a, b) => a.id - b.id) } : null, xp_neu_ha: xpHaQuai({ ...v, xong_luc: bayGio }).xp,
   };
@@ -218,7 +218,8 @@ async function docCaiDatGame(env, tc) {
 async function layGame(env, tc) {
   const [viec, duAn] = await env.CSDL.batch([
     env.CSDL.prepare(
-      `SELECT id, tieu_de, trang_thai, tao_luc, xong_luc, han_ngay, han_goc, gio_hen, do_nang, phut_uoc, bat_dau_luc, viec_cha_id, du_an_id
+      `SELECT id, tieu_de, trang_thai, tao_luc, xong_luc, han_ngay, han_goc, gio_hen, do_nang, phut_uoc, bat_dau_luc, viec_cha_id, du_an_id, nguon,
+         CASE WHEN trang_thai = 'mo' THEN ghi_chu END AS ghi_chu, do_nang_nguon, do_nang_ly_do, chua_ro
        FROM viec WHERE to_chuc_id = ?1 AND trang_thai IN ('mo', 'xong')`,
     ).bind(tc),
     env.CSDL.prepare('SELECT id, ten, mau FROM du_an WHERE to_chuc_id = ?1').bind(tc),

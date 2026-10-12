@@ -4,6 +4,19 @@
 const TEN_DN = { nhe: 'Nhẹ', vua: 'Vừa', nang: 'Nặng', rat_nang: 'Rất nặng' };
 const PHUT_DN = { nhe: 15, vua: 45, nang: 120, rat_nang: 300 };
 const TEN_NGUON = { zalo: 'Zalo', gmail: 'Gmail', tay: 'Tự thêm', telegram: 'Telegram', ngoai: 'Bên ngoài' };
+export const tenNguon = (v) => TEN_NGUON[v.nguon] || v.nguon || 'Không rõ';
+
+// Phần giải thích dưới tên việc: cờ ghi chưa rõ, lý do AI chấm, ghi chú (bấm để mở hết).
+export function giaiThichViec(h, v) {
+  const phan = [];
+  if (v.chua_ro) phan.push(h('span', { class: 'hs-chua-ro', text: 'Ghi chưa rõ, nên sửa tên việc' }));
+  if (v.ly_do) phan.push(h('small', { class: 'hs-ly-do', text: `AI chấm: ${v.ly_do}` }));
+  if (v.ghi_chu) {
+    const dong = v.ghi_chu.replace(/^\[Gợi ý\]\s*/, '').split('\n')[0];
+    phan.push(h('details', { class: 'hs-ghi' }, h('summary', { text: `Ghi chú: ${dong}` }), h('p', { text: v.ghi_chu })));
+  }
+  return phan.length ? h('div', { class: 'hs-giai' }, ...phan) : null;
+}
 const TEN_MUC = { on: 'Vừa sức', day: 'Gần kín', qua_tai: 'Quá tải', chua_ro: 'Chưa rõ' };
 const THU = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 const NS = 'http://www.w3.org/2000/svg';
@@ -223,7 +236,7 @@ export async function veHieuSuat(goc, t) {
     const nutChia = coTheChia ? h('button', { class: 'hs-nut-chu', type: 'button', onclick: () => moChia(v, li, nutChia) }, icon('ai'), 'AI chia nhỏ việc này') : null;
     li.append(
       h('div', { class: 'ten' }, h('strong', { text: v.tieu_de }),
-        h('small', { text: [v.han_ngay ? `hạn ${ngayNgan(v.han_ngay)}${v.han_ngay < hs.hom_nay ? ' (trễ)' : ''}` : 'không hạn', TEN_NGUON[v.nguon] || v.nguon, v.do_nang_nguon === 'tay' ? 'bạn chấm' : v.do_nang ? 'AI chấm' : '', dangLam ? `đang làm từ ${new Date(v.bat_dau_luc).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' })}` : ''].filter(Boolean).join(' · ') })),
+        h('small', { text: [v.han_ngay ? `hạn ${ngayNgan(v.han_ngay)}${v.han_ngay < hs.hom_nay ? ' (trễ)' : ''}` : 'không hạn', tenNguon(v), v.do_nang_nguon === 'tay' ? 'bạn chấm' : v.do_nang ? 'AI chấm' : '', dangLam ? `đang làm từ ${new Date(v.bat_dau_luc).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' })}` : ''].filter(Boolean).join(' · ') })),
       h('div', { class: 'dk' },
         chipDoNang(h, v, (dn) => sua(v.id, { hanh_dong: 'cham', do_nang: dn, phut_uoc: PHUT_DN[dn] }, 'Đã lưu độ nặng.')),
         h('label', { class: 'hs-phut-o' }, oPhut, h('span', { text: 'phút' })),
@@ -232,6 +245,8 @@ export async function veHieuSuat(goc, t) {
           : h('button', { class: 'nut nut-phu nut-nho', type: 'button', onclick: () => sua(v.id, { hanh_dong: 'bat_dau' }, 'Đã bắt đầu tính giờ.') }, 'Bắt đầu'),
         h('button', { class: 'nut nut-chinh nut-nho', type: 'button', onclick: () => xongViec(v) }, icon('xong'), 'Xong'),
       ));
+    const giai = giaiThichViec(h, v);
+    if (giai) li.querySelector('.ten').append(giai);
     if (tienDo || nutChia) li.querySelector('.ten').append(tienDo || nutChia);
     return li;
   };

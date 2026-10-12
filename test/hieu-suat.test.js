@@ -50,7 +50,7 @@ test('học từ thực tế: cần 3 việc đo được', () => {
 
 test('đọc kết quả AI chấm: bỏ id lạ và độ nặng sai, giới hạn phút', () => {
   const kq = docKetQuaCham('{"viec":[{"id":1,"do_nang":"nang","phut":9999},{"id":2,"do_nang":"x","phut":5},{"id":9,"do_nang":"nhe","phut":5},{"id":3,"do_nang":"nhe","phut":1}]}', [1, 2, 3]);
-  assert.deepEqual(kq, [{ id: 1, do_nang: 'nang', phut: 960 }, { id: 3, do_nang: 'nhe', phut: 5 }]);
+  assert.deepEqual(kq, [{ id: 1, do_nang: 'nang', phut: 960, ly_do: null, chua_ro: false }, { id: 3, do_nang: 'nhe', phut: 5, ly_do: null, chua_ro: false }]);
 });
 
 test('chia nhỏ: đọc đề xuất AI và không đếm hai lần việc cha', async () => {
@@ -68,7 +68,8 @@ test('chia nhỏ: đọc đề xuất AI và không đếm hai lần việc cha'
 
 test('đọc kết quả chấm: chấp nhận khối ```json, id dạng chữ, độ nặng có dấu', () => {
   const tra = 'Đây là kết quả:\n```json\n{"viec":[{"id":"52","do_nang":"Rất nặng","phut":240},{"id":53,"do_nang":"vừa","phut_uoc":30}]}\n```';
-  assert.deepEqual(docKetQuaCham(tra, [52, 53]), [{ id: 52, do_nang: 'rat_nang', phut: 240 }, { id: 53, do_nang: 'vua', phut: 30 }]);
-  assert.deepEqual(docKetQuaCham({ response: { viec: [{ id: 1, do_nang: 'nhe', phut: 10 }] } }, [1]), [{ id: 1, do_nang: 'nhe', phut: 10 }]);
-  assert.deepEqual(docKetQuaCham('[{"id":1,"do_nang":"nang","phut":90}]', [1]), [{ id: 1, do_nang: 'nang', phut: 90 }]);
+  assert.deepEqual(docKetQuaCham(tra, [52, 53]), [{ id: 52, do_nang: 'rat_nang', phut: 240, ly_do: null, chua_ro: false }, { id: 53, do_nang: 'vua', phut: 30, ly_do: null, chua_ro: false }]);
+  assert.deepEqual(docKetQuaCham({ response: { viec: [{ id: 1, do_nang: 'nhe', phut: 10, ly_do: null, chua_ro: false }] } }, [1]), [{ id: 1, do_nang: 'nhe', phut: 10, ly_do: null, chua_ro: false }]);
+  assert.deepEqual(docKetQuaCham('[{"id":1,"do_nang":"nang","phut":90}]', [1]), [{ id: 1, do_nang: 'nang', phut: 90, ly_do: null, chua_ro: false }]);
+  assert.deepEqual(docKetQuaCham('{"viec":[{"id":5,"do_nang":"nhe","phut":15,"ly_do":"Tiêu đề quá chung, chưa rõ cập nhật gì","chua_ro":true}]}', [5]), [{ id: 5, do_nang: 'nhe', phut: 15, ly_do: 'Tiêu đề quá chung, chưa rõ cập nhật gì', chua_ro: true }]);
 });
