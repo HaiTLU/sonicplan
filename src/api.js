@@ -3,13 +3,13 @@
 
 import { docTongHopCuoi, tongHopChoToChuc } from './tong-hop.js';
 import { docHoSo, LOAI_GHI_NHO, luuHoSo, TOI_DA_HO_SO } from './ghi-nho.js';
-import { coMaNhanViec, goMaNhanViec, taoMaNhanViec } from './nhan-ngoai.js';
+import { goMaNhanViec, taoMaNhanViec } from './nhan-ngoai.js';
 import { docLuong, luuLuong, NGUONG } from './luong.js';
 import { kiemCauHinhGithub, thuGithub } from './github.js';
 import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from './google.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
 import { caiBot, layBot, maNoiTelegram } from './telegram.js';
-import { chuanHoaCauHinhAi, dangViecMoi, docTichHop, guiDiaChiNhan, kiemDiaChiNhan, luuTichHop, thuAiNgoai, xoaTichHop } from './tich-hop.js';
+import { chuanHoaCauHinhAi, dangViecMoi, docTichHop, giaiTichHop, guiDiaChiNhan, KHOA_TICH_HOP, kiemDiaChiNhan, luuTichHop, thuAiNgoai, xoaTichHop } from './tich-hop.js';
 import { bam, cat, json, loi, maNgauNhien, ngayVN } from './tien-ich.js';
 import { tinhTinhTrang } from './tinh-trang.js';
 import { themViec } from './viec.js';
@@ -445,23 +445,30 @@ function laQuanTri(env, phien) {
 }
 
 async function layKetNoi(env, tc, url, phien) {
-  const [toChuc, khoa, tinHieu] = await env.CSDL.batch([
+  // Mọi thứ đọc từ D1 gom vào một lượt (trước đây khoảng 12 lượt nối tiếp, mỗi lượt qua lại giữa Worker và cơ sở dữ liệu).
+  const khoaCaiDat = [...Object.values(KHOA_TICH_HOP), 'telegram_chat_id', 'gmail_xac_nhan', 'telegram_ma_noi', 'nhan_viec_bam'];
+  const [toChuc, khoa, tinHieu, caiDat] = await env.CSDL.batch([
     env.CSDL.prepare('SELECT ma_nhan FROM to_chuc WHERE id = ?1').bind(tc),
     env.CSDL.prepare('SELECT loai, tao_luc, dung_luc FROM khoa_truy_cap WHERE to_chuc_id = ?1 ORDER BY tao_luc DESC').bind(tc),
     env.CSDL.prepare('SELECT nguon, lan_cuoi, ghi_chu FROM tin_hieu WHERE to_chuc_id = ?1').bind(tc),
+    env.CSDL.prepare(`SELECT khoa, gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa IN (${khoaCaiDat.map((_, i) => `?${i + 2}`).join(',')})`).bind(tc, ...khoaCaiDat),
   ]);
   const maNhan = toChuc.results[0]?.ma_nhan;
   const khoaTheo = (loai) => khoa.results.find((k) => k.loai === loai) || null;
   const th = Object.fromEntries(tinHieu.results.map((t) => [t.nguon, t]));
-  const chat = await docCaiDat(env, tc, 'telegram_chat_id');
-  const bot = await layBot(env);
+  const cai = Object.fromEntries(caiDat.results.map((d) => [d.khoa, d.gia_tri]));
+  const chat = cai.telegram_chat_id || null;
   let xacNhan = null;
   try {
-    xacNhan = JSON.parse((await docCaiDat(env, tc, 'gmail_xac_nhan')) || 'null');
+    xacNhan = JSON.parse(cai.gmail_xac_nhan || 'null');
   } catch {}
   // Đã có thư thật về sau lần xác nhận thì không cần hiện nút xác nhận nữa.
   if (xacNhan && th.thu && th.thu.lan_cuoi > xacNhan.luc) xacNhan = null;
-  const [tichAi, tichWebhook, tichClient, tichGoogle, tichGithub] = [await docTichHop(env, tc, 'ai'), await docTichHop(env, tc, 'webhook'), await docTichHop(env, tc, 'google_client'), await docTichHop(env, tc, 'google'), await docTichHop(env, tc, 'github')];
+  const [tichAi, tichWebhook, tichClient, tichGoogle, tichGithub, bot] = await Promise.all([
+    ...['ai', 'webhook', 'google_client', 'google', 'github'].map((loai) => giaiTichHop(env, cai[KHOA_TICH_HOP[loai]], loai)),
+    layBot(env),
+  ]);
+  const maNoi = bot ? cai.telegram_ma_noi || (await maNoiTelegram(env, tc)) : null;
   return {
     goc: url.origin,
     tich_hop: {
@@ -470,7 +477,7 @@ async function layKetNoi(env, tc, url, phien) {
       vai_tro: phien.to_chuc.vai_tro,
     },
     github: tichGithub ? { repo: tichGithub.repo, nhan: tichGithub.nhan, lan_cuoi: th.github || null } : null,
-    nhan_viec: { co: await coMaNhanViec(env, tc), dia_chi: `${url.origin}/nhan/viec`, lan_cuoi: th['api-vao'] || null },
+    nhan_viec: { co: Boolean(cai.nhan_viec_bam), dia_chi: `${url.origin}/nhan/viec`, lan_cuoi: th['api-vao'] || null },
     google: { co_client: Boolean(tichClient), da_noi: tichGoogle ? { email: tichGoogle.email || null, co_drive: Boolean(tichGoogle.co_drive) } : null, dia_chi_goi_lai: diaChiGoiLai(url.origin), lan_cuoi: th.google || null },
     thu: { dia_chi: env.EMAIL_DOMAIN && maNhan ? `${maNhan}@${env.EMAIL_DOMAIN}` : null, lan_cuoi: th.thu || null, xac_nhan: xacNhan },
     zalo: { khoa: khoaTheo('zalo'), lan_cuoi: th.zalo || null },
@@ -480,7 +487,7 @@ async function layKetNoi(env, tc, url, phien) {
       ten_bot: bot?.ten || null,
       quan_tri: laQuanTri(env, phien),
       da_noi: Boolean(chat),
-      duong_dan: bot ? `https://t.me/${bot.ten}?start=${await maNoiTelegram(env, tc)}` : null,
+      duong_dan: bot ? `https://t.me/${bot.ten}?start=${maNoi}` : null,
       lan_cuoi: th.telegram || null,
     },
     ai: { co: Boolean(env.AI) },

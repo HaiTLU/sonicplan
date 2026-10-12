@@ -10,7 +10,11 @@ export const CLAUDE_MAC_DINH = 'claude-sonnet-5-5';
 const OPENAI_MAC_DINH = { dia_chi: 'https://api.openai.com/v1', mo_hinh: 'gpt-4o-mini' };
 
 export async function docTichHop(env, toChucId, loai) {
-  const banMa = await docCaiDat(env, toChucId, KHOA_CAI_DAT[loai]);
+  return giaiTichHop(env, await docCaiDat(env, toChucId, KHOA_CAI_DAT[loai]), loai);
+}
+
+// Giải mã một bản đã đọc sẵn từ cai_dat, để trang Kết nối đọc cả 5 loại bằng một lần hỏi cơ sở dữ liệu.
+export async function giaiTichHop(env, banMa, loai) {
   if (!banMa || !env.KHOA_MA_HOA) return null;
   try {
     return await giaiMa(banMa, env.KHOA_MA_HOA);
@@ -19,6 +23,8 @@ export async function docTichHop(env, toChucId, loai) {
     return null;
   }
 }
+
+export const KHOA_TICH_HOP = KHOA_CAI_DAT;
 
 export async function luuTichHop(env, toChucId, loai, duLieu) {
   if (!env.KHOA_MA_HOA) throw new Error('Hệ thống chưa có khóa mã hóa, liên hệ người quản trị.');
