@@ -1,10 +1,14 @@
-// Khu chế độ game ở đầu trang Hiệu suất: công tắc, đảo quái, thẻ nhân vật, bảng trận, thành tích.
+// Khu chế độ game ở đầu trang Hiệu suất: công tắc, thẻ chọn Boss (mỗi dự án một Boss), đảo quái, thẻ nhân vật,
+// bảng trận, thành tích.
 
-import { anhNhanVat, anhQuaiNho, taoCanh } from './game.js';
+import { anhBoss, anhNhanVat, anhQuaiNho, taoCanh } from './game.js';
 import { gioPhut, moBangChia } from './hieu-suat.js';
 
 const TEN_KIEU = { som: 'hạ sớm', dung_han: 'đúng hạn', tre: 'trễ hạn', thuong: '' };
 let canhHienTai = null;
+let theChon = null; // id dự án của Boss đang xem, hoặc 'le' cho quái lẻ
+
+const veAnh = (c, a) => { c.width = a.width; c.height = a.height; c.getContext('2d').drawImage(a, 0, 0); return c; };
 
 function congTac(h, nhan, bat, doi) {
   const o = h('input', { type: 'checkbox', role: 'switch', checked: bat });
@@ -24,7 +28,7 @@ export async function veKhuGame(goc, t, napTrang) {
 
   if (!g.bat) {
     thay(goc, h('section', { class: 'bang gm-tat' },
-      h('div', {}, h('h2', {}, 'Chế độ game'), h('p', { class: 'mo-ta', text: 'Mỗi việc là một con quái: việc càng nặng quái càng to. Xong việc là hạ quái, xong trước hạn được thêm điểm. Mỗi ngày là một màn, nhân vật của bạn lên cấp và có thành tích.' })),
+      h('div', {}, h('h2', {}, 'Chế độ game'), h('p', { class: 'mo-ta', text: 'Mỗi dự án là một Boss, mỗi việc trong dự án là một boss nhỏ: việc càng nặng quái càng to. Xong việc là hạ boss nhỏ, hạ hết thì hạ Boss. Xong trước hạn được thêm điểm. Mỗi ngày là một màn, nhân vật của bạn lên cấp và có thành tích.' })),
       congTac(h, 'Bật', false, (b, o) => doiCaiDat({ bat: b }, o)),
     ));
     return;
@@ -32,9 +36,24 @@ export async function veKhuGame(goc, t, napTrang) {
 
   const nv = g.nhan_vat;
   const man = g.man;
-  const trongCanh = man.quai.length ? man.quai : man.lang_thang.slice(0, 6);
-  const tatCa = [...man.quai, ...man.lang_thang];
   const tongMan = man.quai.length + man.da_ha;
+  const tatCa = [...g.boss.flatMap((b) => b.boss_nho), ...g.quai_le];
+  if (!g.boss.some((b) => b.id === theChon) && !(theChon === 'le' && g.quai_le.length)) theChon = g.boss[0]?.id ?? 'le';
+  const bossChon = g.boss.find((b) => b.id === theChon) || null;
+  const trongCanh = bossChon ? bossChon.boss_nho : g.quai_le;
+  const bossCua = (q) => g.boss.find((b) => b.id === q.du_an_id) || null;
+
+  // Thẻ chọn Boss: mỗi dự án còn việc mở là một thẻ, cuối cùng là quái lẻ.
+  const the = (khoa, anh, ten, so, toiHan) => {
+    const nut = h('button', { type: 'button', role: 'tab', class: 'gm-the', 'aria-selected': String(khoa === theChon), onclick: () => { theChon = khoa; veKhuGame(goc, t, napTrang); } },
+      veAnh(h('canvas', { 'aria-hidden': 'true' }), anh), h('span', { text: ten }), h('small', { text: so }));
+    if (toiHan) nut.append(h('i', { class: 'gm-cham', title: `${toiHan} việc tới hạn` }));
+    return nut;
+  };
+  const dsThe = h('div', { class: 'gm-ds-the', role: 'tablist', 'aria-label': 'Chọn Boss' },
+    ...g.boss.map((b) => the(b.id, anhBoss(b.loai, b.mau_du_an, 1), b.ten, b.so_mo, b.toi_han)),
+    g.quai_le.length ? the('le', anhQuaiNho('goblin', 0, 1.4), 'Quái lẻ', g.quai_le.length, g.quai_le.filter((q) => q.han_ngay && q.han_ngay <= man.ngay).length) : null,
+  );
 
   const khungCanh = h('div', { class: 'gm-khung' });
   const bangTran = h('div', { class: 'gm-tran', 'aria-live': 'polite' });
@@ -46,7 +65,8 @@ export async function veKhuGame(goc, t, napTrang) {
     ),
     h('div', { class: 'gm-chuoi', title: `Chuỗi dài nhất ${nv.chuoi_dai_nhat} ngày` }, h('b', { text: nv.chuoi }), h('span', { text: 'ngày liên tiếp' })),
   );
-  if (!man.quai.length && trongCanh.length) bangChu.append(h('p', { class: 'gm-goi-y', text: 'Hôm nay không có quái tới hạn, đây là quái lang thang (việc chưa có hạn).' }));
+  if (bossChon) bangChu.append(h('p', { class: 'gm-goi-y', text: `Boss ${bossChon.ten}: còn ${bossChon.so_mo} boss nhỏ${bossChon.boss_nho.length > 11 ? ', đảo hiện 11 con gấp nhất' : ''}.` }));
+  else if (trongCanh.length) bangChu.append(h('p', { class: 'gm-goi-y', text: 'Quái lẻ là việc chưa xếp vào dự án nào.' }));
   khungCanh.append(bangChu);
 
   // Thẻ nhân vật.
@@ -64,6 +84,7 @@ export async function veKhuGame(goc, t, napTrang) {
       h('dl', { class: 'gm-so' },
         h('div', {}, h('dt', { text: 'Đã hạ' }), h('dd', { text: nv.so_ha })),
         h('div', {}, h('dt', { text: 'Hạ sớm' }), h('dd', { text: nv.so_ha_som })),
+        h('div', {}, h('dt', { text: 'Boss đã hạ' }), h('dd', { text: nv.so_boss })),
         h('div', {}, h('dt', { text: 'Màn đã qua' }), h('dd', { text: nv.so_man_qua })),
       ),
     ),
@@ -71,7 +92,27 @@ export async function veKhuGame(goc, t, napTrang) {
 
   // Bảng trận của quái đang chọn.
   let dangChon = null;
+  const chonBoss = (b) => {
+    dangChon = `b${b.id}`;
+    canh?.datChon(dangChon);
+    thay(bangTran,
+      h('div', { class: 'gm-tran-dau' },
+        veAnh(h('canvas', { class: 'gm-anh-quai', 'aria-hidden': 'true' }), anhBoss(b.loai, b.mau_du_an, 3)),
+        h('div', {},
+          h('p', { class: 'chao', text: `Boss dự án, ${b.ten_loai}${b.lan_ha ? `, đã hạ ${b.lan_ha} lần` : ''}` }),
+          h('h3', { text: b.ten }),
+          h('p', { class: 'mo-ta', text: `Máu ${gioPhut(b.mau)} / ${gioPhut(b.mau_toi_da)}. Còn ${b.so_mo} boss nhỏ, đợt này đã hạ ${b.so_xong}. Hạ hết được thêm ${b.xp_neu_ha} điểm thưởng.` }),
+        ),
+      ),
+      h('ul', { class: 'gm-don gm-ds-nho' }, ...b.boss_nho.map((q) => h('li', { class: q.gian ? 'gian' : '' },
+        veAnh(h('canvas', { 'aria-hidden': 'true' }), anhQuaiNho(q.loai, q.id, 1, true)),
+        h('span', { text: q.tieu_de }),
+        h('small', { text: `${gioPhut(q.mau)}${q.han_ngay ? `, hạn ${q.han_ngay.slice(8, 10)}/${q.han_ngay.slice(5, 7)}` : ''}` }),
+        h('button', { class: 'nut nut-phu nut-nho', type: 'button', onclick: () => chonQuai(q.id) }, 'Đánh')))),
+    );
+  };
   const chonQuai = (id) => {
+    if (typeof id === 'string' && id.startsWith('b')) { const b = g.boss.find((x) => `b${x.id}` === id); if (b) chonBoss(b); return; }
     const q = tatCa.find((x) => x.id === id);
     if (!q) return;
     dangChon = id;
@@ -89,7 +130,7 @@ export async function veKhuGame(goc, t, napTrang) {
       h('div', { class: 'gm-tran-dau' },
         h('canvas', { class: 'gm-anh-quai', 'aria-hidden': 'true' }),
         h('div', {},
-          h('p', { class: 'chao', text: `${q.ten_loai}${q.gian ? ', đang nổi giận vì quá hạn' : ''}${q.dang_danh ? ', đang giao chiến' : ''}` }),
+          h('p', { class: 'chao', text: `${bossCua(q) ? `Boss nhỏ của ${bossCua(q).ten}, ` : ''}${q.ten_loai}${q.gian ? ', đang nổi giận vì quá hạn' : ''}${q.dang_danh ? ', đang giao chiến' : ''}` }),
           h('h3', { text: q.tieu_de }),
           h('p', { class: 'mo-ta', text: `Máu ${gioPhut(q.mau)} / ${gioPhut(q.mau_toi_da)}. ${q.han_ngay ? `Hạn ${q.han_ngay.slice(8, 10)}/${q.han_ngay.slice(5, 7)}` : 'Không hạn'}. Hạ bây giờ được ${q.xp_neu_ha} điểm.` }),
         ),
@@ -103,16 +144,15 @@ export async function veKhuGame(goc, t, napTrang) {
         h('button', { class: 'nut nut-chinh nut-nho', type: 'button', onclick: (e) => haQuai(q, e.currentTarget) }, icon('xong'), 'Hạ quái (xong việc)'),
       ),
     );
-    const c = bangTran.querySelector('.gm-anh-quai');
-    const a = anhQuaiNho(q.loai, q.id, 3);
-    c.width = a.width; c.height = a.height; c.getContext('2d').drawImage(a, 0, 0);
+    veAnh(bangTran.querySelector('.gm-anh-quai'), anhQuaiNho(q.loai, q.id, 3, Boolean(bossCua(q))));
   };
 
   const napLai = async (truoc) => {
     await veKhuGame(goc, t, napTrang);
     const sau = (await api('/api/game').catch(() => null));
     if (!sau || !canhHienTai) return;
-    if (sau.nhan_vat.cap > truoc.cap) canhHienTai.chuNoi(`Lên cấp ${sau.nhan_vat.cap}!`);
+    if (truoc.boss) canhHienTai.chuNoi(`Hạ Boss ${truoc.boss}!`);
+    else if (sau.nhan_vat.cap > truoc.cap) canhHienTai.chuNoi(`Lên cấp ${sau.nhan_vat.cap}!`);
     else if (sau.man.qua_man && !truoc.qua_man) canhHienTai.chuNoi('Qua màn!');
   };
   const batDau = async (q, bat) => {
@@ -123,8 +163,12 @@ export async function veKhuGame(goc, t, napTrang) {
     try {
       await api(`/api/viec/${q.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'xong' }) });
       await canh?.danh(q.id, { xp: q.xp_neu_ha, tron: true });
+      // Boss nhỏ cuối cùng của dự án: hạ luôn Boss.
+      const b = bossCua(q);
+      const haBoss = b && b.so_mo === 1;
+      if (haBoss) await canh?.danh(`b${b.id}`, { xp: b.xp_neu_ha, tron: true });
       api('/api/game/bao', { method: 'POST', body: JSON.stringify({ viec_id: q.id }) }).catch(() => {});
-      await napLai({ cap: nv.cap, qua_man: man.qua_man });
+      await napLai({ cap: nv.cap, qua_man: man.qua_man, boss: haBoss ? b.ten : null });
       napTrang?.();
     } catch (e) { bao(e.message, { loi: true }); nut.disabled = false; }
   };
@@ -139,24 +183,13 @@ export async function veKhuGame(goc, t, napTrang) {
     } catch (e) { bao(e.message, { loi: true }); nut.disabled = false; }
   };
 
-  // Quái lang thang (không hạn) khi đã có quái trong màn.
-  const langThang = man.quai.length && man.lang_thang.length
-    ? h('section', { class: 'bang gm-lt' }, h('div', { class: 'bang-dau' }, h('h2', {}, 'Quái lang thang'), h('span', { class: 'phu', text: 'Việc chưa có hạn' })),
-      h('ul', { class: 'gm-ds-lt' }, ...man.lang_thang.map((q) => {
-        const c = h('canvas', { 'aria-hidden': 'true' });
-        const a = anhQuaiNho(q.loai, q.id, 2);
-        c.width = a.width; c.height = a.height; c.getContext('2d').drawImage(a, 0, 0);
-        return h('li', {}, h('button', { type: 'button', onclick: () => { chonQuai(q.id); bangTran.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } }, c, h('span', { text: q.tieu_de }), h('small', { text: gioPhut(q.mau_toi_da) })));
-      })))
-    : null;
-
   const thanhTich = h('section', { class: 'bang gm-tt' },
     h('div', { class: 'bang-dau' }, h('h2', {}, 'Thành tích'), h('span', { class: 'phu', text: `${g.thanh_tich.filter((x) => x.dat).length}/${g.thanh_tich.length}` })),
     h('ul', { class: 'gm-ds-tt' }, ...g.thanh_tich.map((x) => h('li', { class: x.dat ? 'dat' : '' }, h('span', { class: 'gm-huy-hieu', 'aria-hidden': 'true' }), h('div', {}, h('b', { text: x.ten }), h('small', { text: x.mo_ta })), h('span', { class: 'sr-only', text: x.dat ? 'Đã đạt' : 'Chưa đạt' })))),
   );
   const nhatKy = h('section', { class: 'bang gm-nk' },
     h('div', { class: 'bang-dau' }, h('h2', {}, 'Trận gần đây')),
-    g.nhat_ky.length ? h('ul', { class: 'gm-ds-nk' }, ...g.nhat_ky.map((k) => h('li', {}, h('span', { text: k.tieu_de }), h('b', { text: `+${k.xp}` }), TEN_KIEU[k.kieu] ? h('small', { class: `kieu-${k.kieu}`, text: TEN_KIEU[k.kieu] }) : null))) : h('p', { class: 'mo-ta hs-than', text: 'Chưa hạ quái nào.' }),
+    g.nhat_ky.length ? h('ul', { class: 'gm-ds-nk' }, ...g.nhat_ky.map((k) => h('li', { class: k.boss ? 'boss' : '' }, h('span', { text: k.tieu_de }), h('b', { text: `+${k.xp}` }), TEN_KIEU[k.kieu] ? h('small', { class: `kieu-${k.kieu}`, text: TEN_KIEU[k.kieu] }) : null))) : h('p', { class: 'mo-ta hs-than', text: 'Chưa hạ quái nào.' }),
   );
   const caiDat = h('div', { class: 'gm-cai-dat' },
     congTac(h, 'Chế độ game', true, (b, o) => doiCaiDat({ bat: b }, o)),
@@ -164,13 +197,13 @@ export async function veKhuGame(goc, t, napTrang) {
   );
 
   thay(goc, h('div', { class: 'gm' },
-    h('section', { class: 'bang gm-dau' }, khungCanh, bangTran),
-    theNv, nhatKy, langThang, thanhTich, caiDat,
+    h('section', { class: 'bang gm-dau' }, dsThe, khungCanh, bangTran),
+    theNv, nhatKy, thanhTich, caiDat,
   ));
-  if (!trongCanh.length) thay(bangTran, h('p', { class: 'mo-ta', text: man.qua_man ? 'Đảo đã sạch quái. Hẹn gặp ở màn ngày mai.' : 'Chưa có quái nào. Thêm việc để có quái mới.' }));
-  else thay(bangTran, h('p', { class: 'mo-ta', text: 'Bấm vào một con quái để xem việc và ra đòn.' }));
+  if (!trongCanh.length) thay(bangTran, h('p', { class: 'mo-ta', text: 'Đảo đã sạch quái. Thêm việc để có quái mới.' }));
+  else thay(bangTran, h('p', { class: 'mo-ta', text: bossChon ? 'Bấm vào Boss để xem cả dự án, bấm vào một boss nhỏ để ra đòn.' : 'Bấm vào một con quái để xem việc và ra đòn.' }));
   const canh = taoCanh(khungCanh, { khiChon: chonQuai, giam });
   canhHienTai = canh;
-  canh.datQuai(trongCanh, nv.cap);
-  if (dangChon) chonQuai(dangChon);
+  canh.datQuai(trongCanh, nv.cap, bossChon);
+  if (bossChon) chonBoss(bossChon);
 }
