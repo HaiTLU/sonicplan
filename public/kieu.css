@@ -448,6 +448,20 @@ td.ghi-chu { max-width: 30rem; overflow-wrap: anywhere; color: var(--chu-2); }
 .loai-tep[data-loai="ppt"] { background: #EE8A3C; }
 .loai-tep[data-loai="anh"] { background: #B57BEE; }
 .loai-tep[data-loai="nen"] { background: #8C8F99; }
+button.the-tep { font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; }
+.the-tep .tai.xem { font-size: 12.5px; font-weight: 600; }
+.xem-tep { width: min(980px, 96vw); height: min(86dvh, 900px); margin: auto; padding: 0; border: 1px solid var(--vach); border-radius: 16px; background: var(--mat); overflow: hidden; }
+.xem-tep[open] { display: flex; flex-direction: column; }
+.xem-tep header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--vach); }
+.xem-tep header > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.xem-tep header strong { font-size: 14px; overflow-wrap: anywhere; }
+.xem-tep header small { color: var(--phu); }
+.xem-tep header a { text-decoration: none; }
+.khung-xem { flex: 1; min-height: 0; overflow: auto; display: flex; }
+.khung-xem img { margin: auto; max-width: 100%; max-height: 100%; object-fit: contain; }
+.khung-xem iframe { flex: 1; border: 0; background: #fff; }
+.khung-xem.docx { padding: 18px 20px; }
+.xem-chu { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 14.5px/1.65 var(--phong); max-width: 78ch; }
 .the-tep .tai { color: var(--phu); }
 .the-tep:hover .tai { color: var(--nhan); }
 .the-tep strong { font-weight: 600; font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
