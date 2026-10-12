@@ -42,7 +42,14 @@ export default {
         return json(await chayTacVu(env, tv, new Date().toISOString(), { ep: true }));
       }
       if (url.pathname.startsWith('/api/')) return xuLyApi(yeuCau, env, phien, url);
-      return env.ASSETS.fetch(yeuCau);
+      // Trang, mã và kiểu dáng luôn hỏi lại máy chủ trước khi dùng bản lưu, để bản mới lên ngay.
+      const tinh = await env.ASSETS.fetch(yeuCau);
+      if (/\.(?:js|css|html|webmanifest)$|\/$/.test(url.pathname)) {
+        const ra = new Response(tinh.body, tinh);
+        ra.headers.set('cache-control', 'no-cache');
+        return ra;
+      }
+      return tinh;
     } catch (e) {
       console.error('Lỗi xử lý', url.pathname, e);
       return loi(500, 'Hệ thống đang gặp lỗi, thử lại sau ít phút.');

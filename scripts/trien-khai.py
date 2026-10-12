@@ -102,6 +102,13 @@ def main():
     rang_buoc += [{'type': 'r2_bucket', 'name': b['binding'], 'bucket_name': b['bucket_name']} for b in ch.get('r2_buckets', [])]
     if 'ai' in ch:
         rang_buoc.append({'type': 'ai', 'name': ch['ai']['binding']})
+    # Mã phiên bản giao diện: trang đang mở so mã này để biết có bản mới mà tự tải lại.
+    bam = hashlib.sha1()
+    for f in sorted((GOC / ch['assets']['directory']).rglob('*')):
+        if f.is_file() and f.name != '.DS_Store':
+            bam.update(str(f.relative_to(GOC)).encode())
+            bam.update(f.read_bytes())
+    rang_buoc.append({'type': 'plain_text', 'name': 'PHIEN_BAN', 'text': bam.hexdigest()[:12]})
 
     meta = {
         'main_module': pathlib.Path(ch['main']).name,
