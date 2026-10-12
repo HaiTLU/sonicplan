@@ -680,6 +680,30 @@ function loaiTep(ten, loai) {
   return ['khac', (duoi || 'TỆP').toUpperCase().slice(0, 4)];
 }
 
+// Xem trước ngay trong trang: ảnh và PDF hiện thẳng, Word hiện phần chữ. Loại khác thì tải về.
+function kieuXemTep(ten) {
+  const duoi = (String(ten).match(/\.([A-Za-z0-9]{1,5})$/) || [])[1]?.toLowerCase();
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(duoi)) return 'anh';
+  return duoi === 'pdf' ? 'pdf' : duoi === 'docx' ? 'docx' : null;
+}
+
+function moXemTep(f, kieu) {
+  const nguon = `/api/tep/${f.id}/xem`;
+  const oChu = kieu === 'docx' ? h('pre', { class: 'xem-chu', text: 'Đang đọc nội dung…' }) : null;
+  const than = kieu === 'anh' ? h('img', { src: nguon, alt: f.ten }) : kieu === 'pdf' ? h('iframe', { src: nguon, title: f.ten }) : oChu;
+  const hop = h('dialog', { class: 'xem-tep', 'aria-label': `Xem trước ${f.ten}` },
+    h('header', {},
+      h('div', {}, h('strong', { text: f.ten }), h('small', { text: kichThuoc(f.kich_thuoc) })),
+      h('a', { class: 'nut nut-phu nut-nho', href: `/api/tep/${f.id}/tai` }, icon('tai'), 'Tải về'),
+      h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: 'Đóng', onclick: () => hop.close() })),
+    h('div', { class: `khung-xem ${kieu}` }, than));
+  hop.addEventListener('close', () => hop.remove());
+  hop.addEventListener('click', (ev) => { if (ev.target === hop) hop.close(); });
+  document.body.append(hop);
+  hop.showModal();
+  if (oChu) api(`/api/tep/${f.id}/chu`).then((r) => { oChu.textContent = r.chu; }).catch((e) => { oChu.textContent = e.message; });
+}
+
 async function veTep(goc) {
   const t = trang.tep;
   const oTim = h('input', { type: 'search', placeholder: 'Tìm tên tệp, người gửi…', value: t.q, 'aria-label': 'Tìm tệp' });
@@ -696,11 +720,13 @@ async function veTep(goc) {
       }
       thay(luoi, ...tep.map((f) => {
         const [lop, nhan] = loaiTep(f.ten, f.loai);
-        return h('a', { class: 'bang the-tep', href: `/api/tep/${f.id}/tai`, 'aria-label': `Tải ${f.ten}` },
-          h('div', { class: 'dau' }, h('span', { class: 'loai-tep', dataset: { loai: lop }, text: nhan }), h('span', { class: 'tai' }, icon('tai'))),
+        const kieu = kieuXemTep(f.ten);
+        const the = h(kieu ? 'button' : 'a', kieu ? { class: 'bang the-tep', type: 'button', 'aria-label': `Xem trước ${f.ten}`, onclick: () => moXemTep(f, kieu) } : { class: 'bang the-tep', href: `/api/tep/${f.id}/tai`, 'aria-label': `Tải ${f.ten}` },
+          h('div', { class: 'dau' }, h('span', { class: 'loai-tep', dataset: { loai: lop }, text: nhan }), kieu ? h('span', { class: 'tai xem', text: 'Xem' }) : h('span', { class: 'tai' }, icon('tai'))),
           h('strong', { text: f.ten }),
           h('div', { class: 'meta' }, h('span', { text: kichThuoc(f.kich_thuoc) }), h('span', { text: f.nguon === 'zalo' ? 'Zalo' : 'Thư' }), f.nguoi_gui ? h('span', { text: f.nguoi_gui.split('<')[0].trim() }) : null, h('span', { text: luc(f.tao_luc) })),
         );
+        return the;
       }));
     } catch (e) {
       thay(luoi, khungLoi(e, nap));

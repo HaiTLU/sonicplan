@@ -13,6 +13,7 @@ import { caiBot, layBot, maNoiTelegram } from './telegram.js';
 import { chuanHoaCauHinhAi, dangViecMoi, docTichHop, giaiTichHop, guiDiaChiNhan, KHOA_TICH_HOP, kiemDiaChiNhan, luuTichHop, thuAiNgoai, xoaTichHop } from './tich-hop.js';
 import { bam, cat, json, loi, maNgauNhien, ngayVN } from './tien-ich.js';
 import { tinhTinhTrang } from './tinh-trang.js';
+import { chuTuDocx, loaiXem, TOI_DA_DOCX } from './xem-tep.js';
 import { themViec } from './viec.js';
 
 const NGAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -75,6 +76,8 @@ export async function xuLyApi(yeuCau, env, phien, url) {
 
   if (p === '/api/tep' && m === 'GET') return json(await dsTep(env, tc, url));
   if ((khop = p.match(/^\/api\/tep\/(\d+)\/tai$/)) && m === 'GET') return taiTep(env, tc, Number(khop[1]));
+  if ((khop = p.match(/^\/api\/tep\/(\d+)\/xem$/)) && m === 'GET') return xemTep(env, tc, Number(khop[1]));
+  if ((khop = p.match(/^\/api\/tep\/(\d+)\/chu$/)) && m === 'GET') return chuTep(env, tc, Number(khop[1]));
 
   if (p === '/api/ket-noi' && m === 'GET') return json(await layKetNoi(env, tc, url, phien));
   if ((khop = p.match(/^\/api\/ket-noi\/(zalo|lich)$/)) && m === 'POST') return taoKhoa(env, tc, khop[1], url);
@@ -447,6 +450,39 @@ async function dsTep(env, tc, url) {
      WHERE to_chuc_id = ?1 ${q ? 'AND (ten LIKE ?2 OR nguoi_gui LIKE ?2)' : ''} ORDER BY id DESC LIMIT 200`,
   ).bind(tc, ...(q ? [`%${q.replace(/[%_]/g, '')}%`] : [])).all();
   return { tep: results };
+}
+
+// Xem ảnh và PDF ngay trong trang: chỉ phục vụ đúng loại ảnh, PDF theo phần mở rộng, không bao giờ HTML hay SVG.
+async function xemTep(env, tc, id) {
+  const tep = await env.CSDL.prepare('SELECT ten, r2_khoa FROM tep WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+  const loai = tep && loaiXem(tep.ten);
+  if (!tep?.r2_khoa || !loai || loai.kieu === 'docx') return loi(404, 'Tệp này không xem trước được.');
+  const vat = await env.TEP.get(tep.r2_khoa);
+  if (!vat) return loi(404, 'Tệp không còn trong kho.');
+  return new Response(vat.body, {
+    headers: {
+      'content-type': loai.mime,
+      'content-disposition': `inline; filename*=UTF-8''${encodeURIComponent(tep.ten)}`,
+      'cache-control': 'private, no-store',
+      'x-content-type-options': 'nosniff',
+    },
+  });
+}
+
+async function chuTep(env, tc, id) {
+  const tep = await env.CSDL.prepare('SELECT ten, kich_thuoc, r2_khoa FROM tep WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+  if (!tep?.r2_khoa || loaiXem(tep.ten)?.kieu !== 'docx') return loi(404, 'Tệp này không có bản chữ để xem trước.');
+  if (tep.kich_thuoc > TOI_DA_DOCX) return loi(413, 'Tệp lớn quá để xem trước, tải về để mở.');
+  const vat = await env.TEP.get(tep.r2_khoa);
+  if (!vat) return loi(404, 'Tệp không còn trong kho.');
+  try {
+    const chu = await chuTuDocx(new Uint8Array(await vat.arrayBuffer()));
+    if (chu == null) return loi(422, 'Không đọc được nội dung tệp Word này, tải về để mở.');
+    return json({ chu: chu || '(tệp không có chữ, có thể chỉ chứa ảnh)' });
+  } catch (e) {
+    console.error('Xem trước docx lỗi', e);
+    return loi(422, 'Không đọc được nội dung tệp Word này, tải về để mở.');
+  }
 }
 
 async function taiTep(env, tc, id) {
