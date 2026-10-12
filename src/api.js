@@ -640,7 +640,7 @@ function laQuanTri(env, phien) {
 
 async function layKetNoi(env, tc, url, phien) {
   // Mọi thứ đọc từ D1 gom vào một lượt (trước đây khoảng 12 lượt nối tiếp, mỗi lượt qua lại giữa Worker và cơ sở dữ liệu).
-  const khoaCaiDat = [...Object.values(KHOA_TICH_HOP), 'telegram_chat_id', 'gmail_xac_nhan', 'telegram_ma_noi', 'nhan_viec_bam'];
+  const khoaCaiDat = [...Object.values(KHOA_TICH_HOP), 'telegram_chat_id', 'gmail_xac_nhan', 'telegram_ma_noi', 'nhan_viec_bam', 'kho_drive_thu_muc'];
   const [toChuc, khoa, tinHieu, caiDat] = await env.CSDL.batch([
     env.CSDL.prepare('SELECT ma_nhan FROM to_chuc WHERE id = ?1').bind(tc),
     env.CSDL.prepare('SELECT loai, tao_luc, dung_luc FROM khoa_truy_cap WHERE to_chuc_id = ?1 ORDER BY tao_luc DESC').bind(tc),
@@ -673,7 +673,7 @@ async function layKetNoi(env, tc, url, phien) {
     github: tichGithub ? { repo: tichGithub.repo, nhan: tichGithub.nhan, lan_cuoi: th.github || null } : null,
     nhan_viec: { co: Boolean(cai.nhan_viec_bam), dia_chi: `${url.origin}/nhan/viec`, lan_cuoi: th['api-vao'] || null },
     google: { co_client: Boolean(tichClient), da_noi: tichGoogle ? { email: tichGoogle.email || null, co_drive: Boolean(tichGoogle.co_drive) } : null, dia_chi_goi_lai: diaChiGoiLai(url.origin), lan_cuoi: th.google || null },
-    kho_drive: { da_noi: tichKho ? { email: tichKho.email || null } : null, lan_cuoi: th.kho || null },
+    kho_drive: { da_noi: tichKho ? { email: tichKho.email || null } : null, lan_cuoi: th.kho || null, thu_muc: maThuMucKho(cai.kho_drive_thu_muc) },
     thu: { dia_chi: env.EMAIL_DOMAIN && maNhan ? `${maNhan}@${env.EMAIL_DOMAIN}` : null, lan_cuoi: th.thu || null, xac_nhan: xacNhan },
     zalo: { khoa: khoaTheo('zalo'), lan_cuoi: th.zalo || null },
     lich: { khoa: khoaTheo('lich') },
@@ -688,6 +688,13 @@ async function layKetNoi(env, tc, url, phien) {
     ai: { co: Boolean(env.AI) },
     tep: { co: Boolean(env.TEP) },
   };
+}
+
+// Mã các thư mục cấp một của kho trên Drive (chỉ để dựng liên kết mở thư mục); thư mục con bỏ qua.
+function maThuMucKho(tho) {
+  let o = {};
+  try { o = JSON.parse(tho || '{}'); } catch { o = {}; }
+  return Object.fromEntries(['goc', 'tin', 'thu', 'tep', 'bo_nho', 'viec', 'phan_loai'].filter((k) => /^[\w-]{10,80}$/.test(String(o[k] || ''))).map((k) => [k, o[k]]));
 }
 
 // Tạo mã mới thì mã cũ cùng loại hết hiệu lực. Mã chỉ trả về một lần.
