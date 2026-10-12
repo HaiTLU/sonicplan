@@ -9,8 +9,8 @@ import { docLuong, luuLuong, NGUONG } from './luong.js';
 import { kiemCauHinhGithub, thuGithub } from './github.js';
 import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from './google.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
-import { dongBoKho, goKetNoiKho, hoanTatDangNhapKho, taoDiaChiDangNhapKho } from './kho.js';
-import { dsDuAnKemSo, lichSuDuAn, sapXepDuAn, suaDuAn, taoDuAn, xoaDuAn, ghiSuKien } from './du-an.js';
+import { dongBoKho, goKetNoiKho, hoanTatDangNhapKho, layAnhNhoDrive, taoDiaChiDangNhapKho } from './kho.js';
+import { dsDuAnKemSo, lichSuDuAn, phanDuAnChoTep, sapXepDuAn, suaDuAn, taoDuAn, xoaDuAn, ghiSuKien } from './du-an.js';
 import { caiBot, layBot, maNoiTelegram } from './telegram.js';
 import { chuanHoaCauHinhAi, dangViecMoi, docTichHop, giaiTichHop, guiDiaChiNhan, KHOA_TICH_HOP, kiemDiaChiNhan, luuTichHop, thuAiNgoai, xoaTichHop } from './tich-hop.js';
 import { bam, cat, json, loi, maNgauNhien, ngayVN } from './tien-ich.js';
@@ -105,6 +105,8 @@ export async function xuLyApi(yeuCau, env, phien, url) {
 
   if (p === '/api/tep' && m === 'GET') return json(await dsTep(env, tc, url));
   if ((khop = p.match(/^\/api\/tep\/(\d+)\/tai$/)) && m === 'GET') return taiTep(env, tc, Number(khop[1]));
+  if ((khop = p.match(/^\/api\/tep\/(\d+)\/anh-nho$/)) && m === 'GET') return anhNhoTep(env, tc, Number(khop[1]));
+  if ((khop = p.match(/^\/api\/tep\/(\d+)$/)) && m === 'PATCH') return suaTep(env, tc, Number(khop[1]), await yeuCau.json().catch(() => ({})));
   if ((khop = p.match(/^\/api\/tep\/(\d+)\/xem$/)) && m === 'GET') return xemTep(env, tc, Number(khop[1]));
   if ((khop = p.match(/^\/api\/tep\/(\d+)\/chu$/)) && m === 'GET') return chuTep(env, tc, Number(khop[1]));
 
@@ -510,11 +512,50 @@ async function suaViec(env, tc, id, than) {
 
 async function dsTep(env, tc, url) {
   const q = (url.searchParams.get('q') || '').trim();
+  await phanDuAnChoTep(env, tc).catch((e) => console.error('Phân dự án cho tệp lỗi', e));
   const { results } = await env.CSDL.prepare(
-    `SELECT id, ten, loai, kich_thuoc, nguon, nguoi_gui, thu_muc, tao_luc, tin_nhan_id, ${COT_DRIVE} FROM tep
-     WHERE to_chuc_id = ?1 ${q ? 'AND (ten LIKE ?2 OR nguoi_gui LIKE ?2)' : ''} ORDER BY id DESC LIMIT 200`,
+    `SELECT tep.id, tep.ten, tep.loai, tep.kich_thuoc, tep.nguon, tep.nguoi_gui, tep.thu_muc, tep.tao_luc, tep.tin_nhan_id, tep.du_an_id, tep.du_an_nguon,
+       m.nhom AS tin_nhom, ${COT_DRIVE} FROM tep LEFT JOIN tin_nhan m ON m.id = tep.tin_nhan_id
+     WHERE tep.to_chuc_id = ?1 ${q ? 'AND (tep.ten LIKE ?2 OR tep.nguoi_gui LIKE ?2)' : ''} ORDER BY tep.id DESC LIMIT 400`,
   ).bind(tc, ...(q ? [`%${q.replace(/[%_]/g, '')}%`] : [])).all();
   return { tep: results };
+}
+
+// Đổi dự án của tệp (chọn tay): du_an_id rỗng nghĩa là bỏ khỏi dự án, hệ thống không tự gán lại.
+async function suaTep(env, tc, id, than) {
+  if (!('du_an_id' in than)) return loi(400, 'Không có gì để sửa.');
+  const d = than.du_an_id === null || than.du_an_id === '' ? null : Number(than.du_an_id);
+  if (d !== null && (!Number.isInteger(d) || !(await env.CSDL.prepare('SELECT 1 AS x FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(d, tc).first()))) return loi(400, 'Dự án không tồn tại.');
+  const kq = await env.CSDL.prepare("UPDATE tep SET du_an_id = ?1, du_an_nguon = 'tay' WHERE id = ?2 AND to_chuc_id = ?3").bind(d, id, tc).run();
+  return kq.meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy tệp.');
+}
+
+// Ảnh thu nhỏ của tệp: ưu tiên bản Drive tạo (có cả trang đầu Word, PDF, Excel, PowerPoint), lưu đệm ở R2;
+// không có thì ảnh gốc trong R2 nếu là ảnh. Không có gì thì 404 để trang hiện biểu tượng.
+async function anhNhoTep(env, tc, id) {
+  const tep = await env.CSDL.prepare(`SELECT ten, r2_khoa, ${COT_DRIVE} FROM tep WHERE id = ?1 AND to_chuc_id = ?2`).bind(id, tc).first();
+  if (!tep) return loi(404, 'Không tìm thấy tệp.');
+  const dau = { 'cache-control': 'private, max-age=86400', 'x-content-type-options': 'nosniff' };
+  const khoaDem = `anh-nho/${tc}/${id}`;
+  const dem = await env.TEP.get(khoaDem);
+  if (dem) return new Response(dem.body, { headers: { ...dau, 'content-type': dem.httpMetadata?.contentType || 'image/jpeg' } });
+  if (tep.drive_id) {
+    try {
+      const a = await layAnhNhoDrive(env, tc, tep.drive_id);
+      if (a) {
+        await env.TEP.put(khoaDem, a.bytes, { httpMetadata: { contentType: a.mime } });
+        return new Response(a.bytes, { headers: { ...dau, 'content-type': a.mime } });
+      }
+    } catch (e) {
+      console.error('Ảnh thu nhỏ Drive lỗi', e);
+    }
+  }
+  const loai = loaiXem(tep.ten);
+  if (tep.r2_khoa && loai?.kieu === 'anh') {
+    const vat = await env.TEP.get(tep.r2_khoa);
+    if (vat) return new Response(vat.body, { headers: { ...dau, 'content-type': loai.mime } });
+  }
+  return new Response('Không có ảnh thu nhỏ.', { status: 404, headers: { 'cache-control': 'private, max-age=600' } });
 }
 
 // Xem ảnh và PDF ngay trong trang: chỉ phục vụ đúng loại ảnh, PDF theo phần mở rộng, không bao giờ HTML hay SVG.

@@ -980,3 +980,28 @@ body.dang-keo-tha, body.dang-keo-tha * { user-select: none; -webkit-user-select:
 .o-mau.khong { background: var(--mat-2); color: var(--phu); font-size: 15px; line-height: 1; border: 1px dashed var(--vach-2); }
 .o-mau.khong[aria-checked="true"] { border-style: solid; border-color: var(--chu); }
 .sua-du-an .chon-mau { flex-basis: 100%; }
+
+/* Trang Tệp: ảnh xem trước, nhóm, danh sách */
+.nhom-nut { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.nhan-nho { color: var(--phu); font-size: 12.5px; font-weight: 600; }
+.dem-tep { color: var(--phu); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.chon-loc { height: 36px; padding: 0 10px; border-radius: 11px; border: 1px solid var(--vach); background: var(--mat); color: var(--chu); font: inherit; font-size: 13px; }
+.nhom-tep { margin-bottom: 22px; }
+.tieu-nhom-tep { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 14px; font-weight: 700; }
+.tieu-nhom-tep span { color: var(--phu); font-weight: 600; font-size: 12.5px; }
+.the-tep { padding: 0; overflow: hidden; gap: 0; }
+.anh-tep { display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; padding: 0; border: 0; background: var(--mat-2); cursor: pointer; overflow: hidden; }
+.anh-tep img { width: 100%; height: 100%; object-fit: cover; object-position: top center; display: block; }
+.loai-tep.lon { width: 56px; height: 66px; }
+.the-tep .than-tep { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 14px; min-width: 0; flex: 1; }
+.the-tep .ten-tep { border: 0; background: none; padding: 0; text-align: left; cursor: pointer; font: inherit; font-weight: 600; font-size: 13.5px; line-height: 1.35; color: var(--chu); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.the-tep .ten-tep:hover { color: var(--nhan); }
+.chon-du-an-tep { align-self: flex-start; max-width: 100%; height: 28px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--vach); border-left: 4px solid var(--mau, var(--vach-2)); background: var(--mat-2); color: var(--chu-2); font: inherit; font-size: 12px; font-weight: 600; }
+.luoi-tep.ds { grid-template-columns: 1fr; gap: 8px; }
+.luoi-tep.ds .the-tep { flex-direction: row; align-items: center; }
+.luoi-tep.ds .anh-tep { width: 64px; flex: none; aspect-ratio: 1; }
+.luoi-tep.ds .loai-tep.lon { width: 34px; height: 40px; font-size: 9px; padding: 4px; }
+.luoi-tep.ds .than-tep { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 8px 14px; }
+.luoi-tep.ds .ten-tep { flex: 1 1 260px; -webkit-line-clamp: 1; }
+.luoi-tep.ds .meta { margin-top: 0; }
+@media (max-width: 640px) { .luoi-tep { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .luoi-tep.ds { grid-template-columns: 1fr; } }
