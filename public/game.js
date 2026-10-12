@@ -1,4 +1,5 @@
-// Chế độ game của Sonicplan: đảo voxel nhìn chéo (isometric), nhân vật hiệp sĩ của bạn, mỗi việc là một quái.
+// Chế độ game của Sonicplan: đảo voxel nhìn chéo (isometric), nhân vật hiệp sĩ của bạn.
+// Mỗi dự án là một Boss đứng giữa đảo, việc trong dự án là boss nhỏ đội vương miện, việc không thuộc dự án là quái lẻ.
 // Tự vẽ bằng canvas 2D, mọi mô hình dựng bằng mã (không dùng hình có bản quyền, không tải thư viện ngoài).
 
 // ---------------- Mô hình voxel ----------------
@@ -94,6 +95,80 @@ function rong() {
   return g.ds();
 }
 
+const toiHex = (hex, k) => {
+  const n = parseInt(hex.slice(1), 16);
+  const f = (c) => Math.max(0, Math.min(255, Math.round(c * k))).toString(16).padStart(2, '0');
+  return `#${f(n >> 16)}${f((n >> 8) & 255)}${f(n & 255)}`;
+};
+
+// Boss của dự án: ba kiểu, tô theo màu dự án. Quay mặt về +y như các quái khác.
+const MAU_BOSS = { quy: '#8e44ad', titan: '#3fa7d6', bong: '#5c6bc0' };
+function maVuong(loai, mauDuAn) {
+  const g = moHinh();
+  const c = /^#[0-9a-f]{6}$/i.test(mauDuAn || '') ? mauDuAn : MAU_BOSS[loai] || MAU_BOSS.quy;
+  const toi = toiHex(c, 0.62), sang = toiHex(c, 1.25);
+  const vang = '#f5c451', vangToi = '#c9952b', xuong = '#e8e2d0';
+  const vuongMien = (x0, x1, y0, y1, z) => {
+    g.hop(x0, x1, y0, y1, z, z, vang);
+    for (const [x, y] of [[x0, y0], [x1, y0], [x0, y1], [x1, y1], [Math.round((x0 + x1) / 2), y1], [Math.round((x0 + x1) / 2), y0]]) g.dat(x, y, z + 1, vang);
+    g.dat(Math.round((x0 + x1) / 2), y1, z + 2, '#ff4d6d');
+    g.dat(x0, y1, z + 2, vangToi); g.dat(x1, y1, z + 2, vangToi);
+  };
+  if (loai === 'titan') {
+    const da = (x, y, z) => ((x * 7 + y * 3 + z * 5) % 13 === 0 ? sang : (x + z) % 4 === 0 ? '#7a8394' : '#8d96a6');
+    g.hop(2, 4, 3, 6, 0, 6, '#5d6675'); g.hop(8, 10, 3, 6, 0, 6, '#5d6675');
+    for (let x = 0; x <= 12; x++) for (let y = 2; y <= 9; y++) for (let z = 7; z <= 17; z++) g.dat(x, y, z, da(x, y, z));
+    for (const [x, y] of [[0, 2], [12, 2], [0, 9], [12, 9]]) { g.xoa(x, y, 17); g.xoa(x, y, 7); }
+    g.hop(-3, -1, 3, 8, 6, 16, '#7a8394'); g.hop(13, 15, 3, 8, 6, 16, '#7a8394');
+    g.hop(-3, -1, 4, 7, 3, 5, '#5d6675'); g.hop(13, 15, 4, 7, 3, 5, '#5d6675');
+    for (const [x, y, z] of [[-2, 3, 17], [14, 3, 17], [-2, 8, 17], [14, 8, 17], [6, 2, 18], [3, 9, 15], [9, 9, 12]]) { g.dat(x, y, z, sang); g.dat(x, y, z + 1, c); }
+    g.hop(3, 9, 3, 8, 18, 22, '#8d96a6');
+    g.truocY(4, 20, sang); g.truocY(5, 20, sang); g.truocY(7, 20, sang); g.truocY(8, 20, sang);
+    g.truocY(5, 19, '#2b313b'); g.truocY(6, 19, '#2b313b'); g.truocY(7, 19, '#2b313b');
+    vuongMien(3, 9, 3, 8, 23);
+  } else if (loai === 'bong') {
+    g.cau(6, 6, 9, 5.2, 4.6, 9, (x, y, z) => (z < 6 ? toi : (x + y + z) % 5 === 0 ? sang : c), 3);
+    for (const vx of [...g.m.values()]) if (vx[2] <= 4 && (vx[0] + vx[1]) % 2) g.xoa(vx[0], vx[1], vx[2]);
+    g.hop(-1, 1, 6, 9, 8, 12, c); g.hop(11, 13, 6, 9, 8, 12, c);
+    g.hop(-1, 1, 10, 10, 8, 9, '#cfd8e8'); g.hop(11, 13, 10, 10, 8, 9, '#cfd8e8');
+    g.cau(6, 6, 19, 3.6, 3.6, 3.8, toi);
+    for (let x = 4; x <= 8; x++) for (let z = 17; z <= 20; z++) g.truocY(x, z, '#0b0d18');
+    g.truocY(5, 19, '#7df9ff'); g.truocY(7, 19, '#7df9ff');
+    vuongMien(4, 8, 4, 8, 23);
+  } else {
+    g.hop(2, 4, 4, 6, 0, 5, '#2b2238'); g.hop(7, 9, 4, 6, 0, 5, '#2b2238');
+    g.hop(2, 4, 7, 7, 0, 1, '#1d1726'); g.hop(7, 9, 7, 7, 0, 1, '#1d1726');
+    g.hop(1, 10, 3, 8, 6, 15, c); g.hop(1, 10, 3, 8, 6, 6, '#3b2b1e'); g.dat(5, 8, 6, vang); g.dat(6, 8, 6, vang);
+    g.hop(3, 8, 9, 9, 9, 14, '#2c2f3a'); g.hop(4, 7, 9, 9, 11, 12, toi);
+    g.hop(1, 10, 2, 2, 4, 15, toi); g.hop(0, 11, 1, 1, 3, 10, toi);
+    g.hop(-1, 1, 3, 8, 13, 16, '#2c2f3a'); g.hop(10, 12, 3, 8, 13, 16, '#2c2f3a');
+    g.dat(-1, 5, 17, xuong); g.dat(-1, 5, 18, xuong); g.dat(12, 5, 17, xuong); g.dat(12, 5, 18, xuong);
+    g.hop(-1, 0, 4, 7, 6, 12, c); g.hop(11, 12, 4, 7, 6, 12, c);
+    g.hop(-1, 0, 8, 8, 6, 7, xuong); g.hop(11, 12, 8, 8, 6, 7, xuong);
+    g.hop(3, 8, 4, 9, 16, 21, c);
+    g.truocY(4, 19, '#ffe14d'); g.truocY(7, 19, '#ffe14d'); g.truocY(4, 20, toi); g.truocY(7, 20, toi);
+    for (let x = 4; x <= 7; x++) g.truocY(x, 17, '#1a0d1f');
+    g.truocY(4, 17, '#ffffff'); g.truocY(7, 17, '#ffffff');
+    g.hop(2, 2, 6, 6, 19, 23, xuong); g.dat(1, 6, 24, xuong); g.dat(1, 6, 25, xuong);
+    g.hop(9, 9, 6, 6, 19, 23, xuong); g.dat(10, 6, 24, xuong); g.dat(10, 6, 25, xuong);
+    vuongMien(3, 8, 4, 9, 22);
+  }
+  return g.ds();
+}
+
+// Boss nhỏ: quái thường đội vương miện nhỏ trên đỉnh đầu.
+function doiVuongMien(voxel) {
+  const zMax = Math.max(...voxel.map((q) => q[2]));
+  const dinh = voxel.filter((q) => q[2] === zMax);
+  const cx = Math.round(dinh.reduce((s, q) => s + q[0], 0) / dinh.length);
+  const cy = Math.round(dinh.reduce((s, q) => s + q[1], 0) / dinh.length);
+  const ra = [...voxel];
+  for (let x = cx - 1; x <= cx + 1; x++) for (let y = cy - 1; y <= cy + 1; y++) ra.push([x, y, zMax + 1, '#f5c451']);
+  for (const [x, y] of [[cx - 1, cy - 1], [cx + 1, cy - 1], [cx - 1, cy + 1], [cx + 1, cy + 1]]) ra.push([x, y, zMax + 2, '#f5c451']);
+  ra.push([cx, cy + 1, zMax + 2, '#ff4d6d']);
+  return ra;
+}
+
 const MAU_SLIME = [['#5fd37a', '#b9f5c8'], ['#5fb8f2', '#c4e8ff'], ['#e27ad6', '#f7c6f0'], ['#f2b84b', '#ffe6a8']];
 
 // ---------------- Vẽ voxel ----------------
@@ -140,6 +215,9 @@ const O_DAO = { x: 12, y: 7 }; // số ô của đảo
 const CO_O = 8; // voxel mỗi ô
 const VI_TRI = [[7, 3.4], [9, 2.2], [9, 4.8], [11, 3.4], [7.2, 1], [7.2, 5.9], [11, 1], [11, 5.9], [9.2, 0.4], [9.2, 6.4], [5.6, 6.2], [5.6, 0.7]];
 const NHA = [2.6, 3.2];
+// Boss đứng phía sau bên phải. Boss nhỏ đứng trước Boss hoặc lệch sang trái để Boss không che mất.
+const O_BOSS = [10, 2.6];
+const VI_TRI_NHO = [[7, 4.2], [6, 2.6], [8.6, 5.6], [5.6, 5.2], [9.4, 4.4], [7.6, 6.6], [10.6, 6.4], [4.6, 1.4], [11.6, 5.4], [4.4, 6.4], [3.4, 5]];
 
 export function taoCanh(khung, { khiChon, giam }) {
   const canvas = document.createElement('canvas');
@@ -164,6 +242,9 @@ export function taoCanh(khung, { khiChon, giam }) {
   const chieu = (wx, wy, wz = 0) => [goc[0] + (wx - wy) * v, goc[1] + (wx + wy) * v / 2 - wz * v];
   const layAnh = (khoa, tao) => { if (!anh.has(khoa)) anh.set(khoa, dungAnh(tao(), v)); return anh.get(khoa); };
   const anhQuai = (q) => {
+    // Boss vẽ to gấp 1,7 lần để nổi bật giữa đảo.
+    if (q.la_boss) { const k = `boss-${q.loai}-${q.mau_du_an}`; if (!anh.has(k)) anh.set(k, dungAnh(maVuong(q.loai, q.mau_du_an), v * 1.7)); return anh.get(k); }
+    if (q.vuong) return layAnh(`v-${q.loai}-${q.loai === 'slime' ? q.id % MAU_SLIME.length : 0}`, () => doiVuongMien(moHinhQuai(q.loai, q.id)));
     if (q.loai === 'slime') { const i = q.id % MAU_SLIME.length; return layAnh(`slime${i}`, () => slime(MAU_SLIME[i])); }
     if (q.loai === 'golem') return layAnh('golem', nguoiDa);
     if (q.loai === 'rong') return layAnh('rong', rong);
@@ -204,7 +285,7 @@ export function taoCanh(khung, { khiChon, giam }) {
     const cay = () => { const g2 = moHinh(); g2.hop(2, 3, 2, 3, 0, 5, '#6d4c41'); g2.cau(2.5, 2.5, 9, 3.2, 3.2, 3.6, (x, y, z) => ((x + y + z) % 3 ? '#3e8e52' : '#2f7543')); return g2.ds(); };
     const da = () => { const g2 = moHinh(); g2.cau(2, 2, 0.5, 2.4, 1.8, 2, (x, y, z) => ((x + z) % 2 ? '#8792a3' : '#9aa5b5'), 0); return g2.ds(); };
     const duoc = () => { const g2 = moHinh(); g2.hop(0, 0, 0, 0, 0, 7, '#5d4037'); g2.hop(-1, 1, -1, 1, 8, 8, '#4e342e'); g2.dat(0, 0, 9, '#ffb347'); g2.dat(0, 0, 10, '#ffe14d'); return g2.ds(); };
-    for (const [x, y, loai] of [[0.6, 0.7, 'cay'], [0.5, 5.8, 'cay'], [11.3, 0.6, 'cay'], [4.5, 0.6, 'da'], [11.4, 6.4, 'da'], [1.4, 6.5, 'da'], [5.2, 2.4, 'duoc'], [5.2, 4.6, 'duoc']]) {
+    for (const [x, y, loai] of [[0.6, 0.7, 'cay'], [0.5, 5.8, 'cay'], [11.3, 0.6, 'cay'], [4.5, 0.6, 'da'], [11.4, 6.4, 'da'], [1.4, 6.5, 'da'], [4.2, 2.2, 'duoc'], [4.2, 4.5, 'duoc']]) {
       trangTri.push({ x, y, a: layAnh(loai, loai === 'cay' ? cay : loai === 'da' ? da : duoc), duoc: loai === 'duoc' });
     }
   }
@@ -218,19 +299,22 @@ export function taoCanh(khung, { khiChon, giam }) {
     const ngang = (O_DAO.x + O_DAO.y) * CO_O;
     v = Math.max(2, Math.min((canvas.width * (rongKhung < 640 ? 1.02 : 0.94)) / ngang, (canvas.height * 0.94) / (ngang / 2 + 16)));
     const doc = ((O_DAO.x + O_DAO.y) * CO_O * v) / 2;
-    goc = [canvas.width / 2 - ((O_DAO.x - O_DAO.y) * CO_O * v) / 2, (canvas.height - doc) / 2 + 9 * v];
+    goc = [canvas.width / 2 - ((O_DAO.x - O_DAO.y) * CO_O * v) / 2, (canvas.height - doc) / 2 + (rongKhung < 640 ? 16 : 9) * v];
     anh.clear();
     dao = dungDao();
     dungTrangTri();
     if (quai.length) xepNhan();
   }
 
-  const viTri = (i) => VI_TRI[i] || [10 + (i % 2), (i * 2) % 7];
-  function datQuai(ds, cap) {
+  // ds: quái hoặc boss nhỏ. boss: Boss của dự án (đứng giữa đảo, id dạng 'b<id dự án>'), hoặc null với quái lẻ.
+  function datQuai(ds, cap, boss = null) {
     capNv = cap;
     anh.delete('hiepsi');
     const cu = new Map(quai.map((q) => [q.id, q]));
-    quai = ds.slice(0, VI_TRI.length).map((q, i) => ({ ...q, o: viTri(i), pha: (q.id * 1.7) % 6.28, nhay: cu.get(q.id)?.nhay || 0, mauHien: cu.get(q.id)?.mauHien ?? q.mau }));
+    const cho = boss ? VI_TRI_NHO : VI_TRI;
+    const nho = ds.slice(0, cho.length).map((q, i) => ({ ...q, vuong: Boolean(boss), o: cho[i] }));
+    if (boss) nho.unshift({ ...boss, id: `b${boss.id}`, la_boss: true, o: O_BOSS, tieu_de: boss.ten });
+    quai = nho.map((q) => ({ ...q, pha: typeof q.id === 'number' ? (q.id * 1.7) % 6.28 : 1, nhay: cu.get(q.id)?.nhay || 0, mauHien: cu.get(q.id)?.mauHien ?? q.mau }));
     for (const [k, el] of dom) if (!quai.some((q) => q.id === k)) { el.remove(); dom.delete(k); }
     for (const q of quai) {
       let el = dom.get(q.id);
@@ -247,12 +331,15 @@ export function taoCanh(khung, { khiChon, giam }) {
       const mau = document.createElement('span'); mau.className = 'mau'; const i = document.createElement('i'); mau.append(i);
       el.append(ten, mau);
       el.dataset.loai = q.loai;
-      el.classList.toggle('gian', q.gian);
-      el.classList.toggle('danh', q.dang_danh);
+      el.classList.toggle('boss', Boolean(q.la_boss));
+      el.classList.toggle('vuong', Boolean(q.vuong));
+      if (q.la_boss) ten.prepend(Object.assign(document.createElement('b'), { textContent: 'BOSS ' }));
+      el.classList.toggle('gian', Boolean(q.gian));
+      el.classList.toggle('danh', Boolean(q.dang_danh));
       el.setAttribute('aria-label', `${q.ten_loai}: ${q.tieu_de}. Máu ${q.mau} trên ${q.mau_toi_da}`);
     }
     xepNhan();
-    canvas.setAttribute('aria-label', `Đảo quái hôm nay: ${quai.length} quái. Nhân vật cấp ${cap}.`);
+    canvas.setAttribute('aria-label', boss ? `Boss ${boss.ten} và ${nho.length - 1} boss nhỏ. Nhân vật cấp ${cap}.` : `Đảo quái lẻ: ${quai.length} quái. Nhân vật cấp ${cap}.`);
   }
 
   // Xếp nhãn tránh chồng nhau: quái ở trước đặt trước, nhãn nào đè thì đẩy lên. Màn hẹp thì chỉ hiện tên quái đang chọn.
@@ -262,12 +349,13 @@ export function taoCanh(khung, { khiChon, giam }) {
     for (const q of [...quai].sort((a, b) => b.o[0] + b.o[1] - (a.o[0] + a.o[1]))) {
       const el = dom.get(q.id);
       if (!el) continue;
-      el.classList.toggle('gon', hep && q.id !== chon);
+      el.classList.toggle('gon', hep && q.id !== chon && !q.la_boss);
       const a = anhQuai(q);
       const [sx, sy] = chieu(q.o[0] * CO_O, q.o[1] * CO_O, 0);
       const w = el.offsetWidth, hh = el.offsetHeight;
       const x = sx / dpr - w / 2;
       let y = (sy - a.ay) / dpr - 6 - hh;
+      if (hep) y = Math.max(y, 62);
       for (let lan = 0; lan < 8; lan++) {
         const de = daDat.find((r) => x < r.x + r.w + 2 && x + w + 2 > r.x && y < r.y + r.h + 2 && y + hh + 2 > r.y);
         if (!de) break;
@@ -289,7 +377,7 @@ export function taoCanh(khung, { khiChon, giam }) {
     const q = quai.find((x) => x.id === maQuai);
     if (!q) return Promise.resolve();
     return new Promise((xong) => {
-      const den = [q.o[0] - 0.9, q.o[1] + 0.25];
+      const den = q.la_boss ? [q.o[0] - 2.2, q.o[1] + 0.5] : [q.o[0] - 0.9, q.o[1] + 0.25];
       nv.tu = [nv.x, nv.y]; nv.den = den; nv.bd = performance.now(); nv.tg = giam ? 1 : 260;
       setTimeout(() => {
         nv.chem = performance.now();
@@ -297,7 +385,7 @@ export function taoCanh(khung, { khiChon, giam }) {
         const a = anhQuai(q);
         const [sx, sy] = chieu(q.o[0] * CO_O, q.o[1] * CO_O, 0);
         if (tron) {
-          for (let k = 0; k < (giam ? 0 : 46); k++) {
+          for (let k = 0; k < (giam ? 0 : q.la_boss ? 140 : 46); k++) {
             hat.push({ x: sx + (Math.random() - 0.5) * a.rong * 0.6, y: sy - Math.random() * a.cao * 0.8, vx: (Math.random() - 0.5) * 9 * v, vy: -(Math.random() * 10 + 4) * v, c: a.mau[(Math.random() * a.mau.length) | 0], s: v * (0.8 + Math.random() * 1.2), song: 1 });
           }
           q.chet = performance.now();
@@ -353,12 +441,13 @@ export function taoCanh(khung, { khiChon, giam }) {
       ve1.push({ sau: q.o[0] + q.o[1], ve: () => {
         const a = anhQuai(q);
         const [sx, sy] = chieu(q.o[0] * CO_O, q.o[1] * CO_O, 0);
-        const nhun = giam ? 0 : q.loai === 'slime' ? Math.abs(Math.sin(t * 2.4 + q.pha)) * v * 2 : Math.sin(t * 2 + q.pha) * v * 0.7;
+        const nhun = giam ? 0 : q.la_boss ? (q.loai === 'bong' ? 3 + Math.sin(t * 1.4) * v * 1.5 : Math.sin(t * 1.2) * v * 0.6) : q.loai === 'slime' ? Math.abs(Math.sin(t * 2.4 + q.pha)) * v * 2 : Math.sin(t * 2 + q.pha) * v * 0.7;
         const rung = now - q.nhay < 300 ? Math.sin((now - q.nhay) / 18) * v * 1.2 : 0;
         bong(sx, sy, a.rong * 0.34);
         if (q.gian) { g.fillStyle = `rgba(242,90,80,${0.22 + Math.sin(t * 5) * 0.1})`; g.beginPath(); g.ellipse(sx, sy, a.rong * 0.42, a.rong * 0.2, 0, 0, 6.29); g.fill(); }
         if (q.id === chon) { g.strokeStyle = 'rgba(6,227,216,.9)'; g.lineWidth = v * 0.6; g.setLineDash([v * 2, v * 1.4]); g.lineDashOffset = -t * 20; g.beginPath(); g.ellipse(sx, sy, a.rong * 0.44, a.rong * 0.22, 0, 0, 6.29); g.stroke(); g.setLineDash([]); }
-        if (q.loai === 'slime' && !giam) {
+        if (q.la_boss && !giam) { g.fillStyle = `rgba(255,80,110,${0.1 + Math.sin(t * 2) * 0.05})`; g.beginPath(); g.ellipse(sx, sy, a.rong * 0.5, a.rong * 0.24, 0, 0, 6.29); g.fill(); }
+        if (q.loai === 'slime' && !q.vuong && !giam) {
           const ep = 1 - Math.abs(Math.sin(t * 2.4 + q.pha)) * 0.08;
           g.drawImage(a.anh, sx - a.ax * (2 - ep), sy - a.ay * ep - nhun, a.rong * (2 - ep), a.cao * ep);
         } else g.drawImage(a.anh, sx - a.ax + rung, sy - a.ay - nhun);
@@ -424,4 +513,8 @@ export function taoCanh(khung, { khiChon, giam }) {
 }
 
 export const anhNhanVat = (cap, v = 5) => dungAnh(hiepSi(cap), v).anh;
-export const anhQuaiNho = (loai, id = 0, v = 3) => dungAnh(loai === 'slime' ? slime(MAU_SLIME[id % MAU_SLIME.length]) : loai === 'golem' ? nguoiDa() : loai === 'rong' ? rong() : yeuTinh(), v).anh;
+function moHinhQuai(loai, id = 0) {
+  return loai === 'slime' ? slime(MAU_SLIME[id % MAU_SLIME.length]) : loai === 'golem' ? nguoiDa() : loai === 'rong' ? rong() : yeuTinh();
+}
+export const anhQuaiNho = (loai, id = 0, v = 3, vuong = false) => dungAnh(vuong ? doiVuongMien(moHinhQuai(loai, id)) : moHinhQuai(loai, id), v).anh;
+export const anhBoss = (loai, mau, v = 3) => dungAnh(maVuong(loai, mau), v).anh;

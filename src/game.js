@@ -1,4 +1,5 @@
-// Chế độ game: mỗi việc là một quái vật, độ nặng quyết định loại quái và máu, việc con là đòn đánh.
+// Chế độ game: mỗi dự án là một Boss, việc trong dự án là boss nhỏ, việc không thuộc dự án là quái lẻ.
+// Độ nặng quyết định loại quái và máu, việc con là đòn đánh. Hạ hết boss nhỏ của một dự án là hạ Boss.
 // Xong trước hạn thì hạ quái sớm, thêm điểm kinh nghiệm. Mỗi ngày là một màn. Tính hoàn toàn từ bảng viec,
 // không lưu điểm riêng, nên sửa hay mở lại việc thì điểm tự đúng lại.
 
@@ -10,6 +11,10 @@ import { congNgay, json, loi, ngayVN } from './tien-ich.js';
 export const LOAI_QUAI = { nhe: 'slime', vua: 'goblin', nang: 'golem', rat_nang: 'rong' };
 export const TEN_QUAI = { slime: 'Slime', goblin: 'Yêu tinh', golem: 'Người đá', rong: 'Rồng lửa' };
 const XP_GOC = { nhe: 10, vua: 25, nang: 60, rat_nang: 150 };
+export const LOAI_BOSS = ['quy', 'titan', 'bong'];
+export const TEN_BOSS = { quy: 'Quỷ vương', titan: 'Titan đá', bong: 'Bóng ma' };
+// Thưởng hạ Boss: 100 điểm, thêm 15 điểm cho mỗi boss nhỏ trong đợt, tối đa 600.
+export const xpHaBoss = (soViec) => Math.min(600, 100 + 15 * soViec);
 const ngayCua = (iso) => (iso ? ngayVN(new Date(iso)) : null);
 
 // Cấp n cần tổng 50 x n x (n + 1) điểm: cấp 2 ở 100, cấp 3 ở 300, cấp 4 ở 600...
@@ -40,6 +45,8 @@ const THANH_TICH = [
   ['tho-san-10', 'Thợ săn', 'Hạ 10 quái', (d) => d.soHa >= 10],
   ['tho-san-50', 'Thợ săn lão luyện', 'Hạ 50 quái', (d) => d.soHa >= 50],
   ['tram-quai', 'Trăm trận trăm thắng', 'Hạ 100 quái', (d) => d.soHa >= 100],
+  ['ha-boss', 'Hạ Boss', 'Hạ hết boss nhỏ của một dự án', (d) => d.soBoss >= 1],
+  ['ha-boss-5', 'Kẻ diệt Boss', 'Hạ Boss 5 lần', (d) => d.soBoss >= 5],
   ['diet-rong', 'Diệt rồng', 'Hạ một con Rồng lửa (việc rất nặng)', (d) => d.soRong >= 1],
   ['than-toc', 'Thần tốc', 'Hạ sớm 5 quái trước hạn', (d) => d.soSom >= 5],
   ['mot-ngay-10', 'Càn quét', 'Hạ 10 quái trong một ngày', (d) => d.nhieuNhatNgay >= 10],
@@ -67,13 +74,33 @@ export function quaiTuViec(v, conTheoCha, homNay, bayGio) {
   }
   const han = v.han_ngay;
   return {
-    id: v.id, tieu_de: v.tieu_de, loai, ten_loai: TEN_QUAI[loai], do_nang: v.do_nang, han_ngay: han, gio_hen: v.gio_hen,
+    id: v.id, tieu_de: v.tieu_de, loai, du_an_id: v.du_an_id || null, ten_loai: TEN_QUAI[loai], do_nang: v.do_nang, han_ngay: han, gio_hen: v.gio_hen,
     mau, mau_toi_da: mauToiDa, dang_danh: Boolean(v.bat_dau_luc), gian: Boolean(v.han_goc && v.han_goc < homNay),
     con: con ? { tong: con.tong, xong: con.xong, don: con.don.sort((a, b) => a.id - b.id) } : null, xp_neu_ha: xpHaQuai({ ...v, xong_luc: bayGio }).xp,
   };
 }
 
-export function tinhGame(viec, homNay, bayGio = new Date().toISOString()) {
+// Lần hạ Boss trong quá khứ: lúc một việc của dự án xong mà không còn việc nào khác của dự án đang mở
+// (mỗi việc mở từ tao_luc tới xong_luc). Việc mới tới sau thì Boss hồi sinh, bắt đầu đợt mới.
+// Đợt dưới 3 boss nhỏ chưa tính là hạ Boss (tránh việc lẻ tẻ tới đâu xong đó cũng thành hạ Boss), cộng dồn sang đợt sau.
+const BOSS_IT_NHAT = 3;
+export function lanHaBoss(viecDuAn) {
+  const ds = viecDuAn.filter((v) => !v.viec_cha_id);
+  const lan = [];
+  let tuLuc = '';
+  for (const v of ds.filter((x) => x.trang_thai === 'xong' && x.xong_luc).sort((a, b) => a.xong_luc.localeCompare(b.xong_luc))) {
+    const t = v.xong_luc;
+    const conMo = ds.some((x) => x !== v && (x.tao_luc || '') <= t && (x.trang_thai === 'mo' || (x.xong_luc && x.xong_luc > t)));
+    if (conMo) continue;
+    const dot = ds.filter((x) => x.trang_thai === 'xong' && x.xong_luc && x.xong_luc > tuLuc && x.xong_luc <= t).length;
+    if (dot < BOSS_IT_NHAT) continue;
+    lan.push({ luc: t, viec_id: v.id, so_viec: dot });
+    tuLuc = t;
+  }
+  return lan;
+}
+
+export function tinhGame(viec, homNay, bayGio = new Date().toISOString(), duAn = []) {
   const xong = viec.filter((v) => v.trang_thai === 'xong' && v.xong_luc).sort((a, b) => a.xong_luc.localeCompare(b.xong_luc));
   const mo = viec.filter((v) => v.trang_thai === 'mo');
   const conTheoCha = new Map();
@@ -105,6 +132,40 @@ export function tinhGame(viec, homNay, bayGio = new Date().toISOString()) {
     nhatKy.push({ id: v.id, tieu_de: v.tieu_de, loai: LOAI_QUAI[v.do_nang] || 'goblin', xp: kq.xp, kieu: kq.kieu, luc: v.xong_luc });
   }
 
+  // Boss: mỗi dự án. Hạ Boss cộng điểm thưởng và ghi vào nhật ký ngay sau trận cuối.
+  const duAnTheoId = new Map(duAn.map((d) => [d.id, d]));
+  const theoDuAn = new Map();
+  for (const v of viec) if (v.du_an_id) { if (!theoDuAn.has(v.du_an_id)) theoDuAn.set(v.du_an_id, []); theoDuAn.get(v.du_an_id).push(v); }
+  let soBoss = 0;
+  const boss = [];
+  for (const [maDa, ds] of theoDuAn) {
+    const da = duAnTheoId.get(maDa) || { id: maDa, ten: 'Dự án', mau: null };
+    const loai = LOAI_BOSS[maDa % LOAI_BOSS.length];
+    const lan = lanHaBoss(ds);
+    for (const l of lan) {
+      const diem = xpHaBoss(l.so_viec);
+      xp += diem;
+      soBoss++;
+      nhatKy.push({ id: -maDa, boss: true, du_an_id: maDa, tieu_de: `Boss ${da.ten}`, loai, xp: diem, kieu: 'thuong', luc: l.luc });
+    }
+    const tuLuc = lan.length ? lan[lan.length - 1].luc : '';
+    const moDa = ds.filter((v) => v.trang_thai === 'mo' && !v.viec_cha_id);
+    if (!moDa.length) continue;
+    const xongDot = ds.filter((v) => v.trang_thai === 'xong' && !v.viec_cha_id && v.xong_luc > tuLuc);
+    const nho = moDa.map((v) => quaiTuViec(v, conTheoCha, homNay, bayGio))
+      .sort((a, b) => Number(b.gian) - Number(a.gian) || (a.han_ngay || '9').localeCompare(b.han_ngay || '9') || b.mau_toi_da - a.mau_toi_da);
+    const mauConLai = nho.reduce((s, q) => s + q.mau, 0);
+    const mauDaHa = xongDot.reduce((s, v) => s + (conTheoCha.has(v.id) ? conTheoCha.get(v.id).phut_tong : phutCua(v)), 0);
+    boss.push({
+      id: maDa, ten: da.ten, mau_du_an: da.mau || null, loai, ten_loai: TEN_BOSS[loai],
+      mau: mauConLai, mau_toi_da: Math.max(1, mauConLai + mauDaHa), so_mo: nho.length, so_xong: xongDot.length,
+      toi_han: nho.filter((q) => q.han_ngay && q.han_ngay <= homNay).length, lan_ha: lan.length,
+      xp_neu_ha: xpHaBoss(nho.length + xongDot.length), boss_nho: nho,
+    });
+  }
+  boss.sort((a, b) => b.toi_han - a.toi_han || b.so_mo - a.so_mo);
+  nhatKy.sort((a, b) => a.luc.localeCompare(b.luc) || Number(Boolean(a.boss)) - Number(Boolean(b.boss)));
+
   // Chuỗi ngày liên tiếp có hạ quái (hôm nay chưa hạ thì tính tới hôm qua).
   let chuoi = 0;
   for (let d = theoNgay.has(homNay) ? homNay : congNgay(homNay, -1); theoNgay.has(d); d = congNgay(d, -1)) chuoi++;
@@ -130,10 +191,14 @@ export function tinhGame(viec, homNay, bayGio = new Date().toISOString()) {
   const langThang = mo.filter((v) => !(v.han_ngay && v.han_ngay <= homNay) && !laCon(v));
   const haHomNay = nhatKy.filter((k) => ngayCua(k.luc) === homNay);
   const muc = capTuXp(xp);
-  const du = { soHa: nhatKy.length, soSom, soNhanh, soRong, nhieuNhatNgay: Math.max(0, ...theoNgay.values()), chuoiDaiNhat, soManQua, cap: muc.cap };
+  const soQuai = nhatKy.filter((k) => !k.boss).length;
+  const du = { soBoss, soHa: soQuai, soSom, soNhanh, soRong, nhieuNhatNgay: Math.max(0, ...theoNgay.values()), chuoiDaiNhat, soManQua, cap: muc.cap };
   return {
     hom_nay: homNay,
-    nhan_vat: { cap: muc.cap, xp, xp_tu: muc.tu, xp_den: muc.den, chuoi, chuoi_dai_nhat: chuoiDaiNhat, so_ha: nhatKy.length, so_ha_som: soSom, so_man_qua: soManQua },
+    nhan_vat: { cap: muc.cap, xp, xp_tu: muc.tu, xp_den: muc.den, chuoi, chuoi_dai_nhat: chuoiDaiNhat, so_ha: soQuai, so_ha_som: soSom, so_man_qua: soManQua, so_boss: soBoss },
+    boss,
+    quai_le: langThang.concat(trongMan).filter((v) => !v.du_an_id).map((v) => quaiTuViec(v, conTheoCha, homNay, bayGio))
+      .sort((a, b) => Number(b.gian) - Number(a.gian) || (a.han_ngay || '9').localeCompare(b.han_ngay || '9') || b.mau_toi_da - a.mau_toi_da),
     man: {
       ngay: homNay,
       quai: trongMan.map((v) => quaiTuViec(v, conTheoCha, homNay, bayGio)).sort((a, b) => b.mau_toi_da - a.mau_toi_da),
@@ -151,11 +216,14 @@ async function docCaiDatGame(env, tc) {
 }
 
 async function layGame(env, tc) {
-  const { results } = await env.CSDL.prepare(
-    `SELECT id, tieu_de, trang_thai, tao_luc, xong_luc, han_ngay, han_goc, gio_hen, do_nang, phut_uoc, bat_dau_luc, viec_cha_id
-     FROM viec WHERE to_chuc_id = ?1 AND trang_thai IN ('mo', 'xong')`,
-  ).bind(tc).all();
-  return { ...(await docCaiDatGame(env, tc)), ...tinhGame(results, ngayVN()) };
+  const [viec, duAn] = await env.CSDL.batch([
+    env.CSDL.prepare(
+      `SELECT id, tieu_de, trang_thai, tao_luc, xong_luc, han_ngay, han_goc, gio_hen, do_nang, phut_uoc, bat_dau_luc, viec_cha_id, du_an_id
+       FROM viec WHERE to_chuc_id = ?1 AND trang_thai IN ('mo', 'xong')`,
+    ).bind(tc),
+    env.CSDL.prepare('SELECT id, ten, mau FROM du_an WHERE to_chuc_id = ?1').bind(tc),
+  ]);
+  return { ...(await docCaiDatGame(env, tc)), ...tinhGame(viec.results, ngayVN(), undefined, duAn.results) };
 }
 
 export async function xuLyGame(yeuCau, env, tc, p) {
@@ -173,9 +241,11 @@ export async function xuLyGame(yeuCau, env, tc, p) {
     if (!cd.bat || !cd.telegram) return json({ gui: false });
     const id = Number((await yeuCau.json().catch(() => ({}))).viec_id);
     const g = await layGame(env, tc);
-    const tran = g.nhat_ky.find((k) => k.id === id);
+    const i = g.nhat_ky.findIndex((k) => k.id === id && !k.boss);
+    const tran = g.nhat_ky[i];
     if (!tran) return json({ gui: false });
-    const nd = `Hạ ${TEN_QUAI[tran.loai]}: ${tran.tieu_de}. +${tran.xp} điểm${tran.kieu === 'som' ? ' (hạ sớm)' : ''}. Cấp ${g.nhan_vat.cap}, chuỗi ${g.nhan_vat.chuoi} ngày.${g.man.qua_man ? ' Đã qua màn hôm nay.' : ''}`;
+    const bossHa = i > 0 && g.nhat_ky[i - 1].boss ? g.nhat_ky[i - 1] : null;
+    const nd = `Hạ ${TEN_QUAI[tran.loai]}: ${tran.tieu_de}. +${tran.xp} điểm${tran.kieu === 'som' ? ' (hạ sớm)' : ''}.${bossHa ? ` Đã hạ ${bossHa.tieu_de}, +${bossHa.xp} điểm thưởng.` : ''} Cấp ${g.nhan_vat.cap}, chuỗi ${g.nhan_vat.chuoi} ngày.${g.man.qua_man ? ' Đã qua màn hôm nay.' : ''}`;
     return json({ gui: await baoToChuc(env, tc, nd).catch(() => false) });
   }
   return loi(404, 'Không có chức năng này.');
