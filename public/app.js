@@ -2,7 +2,7 @@
 
 import { veDuAn } from './du-an.js';
 import { batKeoTha } from './keo-tha.js';
-import { mienCuaUrl, nhanTep, phanTichTin, tachLienKet } from './zalo-tin.js';
+import { mienCuaUrl, nhanTep, phanTichTin, tachLienKet, trichTin } from './zalo-tin.js';
 
 const MUI_GIO = 'Asia/Ho_Chi_Minh';
 const fmt = {
@@ -394,7 +394,7 @@ function bangTinMoi(ds) {
         h('span', { class: `huy-hieu ${t.nguon}` }, icon(t.nguon === 'zalo' ? 'zalo' : 'thu')),
         h('div', { style: 'min-width:0' },
           h('div', { class: 'dong-1' }, h('strong', { text: t.nguoi_gui || 'Không rõ' }), h('span', { text: t.nhom || t.tieu_de || '' })),
-          h('p', { text: (t.trich || '').replace(/\s+/g, ' ') }),
+          h('p', { text: trichTin(t.trich) }),
         ),
         h('time', { datetime: t.thoi_diem, text: luc(t.thoi_diem) }),
       ),
@@ -482,7 +482,7 @@ async function veHopTin(goc, thamSo) {
           h('div', { style: 'min-width:0' },
             h('div', { class: 'dong-1' }, h('strong', { text: x.nguoi_gui || 'Không rõ' }), h('time', { datetime: x.thoi_diem, text: luc(x.thoi_diem) })),
             (x.nhom || x.tieu_de) ? h('div', { class: 'noi', text: x.nhom ? tenNhom(x.nhom) : x.tieu_de }) : null,
-            h('p', { text: (x.trich || '').replace(/\s+/g, ' ') }),
+            h('p', { text: trichTin(x.trich) }),
             (x.so_tep || x.so_viec) ? h('div', { class: 'the-nho' }, x.so_tep ? h('span', { text: `${x.so_tep} tệp` }) : null, x.so_viec ? h('span', { class: 'viec', text: `${x.so_viec} việc` }) : null) : null,
           ),
         ),
@@ -1068,7 +1068,7 @@ async function veZalo(goc, thamSo) {
           anhZalo(x.ten, x.loai),
           h('div', { style: 'min-width:0' },
             h('div', { class: 'dong-1' }, h('strong', { text: x.ten }), h('time', { datetime: x.cuoi, text: luc(x.cuoi) })),
-            h('div', { class: 'dong-2' }, h('p', { text: `${ai}${(x.trich || '').replace(/\s+/g, ' ')}` }), x.chua_xem ? h('b', { class: 'dem-zalo', text: x.chua_xem > 99 ? '99+' : String(x.chua_xem), 'aria-label': `${x.chua_xem} tin chưa xem` }) : null),
+            h('div', { class: 'dong-2' }, h('p', { text: `${ai}${trichTin(x.trich)}` }), x.chua_xem ? h('b', { class: 'dem-zalo', text: x.chua_xem > 99 ? '99+' : String(x.chua_xem), 'aria-label': `${x.chua_xem} tin chưa xem` }) : null),
           ),
         ));
     })));

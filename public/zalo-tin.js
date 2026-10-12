@@ -41,7 +41,7 @@ export function phanTichTin(noiDung) {
   if (/^\[chat\.ecard\]/.test(nd)) return { kieu: 'chu', chu: nd.replace(/^\[chat\.ecard\]\s*/, '') || 'Thiệp' };
   m = nd.match(/^\[chat\.recommended\]\s*([\s\S]*)$/);
   if (m) {
-    const thanh = m[1].trim();
+    const thanh = m[1].trim().replace(/^sendBubbleMessage\s*-?\s*/, '');
     const json = thanh.match(/\{[\s\S]*\}/);
     if (json) {
       try {
@@ -69,4 +69,22 @@ export function nhanTep(ten) {
   const duoi = (String(ten).match(/\.([A-Za-z0-9]{1,5})$/) || [])[1]?.toLowerCase() || '';
   const nhom = { pdf: 'pdf', doc: 'doc', docx: 'doc', xls: 'xls', xlsx: 'xls', csv: 'xls', ppt: 'ppt', pptx: 'ppt', zip: 'zip', rar: 'zip', '7z': 'zip' }[duoi] || 'khac';
   return { nhan: (duoi || 'tệp').slice(0, 4).toUpperCase(), nhom };
+}
+
+// Dòng xem nhanh trong danh sách: tin dạng đặc biệt thành câu ngắn thay vì mã thô.
+export function trichTin(noiDung) {
+  const nd = String(noiDung || '').replace(/\s+/g, ' ').trim();
+  const k = phanTichTin(nd);
+  switch (k.kieu) {
+    case 'anh': return 'Đã gửi một ảnh';
+    case 'tep-ngoai': return `Tệp: ${k.ten}`;
+    case 'video': return 'Đã gửi một video';
+    case 'thu-hoi': return 'Tin nhắn đã thu hồi';
+    case 'nhan-dan': return 'Đã gửi một nhãn dán';
+    case 'binh-chon': return 'Bình chọn trong nhóm';
+    case 'danh-thiep': return `Danh thiếp: ${k.ten || k.dien_thoai}`;
+    case 'the-lien-ket': return `Liên kết: ${k.tieu_de}`;
+    case 'tep-gui': return `Đã gửi tệp: ${(String(noiDung).match(/^\s*Gửi tệp:[ \t]*([^\n]*)/) || [])[1]?.trim() || ''}`.trim();
+    default: return /^\[chat\.recommended\]/.test(nd) ? nd.replace(/^\[chat\.recommended\]\s*(sendBubbleMessage\s*-?\s*)?/, '') : k.chu;
+  }
 }
