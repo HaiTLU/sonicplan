@@ -7,16 +7,52 @@ import { goiNgoai } from './goi-ngoai.js';
 import { docHoSo } from './ghi-nho.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { docTichHop, luuTichHop, xoaTichHop } from './tich-hop.js';
-import { cat } from './tien-ich.js';
+import { cat, chuanHoa, ngayVN } from './tien-ich.js';
 
 const DIA_CHI_DANG_NHAP = 'https://accounts.google.com/o/oauth2/v2/auth';
 const LECH_VN_MS = 7 * 3600000;
-const TOI_DA_TEP = 6;
+const TOI_DA_TEP = 8;
 const TOI_DA_NGAY = 6;
-const TEN_THU_MUC = { goc: 'Sonicplan kho', tin: 'Tin nhắn', thu: 'Thư', tep: 'Tệp', bo_nho: 'Bộ nhớ AI', viec: 'Việc' };
+const TEN_THU_MUC = { goc: 'Sonicplan kho', tin: 'Tin nhắn', thu: 'Thư', tep: 'Tệp', phan_loai: 'Phân loại', bo_nho: 'Bộ nhớ AI', viec: 'Việc' };
 const NHAN_GHI_NHO = { nguoi: 'Người', du_an: 'Dự án', quyet_dinh: 'Quyết định', su_that: 'Sự thật' };
 
 // ---- Phần thuần (kiểm thử được) ----
+
+const DUOI_ANH = /\.(jpe?g|png|gif|webp|heic|bmp)$/i;
+const TOI_THIEU_ANH = 50000; // ảnh nhỏ hơn mức này coi là sticker, ảnh vụn
+const THU_MUC_CAN_XEM = '99_CanXem';
+
+export const tenNguonTep = (nguon) => (nguon === 'zalo' ? 'Zalo' : nguon === 'gmail' ? 'Gmail' : 'Tải lên');
+
+// Tên mới: [Nguồn] YYMMDD Nhóm hoặc người gửi - Tên gốc.ext
+export function tenPhanLoai(tep) {
+  const m = String(tep.ten).match(/^(\d{6})_(?:Zalo|Gmail)_([\s\S]+)$/);
+  const ngay = m ? m[1] : ngayVN(tep.tao_luc || new Date()).slice(2).replace(/-/g, '');
+  let phan = m ? m[2] : String(tep.ten);
+  if (tep.nhom && phan.startsWith(`${tep.nhom}_`)) phan = `${tep.nhom} - ${phan.slice(tep.nhom.length + 1)}`;
+  const duoi = (phan.match(/\.[A-Za-z0-9]{1,5}$/) || [''])[0];
+  const than = cat(`[${tenNguonTep(tep.nguon)}] ${ngay} ${duoi ? phan.slice(0, -duoi.length) : phan}`, 190);
+  return `${than}${duoi}`;
+}
+
+// Quy tắc: [{ thu_muc, mau: ['cụm từ'], anh_con }]. Cụm từ so với nhóm và tên tệp đã bỏ dấu, khớp theo từ.
+// Không khớp quy tắc nào thì vào thư mục cần xem. Ảnh nhỏ bị bỏ qua.
+export function phanLoaiTep(tep, quyTac) {
+  const laAnh = DUOI_ANH.test(tep.ten);
+  if (laAnh && Number(tep.kich_thuoc) < TOI_THIEU_ANH) return { bo_qua: true };
+  const co = ` ${chuanHoa(`${tep.nhom || ''} ${tep.thu_muc || ''} ${tep.ten}`)} `;
+  const quy = quyTac.find((q) => q.mau.some((mau) => co.includes(` ${chuanHoa(mau)} `)));
+  const goc = quy?.thu_muc || THU_MUC_CAN_XEM;
+  return { duong_dan: laAnh && quy?.anh_con ? [goc, quy.anh_con] : [goc], ten: tenPhanLoai(tep) };
+}
+
+export function kiemQuyTac(thoNho) {
+  if (!Array.isArray(thoNho)) return [];
+  return thoNho
+    .filter((q) => q && typeof q.thu_muc === 'string' && q.thu_muc.trim() && Array.isArray(q.mau))
+    .map((q) => ({ thu_muc: q.thu_muc.trim().replace(/[\\/]/g, '-'), mau: q.mau.map(String).filter(Boolean), ...(q.anh_con ? { anh_con: String(q.anh_con).replace(/[\\/]/g, '-') } : {}) }))
+    .filter((q) => q.mau.length);
+}
 
 export function taoDiaChiDangNhapKho(clientId, goiLai, state) {
   const q = new URLSearchParams({
@@ -119,13 +155,24 @@ async function layTruyCapKho(env, tc) {
 
 // ---- Ghi lên Drive ----
 
-async function thuMucKho(env, tc, token, khoa) {
+async function thuMucKho(env, tc, token, khoa, con = []) {
   let nho = {};
   try { nho = JSON.parse((await docCaiDat(env, tc, 'kho_drive_thu_muc')) || '{}'); } catch { nho = {}; }
   if (!nho.goc) nho.goc = await taoThuMuc(token, TEN_THU_MUC.goc, null);
   if (!nho[khoa]) nho[khoa] = await taoThuMuc(token, TEN_THU_MUC[khoa], nho.goc);
+  let cha = nho[khoa];
+  let duong = khoa;
+  for (const ten of con) {
+    duong += `/${ten}`;
+    if (!nho[duong]) nho[duong] = await taoThuMuc(token, ten, cha);
+    cha = nho[duong];
+  }
   await ghiCaiDat(env, tc, 'kho_drive_thu_muc', JSON.stringify(nho));
-  return nho[khoa];
+  return cha;
+}
+
+async function docQuyTac(env, tc) {
+  try { return kiemQuyTac(JSON.parse((await docCaiDat(env, tc, 'kho_quy_tac')) || '[]')); } catch { return []; }
 }
 
 async function ghiNhoDaLuu(env, tc, loai, ma, driveId, moc) {
@@ -168,22 +215,48 @@ async function luuVanBan(env, tc, token, { loai, ma, ten, khoaThuMuc, noiDung })
   return true;
 }
 
+// Tệp đính kèm: tải lên đúng thư mục công việc với tên mới; tệp đã lên từ trước thì đổi tên và chuyển chỗ.
 async function luuTep(env, tc, token) {
   if (!env.TEP) return 0;
+  const quyTac = await docQuyTac(env, tc);
   const ds = (await env.CSDL.prepare(
-    `SELECT t.id, t.ten, t.loai, t.r2_khoa FROM tep t
+    `SELECT t.id, t.ten, t.loai, t.kich_thuoc, t.thu_muc, t.r2_khoa, t.tao_luc, t.nguon, n.nhom AS nhom, k.drive_id, k.moc
+     FROM tep t LEFT JOIN tin_nhan n ON n.id = t.tin_nhan_id
      LEFT JOIN kho_da_luu k ON k.to_chuc_id = t.to_chuc_id AND k.loai = 'tep' AND k.ma = CAST(t.id AS TEXT)
-     WHERE t.to_chuc_id = ?1 AND t.r2_khoa IS NOT NULL AND k.ma IS NULL ORDER BY t.id LIMIT ?2`,
-  ).bind(tc, TOI_DA_TEP).all()).results;
+     WHERE t.to_chuc_id = ?1 AND t.r2_khoa IS NOT NULL ORDER BY t.id DESC LIMIT 300`,
+  ).bind(tc).all()).results;
   let xong = 0;
   for (const t of ds) {
-    const vat = await env.TEP.get(t.r2_khoa);
-    if (!vat) {
-      await ghiNhoDaLuu(env, tc, 'tep', String(t.id), '', ''); // bản gốc không còn, đánh dấu để khỏi thử lại
+    if (xong >= TOI_DA_TEP) break;
+    const pl = phanLoaiTep(t, quyTac);
+    if (pl.bo_qua) {
+      if (t.drive_id == null) await ghiNhoDaLuu(env, tc, 'tep', String(t.id), '', 'bo-qua');
       continue;
     }
-    const id = await taoTepDrive(token, t.ten, await thuMucKho(env, tc, token, 'tep'), await vat.arrayBuffer(), t.loai);
-    await ghiNhoDaLuu(env, tc, 'tep', String(t.id), id, '');
+    if (t.drive_id === '') continue; // bản gốc không còn hoặc đã bỏ qua
+    const khoa = `${pl.duong_dan.join('/')}|${pl.ten}`;
+    if (t.drive_id && t.moc === khoa) continue;
+    const thuMuc = await thuMucKho(env, tc, token, 'phan_loai', pl.duong_dan);
+    let id = t.drive_id || null;
+    if (id) {
+      try {
+        const hien = await goiGoogle(token, `www.googleapis.com/drive/v3/files/${id}?fields=parents`);
+        const cu = (hien.parents || []).filter((p) => p !== thuMuc).join(',');
+        await goiGoogle(token, `www.googleapis.com/drive/v3/files/${id}?fields=id${cu ? `&removeParents=${cu}` : ''}&addParents=${thuMuc}`, { method: 'PATCH', body: { name: pl.ten } });
+      } catch (e) {
+        if (e.trangThai !== 404) throw e;
+        id = null; // đã bị xóa trên Drive: tải lại
+      }
+    }
+    if (!id) {
+      const vat = await env.TEP.get(t.r2_khoa);
+      if (!vat) {
+        await ghiNhoDaLuu(env, tc, 'tep', String(t.id), '', 'mat');
+        continue;
+      }
+      id = await taoTepDrive(token, pl.ten, thuMuc, await vat.arrayBuffer(), t.loai);
+    }
+    await ghiNhoDaLuu(env, tc, 'tep', String(t.id), id, khoa);
     xong++;
   }
   return xong;
