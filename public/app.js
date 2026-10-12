@@ -2,6 +2,7 @@
 
 import { veDuAn } from './du-an.js';
 import { batKeoTha } from './keo-tha.js';
+import { hexMau, mauViec, oChonMau } from './mau.js';
 import { mienCuaUrl, nhanTep, phanTichTin, tachLienKet, trichTin } from './zalo-tin.js';
 
 const MUI_GIO = 'Asia/Ho_Chi_Minh';
@@ -580,9 +581,9 @@ async function veViec(goc) {
 
   function veLoc(viec) {
     const dem = (f) => viec.filter(f).length;
-    const chip = (ma, nhan, so) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.duAn === ma), onclick: () => { v.duAn = ma; napViec(); } }, nhan, h('b', { text: String(so) }));
+    const chip = (ma, nhan, so, mau) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.duAn === ma), onclick: () => { v.duAn = ma; napViec(); } }, hexMau(mau) ? h('i', { class: 'cham-mau', style: `--mau:${hexMau(mau)}` }) : null, nhan, h('b', { text: String(so) }));
     const ds = duAnDs.filter((d) => viec.some((x) => x.du_an_id === d.id) || v.duAn === d.id);
-    thay(locDuAn, chip('tat-ca', 'Tất cả dự án', viec.length), ...ds.map((d) => chip(d.id, d.ten, dem((x) => x.du_an_id === d.id))), dem((x) => !x.du_an_id) ? chip('khong', 'Chưa xếp dự án', dem((x) => !x.du_an_id)) : null);
+    thay(locDuAn, chip('tat-ca', 'Tất cả dự án', viec.length), ...ds.map((d) => chip(d.id, d.ten, dem((x) => x.du_an_id === d.id), d.mau)), dem((x) => !x.du_an_id) ? chip('khong', 'Chưa xếp dự án', dem((x) => !x.du_an_id)) : null);
   }
 
   async function napViec() {
@@ -623,8 +624,8 @@ function cotTheoHan(ds, hn) {
 }
 
 function cotTheoDuAn(ds, hn) {
-  const cot = [...duAnDs.map((d) => ({ ma: `da-${d.id}`, ten: d.ten, loc: (x) => x.du_an_id === d.id })), { ma: 'da-khong', ten: 'Chưa xếp dự án', loc: (x) => !x.du_an_id }];
-  return cot.map((c) => ({ ...c, ds: ds.filter(c.loc) })).filter((c) => !(trang.viec.anTrong && !c.ds.length && c.ma !== 'da-khong')).map((c) => h('section', { class: 'cot-viec', dataset: { cot: c.ma }, 'aria-label': c.ten },
+  const cot = [...duAnDs.map((d) => ({ ma: `da-${d.id}`, ten: d.ten, mau: d.mau, loc: (x) => x.du_an_id === d.id })), { ma: 'da-khong', ten: 'Chưa xếp dự án', loc: (x) => !x.du_an_id }];
+  return cot.map((c) => ({ ...c, ds: ds.filter(c.loc) })).filter((c) => !(trang.viec.anTrong && !c.ds.length && c.ma !== 'da-khong')).map((c) => h('section', { class: 'cot-viec', dataset: { cot: c.ma }, 'aria-label': c.ten, ...(hexMau(c.mau) ? { style: `--mau:${hexMau(c.mau)}` } : {}) },
     h('header', {}, h('h2', { text: c.ten }), h('span', { text: String(c.ds.length) })),
     c.ds.length ? h('ul', {}, ...c.ds.map((x) => theViec(x, hn))) : h('p', { class: 'cot-trong', text: 'Kéo việc vào đây.' }),
   ));
@@ -665,7 +666,8 @@ function cotXong(ds) {
 
 function theViec(v, hn) {
   const o = h('input', { class: 'o-xong', type: 'checkbox', checked: v.trang_thai === 'xong', 'aria-label': `${v.trang_thai === 'xong' ? 'Mở lại' : 'Đánh dấu xong'}: ${v.tieu_de}` });
-  const the = h('li', { class: 'the-viec', dataset: { id: String(v.id) } },
+  const mau = mauViec(v);
+  const the = h('li', { class: `the-viec${mau ? ' co-mau' : ''}`, dataset: { id: String(v.id) }, ...(mau ? { style: `--mau:${mau}` } : {}) },
     o,
     h('div', { style: 'min-width:0' },
       h('button', { class: 'ten-viec', type: 'button', text: v.tieu_de, onclick: () => moNganViec(v) }),
@@ -687,6 +689,7 @@ function theViec(v, hn) {
 const ngan = document.getElementById('ngan-viec');
 const formViec = document.getElementById('form-viec');
 let viecDangSua = null;
+let mauDangChon = null;
 function moNganViec(v, macDinh = {}) {
   viecDangSua = v;
   formViec.reset();
@@ -698,6 +701,8 @@ function moNganViec(v, macDinh = {}) {
   const chon = formViec.elements.du_an_id;
   thay(chon, h('option', { value: '', text: 'Chưa xếp dự án' }), ...duAnDs.map((d) => h('option', { value: String(d.id), text: d.ten })));
   chon.value = du.du_an_id ? String(du.du_an_id) : '';
+  mauDangChon = du.mau || null;
+  thay(document.getElementById('mau-viec-hang'), oChonMau(h, mauDangChon, (m) => { mauDangChon = m; }, { coKhong: true, nhan: 'Màu riêng của việc' }));
   if (!duAnDs.length) api('/api/du-an').then((r) => { duAnDs = r.du_an; thay(chon, h('option', { value: '', text: 'Chưa xếp dự án' }), ...duAnDs.map((d) => h('option', { value: String(d.id), text: d.ten }))); chon.value = du.du_an_id ? String(du.du_an_id) : ''; }).catch(() => {});
   ngan.showModal();
   formViec.elements.tieu_de.focus();
@@ -713,6 +718,7 @@ formViec.addEventListener('submit', async (e) => {
   const loiEl = formViec.querySelector('.loi-form');
   const du = Object.fromEntries(['tieu_de', 'han_ngay', 'gio_hen', 'ghi_chu'].map((k) => [k, formViec.elements[k].value.trim() || null]));
   du.du_an_id = formViec.elements.du_an_id.value ? Number(formViec.elements.du_an_id.value) : null;
+  du.mau = mauDangChon;
   if (!du.tieu_de) {
     loiEl.textContent = 'Nhập tên việc.';
     loiEl.hidden = false;

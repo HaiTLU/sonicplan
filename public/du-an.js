@@ -9,6 +9,8 @@ const LOAI = {
   doi_du_an: { nhan: 'Đổi dự án', icon: 'du-an' },
 };
 
+import { hexMau, oChonMau } from './mau.js';
+
 export async function veDuAn(goc, thamSo, t) {
   const { h, icon, api, bao, thay, khungLoi, xuong } = t;
   const id = Number(thamSo) || 0;
@@ -39,16 +41,17 @@ async function veDanhSach(goc, t) {
   const the = (d) => {
     const khoa = h('input', { value: d.tu_khoa.join(', '), 'aria-label': `Từ khóa của ${d.ten}`, placeholder: 'Từ khóa, cách nhau bằng dấu phẩy' });
     const ten = h('input', { value: d.ten, maxlength: '60', 'aria-label': 'Tên dự án' });
+    let mau = d.mau || null;
     const luu = h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => {
-      try { await api(`/api/du-an/${d.id}`, { method: 'PATCH', body: JSON.stringify({ ten: ten.value, tu_khoa: khoa.value }) }); bao('Đã lưu.'); veDanhSach(goc, t); } catch (err) { bao(err.message, { loi: true }); }
+      try { await api(`/api/du-an/${d.id}`, { method: 'PATCH', body: JSON.stringify({ ten: ten.value, tu_khoa: khoa.value, mau }) }); bao('Đã lưu.'); veDanhSach(goc, t); } catch (err) { bao(err.message, { loi: true }); }
     } }, 'Lưu');
     const go = h('button', { class: 'nut nut-nguy', type: 'button', onclick: async () => {
       if (!confirm(`Gỡ dự án "${d.ten}"? Các việc vẫn còn, chỉ mất nhãn dự án.`)) return;
       try { await api(`/api/du-an/${d.id}`, { method: 'DELETE' }); bao('Đã gỡ dự án.'); veDanhSach(goc, t); } catch (err) { bao(err.message, { loi: true }); }
     } }, 'Gỡ');
     return h('li', { class: 'the-du-an' },
-      h('a', { class: 'ten-du-an', href: `#du-an/${d.id}` }, icon('du-an'), h('b', { text: d.ten }), h('span', { text: `${d.dang_mo} đang mở, ${d.da_xong} đã xong` })),
-      h('details', {}, h('summary', { text: 'Sửa tên và từ khóa' }), h('div', { class: 'sua-du-an' }, ten, khoa, luu, go)),
+      h('a', { class: 'ten-du-an', href: `#du-an/${d.id}`, ...(hexMau(d.mau) ? { style: `--mau:${hexMau(d.mau)}` } : {}) }, hexMau(d.mau) ? h('i', { class: 'cham-mau lon' }) : icon('du-an'), h('b', { text: d.ten }), h('span', { text: `${d.dang_mo} đang mở, ${d.da_xong} đã xong` })),
+      h('details', {}, h('summary', { text: 'Sửa tên, màu và từ khóa' }), h('div', { class: 'sua-du-an' }, ten, khoa, oChonMau(h, mau, (m) => { mau = m; }, { nhan: `Màu của ${d.ten}` }), luu, go)),
     );
   };
   thay(goc, form,

@@ -17,6 +17,7 @@ import { bam, cat, json, loi, maNgauNhien, ngayVN } from './tien-ich.js';
 import { tinhTinhTrang } from './tinh-trang.js';
 import { chuTuDocx, loaiXem, TOI_DA_DOCX } from './xem-tep.js';
 import { themViec } from './viec.js';
+import { chuanMau } from './mau.js';
 
 // Mã tệp trên Drive: ưu tiên bản đã xếp trong kho, không có thì bản ở thư mục Sonicplan.
 const COT_DRIVE = "COALESCE((SELECT NULLIF(k.drive_id, '') FROM kho_da_luu k WHERE k.to_chuc_id = tep.to_chuc_id AND k.loai = 'tep' AND k.ma = CAST(tep.id AS TEXT)), NULLIF(tep.drive_id, '')) AS drive_id";
@@ -414,7 +415,7 @@ async function dsViec(env, tc, url) {
   const { results } = await env.CSDL.prepare(
     `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.trang_thai, v.tin_nhan_id, v.tao_luc, v.xong_luc,
        t.nguon AS tin_nguon, t.nguoi_gui AS tin_nguoi_gui, t.nhom AS tin_nhom,
-       v.du_an_id, v.nguon, d.ten AS du_an_ten
+       v.du_an_id, v.nguon, v.mau, d.ten AS du_an_ten, d.mau AS du_an_mau
      FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id LEFT JOIN du_an d ON d.id = v.du_an_id
      WHERE v.to_chuc_id = ?1 AND v.trang_thai = ?2 ORDER BY ${thuTu.replace(/\b(xong_luc|han_ngay|gio_hen|thu_tu|id)\b/g, 'v.$1')} LIMIT 300`,
   ).bind(tc, trangThai).all();
@@ -447,6 +448,11 @@ export function kiemViec(than, { batBuocTieuDe }) {
     if (d !== null && d !== '' && !Number.isInteger(Number(d))) return { loi: 'Dự án không hợp lệ.' };
     ra.du_an_id = d === null || d === '' ? null : Number(d);
   }
+  if ('mau' in than) {
+    const m = chuanMau(than.mau);
+    if (m === undefined) return { loi: 'Màu không hợp lệ.' };
+    ra.mau = m;
+  }
   return { viec: ra };
 }
 
@@ -454,6 +460,7 @@ async function taoViec(env, tc, than) {
   const k = kiemViec(than, { batBuocTieuDe: true });
   if (k.loi) return loi(400, k.loi);
   const kq = await themViec(env, tc, k.viec, { boQuaTrung: true, duAnId: k.viec.du_an_id ?? null, nguon: 'tay' });
+  if (k.viec.mau && kq.id) await env.CSDL.prepare('UPDATE viec SET mau = ?1 WHERE id = ?2 AND to_chuc_id = ?3').bind(k.viec.mau, kq.id, tc).run();
   return json({ id: kq.id }, 201);
 }
 
@@ -477,7 +484,7 @@ async function suaViec(env, tc, id, than) {
   const bayGio = new Date().toISOString();
   const gan = cot.map((c, i) => `${c} = ?${i + 3}`);
   // Đổi tên, hạn hoặc giờ thì báo cho lượt đồng bộ cập nhật Google Tasks và Lịch.
-  if (['tieu_de', 'han_ngay', 'gio_hen', 'ghi_chu'].some((c) => c in k.viec)) gan.push('can_dong_bo = 1');
+  if (['tieu_de', 'han_ngay', 'gio_hen', 'ghi_chu', 'mau', 'du_an_id'].some((c) => c in k.viec)) gan.push('can_dong_bo = 1');
   const giaTri = cot.map((c) => k.viec[c]);
   if (k.viec.trang_thai) gan.push(`xong_luc = ${k.viec.trang_thai === 'xong' ? `?${cot.length + 3}` : 'NULL'}`);
   const kq = await env.CSDL.prepare(

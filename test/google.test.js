@@ -44,6 +44,8 @@ test('việc thành Task và sự kiện Lịch', () => {
   assert.deepEqual(thanTask({ tieu_de: 'Nộp', han_ngay: '2026-10-12', gio_hen: '14:00', ghi_chu: 'bản in' }), { title: 'Nộp', notes: 'bản in\nGiờ: 14:00', due: '2026-10-12T00:00:00.000Z' });
   assert.deepEqual(thanSuKien({ tieu_de: 'Họp', han_ngay: '2026-10-12', gio_hen: '23:45' }).end, { dateTime: '2026-10-13T00:15:00', timeZone: 'Asia/Ho_Chi_Minh' });
   assert.deepEqual(thanSuKien({ tieu_de: 'Nộp', han_ngay: '2026-10-12' }).end, { date: '2026-10-13' });
+  assert.equal(thanSuKien({ tieu_de: 'Nộp', han_ngay: '2026-10-12', mau: '9' }).colorId, '9');
+  assert.equal('colorId' in thanSuKien({ tieu_de: 'Nộp', han_ngay: '2026-10-12' }), false);
 });
 
 test('đăng nhập xin thêm quyền Drive hẹp (drive.file)', () => {

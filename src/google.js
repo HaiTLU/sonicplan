@@ -120,7 +120,8 @@ export function thanTask(viec) {
 
 // Việc có giờ hẹn thành sự kiện 30 phút; việc chỉ có ngày thành sự kiện cả ngày.
 export function thanSuKien(viec) {
-  const goc = { summary: viec.tieu_de, ...(viec.ghi_chu ? { description: viec.ghi_chu } : {}) };
+  // mau: màu hiệu lực (màu riêng của việc, không có thì màu dự án), trùng colorId của Lịch.
+  const goc = { summary: viec.tieu_de, ...(viec.ghi_chu ? { description: viec.ghi_chu } : {}), ...(viec.mau ? { colorId: String(viec.mau) } : {}) };
   if (viec.gio_hen) {
     const [g, p] = viec.gio_hen.split(':').map(Number);
     const tong = g * 60 + p + 30;
@@ -270,7 +271,7 @@ async function dongBoViec(env, tc, token) {
 
   // Việc vừa đổi hạn, giờ hoặc tên (kéo thả, sửa): cập nhật Task và sự kiện Lịch đã có.
   const daDoi = (await env.CSDL.prepare(
-    `SELECT id, tieu_de, ghi_chu, han_ngay, gio_hen, google_task_id, lich_event_id FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND can_dong_bo = 1 LIMIT 25`,
+    `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.google_task_id, v.lich_event_id, COALESCE(v.mau, d.mau) AS mau FROM viec v LEFT JOIN du_an d ON d.id = v.du_an_id WHERE v.to_chuc_id = ?1 AND v.trang_thai = 'mo' AND v.can_dong_bo = 1 LIMIT 25`,
   ).bind(tc).all()).results;
   for (const v of daDoi) {
     if (v.google_task_id) {
@@ -284,7 +285,7 @@ async function dongBoViec(env, tc, token) {
         await goiGoogle(token, dich, { method: 'DELETE' }).catch((e) => { if (e.trangThai !== 404 && e.trangThai !== 410) throw e; });
         await env.CSDL.prepare('UPDATE viec SET lich_event_id = NULL WHERE id = ?1').bind(v.id).run();
       } else {
-        await goiGoogle(token, dich, { method: 'PATCH', body: thanSuKien(v) }).catch(async (e) => {
+        await goiGoogle(token, dich, { method: 'PATCH', body: { colorId: null, ...thanSuKien(v) } }).catch(async (e) => {
           if (e.trangThai !== 404 && e.trangThai !== 410) throw e;
           await env.CSDL.prepare('UPDATE viec SET lich_event_id = NULL WHERE id = ?1').bind(v.id).run(); // sự kiện đã bị xóa: tạo lại ở bước dưới
         });
@@ -295,7 +296,7 @@ async function dongBoViec(env, tc, token) {
 
   // Lịch: việc còn mở có ngày hạn thành sự kiện; việc xong thì gỡ sự kiện.
   const canLich = (await env.CSDL.prepare(
-    `SELECT id, tieu_de, ghi_chu, han_ngay, gio_hen FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay IS NOT NULL AND lich_event_id IS NULL ORDER BY han_ngay LIMIT 25`,
+    `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, COALESCE(v.mau, d.mau) AS mau FROM viec v LEFT JOIN du_an d ON d.id = v.du_an_id WHERE v.to_chuc_id = ?1 AND v.trang_thai = 'mo' AND v.han_ngay IS NOT NULL AND v.lich_event_id IS NULL ORDER BY v.han_ngay LIMIT 25`,
   ).bind(tc).all()).results;
   for (const v of canLich) {
     const s = await goiGoogle(token, 'www.googleapis.com/calendar/v3/calendars/primary/events', { method: 'POST', body: thanSuKien(v) });
