@@ -6,6 +6,7 @@ import { goiNgoai } from './goi-ngoai.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu, luuTep, luuTin, TEP_TOI_DA } from './hop-tin.js';
 import { docTichHop, luuTichHop, xoaTichHop } from './tich-hop.js';
 import { congNgay, ngayVN } from './tien-ich.js';
+import { chuanCauHinh, dauVet, ganNhan } from './google-nhan.js';
 
 export const QUYEN = [
   'openid',
@@ -232,17 +233,33 @@ async function dongBoGmail(env, tc, token) {
 
 // ---- Tasks và Lịch: việc của hệ thống sang Google, việc xong bên Tasks về lại ----
 
+const COT_VIEC_GG = `v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.trang_thai, v.google_task_id, v.lich_event_id, v.nhan_gg, v.nguon,
+  t.nguon AS tin_nguon, t.nguoi_gui AS tin_nguoi_gui, t.nhom AS tin_nhom, d.ten AS du_an_ten, COALESCE(v.mau, d.mau) AS mau
+  FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id LEFT JOIN du_an d ON d.id = v.du_an_id`;
+
+export async function docCauHinhNhan(env, tc) {
+  return chuanCauHinh(await docCaiDat(env, tc, 'google_nhan'));
+}
+
 async function dongBoViec(env, tc, token) {
   const bayGio = new Date().toISOString();
+  const ch = await docCauHinhNhan(env, tc);
+  const hn = ngayVN();
+  const chThuan = chuanCauHinh({ che_do: ch.che_do });
+  const gan = (v) => ganNhan(v, ch, hn);
+  const bay = new Date(Date.now() - 7 * 86400000).toISOString();
+  const gangXong = `(v.trang_thai = 'mo' OR (v.trang_thai = 'xong' AND v.xong_luc >= '${bay}'))`;
   let dayLen = 0;
   let veLai = 0;
 
-  const moi = (await env.CSDL.prepare(
-    `SELECT id, tieu_de, ghi_chu, han_ngay, gio_hen FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND google_task_id IS NULL ORDER BY id LIMIT 25`,
+  // Việc mới sang Tasks (trừ khi chỉ dùng Lịch).
+  const moi = ch.che_do === 'lich' ? [] : (await env.CSDL.prepare(
+    `SELECT ${COT_VIEC_GG} WHERE v.to_chuc_id = ?1 AND v.trang_thai = 'mo' AND v.google_task_id IS NULL ORDER BY v.id LIMIT 25`,
   ).bind(tc).all()).results;
   for (const v of moi) {
-    const t = await goiGoogle(token, 'tasks.googleapis.com/tasks/v1/lists/@default/tasks', { method: 'POST', body: thanTask(v) });
-    await env.CSDL.prepare('UPDATE viec SET google_task_id = ?1 WHERE id = ?2 AND to_chuc_id = ?3').bind(t.id, v.id, tc).run();
+    const g = gan(v);
+    const t = await goiGoogle(token, 'tasks.googleapis.com/tasks/v1/lists/@default/tasks', { method: 'POST', body: thanTask({ ...v, tieu_de: g.tieu_de, ghi_chu: g.ghi_chu }) });
+    await env.CSDL.prepare('UPDATE viec SET google_task_id = ?1, nhan_gg = ?2 WHERE id = ?3 AND to_chuc_id = ?4').bind(t.id, dauVet(g), v.id, tc).run();
     dayLen++;
   }
 
@@ -254,7 +271,7 @@ async function dongBoViec(env, tc, token) {
     await env.CSDL.prepare('UPDATE viec SET google_task_xong = 1 WHERE id = ?1').bind(v.id).run();
   }
 
-  // Việc bấm xong bên Google Tasks thì xong ở đây.
+  // Việc bấm xong bên Google Tasks thì xong ở đây. Chỉ đọc trạng thái, không đọc tiêu đề nên nhãn không lẫn vào tên việc.
   const moc = await docCaiDat(env, tc, 'google_tasks_moc');
   const q = new URLSearchParams({ showCompleted: 'true', showHidden: 'true', maxResults: '100', ...(moc ? { updatedMin: moc } : {}) });
   const ds = (await goiGoogle(token, `tasks.googleapis.com/tasks/v1/lists/@default/tasks?${q}`)).items || [];
@@ -269,45 +286,65 @@ async function dongBoViec(env, tc, token) {
   }
   await ghiCaiDat(env, tc, 'google_tasks_moc', new Date(Date.now() - 5 * 60000).toISOString());
 
-  // Việc vừa đổi hạn, giờ hoặc tên (kéo thả, sửa): cập nhật Task và sự kiện Lịch đã có.
+  // Nhãn đổi theo ngày (Hôm nay thành Quá hạn), theo trạng thái (Xong) hoặc do cấu hình: đánh dấu việc cần đẩy lại.
+  const xet = (await env.CSDL.prepare(
+    `SELECT ${COT_VIEC_GG} WHERE v.to_chuc_id = ?1 AND ${gangXong} AND (v.google_task_id IS NOT NULL OR v.lich_event_id IS NOT NULL) AND v.can_dong_bo = 0 ORDER BY v.id DESC LIMIT 300`,
+  ).bind(tc).all()).results;
+  const lech = xet.filter((v) => dauVet(gan(v)) !== (v.nhan_gg ?? dauVet(ganNhan(v, chThuan, hn))));
+  for (const v of lech) await env.CSDL.prepare('UPDATE viec SET can_dong_bo = 1 WHERE id = ?1').bind(v.id).run();
+
+  // Việc vừa đổi hạn, giờ, tên, màu hoặc nhãn: cập nhật Task và sự kiện Lịch đã có.
   const daDoi = (await env.CSDL.prepare(
-    `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.google_task_id, v.lich_event_id, COALESCE(v.mau, d.mau) AS mau FROM viec v LEFT JOIN du_an d ON d.id = v.du_an_id WHERE v.to_chuc_id = ?1 AND v.trang_thai = 'mo' AND v.can_dong_bo = 1 LIMIT 25`,
+    `SELECT ${COT_VIEC_GG} WHERE v.to_chuc_id = ?1 AND ${gangXong} AND v.can_dong_bo = 1 LIMIT 25`,
   ).bind(tc).all()).results;
   for (const v of daDoi) {
-    if (v.google_task_id) {
+    const g = gan(v);
+    const dung = { ...v, tieu_de: g.tieu_de, ghi_chu: g.ghi_chu, mau: g.mau };
+    if (v.google_task_id && ch.che_do !== 'lich') {
       // Bỏ hạn thì phải gửi due rỗng mới xóa được hạn bên Google.
-      const thanT = { ...thanTask(v), due: v.han_ngay ? `${v.han_ngay}T00:00:00.000Z` : null };
+      const thanT = { ...thanTask(dung), due: v.han_ngay ? `${v.han_ngay}T00:00:00.000Z` : null };
       await goiGoogle(token, `tasks.googleapis.com/tasks/v1/lists/@default/tasks/${v.google_task_id}`, { method: 'PATCH', body: { ...thanT, notes: thanT.notes ?? '' } }).catch((e) => { if (e.trangThai !== 404) throw e; });
     }
     if (v.lich_event_id) {
       const dich = `www.googleapis.com/calendar/v3/calendars/primary/events/${v.lich_event_id}`;
-      if (!v.han_ngay) {
+      if (!v.han_ngay || ch.che_do === 'tasks') {
         await goiGoogle(token, dich, { method: 'DELETE' }).catch((e) => { if (e.trangThai !== 404 && e.trangThai !== 410) throw e; });
         await env.CSDL.prepare('UPDATE viec SET lich_event_id = NULL WHERE id = ?1').bind(v.id).run();
       } else {
-        await goiGoogle(token, dich, { method: 'PATCH', body: { colorId: null, ...thanSuKien(v) } }).catch(async (e) => {
+        await goiGoogle(token, dich, { method: 'PATCH', body: { colorId: null, ...thanSuKien(dung) } }).catch(async (e) => {
           if (e.trangThai !== 404 && e.trangThai !== 410) throw e;
           await env.CSDL.prepare('UPDATE viec SET lich_event_id = NULL WHERE id = ?1').bind(v.id).run(); // sự kiện đã bị xóa: tạo lại ở bước dưới
         });
       }
     }
-    await env.CSDL.prepare('UPDATE viec SET can_dong_bo = 0 WHERE id = ?1').bind(v.id).run();
+    await env.CSDL.prepare('UPDATE viec SET can_dong_bo = 0, nhan_gg = ?2 WHERE id = ?1').bind(v.id, dauVet(g)).run();
   }
 
-  // Lịch: việc còn mở có ngày hạn thành sự kiện; việc xong thì gỡ sự kiện.
-  const canLich = (await env.CSDL.prepare(
-    `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, COALESCE(v.mau, d.mau) AS mau FROM viec v LEFT JOIN du_an d ON d.id = v.du_an_id WHERE v.to_chuc_id = ?1 AND v.trang_thai = 'mo' AND v.han_ngay IS NOT NULL AND v.lich_event_id IS NULL ORDER BY v.han_ngay LIMIT 25`,
+  // Lịch: việc còn mở có ngày hạn thành sự kiện (trừ khi chỉ dùng Tasks).
+  const canLich = ch.che_do === 'tasks' ? [] : (await env.CSDL.prepare(
+    `SELECT ${COT_VIEC_GG} WHERE v.to_chuc_id = ?1 AND v.trang_thai = 'mo' AND v.han_ngay IS NOT NULL AND v.lich_event_id IS NULL ORDER BY v.han_ngay LIMIT 25`,
   ).bind(tc).all()).results;
   for (const v of canLich) {
-    const s = await goiGoogle(token, 'www.googleapis.com/calendar/v3/calendars/primary/events', { method: 'POST', body: thanSuKien(v) });
-    await env.CSDL.prepare('UPDATE viec SET lich_event_id = ?1 WHERE id = ?2 AND to_chuc_id = ?3').bind(s.id, v.id, tc).run();
+    const g = gan(v);
+    const s = await goiGoogle(token, 'www.googleapis.com/calendar/v3/calendars/primary/events', { method: 'POST', body: thanSuKien({ ...v, tieu_de: g.tieu_de, ghi_chu: g.ghi_chu, mau: g.mau }) });
+    await env.CSDL.prepare('UPDATE viec SET lich_event_id = ?1, nhan_gg = ?2 WHERE id = ?3 AND to_chuc_id = ?4').bind(s.id, dauVet(g), v.id, tc).run();
   }
+  // Việc xong hoặc hủy thì gỡ sự kiện, trừ khi bật nhãn Xong (khi đó sự kiện giữ lại, đổi màu xám).
+  const giuXong = ch.bat.includes('xong') && ch.che_do !== 'tasks';
   const canGo = (await env.CSDL.prepare(
-    `SELECT id, lich_event_id FROM viec WHERE to_chuc_id = ?1 AND trang_thai IN ('xong','huy') AND lich_event_id IS NOT NULL LIMIT 25`,
+    `SELECT id, lich_event_id FROM viec WHERE to_chuc_id = ?1 AND ${giuXong ? "trang_thai = 'huy'" : "trang_thai IN ('xong','huy')"} AND lich_event_id IS NOT NULL LIMIT 25`,
   ).bind(tc).all()).results;
   for (const v of canGo) {
     await goiGoogle(token, `www.googleapis.com/calendar/v3/calendars/primary/events/${v.lich_event_id}`, { method: 'DELETE' }).catch((e) => { if (e.trangThai !== 404 && e.trangThai !== 410) throw e; });
     await env.CSDL.prepare('UPDATE viec SET lich_event_id = NULL WHERE id = ?1').bind(v.id).run();
+  }
+  // Chỉ dùng Tasks: sự kiện Lịch còn sót thì gỡ để không hiện hai mục.
+  if (ch.che_do === 'tasks') {
+    const sot = (await env.CSDL.prepare(`SELECT id, lich_event_id FROM viec WHERE to_chuc_id = ?1 AND lich_event_id IS NOT NULL LIMIT 25`).bind(tc).all()).results;
+    for (const v of sot) {
+      await goiGoogle(token, `www.googleapis.com/calendar/v3/calendars/primary/events/${v.lich_event_id}`, { method: 'DELETE' }).catch((e) => { if (e.trangThai !== 404 && e.trangThai !== 410) throw e; });
+      await env.CSDL.prepare('UPDATE viec SET lich_event_id = NULL WHERE id = ?1').bind(v.id).run();
+    }
   }
   return { dayLen, veLai, lich: canLich.length };
 }

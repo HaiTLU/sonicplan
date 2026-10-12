@@ -833,6 +833,65 @@ function thoiGianTep(f) {
   return Date.now() - t <= 7 * 86400000 ? THOI_GIAN_TEP[1] : THOI_GIAN_TEP[2];
 }
 
+// Cách đồng bộ Google và nhãn gắn vào tiêu đề hoặc ghi chú: [Xong], [Hôm nay], [Zalo]...
+const CHE_DO_GG = [
+  ['ca-hai', 'Cả Tasks và Lịch', 'Việc sang Tasks, việc có ngày thêm sự kiện Lịch (có giờ, có màu). Nếu bật lớp Tasks trong Lịch, một việc có thể hiện hai mục.'],
+  ['tasks', 'Chỉ Tasks', 'Không tạo sự kiện Lịch, và gỡ các sự kiện Sonicplan đã tạo. Việc có hạn tự hiện trong Lịch qua lớp Tasks của Google, không bị trùng.'],
+  ['lich', 'Chỉ sự kiện Lịch', 'Không tạo việc mới trên Tasks. Bấm xong bên Tasks sẽ không còn tác dụng với việc mới.'],
+];
+function khoiNhanGoogle() {
+  let ch = { che_do: 'ca-hai', cho: 'tieu_de', bat: [] };
+  let loai = [];
+  let thuTu = [];
+  const goc = h('details', { class: 'nhan-gg' }, h('summary', { text: 'Cách đồng bộ và nhãn trên Google' }));
+  const thanDoi = h('div', { class: 'than-nhan-gg' }, h('p', { class: 'mo-ta', text: 'Đang tải…' }));
+  goc.append(thanDoi);
+  let hen;
+  const xemTruoc = h('ul', { class: 'xem-truoc-nhan' });
+  async function capNhatXem() {
+    try {
+      const r = await api('/api/google-nhan/xem-truoc', { method: 'POST', body: JSON.stringify({ cau_hinh: ch }) });
+      thay(xemTruoc, ...(r.mau.length ? r.mau.map((m) => h('li', {}, h('b', { text: m.tieu_de }), m.ghi_chu ? h('small', { text: m.ghi_chu.split('\n').slice(0, 2).join(' | ') }) : null, m.trang_thai === 'xong' && m.mau === '8' ? h('small', { text: 'Lịch: màu xám' }) : null)) : [h('li', { text: 'Chưa có việc nào để xem trước.' })]));
+    } catch (e) { thay(xemTruoc, h('li', { text: e.message })); }
+  }
+  const sau = () => { clearTimeout(hen); hen = setTimeout(capNhatXem, 250); };
+  function ve() {
+    ch.bat = thuTu.filter((m) => ch.bat.includes(m));
+    const hangLoai = thuTu.map((ma, i) => {
+      const l = loai.find((x) => x.ma === ma);
+      const o = h('input', { type: 'checkbox', checked: ch.bat.includes(ma), 'aria-label': l.ten });
+      o.addEventListener('change', () => { ch.bat = thuTu.filter((m) => (m === ma ? o.checked : ch.bat.includes(m))); sau(); });
+      const doi = (d) => () => { const j = i + d; if (j < 0 || j >= thuTu.length) return; [thuTu[i], thuTu[j]] = [thuTu[j], thuTu[i]]; ch.bat = thuTu.filter((m) => ch.bat.includes(m)); ve(); sau(); };
+      return h('li', {}, h('label', {}, o, h('span', { text: l.ten })), h('button', { type: 'button', class: 'nut-nho-xep', 'aria-label': 'Đưa lên', text: '↑', onclick: doi(-1) }), h('button', { type: 'button', class: 'nut-nho-xep', 'aria-label': 'Đưa xuống', text: '↓', onclick: doi(1) }));
+    });
+    const radio = (ten, gt, nhan, mo, chon) => h('label', { class: 'chon-radio' }, h('input', { type: 'radio', name: ten, checked: gt, onchange: chon }), h('span', {}, h('b', { text: nhan }), mo ? h('small', { text: mo }) : null));
+    thay(thanDoi,
+      h('p', { class: 'mo-ta', text: 'Chọn việc sang Google theo cách nào, và nhãn lấy từ dữ liệu Sonicplan gắn vào tên hoặc ghi chú. Nhãn tự đổi theo ngày và trạng thái (Hôm nay, Quá hạn, Xong).' }),
+      h('h3', { text: 'Sang Google ở đâu' }),
+      ...CHE_DO_GG.map(([ma, nhan, mo]) => radio('che-do-gg', ch.che_do === ma, nhan, mo, () => { ch.che_do = ma; })),
+      h('h3', { text: 'Nhãn nào được gắn, theo thứ tự' }),
+      h('ul', { class: 'ds-loai-nhan' }, ...hangLoai),
+      h('h3', { text: 'Đặt nhãn ở đâu' }),
+      radio('cho-gg', ch.cho === 'tieu_de', 'Đầu tiêu đề', 'Ví dụ: [Hôm nay] [Zalo] Gửi báo cáo', () => { ch.cho = 'tieu_de'; sau(); }),
+      radio('cho-gg', ch.cho === 'ghi_chu', 'Dòng đầu ghi chú', 'Tiêu đề giữ nguyên, nhãn nằm trong ghi chú.', () => { ch.cho = 'ghi_chu'; sau(); }),
+      h('h3', { text: 'Xem trước với việc của anh' }),
+      xemTruoc,
+      h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-chinh', type: 'button', onclick: async () => {
+        try { await api('/api/google-nhan', { method: 'PUT', body: JSON.stringify({ cau_hinh: ch }) }); bao('Đã lưu. Các việc đã có sẽ cập nhật dần trong vài lượt đồng bộ (mỗi 5 phút).'); } catch (err) { bao(err.message, { loi: true }); }
+      } }, 'Lưu')));
+  }
+  goc.addEventListener('toggle', async () => {
+    if (!goc.open || loai.length) return;
+    try {
+      const r = await api('/api/google-nhan');
+      ch = r.cau_hinh; loai = r.loai;
+      thuTu = [...ch.bat, ...loai.map((l) => l.ma).filter((m) => !ch.bat.includes(m))];
+      ve(); capNhatXem();
+    } catch (e) { thay(thanDoi, khungLoi(e, () => { goc.open = false; goc.open = true; })); }
+  });
+  return goc;
+}
+
 async function veTep(goc) {
   const t = trang.tep;
   t.nhom ||= 'du-an'; t.loai ||= 'tat-ca'; t.xem ||= 'luoi';
@@ -1321,6 +1380,7 @@ async function veKetNoi(goc, { moi = false } = {}) {
   if (gg.da_noi) {
     khoiGg.push(
       h('p', { class: 'mo-ta', text: `Đã nối ${gg.da_noi.email || 'tài khoản Google'}. ${gg.lan_cuoi ? `${gg.lan_cuoi.ghi_chu}, ${luc(gg.lan_cuoi.lan_cuoi)}.` : 'Chờ lượt đồng bộ đầu tiên.'} Thư mới vào hộp tin; việc mới sang Google Tasks, việc có ngày sang Lịch; việc bấm xong bên Tasks sẽ xong ở đây.${gg.da_noi.co_drive ? ' Tệp đính kèm lưu thêm vào thư mục Sonicplan trên Drive.' : ''}` }),
+      laChuGg ? khoiNhanGoogle() : null,
       gg.da_noi.co_drive ? null : h('p', { class: 'canh-bao-nho', text: 'Chưa có quyền Drive nên tệp đính kèm mới chỉ nằm ở kho của hệ thống. Bật Google Drive API trong dự án Google Cloud, rồi bấm Đăng nhập lại và tick quyền Drive.' }),
       laChuGg && !gg.da_noi.co_drive ? h('div', { class: 'hang-nut' }, h('a', { class: 'nut nut-chinh', href: '/api/google/bat-dau' }, icon('thu'), 'Đăng nhập lại để thêm Drive')) : null,
       laChuGg ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/google', { method: 'DELETE' }); bao('Đã gỡ kết nối Google.'); ve(); } }, 'Gỡ kết nối Google')) : null,
