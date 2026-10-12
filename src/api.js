@@ -46,6 +46,7 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   if ((khop = p.match(/^\/api\/tin\/(\d+)$/)) && m === 'GET') return motTin(env, tc, Number(khop[1]));
 
   if (p === '/api/viec' && m === 'GET') return json(await dsViec(env, tc, url));
+  if (p === '/api/viec/sap-xep' && m === 'POST') return sapXepViec(env, tc, await yeuCau.json().catch(() => ({})));
   if (p === '/api/viec' && m === 'POST') return taoViec(env, tc, await yeuCau.json().catch(() => ({})));
   if ((khop = p.match(/^\/api\/viec\/(\d+)$/)) && m === 'PATCH') return suaViec(env, tc, Number(khop[1]), await yeuCau.json().catch(() => ({})));
 
@@ -401,13 +402,13 @@ async function motTin(env, tc, id) {
 
 async function dsViec(env, tc, url) {
   const trangThai = url.searchParams.get('trang_thai') === 'xong' ? 'xong' : 'mo';
-  const thuTu = trangThai === 'xong' ? 'xong_luc DESC' : 'han_ngay IS NULL, han_ngay, gio_hen IS NULL, gio_hen, id DESC';
+  const thuTu = trangThai === 'xong' ? 'xong_luc DESC' : 'han_ngay IS NULL, han_ngay, thu_tu IS NULL, thu_tu, gio_hen IS NULL, gio_hen, id DESC';
   const { results } = await env.CSDL.prepare(
     `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.trang_thai, v.tin_nhan_id, v.tao_luc, v.xong_luc,
        t.nguon AS tin_nguon, t.nguoi_gui AS tin_nguoi_gui, t.nhom AS tin_nhom,
        v.du_an_id, v.nguon, d.ten AS du_an_ten
      FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id LEFT JOIN du_an d ON d.id = v.du_an_id
-     WHERE v.to_chuc_id = ?1 AND v.trang_thai = ?2 ORDER BY ${thuTu.replace(/\b(xong_luc|han_ngay|gio_hen|id)\b/g, 'v.$1')} LIMIT 300`,
+     WHERE v.to_chuc_id = ?1 AND v.trang_thai = ?2 ORDER BY ${thuTu.replace(/\b(xong_luc|han_ngay|gio_hen|thu_tu|id)\b/g, 'v.$1')} LIMIT 300`,
   ).bind(tc, trangThai).all();
   return { viec: results, hom_nay: ngayVN() };
 }
@@ -448,6 +449,16 @@ async function taoViec(env, tc, than) {
   return json({ id: kq.id }, 201);
 }
 
+// Lưu thứ tự tay của các thẻ trong một cột: ids theo thứ tự từ trên xuống.
+export async function sapXepViec(env, tc, than) {
+  const ids = Array.isArray(than.ids) ? than.ids.map(Number) : [];
+  if (!ids.length || ids.length > 150 || ids.some((x) => !Number.isInteger(x) || x <= 0)) return loi(400, 'Danh sách việc không hợp lệ.');
+  const cau = ids.map((id, i) => env.CSDL.prepare("UPDATE viec SET thu_tu = ?1 WHERE id = ?2 AND to_chuc_id = ?3 AND trang_thai = 'mo'").bind(i + 1, id, tc));
+  if (env.CSDL.batch) await env.CSDL.batch(cau);
+  else for (const c of cau) await c.run();
+  return json({ ok: true });
+}
+
 async function suaViec(env, tc, id, than) {
   const k = kiemViec(than, { batBuocTieuDe: false });
   if (k.loi) return loi(400, k.loi);
@@ -457,6 +468,8 @@ async function suaViec(env, tc, id, than) {
   const truoc = k.viec.trang_thai || 'du_an_id' in k.viec ? await env.CSDL.prepare('SELECT trang_thai, du_an_id, tieu_de FROM viec WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first() : null;
   const bayGio = new Date().toISOString();
   const gan = cot.map((c, i) => `${c} = ?${i + 3}`);
+  // Đổi tên, hạn hoặc giờ thì báo cho lượt đồng bộ cập nhật Google Tasks và Lịch.
+  if (['tieu_de', 'han_ngay', 'gio_hen', 'ghi_chu'].some((c) => c in k.viec)) gan.push('can_dong_bo = 1');
   const giaTri = cot.map((c) => k.viec[c]);
   if (k.viec.trang_thai) gan.push(`xong_luc = ${k.viec.trang_thai === 'xong' ? `?${cot.length + 3}` : 'NULL'}`);
   const kq = await env.CSDL.prepare(

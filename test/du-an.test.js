@@ -71,3 +71,16 @@ test('lịch sử dự án: sự kiện theo thời gian mới nhất trước, 
   assert.equal(r.dang_mo, 1);
   assert.equal(await lichSuDuAn(env, 'khac', a.id), null);
 });
+
+test('sắp xếp việc: lưu thứ tự theo danh sách, chỉ đúng tổ chức, từ chối danh sách sai', async () => {
+  const { sapXepViec } = await import('../src/api.js');
+  const env = csdlGia();
+  env.db.exec("ALTER TABLE viec ADD COLUMN thu_tu INTEGER");
+  env.db.exec(`INSERT INTO viec (id, to_chuc_id, tieu_de, trang_thai) VALUES (1,'t','A','mo'),(2,'t','B','mo'),(3,'x','C','mo')`);
+  const ok = await sapXepViec(env, 't', { ids: [2, 1, 3] });
+  assert.equal(ok.status, 200);
+  const ds = env.db.prepare('SELECT id, thu_tu FROM viec ORDER BY id').all();
+  assert.deepEqual(ds.map((r) => r.thu_tu), [2, 1, null]);
+  assert.equal((await sapXepViec(env, 't', { ids: ['a'] })).status, 400);
+  assert.equal((await sapXepViec(env, 't', {})).status, 400);
+});
