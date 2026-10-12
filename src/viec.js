@@ -6,6 +6,7 @@ import { docHoSo, ghiNhoChoAi, luuGhiNho } from './ghi-nho.js';
 import { ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { docLuong } from './luong.js';
 import { baoSuKien, dangViecMoi, docTichHop } from './tich-hop.js';
+import { boSungHan, ngayChoGio } from './ngay-viet.js';
 import { cat, doGiong, ngayVN } from './tien-ich.js';
 
 // Tiêu đề giống từ 80% với một việc đang mở trong 14 ngày gần đây thì coi là trùng.
@@ -40,6 +41,8 @@ export function timTrung(tieuDe, cacViec) {
 }
 
 export async function themViec(env, toChucId, viec, { tinNhanId = null, boQuaTrung = false } = {}) {
+  // Có giờ mà chưa có ngày thì không để rơi vào "Chưa có hạn": hôm nay, hoặc mai nếu giờ đã qua.
+  if (viec.gio_hen && !viec.han_ngay) viec = { ...viec, han_ngay: ngayChoGio(viec.gio_hen) };
   if (!boQuaTrung) {
     const han = new Date(Date.now() - 14 * 86400000).toISOString();
     const { results } = await env.CSDL.prepare(
@@ -122,7 +125,12 @@ async function chayLoTin(env, toChucId, tin, bayGio) {
 
   let soViec = 0;
   const viecRa = [];
-  for (const v of ketQua.viec.filter((x) => laViecRo(x) || String(x?.tieu_de || '').trim().split(/\s+/).length >= 2 && x.han_ngay).slice(0, 10)) {
+  // Lớp kiểm tra bằng code: ngày giờ viết trong tiêu đề, ghi chú hoặc tin gốc luôn được đọc, kể cả khi AI bỏ sót.
+  const viecDay = ketQua.viec.map((x) => {
+    const g = x.tin_so && tin[x.tin_so - 1];
+    return boSungHan(x, g?.noi_dung || '', g?.thoi_diem || bayGio);
+  });
+  for (const v of viecDay.filter((x) => laViecRo(x) || String(x?.tieu_de || '').trim().split(/\s+/).length >= 2 && x.han_ngay).slice(0, 10)) {
     const nguon = v.tin_so && tin[v.tin_so - 1];
     const keHoach = ghiChuKeHoach(v);
     const ghiChu = [v.ghi_chu, keHoach].filter(Boolean).join('\n\n') || null;
