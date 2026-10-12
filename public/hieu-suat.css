@@ -1,0 +1,123 @@
+/* Trang Hiệu suất và dải nhỏ trên Tổng quan. Dùng chung biến màu của kieu.css, apple.css. */
+
+.hs { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 18px; }
+.hs > .bang { grid-column: 1 / -1; }
+.hs .hs-nx { grid-column: span 5; }
+.hs .hs-30 { grid-column: span 7; }
+.hs .hs-dn, .hs .hs-g { grid-column: span 6; }
+.hs .hs-da { grid-column: span 7; }
+.hs .hs-ng { grid-column: span 5; }
+.hs-than { padding: 12px 20px 18px; }
+.hs .mo-ta { margin: 0; color: var(--phu); font-size: 13.5px; line-height: 1.55; }
+
+.hs-dau { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px; padding: 26px 28px 24px; }
+.hs-dau .tom-tat { font-size: clamp(28px, 3.6vw, 44px); max-width: 20ch; }
+.hs-canh-bao { margin: 14px 0 0; padding: 10px 14px; border-radius: var(--r-nho); font-size: 14px; max-width: 64ch; }
+.hs-canh-bao.muc-qua_tai { background: var(--loi-nhat); color: var(--loi); }
+.hs-canh-bao.muc-day { background: var(--nhan-nhat); color: var(--chu); }
+
+.hs-dong-ho { position: relative; width: 190px; }
+.hs-dong-ho > svg { width: 100%; height: auto; display: block; overflow: visible; }
+.hs-dong-ho path { fill: none; stroke-width: 12; stroke-linecap: butt; }
+.hs-dong-ho .nen { stroke-linecap: round; }
+.hs-dong-ho .nen { stroke: var(--mat-3); }
+.hs-dong-ho .vung-on { stroke: color-mix(in srgb, var(--on) 55%, transparent); }
+.hs-dong-ho .vung-day { stroke: color-mix(in srgb, #f5b85c 70%, transparent); }
+.hs-dong-ho .vung-qua { stroke: color-mix(in srgb, var(--loi) 70%, transparent); }
+.hs-dong-ho .kim { stroke: var(--chu); stroke-width: 3.5; stroke-linecap: round; transform-origin: 70px 70px; animation: hs-kim .9s var(--em) both; }
+.hs-dong-ho .tam { fill: var(--chu); }
+@keyframes hs-kim { from { transform: rotate(-60deg); opacity: 0; } }
+.hs-dong-ho-chu { margin-top: 2px; text-align: center; line-height: 1.1; }
+.hs-dong-ho-chu b { display: block; font: 700 28px/1 var(--phong-td); font-variant-numeric: tabular-nums; }
+.hs-dong-ho-chu small { color: var(--phu); font-size: 12.5px; }
+.hs-dong-ho.muc-qua_tai .hs-dong-ho-chu b { color: var(--loi); }
+
+.hs-ss { display: block; margin-top: 6px; color: var(--phu); font-size: 12.5px; }
+.hs-ss.len { color: var(--on); }
+.hs-ss.xuong { color: var(--loi); }
+
+.hs-than > .hs-cot30 { width: 100%; height: auto; display: block; }
+.hs-cot30 rect { fill: color-mix(in srgb, var(--teal, var(--on)) 45%, transparent); transition: fill .2s; }
+.hs-cot30 .nay rect, .hs-cot30 g:hover rect { fill: var(--teal, var(--on)); }
+.hs-cot30 rect, .hs-cot30 text { stroke: none; }
+.hs-cot30 text { fill: var(--mo); font-size: 10px; font-family: var(--phong); }
+.hs-cot30 .tb { stroke: var(--chu-2); stroke-dasharray: 4 4; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.hs-cot30 .tb-chu { fill: var(--chu-2); }
+
+.hs-ngang { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.hs-ngang li { display: grid; grid-template-columns: minmax(90px, 30%) minmax(0, 1fr) auto; align-items: center; gap: 12px; font-size: 13.5px; }
+.hs-ngang .ten { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hs-ngang .hs-ray { height: 10px; border-radius: 6px; background: var(--mat-3); overflow: hidden; }
+.hs-ngang .hs-ray i { display: block; height: 100%; border-radius: 6px; background: var(--teal, var(--on)); transform-origin: left; animation: hs-mo-rong .7s var(--em) both; }
+.hs-ngang .so { color: var(--phu); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@keyframes hs-mo-rong { from { transform: scaleX(0); } }
+
+.hs-gio { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 3px; height: 120px; align-items: end; }
+.hs-gio .c { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.hs-gio i { width: 100%; border-radius: 3px 3px 1px 1px; background: var(--mat-3); transform-origin: bottom; animation: hs-cao .6s var(--em) both; }
+.hs-gio .dinh i { background: var(--teal, var(--on)); }
+.hs-gio small { font-size: 9.5px; color: var(--mo); height: 12px; }
+@keyframes hs-cao { from { transform: scaleY(0); } }
+.hs-thu { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-top: 16px; }
+.hs-thu div { display: grid; justify-items: center; gap: 4px; font-size: 12px; }
+.hs-thu i { width: 100%; height: 26px; border-radius: 7px; background: var(--teal, var(--on)); }
+.hs-thu small { color: var(--phu); }
+.hs-thu b { font-variant-numeric: tabular-nums; }
+
+.hs-bang { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.hs-bang th { text-align: left; color: var(--phu); font-weight: 500; font-size: 12.5px; padding: 8px 12px; }
+.hs-bang td { padding: 9px 12px; border-top: 1px solid var(--vach); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.hs-nhan, .hs-chip { display: inline-flex; align-items: center; font: 600 12px/1 var(--phong); padding: 6px 9px; border-radius: 8px; border: 0; }
+.dn-nhe { background: color-mix(in srgb, var(--on) 16%, transparent); color: var(--on); }
+.dn-vua { background: color-mix(in srgb, var(--zalo) 16%, transparent); color: var(--zalo); }
+.dn-nang { background: color-mix(in srgb, #f5a524 20%, transparent); color: color-mix(in srgb, #f5a524 80%, var(--chu)); }
+.dn-rat_nang { background: var(--loi-nhat); color: var(--loi); }
+.dn-chua { background: var(--mat-3); color: var(--phu); }
+.hs-chip { cursor: pointer; appearance: none; -webkit-appearance: none; padding-right: 9px; min-height: 32px; }
+
+.hs-ds { list-style: none; margin: 0; padding: 0 8px 10px; }
+.hs-viec { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 12px; border-top: 1px solid var(--vach); }
+.hs-viec .ten { min-width: 0; display: grid; gap: 2px; }
+.hs-viec strong { font-weight: 600; font-size: 14.5px; overflow-wrap: anywhere; }
+.hs-viec small { color: var(--phu); font-size: 12.5px; }
+.hs-viec .dk { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.hs-viec.dang-lam { background: color-mix(in srgb, var(--teal, var(--on)) 8%, transparent); border-radius: 12px; }
+.hs-phut-o { display: inline-flex; align-items: center; gap: 4px; color: var(--phu); font-size: 12px; }
+.hs-phut { width: 58px; height: 32px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--vach-2); background: var(--mat); color: var(--chu); font: 500 13px var(--phong); text-align: right; }
+
+/* Dải nhỏ trên Tổng quan */
+.hs-dai { grid-column: 1 / -1; display: flex; align-items: center; gap: 22px; padding: 14px 20px; color: inherit; text-decoration: none; flex-wrap: wrap; }
+.hs-dai > svg:last-child { width: 18px; height: 18px; color: var(--phu); margin-left: auto; }
+.hs-dai-nhan { display: inline-flex; align-items: center; gap: 8px; font-weight: 650; }
+.hs-dai-nhan svg { width: 18px; height: 18px; color: var(--phu); }
+.hs-dai-o { display: grid; gap: 0; min-width: 0; }
+.hs-dai-o b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.hs-dai-o .hs-ss { margin-top: 0; }
+.hs-dai-o.muc-qua_tai b { color: var(--loi); }
+.hs-dai .mo-ta { color: var(--phu); font-size: 13px; }
+
+@media (max-width: 1100px) {
+  .hs .hs-nx, .hs .hs-30, .hs .hs-dn, .hs .hs-g, .hs .hs-da, .hs .hs-ng { grid-column: 1 / -1; }
+}
+@media (max-width: 860px) {
+  .dieu-huong a[data-muc="hieu-suat"] { display: none; }
+  .hs { gap: 14px; }
+  .hs .bang-dau { flex-wrap: wrap; }
+  .hs .bang-dau .phu { flex-basis: 100%; }
+  .hs-dau { grid-template-columns: 1fr; padding: 20px 18px; gap: 8px; }
+  .hs-dong-ho { width: 160px; justify-self: center; grid-row: 1; }
+  .hs-viec { flex-direction: column; align-items: stretch; gap: 8px; }
+  .hs-viec .dk { flex-wrap: wrap; }
+  .hs-viec .dk { gap: 6px; }
+  .hs-viec .dk .nut-chinh { margin-left: auto; }
+  .hs-viec .dk .nut-chinh svg, .hs-phut-o span { display: none; }
+  .hs-viec .dk .nut-nho { padding: 0 10px; }
+  .hs-gio small { font-size: 8.5px; }
+  .hs-dai { gap: 12px 18px; padding: 14px 16px; }
+  .hs-dai-o { flex: 1 1 40%; }
+  .hs-dai > svg:last-child { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hs-dong-ho .kim, .hs-ngang .hs-ray i, .hs-gio i { animation: none; }
+}

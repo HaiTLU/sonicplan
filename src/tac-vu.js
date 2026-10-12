@@ -1,6 +1,7 @@
 // Việc từng tác vụ hẹn giờ làm. Tác vụ chạy cho mọi tổ chức một lượt, ghi một dòng nhật ký chung.
 
 import { docLuong, dangYenLang } from './luong.js';
+import { chamViecMoi } from './hieu-suat.js';
 import { banTinNgay, baoCaoTuan, cacToChuc, goiYMoi, gioDayDuVN } from './ban-tin.js';
 import { taoIssue } from './github.js';
 import { dongBoGoogle } from './google.js';
@@ -199,6 +200,7 @@ export const CAC_TAC_VU = {
   'nhac-viec': nhacViec,
   'ban-tin': banTinNgay,
   'goi-y': goiYMoi,
+  'cham-viec': chamViecMoi,
   'bao-cao-tuan': baoCaoTuan,
 
   'don-cuoi-ngay': async (env, bayGio) => {
