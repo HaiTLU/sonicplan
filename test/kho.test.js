@@ -1,7 +1,7 @@
 // Kiểm thử phần thuần của Drive kho: địa chỉ đăng nhập và văn bản lưu sang Drive. Chạy: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { taoDiaChiDangNhapKho, vanBanBoNho, vanBanTinNgay, vanBanViec } from '../src/kho.js';
+import { kiemQuyTac, phanLoaiTep, taoDiaChiDangNhapKho, tenPhanLoai, vanBanBoNho, vanBanTinNgay, vanBanViec } from '../src/kho.js';
 
 test('đăng nhập Drive kho: chỉ xin quyền Drive hẹp và cho chọn tài khoản', () => {
   const u = new URL(taoDiaChiDangNhapKho('abc.apps.googleusercontent.com', 'https://plan.example/api/google/goi-lai', 'tt1'));
@@ -46,4 +46,32 @@ test('danh sách việc nhóm theo trạng thái, kèm hạn và giờ hẹn', (
   assert.match(van, /## Đang mở \(1\)\n\n- Gửi báo cáo - hạn 2026-10-13 09:00\n  Bước 1\n  Bước 2/);
   assert.match(van, /## Đã xong \(1\)\n\n- Họp xong/);
   assert.doesNotMatch(van, /Đã hủy/);
+});
+
+const QUY_TAC = kiemQuyTac([
+  { thu_muc: '01_DaoTaoNganHan', mau: ['dao tao ngan han'] },
+  { thu_muc: '02_NCS-K5', mau: ['ncs', 'trien khai bt nhom'], anh_con: 'Hinh-anh' },
+  { thu_muc: '03_HopTac-SuKien', mau: ['hdht', 'thoa thuan hop tac'] },
+]);
+
+test('tên mới có tiền tố nguồn, ngày, nhóm; giữ phần mở rộng', () => {
+  assert.equal(
+    tenPhanLoai({ ten: '261012_Zalo_Triển khai BT nhóm_Bài luận nghiên cứu đầu vào_Hoàng Văn Hưởng .docx', nhom: 'Triển khai BT nhóm', nguon: 'zalo' }),
+    '[Zalo] 261012 Triển khai BT nhóm - Bài luận nghiên cứu đầu vào_Hoàng Văn Hưởng .docx',
+  );
+  assert.equal(tenPhanLoai({ ten: 'bao-gia.pdf', nguon: 'gmail', tao_luc: '2026-10-12T05:00:00.000Z' }), '[Gmail] 261012 bao-gia.pdf');
+  const dai = tenPhanLoai({ ten: `261012_Zalo_${'a'.repeat(400)}.docx`, nguon: 'zalo' });
+  assert.ok(dai.length <= 196 && dai.endsWith('.docx'));
+});
+
+test('phân loại theo nhóm và tên tệp, ảnh vào thư mục con, ảnh nhỏ bị bỏ, không khớp thì cần xem', () => {
+  const lop = (ten, nhom, kich = 200000) => phanLoaiTep({ ten, nhom, kich_thuoc: kich, nguon: 'zalo' }, QUY_TAC);
+  assert.deepEqual(lop('261012_Zalo_TTC - Đào tạo Ngắn hạn_IIGxTLU_Kế hoạch workshop 30.10.pdf', 'TTC - Đào tạo Ngắn hạn').duong_dan, ['01_DaoTaoNganHan']);
+  assert.deepEqual(lop('261012_Zalo_Triển khai BT nhóm_huonghv.docx', 'Triển khai BT nhóm').duong_dan, ['02_NCS-K5']);
+  assert.deepEqual(lop('261011_Zalo_NCS_K5_TLU T_anh_135824.jpg', 'NCS_K5_TLU\\T').duong_dan, ['02_NCS-K5', 'Hinh-anh']);
+  assert.deepEqual(lop('261012_Zalo_Hong Nguyen_260924-HDHT tổ chức cuộc thi-rvbyPCTLU.docx', null).duong_dan, ['03_HopTac-SuKien']);
+  assert.deepEqual(lop('261011_Zalo_GLA Mỹ Đình_anh_183053.jpg', 'GLA Mỹ Đình').duong_dan, ['99_CanXem']);
+  assert.equal(lop('sticker.jpg', 'NCS', 20000).bo_qua, true);
+  assert.equal(lop('quy-dinh.pdf', 'NCS', 20000).bo_qua, undefined);
+  assert.deepEqual(kiemQuyTac('hỏng'), []);
 });
