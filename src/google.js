@@ -262,6 +262,9 @@ async function dongBoViec(env, tc, token) {
       `UPDATE viec SET trang_thai = 'xong', xong_luc = ?1, cap_nhat_luc = ?1, google_task_xong = 1 WHERE to_chuc_id = ?2 AND google_task_id = ?3 AND trang_thai = 'mo'`,
     ).bind(bayGio, tc, t.id).run();
     veLai += kq.meta.changes || 0;
+    if (kq.meta.changes) await env.CSDL.prepare(
+      `INSERT INTO viec_su_kien (to_chuc_id, viec_id, loai, noi_dung, luc) SELECT to_chuc_id, id, 'xong', tieu_de, ?1 FROM viec WHERE to_chuc_id = ?2 AND google_task_id = ?3`,
+    ).bind(bayGio, tc, t.id).run().catch(() => {});
   }
   await ghiCaiDat(env, tc, 'google_tasks_moc', new Date(Date.now() - 5 * 60000).toISOString());
 

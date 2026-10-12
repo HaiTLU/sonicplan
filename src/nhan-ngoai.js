@@ -43,7 +43,7 @@ export async function nhanViecNgoai(yeuCau, env, ctx) {
   if (than.tieu_de) {
     const k = kiemViec(than, { batBuocTieuDe: true });
     if (k.loi) return loi(400, k.loi);
-    const r = await themViec(env, tc, { ...k.viec, han_ngay: k.viec.han_ngay ?? null, gio_hen: k.viec.gio_hen ?? null });
+    const r = await themViec(env, tc, { ...k.viec, han_ngay: k.viec.han_ngay ?? null, gio_hen: k.viec.gio_hen ?? null }, { nguon: 'api' });
     await ghiTinHieu(env, tc, 'api-vao', `Nhận việc: ${k.viec.tieu_de.slice(0, 60)}`);
     return json({ id: r.id, trung: r.trung }, r.trung ? 200 : 201);
   }

@@ -10,6 +10,7 @@ import { kiemCauHinhGithub, thuGithub } from './github.js';
 import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from './google.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
 import { dongBoKho, goKetNoiKho, hoanTatDangNhapKho, taoDiaChiDangNhapKho } from './kho.js';
+import { dsDuAnKemSo, lichSuDuAn, suaDuAn, taoDuAn, xoaDuAn, ghiSuKien } from './du-an.js';
 import { caiBot, layBot, maNoiTelegram } from './telegram.js';
 import { chuanHoaCauHinhAi, dangViecMoi, docTichHop, giaiTichHop, guiDiaChiNhan, KHOA_TICH_HOP, kiemDiaChiNhan, luuTichHop, thuAiNgoai, xoaTichHop } from './tich-hop.js';
 import { bam, cat, json, loi, maNgauNhien, ngayVN } from './tien-ich.js';
@@ -47,6 +48,20 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   if (p === '/api/viec' && m === 'GET') return json(await dsViec(env, tc, url));
   if (p === '/api/viec' && m === 'POST') return taoViec(env, tc, await yeuCau.json().catch(() => ({})));
   if ((khop = p.match(/^\/api\/viec\/(\d+)$/)) && m === 'PATCH') return suaViec(env, tc, Number(khop[1]), await yeuCau.json().catch(() => ({})));
+
+  if (p === '/api/du-an' && m === 'GET') return json({ du_an: await dsDuAnKemSo(env, tc) });
+  if (p === '/api/du-an' && m === 'POST') {
+    const r = await taoDuAn(env, tc, await yeuCau.json().catch(() => ({})));
+    return r.loi ? loi(r.ma || 400, r.loi) : json({ id: r.id }, 201);
+  }
+  if ((khop = p.match(/^\/api\/du-an\/(\d+)\/lich-su$/)) && m === 'GET') {
+    const r = await lichSuDuAn(env, tc, Number(khop[1]));
+    return r ? json(r) : loi(404, 'Không tìm thấy dự án.');
+  }
+  if ((khop = p.match(/^\/api\/du-an\/(\d+)$/)) && (m === 'PATCH' || m === 'DELETE')) {
+    const r = m === 'PATCH' ? await suaDuAn(env, tc, Number(khop[1]), await yeuCau.json().catch(() => ({}))) : await xoaDuAn(env, tc, Number(khop[1]));
+    return r.loi ? loi(r.ma || 400, r.loi) : json({ ok: true });
+  }
 
   if (p === '/api/luong' && m === 'GET') return json(await layLuong(env, tc));
   if (p === '/api/luong' && m === 'PATCH') {
@@ -389,8 +404,9 @@ async function dsViec(env, tc, url) {
   const thuTu = trangThai === 'xong' ? 'xong_luc DESC' : 'han_ngay IS NULL, han_ngay, gio_hen IS NULL, gio_hen, id DESC';
   const { results } = await env.CSDL.prepare(
     `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.trang_thai, v.tin_nhan_id, v.tao_luc, v.xong_luc,
-       t.nguon AS tin_nguon, t.nguoi_gui AS tin_nguoi_gui, t.nhom AS tin_nhom
-     FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id
+       t.nguon AS tin_nguon, t.nguoi_gui AS tin_nguoi_gui, t.nhom AS tin_nhom,
+       v.du_an_id, v.nguon, d.ten AS du_an_ten
+     FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id LEFT JOIN du_an d ON d.id = v.du_an_id
      WHERE v.to_chuc_id = ?1 AND v.trang_thai = ?2 ORDER BY ${thuTu.replace(/\b(xong_luc|han_ngay|gio_hen|id)\b/g, 'v.$1')} LIMIT 300`,
   ).bind(tc, trangThai).all();
   return { viec: results, hom_nay: ngayVN() };
@@ -417,13 +433,18 @@ export function kiemViec(than, { batBuocTieuDe }) {
     if (!['mo', 'xong', 'huy'].includes(than.trang_thai)) return { loi: 'Trạng thái không hợp lệ.' };
     ra.trang_thai = than.trang_thai;
   }
+  if ('du_an_id' in than) {
+    const d = than.du_an_id;
+    if (d !== null && d !== '' && !Number.isInteger(Number(d))) return { loi: 'Dự án không hợp lệ.' };
+    ra.du_an_id = d === null || d === '' ? null : Number(d);
+  }
   return { viec: ra };
 }
 
 async function taoViec(env, tc, than) {
   const k = kiemViec(than, { batBuocTieuDe: true });
   if (k.loi) return loi(400, k.loi);
-  const kq = await themViec(env, tc, k.viec, { boQuaTrung: true });
+  const kq = await themViec(env, tc, k.viec, { boQuaTrung: true, duAnId: k.viec.du_an_id ?? null, nguon: 'tay' });
   return json({ id: kq.id }, 201);
 }
 
@@ -432,6 +453,8 @@ async function suaViec(env, tc, id, than) {
   if (k.loi) return loi(400, k.loi);
   const cot = Object.keys(k.viec);
   if (!cot.length) return loi(400, 'Không có gì để sửa.');
+  if (k.viec.du_an_id != null && !(await env.CSDL.prepare('SELECT 1 AS x FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(k.viec.du_an_id, tc).first())) return loi(400, 'Dự án không tồn tại.');
+  const truoc = k.viec.trang_thai || 'du_an_id' in k.viec ? await env.CSDL.prepare('SELECT trang_thai, du_an_id, tieu_de FROM viec WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first() : null;
   const bayGio = new Date().toISOString();
   const gan = cot.map((c, i) => `${c} = ?${i + 3}`);
   const giaTri = cot.map((c) => k.viec[c]);
@@ -440,6 +463,16 @@ async function suaViec(env, tc, id, than) {
     `UPDATE viec SET ${gan.join(', ')}, cap_nhat_luc = ?${cot.length + 3} WHERE id = ?1 AND to_chuc_id = ?2`,
   ).bind(id, tc, ...giaTri, bayGio).run();
   if (!kq.meta.changes) return loi(404, 'Không tìm thấy việc này.');
+  if (truoc) {
+    if (k.viec.trang_thai && k.viec.trang_thai !== truoc.trang_thai) {
+      const loaiSk = k.viec.trang_thai === 'xong' ? 'xong' : k.viec.trang_thai === 'mo' ? 'mo_lai' : 'huy';
+      await ghiSuKien(env, tc, id, loaiSk, truoc.tieu_de).catch(() => {});
+    }
+    if ('du_an_id' in k.viec && k.viec.du_an_id !== truoc.du_an_id) {
+      const ten = k.viec.du_an_id ? (await env.CSDL.prepare('SELECT ten FROM du_an WHERE id = ?1').bind(k.viec.du_an_id).first())?.ten : null;
+      await ghiSuKien(env, tc, id, 'doi_du_an', ten ? `Chuyển vào dự án ${ten}` : 'Gỡ khỏi dự án').catch(() => {});
+    }
+  }
   // Đổi hạn hoặc giờ thì cho phép nhắc lại theo mốc mới.
   if ('han_ngay' in k.viec || 'gio_hen' in k.viec) await env.CSDL.prepare('DELETE FROM nhac_da_gui WHERE viec_id = ?1').bind(id).run();
   return json({ ok: true });
