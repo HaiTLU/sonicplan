@@ -144,13 +144,29 @@ export async function goKetNoiKho(env, tc) {
   await env.CSDL.prepare('DELETE FROM tin_hieu WHERE to_chuc_id = ?1 AND nguon = ?2').bind(tc, 'kho').run();
 }
 
-async function layTruyCapKho(env, tc) {
+export async function layTruyCapKho(env, tc) {
   const [client, tk] = [await docTichHop(env, tc, 'google_client'), await docTichHop(env, tc, 'kho_drive')];
   if (!client || !tk) return null;
   if (tk.truy_cap && tk.het_han > Date.now()) return tk.truy_cap;
   const kq = await doiMa(client, { grant_type: 'refresh_token', refresh_token: tk.refresh_token });
   await luuTichHop(env, tc, 'kho_drive', { ...tk, truy_cap: kq.access_token, het_han: Date.now() + (kq.expires_in - 120) * 1000 });
   return kq.access_token;
+}
+
+// Ảnh thu nhỏ do Drive tạo (ảnh trang đầu của Word, PDF, Excel, PowerPoint, ảnh thu nhỏ của ảnh).
+// Chỉ nhận địa chỉ googleusercontent để không bị dùng làm cầu gọi máy chủ lạ.
+export async function layAnhNhoDrive(env, tc, driveId) {
+  const token = await layTruyCapKho(env, tc);
+  if (!token) return null;
+  const f = await goiGoogle(token, `www.googleapis.com/drive/v3/files/${encodeURIComponent(driveId)}?fields=thumbnailLink&supportsAllDrives=true`);
+  if (!f.thumbnailLink) return null;
+  const u = new URL(f.thumbnailLink);
+  if (u.protocol !== 'https:' || !/(^|\.)googleusercontent\.com$/.test(u.hostname)) return null;
+  const ph = await goiNgoai(f.thumbnailLink.replace(/=s\d+$/, '=s480'), { headers: { authorization: `Bearer ${token}` } });
+  const mime = (ph.headers.get('content-type') || '').split(';')[0];
+  if (!ph.ok || !/^image\/(png|jpe?g|webp|gif)$/.test(mime)) return null;
+  const bytes = new Uint8Array(await ph.arrayBuffer());
+  return bytes.length && bytes.length <= 2 * 1024 * 1024 ? { bytes, mime } : null;
 }
 
 // ---- Ghi lên Drive ----

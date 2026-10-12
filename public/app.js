@@ -812,32 +812,125 @@ function moXemTep(f, kieu) {
   if (oChu) api(`/api/tep/${f.id}/chu`).then((r) => { oChu.textContent = r.chu; }).catch((e) => { oChu.textContent = e.message; });
 }
 
+// Phân loại tệp để lọc và nhóm: loại (ảnh, ảnh chụp màn hình, tài liệu...), nguồn, thời gian.
+const LOAI_TEP = [['tat-ca', 'Tất cả loại'], ['anh', 'Ảnh'], ['man-hinh', 'Ảnh chụp màn hình'], ['tai-lieu', 'Tài liệu'], ['pdf', 'PDF'], ['bang', 'Bảng tính'], ['trinh-chieu', 'Trình chiếu'], ['khac', 'Khác']];
+const NHOM_TEP = [['du-an', 'Dự án'], ['loai', 'Loại'], ['nguon', 'Nguồn'], ['thoi-gian', 'Thời gian'], ['khong', 'Không nhóm']];
+const THOI_GIAN_TEP = ['Hôm nay', 'Tuần này', 'Cũ hơn'];
+
+function loaiLocTep(f) {
+  const [lop] = loaiTep(f.ten, f.loai);
+  if (lop === 'anh') return /^(ảnh màn hình|screenshot|screen shot|ảnh chụp màn hình)/i.test(String(f.ten).replace(/^\d{6}_(Zalo|Gmail)_/, '').trim()) ? 'man-hinh' : 'anh';
+  return { doc: 'tai-lieu', pdf: 'pdf', xls: 'bang', ppt: 'trinh-chieu' }[lop] || 'khac';
+}
+function nguonTep(f) {
+  if (f.nguon === 'zalo') return `Zalo: ${f.tin_nhom || (f.nguoi_gui || '').split('<')[0].trim() || 'không rõ'}`;
+  return f.nguon === 'gmail' ? 'Gmail' : 'Tải lên';
+}
+function thoiGianTep(f) {
+  const t = Date.parse(f.tao_luc);
+  if (Number.isNaN(t)) return THOI_GIAN_TEP[2];
+  if (fmt.ngayISO.format(new Date(t)) === homNay()) return THOI_GIAN_TEP[0];
+  return Date.now() - t <= 7 * 86400000 ? THOI_GIAN_TEP[1] : THOI_GIAN_TEP[2];
+}
+
 async function veTep(goc) {
   const t = trang.tep;
-  const oTim = h('input', { type: 'search', placeholder: 'Tìm tên tệp, người gửi…', value: t.q, 'aria-label': 'Tìm tệp' });
-  const luoi = h('div', { class: 'luoi-tep' }, ...[1, 2, 3, 4, 5, 6].map(() => h('div', { class: 'bang the-tep' }, xuong(54, '46px'), xuong(16, '80%'), xuong(12, '50%'))));
+  t.nhom ||= 'du-an'; t.loai ||= 'tat-ca'; t.xem ||= 'luoi';
+  const oTim = h('input', { type: 'search', placeholder: 'Tìm tên tệp, người gửi, nhóm…', value: t.q, 'aria-label': 'Tìm tệp' });
+  const chonLoai = h('select', { 'aria-label': 'Lọc theo loại', class: 'chon-loc' }, ...LOAI_TEP.map(([ma, nhan]) => h('option', { value: ma, text: nhan })));
+  chonLoai.value = t.loai;
+  chonLoai.addEventListener('change', () => { t.loai = chonLoai.value; ve(); });
+  const nutNhom = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(t.nhom === ma), onclick: () => { t.nhom = ma; capNhatNut(); ve(); } }, nhan);
+  const nutXem = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(t.xem === ma), onclick: () => { t.xem = ma; capNhatNut(); ve(); } }, nhan);
+  const hangNhom = h('div', { class: 'nhom-nut', role: 'group', 'aria-label': 'Nhóm theo' }, ...NHOM_TEP.map(([ma, nhan]) => nutNhom(ma, nhan)));
+  const hangXem = h('div', { class: 'nhom-nut', role: 'group', 'aria-label': 'Kiểu xem' }, nutXem('luoi', 'Lưới'), nutXem('ds', 'Danh sách'));
+  const demEl = h('span', { class: 'dem-tep' });
+  const vung = h('div', {}, ...[1, 2, 3].map(() => h('div', { class: 'bang the-tep', style: 'margin-bottom:12px' }, xuong(54, '46px'), xuong(16, '80%'), xuong(12, '50%'))));
+  function capNhatNut() {
+    hangNhom.querySelectorAll('button').forEach((b, i) => b.setAttribute('aria-pressed', String(NHOM_TEP[i][0] === t.nhom)));
+    hangXem.querySelectorAll('button').forEach((b, i) => b.setAttribute('aria-pressed', String(['luoi', 'ds'][i] === t.xem)));
+  }
   let hen;
-  oTim.addEventListener('input', () => { clearTimeout(hen); hen = setTimeout(() => { t.q = oTim.value.trim(); nap(); }, 300); });
-  thay(goc, h('div', { class: 'thanh-loc' }, h('label', { class: 'o-tim', style: 'margin-left:0' }, icon('tim'), oTim)), luoi);
+  oTim.addEventListener('input', () => { clearTimeout(hen); hen = setTimeout(() => { t.q = oTim.value.trim(); ve(); }, 200); });
+  thay(goc,
+    h('div', { class: 'thanh-loc' }, h('label', { class: 'o-tim', style: 'margin-left:0' }, icon('tim'), oTim), chonLoai, hangXem),
+    h('div', { class: 'thanh-loc' }, h('span', { class: 'nhan-nho', text: 'Nhóm theo' }), hangNhom, h('span', { class: 'gian' }), demEl),
+    vung);
+
+  let ds = [];
+  let duAn = [];
+  function nhomHoa(tep) {
+    if (t.nhom === 'khong') return [{ ten: null, ds: tep }];
+    const m = new Map();
+    const them = (khoa, ten, mau, f) => { if (!m.has(khoa)) m.set(khoa, { khoa, ten, mau, ds: [] }); m.get(khoa).ds.push(f); };
+    for (const f of tep) {
+      if (t.nhom === 'du-an') { const d = duAn.find((x) => x.id === f.du_an_id); them(d ? `d${d.id}` : 'z', d ? d.ten : 'Chưa xếp dự án', d?.mau, f); }
+      else if (t.nhom === 'loai') { const l = LOAI_TEP.find(([ma]) => ma === loaiLocTep(f)); them(l[0], l[1], null, f); }
+      else if (t.nhom === 'nguon') { const n = nguonTep(f); them(n, n, null, f); }
+      else { const g = thoiGianTep(f); them(g, g, null, f); }
+    }
+    const ra = [...m.values()];
+    if (t.nhom === 'du-an') ra.sort((x, y) => (x.khoa === 'z') - (y.khoa === 'z') || duAn.findIndex((d) => `d${d.id}` === x.khoa) - duAn.findIndex((d) => `d${d.id}` === y.khoa));
+    else if (t.nhom === 'loai') ra.sort((x, y) => LOAI_TEP.findIndex(([k]) => k === x.khoa) - LOAI_TEP.findIndex(([k]) => k === y.khoa));
+    else if (t.nhom === 'thoi-gian') ra.sort((x, y) => THOI_GIAN_TEP.indexOf(x.khoa) - THOI_GIAN_TEP.indexOf(y.khoa));
+    return ra;
+  }
+
+  function theTep(f) {
+    const [lop, nhan] = loaiTep(f.ten, f.loai);
+    const kieu = kieuMo(f);
+    const mo = () => (kieu ? moXemTep(f, kieu) : location.assign(`/api/tep/${f.id}/tai`));
+    const coAnh = ['anh', 'doc', 'pdf', 'xls', 'ppt'].includes(lop);
+    const bieuTuong = () => h('span', { class: 'loai-tep lon', dataset: { loai: lop }, text: nhan });
+    const khung = h('button', { class: 'anh-tep', type: 'button', 'aria-label': `${kieu ? 'Xem trước' : 'Tải'} ${f.ten}`, onclick: mo });
+    if (coAnh) {
+      const img = h('img', { src: `/api/tep/${f.id}/anh-nho`, alt: '', loading: 'lazy', decoding: 'async' });
+      img.addEventListener('error', () => khung.replaceChildren(bieuTuong()));
+      khung.append(img);
+    } else khung.append(bieuTuong());
+    const chon = h('select', { class: 'chon-du-an-tep', 'aria-label': `Dự án của ${f.ten}` }, h('option', { value: '', text: 'Chưa xếp dự án' }), ...duAn.map((d) => h('option', { value: String(d.id), text: d.ten })));
+    chon.value = f.du_an_id ? String(f.du_an_id) : '';
+    chon.addEventListener('change', async () => {
+      const cu = f.du_an_id;
+      try {
+        await api(`/api/tep/${f.id}`, { method: 'PATCH', body: JSON.stringify({ du_an_id: chon.value ? Number(chon.value) : null }) });
+        f.du_an_id = chon.value ? Number(chon.value) : null;
+        bao('Đã đổi dự án của tệp.');
+        if (t.nhom === 'du-an') ve();
+      } catch (err) { chon.value = cu ? String(cu) : ''; bao(err.message, { loi: true }); }
+    });
+    const d = duAn.find((x) => x.id === f.du_an_id);
+    if (hexMau(d?.mau)) chon.style.setProperty('--mau', hexMau(d.mau));
+    return h('div', { class: 'bang the-tep' },
+      khung,
+      h('div', { class: 'than-tep' },
+        h('button', { class: 'ten-tep', type: 'button', text: f.ten, title: f.ten, onclick: mo }),
+        h('div', { class: 'meta' }, h('span', { text: kichThuoc(f.kich_thuoc) }), h('span', { text: nguonTep(f) }), f.nguoi_gui && f.nguon !== 'zalo' ? h('span', { text: f.nguoi_gui.split('<')[0].trim() }) : null, h('span', { text: luc(f.tao_luc) })),
+        chon));
+  }
+
+  function ve() {
+    const q = t.q.toLowerCase();
+    const tep = ds.filter((f) => (t.loai === 'tat-ca' || loaiLocTep(f) === t.loai) && (!q || `${f.ten} ${f.nguoi_gui || ''} ${f.tin_nhom || ''}`.toLowerCase().includes(q)));
+    demEl.textContent = `${tep.length} tệp`;
+    if (!tep.length) {
+      thay(vung, h('div', { class: 'bang trong-trai', style: 'min-height:280px' }, icon('tep'), h('h3', { text: ds.length ? 'Không có tệp khớp bộ lọc' : 'Chưa có tệp nào' }), h('p', { text: ds.length ? 'Thử bỏ bộ lọc hoặc đổi từ khóa.' : 'Tệp đính kèm trong thư và tệp gửi qua Zalo sẽ tự lưu vào đây.' })));
+      return;
+    }
+    thay(vung, ...nhomHoa(tep).map((g) => h('section', { class: 'nhom-tep' },
+      g.ten ? h('h2', { class: 'tieu-nhom-tep', ...(hexMau(g.mau) ? { style: `--mau:${hexMau(g.mau)}` } : {}) }, hexMau(g.mau) ? h('i', { class: 'cham-mau' }) : null, g.ten, h('span', { text: String(g.ds.length) })) : null,
+      h('div', { class: t.xem === 'ds' ? 'luoi-tep ds' : 'luoi-tep' }, ...g.ds.map(theTep)))));
+  }
+
   async function nap() {
     try {
-      const { tep } = await api(`/api/tep${t.q ? `?q=${encodeURIComponent(t.q)}` : ''}`);
-      if (!tep.length) {
-        thay(luoi, h('div', { class: 'bang trong-trai', style: 'grid-column:1/-1;min-height:280px' }, icon('tep'), h('h3', { text: t.q ? 'Không tìm thấy tệp' : 'Chưa có tệp nào' }), h('p', { text: 'Tệp đính kèm trong thư và tệp gửi qua Zalo sẽ tự lưu vào đây.' })));
-        return;
-      }
-      thay(luoi, ...tep.map((f) => {
-        const [lop, nhan] = loaiTep(f.ten, f.loai);
-        const kieu = kieuMo(f);
-        const the = h(kieu ? 'button' : 'a', kieu ? { class: 'bang the-tep', type: 'button', 'aria-label': `Xem trước ${f.ten}`, onclick: () => moXemTep(f, kieu) } : { class: 'bang the-tep', href: `/api/tep/${f.id}/tai`, 'aria-label': `Tải ${f.ten}` },
-          h('div', { class: 'dau' }, h('span', { class: 'loai-tep', dataset: { loai: lop }, text: nhan }), kieu ? h('span', { class: 'tai xem', text: 'Xem' }) : h('span', { class: 'tai' }, icon('tai'))),
-          h('strong', { text: f.ten }),
-          h('div', { class: 'meta' }, h('span', { text: kichThuoc(f.kich_thuoc) }), h('span', { text: f.nguon === 'zalo' ? 'Zalo' : 'Thư' }), f.nguoi_gui ? h('span', { text: f.nguoi_gui.split('<')[0].trim() }) : null, h('span', { text: luc(f.tao_luc) })),
-        );
-        return the;
-      }));
+      const [{ tep }, da] = await Promise.all([api('/api/tep'), api('/api/du-an').catch(() => ({ du_an: [] }))]);
+      ds = tep;
+      duAn = da.du_an;
+      duAnDs = da.du_an;
+      ve();
     } catch (e) {
-      thay(luoi, khungLoi(e, nap));
+      thay(vung, khungLoi(e, nap));
     }
   }
   nap();

@@ -23,6 +23,41 @@ export function chonDuAn(duAn, tenAi, chu) {
   return tot ? tot.id : null;
 }
 
+// Gán dự án cho tệp chưa có dự án: theo từ khóa trong tên nhóm, thư mục và tên tệp; rồi theo dự án của việc
+// sinh ra từ cùng tin nhắn; rồi theo dự án phổ biến nhất của các tệp khác trong cùng nhóm hay người gửi.
+// Tệp người dùng đã chọn tay (du_an_nguon = 'tay') không bao giờ bị đổi.
+export async function phanDuAnChoTep(env, tc) {
+  const duAn = await docDuAn(env, tc);
+  if (!duAn.length) return 0;
+  const { results } = await env.CSDL.prepare(
+    `SELECT t.id, t.ten, t.thu_muc, t.nguoi_gui, t.du_an_id, t.du_an_nguon, m.nhom,
+       (SELECT v.du_an_id FROM viec v WHERE v.tin_nhan_id = t.tin_nhan_id AND v.du_an_id IS NOT NULL LIMIT 1) AS du_an_viec
+     FROM tep t LEFT JOIN tin_nhan m ON m.id = t.tin_nhan_id
+     WHERE t.to_chuc_id = ?1 ORDER BY t.id DESC LIMIT 600`,
+  ).bind(tc).all();
+  const khoaNhom = (r) => (r.nhom || r.nguoi_gui || '').trim();
+  const dem = new Map(); // nhóm -> (dự án -> số tệp)
+  for (const r of results) {
+    const k = khoaNhom(r);
+    if (!k || !r.du_an_id) continue;
+    const m = dem.get(k) || new Map();
+    m.set(r.du_an_id, (m.get(r.du_an_id) || 0) + 1);
+    dem.set(k, m);
+  }
+  const cau = [];
+  for (const r of results) {
+    if (r.du_an_id || r.du_an_nguon === 'tay') continue;
+    let id = chonDuAn(duAn, null, `${r.nhom || ''} ${r.thu_muc || ''} ${r.ten}`) || r.du_an_viec;
+    if (!id) {
+      const m = dem.get(khoaNhom(r));
+      if (m) id = [...m.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    }
+    if (id) cau.push(env.CSDL.prepare("UPDATE tep SET du_an_id = ?1, du_an_nguon = 'tu_dong' WHERE id = ?2 AND to_chuc_id = ?3 AND du_an_id IS NULL").bind(id, r.id, tc));
+  }
+  if (cau.length) { if (env.CSDL.batch) await env.CSDL.batch(cau); else for (const c of cau) await c.run(); }
+  return cau.length;
+}
+
 export function docTuKhoa(v) {
   if (Array.isArray(v)) return v.map(String);
   try {
