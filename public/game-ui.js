@@ -2,7 +2,7 @@
 // bảng trận, thành tích.
 
 import { anhBoss, anhNhanVat, anhQuaiNho, taoCanh } from './game.js';
-import { gioPhut, moBangChia } from './hieu-suat.js';
+import { giaiThichViec, gioPhut, moBangChia, tenNguon } from './hieu-suat.js';
 
 const TEN_KIEU = { som: 'hạ sớm', dung_han: 'đúng hạn', tre: 'trễ hạn', thuong: '' };
 let canhHienTai = null;
@@ -132,7 +132,8 @@ export async function veKhuGame(goc, t, napTrang) {
         h('div', {},
           h('p', { class: 'chao', text: `${bossCua(q) ? `Boss nhỏ của ${bossCua(q).ten}, ` : ''}${q.ten_loai}${q.gian ? ', đang nổi giận vì quá hạn' : ''}${q.dang_danh ? ', đang giao chiến' : ''}` }),
           h('h3', { text: q.tieu_de }),
-          h('p', { class: 'mo-ta', text: `Máu ${gioPhut(q.mau)} / ${gioPhut(q.mau_toi_da)}. ${q.han_ngay ? `Hạn ${q.han_ngay.slice(8, 10)}/${q.han_ngay.slice(5, 7)}` : 'Không hạn'}. Hạ bây giờ được ${q.xp_neu_ha} điểm.` }),
+          h('p', { class: 'mo-ta', text: `Máu ${gioPhut(q.mau)} / ${gioPhut(q.mau_toi_da)}. ${q.han_ngay ? `Hạn ${q.han_ngay.slice(8, 10)}/${q.han_ngay.slice(5, 7)}` : 'Không hạn'}. Nguồn: ${tenNguon(q)}. Hạ bây giờ được ${q.xp_neu_ha} điểm.` }),
+          giaiThichViec(h, q),
         ),
       ),
       ...dong,
