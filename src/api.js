@@ -20,6 +20,7 @@ import { themViec } from './viec.js';
 import { chuanMau } from './mau.js';
 import { chuanCauHinh, ganNhan, LOAI_NHAN } from './google-nhan.js';
 import { xuLyHieuSuat } from './hieu-suat.js';
+import { xuLyGame } from './game.js';
 
 // Mã tệp trên Drive: ưu tiên bản đã xếp trong kho, không có thì bản ở thư mục Sonicplan.
 const COT_DRIVE = "COALESCE((SELECT NULLIF(k.drive_id, '') FROM kho_da_luu k WHERE k.to_chuc_id = tep.to_chuc_id AND k.loai = 'tep' AND k.ma = CAST(tep.id AS TEXT)), NULLIF(tep.drive_id, '')) AS drive_id";
@@ -40,6 +41,7 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   if (p === '/api/nhat-ky' && m === 'GET') return json(await layNhatKy(env, tc, url));
 
   if (p.startsWith('/api/hieu-suat')) return xuLyHieuSuat(yeuCau, env, tc, p);
+  if (p === '/api/game' || p.startsWith('/api/game/')) return xuLyGame(yeuCau, env, tc, p);
 
   if (p === '/api/zalo/hoi-thoai' && m === 'GET') return json(await dsHoiThoaiZalo(env, tc, url));
   if (p === '/api/zalo/tin' && m === 'GET') return tinHoiThoaiZalo(env, tc, url);
