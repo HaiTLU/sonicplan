@@ -12,6 +12,7 @@ export const TAC_VU = [
   { ma: 'canh-zalo', ten: 'Canh tín hiệu Zalo', lich: '0 * * * *', bat: true, giai_doan: 3 },
   { ma: 'ban-tin', ten: 'Bản tin 8h sáng và nhắc 17h', lich: '0 * * * *', bat: true, giai_doan: 2 },
   { ma: 'goi-y', ten: 'Gợi ý cho việc mới', lich: '0 * * * *', bat: true, giai_doan: 2 },
+  { ma: 'cham-viec', ten: 'AI chấm độ nặng và thời lượng việc', lich: '0 * * * *', bat: true, giai_doan: 2 },
   { ma: 'bao-cao-tuan', ten: 'Báo cáo tuần', lich: '0 * * * *', bat: true, giai_doan: 3 },
   { ma: 'canh-viec', ten: 'Canh việc bị mất hàng loạt', lich: '0 * * * *', bat: true, giai_doan: 3 },
   { ma: 'don-cuoi-ngay', ten: 'Dời việc chưa xong sang mai', lich: '0 16 * * *', bat: true, giai_doan: 3 },

@@ -1,6 +1,7 @@
 // Giao diện Sonicplan: một trang, chuyển mục theo dấu #, đọc ghi dữ liệu qua /api.
 
 import { veDuAn } from './du-an.js';
+import { dongHieuSuat, veHieuSuat } from './hieu-suat.js';
 import { batKeoTha } from './keo-tha.js';
 import { hexMau, mauViec, oChonMau } from './mau.js';
 import { mienCuaUrl, nhanTep, phanTichTin, tachLienKet, trichTin } from './zalo-tin.js';
@@ -117,7 +118,7 @@ function tenNhom(ten) {
 }
 
 const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', q: '', chon: null, ds: [] }, viec: { tab: 'mo', duAn: 'tat-ca', xem: 'han', anTrong: false }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
-const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'du-an': 'Dự án', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy' };
+const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'hieu-suat': 'Hiệu suất', 'du-an': 'Dự án', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy' };
 const KET_QUA = { xong: 'Xong', loi: 'Lỗi', dang_chay: 'Đang chạy' };
 const ICON_TP = { 'may-chu': 'he-thong', csdl: 'kho', 'hen-gio': 'dong-ho', thu: 'thu', zalo: 'zalo', tep: 'tep', lich: 'lich', ai: 'ai', telegram: 'telegram' };
 const TEN_DEN = { xanh: 'ổn', vang: 'đang chờ', do: 'lỗi', xam: 'chưa dùng' };
@@ -182,6 +183,8 @@ async function veTongQuan(goc) {
       oSo('tep', 'Tệp tuần này', sl.tep_tuan, h('span', { class: 'ghi', text: 'Lưu trong kho tệp' })),
     ),
   );
+
+  luoi.append(dongHieuSuat({ h, icon, api }));
 
   // Tổng hợp một lần: AI đọc hồ sơ, ghi nhớ, việc, tin 48 giờ rồi viết bản tổng hợp
   const khungTH = h('div', { class: 'tong-hop-noi-dung', 'aria-live': 'polite' });
@@ -1693,7 +1696,7 @@ async function veLuongTrang(goc) {
 function veDuAnTrang(goc, thamSo) {
   return veDuAn(goc, thamSo, { h, icon, api, bao, thay, khungLoi, xuong });
 }
-const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'du-an': veDuAnTrang, 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy };
+const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'hieu-suat': (goc) => veHieuSuat(goc, { h, icon, api, bao, thay, khungLoi, xuong }), 'du-an': veDuAnTrang, 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy };
 let mucTruoc = null;
 
 async function moMuc() {
@@ -1726,6 +1729,7 @@ const LENH = [
   { nhan: 'Hộp tin', icon: 'hop-tin', lam: () => (location.hash = 'hop-tin'), goi: 'G H' },
   { nhan: 'Zalo', icon: 'zalo', lam: () => (location.hash = 'zalo'), goi: 'G Z' },
   { nhan: 'Việc', icon: 'viec', lam: () => (location.hash = 'viec'), goi: 'G V' },
+  { nhan: 'Hiệu suất, quá tải, độ nặng việc', icon: 'tong-quan', lam: () => (location.hash = 'hieu-suat') },
   { nhan: 'Dự án và lịch sử', icon: 'du-an', lam: () => (location.hash = 'du-an') },
   { nhan: 'Ghi nhớ', icon: 'ghi-nho', lam: () => (location.hash = 'ghi-nho') },
   { nhan: 'Tệp', icon: 'tep', lam: () => (location.hash = 'tep') },
