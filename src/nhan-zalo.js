@@ -4,6 +4,7 @@
 
 import { tomTatTin } from './ai.js';
 import { docHoSo } from './ghi-nho.js';
+import { docDiaChiNgoai, napTepNgoai } from './zalo-ngoai.js';
 import { ghiTinHieu, luuTep, luuTin, TEP_TOI_DA } from './hop-tin.js';
 import { baoToChuc } from './telegram.js';
 import { docTichHop } from './tich-hop.js';
@@ -55,9 +56,16 @@ export async function nhanZalo(yeuCau, env, ctx, duongDan) {
     const than = await yeuCau.json().catch(() => null);
     if (!than || !Array.isArray(than.messages)) return loi(400, 'Thiếu danh sách tin.');
     let moi = 0;
+    const canNap = [];
     for (const t of than.messages.slice(0, 500)) {
-      if (await luuTin(env, toChucId, chuyenTinZalo(t))) moi++;
+      const tinMoi = chuyenTinZalo(t);
+      const id = await luuTin(env, toChucId, tinMoi);
+      if (!id) continue;
+      moi++;
+      if (docDiaChiNgoai(tinMoi.noi_dung)) canNap.push(id);
     }
+    // Tải ảnh và tệp về kho ngay khi tin về, trước khi đường dẫn Zalo hết hạn. Lỗi thì bỏ qua, trang tin vẫn thử lại khi mở.
+    if (canNap.length) ctx.waitUntil((async () => { for (const id of canNap.slice(0, 15)) await napTepNgoai(env, toChucId, id).catch(() => {}); })());
     await ghiTinHieu(env, toChucId, 'zalo', moi ? `Nhận ${moi} tin` : 'Tín hiệu còn chạy');
     if (moi) ctx.waitUntil(tachViecChoToChuc(env, toChucId).catch((e) => console.error('Tách việc lỗi', e)));
     return json({ ok: true, moi });
