@@ -1,0 +1,119 @@
+/* Giao diện sáng kiểu Apple, đặt SAU kieu.css để ghi đè màu và hình khối; bỏ tệp này (và dòng link ở index.html)
+   là quay về giao diện cũ. Màu theo hệ thiết kế SonicRec: teal #06e3d8 cho nút chính, chữ trên teal luôn màu navy #02152a.
+   Máy để chế độ tối thì dùng bản tối của cùng bảng màu (nền #020a14). */
+
+:root {
+  color-scheme: light;
+  --nen: #fbfbfd;
+  --nen-2: #f5f5f7;
+  --mat: #ffffff;
+  --mat-2: #f5f5f7;
+  --mat-3: #ececf0;
+  --vach: rgba(0, 0, 0, .08);
+  --vach-2: rgba(0, 0, 0, .16);
+  --chu: #1d1d1f;
+  --chu-2: #424245;
+  --phu: #6e6e73;
+  --mo: #767679;
+  --nhan: #00756f;            /* teal đậm: chữ và biểu tượng nhấn trên nền sáng (đủ 4.5:1) */
+  --nhan-chu: #02152a;
+  --nhan-nhat: rgba(6, 227, 216, .16);
+  --on: #0a7f5a;
+  --on-nhat: rgba(10, 127, 90, .10);
+  --loi: #b42318;
+  --loi-nhat: rgba(254, 48, 28, .10);
+  --zalo: #1f5fd0;
+  --thu: #6a3fc4;
+  --bong: 0 1px 2px rgba(0, 0, 0, .04), 0 8px 24px -12px rgba(0, 0, 0, .10);
+  --bong-noi: 0 30px 80px -24px rgba(0, 0, 0, .25), 0 0 0 1px var(--vach-2);
+  --r-lon: 22px;
+  --r-vua: 16px;
+  --r-nho: 10px;
+  --teal: #06e3d8;
+  --navy: #02152a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --nen: #020a14;
+    --nen-2: #071014;
+    --mat: #0b1620;
+    --mat-2: #101c28;
+    --mat-3: #172733;
+    --vach: rgba(255, 255, 255, .09);
+    --vach-2: rgba(255, 255, 255, .18);
+    --chu: #ffffff;
+    --chu-2: rgba(255, 255, 255, .78);
+    --phu: rgba(255, 255, 255, .64);
+    --mo: rgba(255, 255, 255, .56);
+    --nhan: #06e3d8;
+    --nhan-nhat: rgba(6, 227, 216, .14);
+    --on: #5fd3a6;
+    --on-nhat: rgba(95, 211, 166, .12);
+    --loi: #ff7a66;
+    --loi-nhat: rgba(254, 48, 28, .16);
+    --zalo: #7fb2ff;
+    --thu: #c9a2ff;
+    --bong: none;
+    --bong-noi: 0 30px 80px -20px rgba(0, 0, 0, .7), 0 0 0 1px var(--vach-2);
+  }
+}
+
+/* Nền phẳng, không hạt nhiễu và quầng sáng. */
+body { font-feature-settings: normal; }
+body::before, body::after { display: none; }
+.bang::after { display: none; }
+
+/* Thanh bên và đầu trang: kính mờ nhẹ. */
+.ray { background: var(--nen-2); }
+.dieu-huong a { border-radius: 10px; font-weight: 500; }
+.dieu-huong a[aria-current="page"] { background: var(--mat); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); color: var(--chu); }
+@media (prefers-color-scheme: dark) { .dieu-huong a[aria-current="page"] { background: var(--mat-3); box-shadow: none; } }
+.dieu-huong a[aria-current="page"]::before { display: none; }
+.thuong-hieu { font-weight: 600; }
+.logo-nen { fill: var(--navy); stroke: none; }
+.logo-song { stroke: var(--teal); }
+.nut-lenh { background: var(--mat-3); border-color: transparent; border-radius: 12px; }
+.the-nguoi { border-radius: 14px; }
+.anh-dai-dien { border-radius: 999px; background: var(--teal); color: var(--navy); }
+.dau-trang { background: color-mix(in srgb, var(--nen) 82%, transparent); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); }
+.dau-trang h1 { font-size: clamp(30px, 3.4vw, 40px); font-weight: 600; letter-spacing: -.02em; }
+.ngay { font-size: 13px; }
+
+/* Nút hình viên thuốc; nút chính teal, chữ navy. */
+.nut { height: 40px; padding: 0 20px; border-radius: 999px; font-weight: 500; font-size: 14.5px; }
+.nut-chinh { background: var(--teal); color: var(--navy); font-weight: 600; box-shadow: none; }
+.nut-chinh:hover { background: #4ff0e8; }
+.nut-phu { background: transparent; border-color: var(--vach-2); }
+.nut-phu:hover { background: var(--mat-3); }
+.nut-nho { height: 32px; padding: 0 14px; border-radius: 999px; }
+.chip { border-radius: 999px; background: transparent; }
+.chip[aria-pressed="true"] { background: var(--mat-3); border-color: transparent; }
+.o-tim input { border-radius: 999px; background: var(--mat-3); border-color: transparent; }
+.o-tim input:focus { border-color: var(--nhan); background: var(--mat); }
+.them-nhanh input { background: var(--mat-3); border-color: transparent; }
+
+/* Thẻ: bo lớn, đổ bóng rất nhẹ. */
+.bang, .cot-viec { border-radius: var(--r-lon); }
+.cot-viec { background: var(--mat-2); }
+.the-viec { background: var(--mat); }
+.the-kn header .tp-icon { border-radius: 14px; }
+.trang-thai-kn { border-radius: 999px; padding: 4px 12px; font-weight: 500; }
+.dem, .dem-zalo { border-radius: 999px; }
+.dem-zalo { background: var(--teal); color: var(--navy); }
+.dem { color: var(--nhan); }
+
+/* Danh sách tin và Zalo. */
+.ds-tin button { border-radius: 14px; }
+.ds-tin button[aria-current="true"] { background: var(--mat-2); box-shadow: none; }
+@media (prefers-color-scheme: dark) { .ds-tin button[aria-current="true"] { background: var(--mat-3); } }
+.luong-zalo { background: color-mix(in srgb, var(--nen) 60%, var(--mat)); }
+.bong-chat { border-radius: 18px 18px 18px 5px; background: var(--mat-3); border-color: transparent; }
+.tin-zalo.toi .bong-chat { border-radius: 18px 18px 5px 18px; background: var(--teal); color: var(--navy); border-color: transparent; }
+.tin-zalo.toi .bong-chat time { color: rgba(2, 21, 42, .7); }
+.tin-zalo.lien .bong-chat { border-top-left-radius: 5px; }
+.tin-zalo.toi.lien .bong-chat { border-top-left-radius: 18px; border-top-right-radius: 5px; }
+.tin-zalo .ten-gui { color: var(--nhan); }
+
+/* Chữ liên kết và viền focus theo màu mới. */
+:focus-visible { outline-color: var(--nhan); }

@@ -7,8 +7,8 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0E1117",
-  "theme_color": "#0E1117",
+  "background_color": "#fbfbfd",
+  "theme_color": "#fbfbfd",
   "icons": [
     { "src": "/bieu-tuong-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/bieu-tuong-512.png", "sizes": "512x512", "type": "image/png" },
