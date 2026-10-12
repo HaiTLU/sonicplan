@@ -115,7 +115,7 @@ function tenNhom(ten) {
   return /^nh[oó]m\s/i.test(ten) ? ten : `Nhóm ${ten}`;
 }
 
-const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', q: '', chon: null, ds: [] }, viec: { tab: 'mo', duAn: 'tat-ca', xem: 'han' }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
+const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', q: '', chon: null, ds: [] }, viec: { tab: 'mo', duAn: 'tat-ca', xem: 'han', anTrong: false }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
 const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'du-an': 'Dự án', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy' };
 const KET_QUA = { xong: 'Xong', loi: 'Lỗi', dang_chay: 'Đang chạy' };
 const ICON_TP = { 'may-chu': 'he-thong', csdl: 'kho', 'hen-gio': 'dong-ho', thu: 'thu', zalo: 'zalo', tep: 'tep', lich: 'lich', ai: 'ai', telegram: 'telegram' };
@@ -571,8 +571,12 @@ async function veViec(goc) {
   const vung = h('div', { class: 'cot-viec-wrap' }, ...[1, 2, 3].map(() => h('div', { class: 'cot-viec', style: 'padding:16px' }, xuong(16, '40%'), h('div', { style: 'height:14px' }), xuong(70), h('div', { style: 'height:8px' }), xuong(70))));
   const locDuAn = h('div', { class: 'thanh-loc loc-du-an', 'aria-label': 'Lọc theo dự án' });
   const xem = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.xem === ma), onclick: () => { v.xem = ma; veViec(goc); } }, nhan);
-  thay(goc, form, h('div', { class: 'thanh-loc' }, tab('mo', 'Đang mở'), tab('xong', 'Đã xong'), v.tab === 'mo' ? h('span', { class: 'gian' }) : null, v.tab === 'mo' ? xem('han', 'Theo hạn') : null, v.tab === 'mo' ? xem('du-an', 'Theo dự án') : null), locDuAn, vung);
-  batKeoTha(vung, { khiTha: (d) => khiThaViec(d, v, napViec), nhanDuoc: (ma) => ma !== 'qua-han' && v.tab === 'mo' });
+  thay(goc, form, h('div', { class: 'thanh-loc' }, tab('mo', 'Đang mở'), tab('xong', 'Đã xong'), v.tab === 'mo' ? h('span', { class: 'gian' }) : null, v.tab === 'mo' ? xem('han', 'Theo hạn') : null, v.tab === 'mo' ? xem('du-an', 'Theo dự án') : null, v.tab === 'mo' && v.xem === 'du-an' ? h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.anTrong), title: 'Ẩn các cột dự án chưa có việc', onclick: () => { v.anTrong = !v.anTrong; napViec(); } }, 'Ẩn cột trống') : null), locDuAn, vung);
+  batKeoTha(vung, { khiTha: (d) => khiThaViec(d, v, napViec), nhanDuoc: (ma) => ma !== 'qua-han' && v.tab === 'mo',
+    khiThaCot: async (ids) => {
+      try { await api('/api/du-an/sap-xep', { method: 'POST', body: JSON.stringify({ ids }) }); bao('Đã lưu thứ tự dự án.'); } catch (err) { bao(err.message, { loi: true }); }
+      napViec();
+    } });
 
   function veLoc(viec) {
     const dem = (f) => viec.filter(f).length;
@@ -620,7 +624,7 @@ function cotTheoHan(ds, hn) {
 
 function cotTheoDuAn(ds, hn) {
   const cot = [...duAnDs.map((d) => ({ ma: `da-${d.id}`, ten: d.ten, loc: (x) => x.du_an_id === d.id })), { ma: 'da-khong', ten: 'Chưa xếp dự án', loc: (x) => !x.du_an_id }];
-  return cot.map((c) => ({ ...c, ds: ds.filter(c.loc) })).map((c) => h('section', { class: 'cot-viec', dataset: { cot: c.ma }, 'aria-label': c.ten },
+  return cot.map((c) => ({ ...c, ds: ds.filter(c.loc) })).filter((c) => !(trang.viec.anTrong && !c.ds.length && c.ma !== 'da-khong')).map((c) => h('section', { class: 'cot-viec', dataset: { cot: c.ma }, 'aria-label': c.ten },
     h('header', {}, h('h2', { text: c.ten }), h('span', { text: String(c.ds.length) })),
     c.ds.length ? h('ul', {}, ...c.ds.map((x) => theViec(x, hn))) : h('p', { class: 'cot-trong', text: 'Kéo việc vào đây.' }),
   ));

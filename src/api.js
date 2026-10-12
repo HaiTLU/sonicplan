@@ -10,7 +10,7 @@ import { kiemCauHinhGithub, thuGithub } from './github.js';
 import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from './google.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
 import { dongBoKho, goKetNoiKho, hoanTatDangNhapKho, taoDiaChiDangNhapKho } from './kho.js';
-import { dsDuAnKemSo, lichSuDuAn, suaDuAn, taoDuAn, xoaDuAn, ghiSuKien } from './du-an.js';
+import { dsDuAnKemSo, lichSuDuAn, sapXepDuAn, suaDuAn, taoDuAn, xoaDuAn, ghiSuKien } from './du-an.js';
 import { caiBot, layBot, maNoiTelegram } from './telegram.js';
 import { chuanHoaCauHinhAi, dangViecMoi, docTichHop, giaiTichHop, guiDiaChiNhan, KHOA_TICH_HOP, kiemDiaChiNhan, luuTichHop, thuAiNgoai, xoaTichHop } from './tich-hop.js';
 import { bam, cat, json, loi, maNgauNhien, ngayVN } from './tien-ich.js';
@@ -58,6 +58,10 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   if (p === '/api/du-an' && m === 'POST') {
     const r = await taoDuAn(env, tc, await yeuCau.json().catch(() => ({})));
     return r.loi ? loi(r.ma || 400, r.loi) : json({ id: r.id }, 201);
+  }
+  if (p === '/api/du-an/sap-xep' && m === 'POST') {
+    const r = await sapXepDuAn(env, tc, (await yeuCau.json().catch(() => ({}))).ids);
+    return r.loi ? loi(400, r.loi) : json({ ok: true });
   }
   if ((khop = p.match(/^\/api\/du-an\/(\d+)\/lich-su$/)) && m === 'GET') {
     const r = await lichSuDuAn(env, tc, Number(khop[1]));

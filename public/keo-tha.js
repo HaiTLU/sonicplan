@@ -5,7 +5,7 @@ const GIU_MS = 380;
 const NGUONG_PX = 6;
 
 // vung: phần tử chứa các cột. khiTha({ id, tuCot, denCot, ids }) chạy khi thả vào một cột nhận được; ids là thứ tự mới của cột đích.
-export function batKeoTha(vung, { khiTha, nhanDuoc = () => true }) {
+export function batKeoTha(vung, { khiTha, nhanDuoc = () => true, khiThaCot = null }) {
   let ban = null;
 
   const bo = () => {
@@ -37,9 +37,10 @@ export function batKeoTha(vung, { khiTha, nhanDuoc = () => true }) {
     ban.bong = bong;
     ban.lechX = ban.x - hcn.left;
     ban.lechY = ban.y - hcn.top;
-    ban.cho = document.createElement('li');
-    ban.cho.className = 'cho-tha';
-    ban.cho.style.height = `${Math.min(hcn.height, 90)}px`;
+    ban.cho = document.createElement(ban.mode === 'cot' ? 'div' : 'li');
+    ban.cho.className = ban.mode === 'cot' ? 'cho-tha cho-tha-cot' : 'cho-tha';
+    ban.cho.style.height = `${Math.min(hcn.height, ban.mode === 'cot' ? 200 : 90)}px`;
+    if (ban.mode === 'cot') { bong.style.maxHeight = '170px'; bong.style.overflow = 'hidden'; }
     the.classList.add('dang-keo');
     document.body.classList.add('dang-keo-tha');
     ban.dang = true;
@@ -56,6 +57,7 @@ export function batKeoTha(vung, { khiTha, nhanDuoc = () => true }) {
   function capNhat() {
     if (!ban?.dang) return;
     ban.bong.style.transform = `translate(${ban.x - ban.lechX - parseFloat(ban.bong.style.left)}px, ${ban.y - ban.lechY - parseFloat(ban.bong.style.top)}px) rotate(1.5deg)`;
+    if (ban.mode === 'cot') { capNhatCot(); return; }
     const cot = cotDuoi();
     vung.querySelectorAll('.dich-tha').forEach((c) => c !== cot && c.classList.remove('dich-tha'));
     if (!cot) { ban.cho.remove(); ban.cot = null; return; }
@@ -70,6 +72,16 @@ export function batKeoTha(vung, { khiTha, nhanDuoc = () => true }) {
     const cacThe = [...ul.querySelectorAll(':scope > .the-viec:not(.dang-keo)')];
     const sau = cacThe.find((t) => { const r = t.getBoundingClientRect(); return ban.y < r.top + r.height / 2; });
     if (sau) { if (ban.cho.nextSibling !== sau || ban.cho.parentNode !== ul) ul.insertBefore(ban.cho, sau); } else if (ban.cho.parentNode !== ul || ban.cho.nextSibling) ul.append(ban.cho);
+  }
+
+  // Kéo cả cột dự án: chèn chỗ giữ vào giữa các cột theo thứ tự đọc; "Chưa xếp dự án" luôn ở cuối.
+  function capNhatCot() {
+    const cacCot = [...vung.querySelectorAll(':scope > [data-cot^="da-"]')].filter((c) => c !== ban.the && c.dataset.cot !== 'da-khong');
+    const sau = cacCot.find((c) => { const r = c.getBoundingClientRect(); return ban.y < r.top || (ban.y < r.bottom && ban.x < r.left + r.width / 2); });
+    const cuoi = vung.querySelector(':scope > [data-cot="da-khong"]');
+    const truoc = sau || cuoi;
+    if (truoc) { if (ban.cho.nextSibling !== truoc) vung.insertBefore(ban.cho, truoc); } else vung.append(ban.cho);
+    ban.cot = vung;
   }
 
   // Cuộn trang khi kéo sát mép trên hoặc dưới.
@@ -97,6 +109,17 @@ export function batKeoTha(vung, { khiTha, nhanDuoc = () => true }) {
   async function tha(e) {
     if (!ban || e.pointerId !== ban.pointerId) return;
     if (!ban.dang) { bo(); return; }
+    if (ban.mode === 'cot') {
+      const { the: cotKeo, cho: choCot } = ban;
+      if (choCot.parentNode) choCot.replaceWith(cotKeo);
+      const ids = [...vung.querySelectorAll(':scope > [data-cot^="da-"]')].map((c) => c.dataset.cot).filter((m) => m !== 'da-khong').map((m) => Number(m.slice(3)));
+      bo();
+      const chan2 = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+      window.addEventListener('click', chan2, { capture: true });
+      setTimeout(() => window.removeEventListener('click', chan2, { capture: true }), 80);
+      await khiThaCot(ids);
+      return;
+    }
     const { the, cot, cho } = ban;
     const tuCot = the.closest('[data-cot]')?.dataset.cot;
     let ids = null;
@@ -119,10 +142,16 @@ export function batKeoTha(vung, { khiTha, nhanDuoc = () => true }) {
 
   vung.addEventListener('pointerdown', (e) => {
     if (ban || e.button > 0) return;
-    const the = e.target.closest('.the-viec');
-    if (!the || !the.dataset.id || e.target.closest('input, a, select, textarea')) return;
-    if (!vung.contains(the) || !the.closest('[data-cot]')) return;
-    ban = { the, pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, camUng: e.pointerType !== 'mouse', dang: false };
+    let the = e.target.closest('.the-viec');
+    let mode = 'the';
+    if (!the && khiThaCot) {
+      const dau = e.target.closest('.cot-viec > header');
+      const cotEl = dau?.parentElement;
+      if (cotEl && vung.contains(cotEl) && /^da-\d+$/.test(cotEl.dataset.cot || '')) { the = cotEl; mode = 'cot'; }
+    }
+    if (!the || e.target.closest('input, a, select, textarea')) return;
+    if (mode === 'the' && (!the.dataset.id || !vung.contains(the) || !the.closest('[data-cot]'))) return;
+    ban = { mode, the, pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, camUng: e.pointerType !== 'mouse', dang: false };
     if (ban.camUng) ban.hen = setTimeout(() => { if (ban && !ban.dang) { ban.camUng = false; batDau(); ban.khung = requestAnimationFrame(tuCuon); } }, GIU_MS);
     document.addEventListener('pointermove', dichuyen);
     document.addEventListener('pointerup', tha);

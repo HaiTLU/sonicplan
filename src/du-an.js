@@ -135,3 +135,13 @@ export async function lichSuDuAn(env, tc, id) {
   const dem = (t) => viec.results.find((r) => r.trang_thai === t)?.so || 0;
   return { du_an: { ...d, tu_khoa: docTuKhoa(d.tu_khoa) }, dang_mo: dem('mo'), da_xong: dem('xong'), su_kien: sk.results, tep: tep.results };
 }
+
+// Lưu thứ tự các dự án (kéo cột ở trang Việc): ids từ đầu tới cuối.
+export async function sapXepDuAn(env, tc, ids) {
+  const ds = Array.isArray(ids) ? ids.map(Number) : [];
+  if (!ds.length || ds.length > DU_AN_TOI_DA || ds.some((x) => !Number.isInteger(x) || x <= 0)) return { loi: 'Danh sách dự án không hợp lệ.' };
+  const cau = ds.map((id, i) => env.CSDL.prepare('UPDATE du_an SET thu_tu = ?1 WHERE id = ?2 AND to_chuc_id = ?3').bind(i + 1, id, tc));
+  if (env.CSDL.batch) await env.CSDL.batch(cau);
+  else for (const c of cau) await c.run();
+  return {};
+}
