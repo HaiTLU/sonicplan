@@ -27,6 +27,7 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   const tc = phien.to_chuc.id;
   let khop;
 
+  if (p === '/api/phien-ban' && m === 'GET') return json({ ban: env.PHIEN_BAN || '' });
   if (p === '/api/toi' && m === 'GET') return json({ email: phien.email, nguoi_dung: phien.nguoi_dung, to_chuc: phien.to_chuc, cac_to_chuc: phien.cac_to_chuc });
   if (p === '/api/tong-quan' && m === 'GET') return json(await tongQuan(env, tc));
   if (p === '/api/tinh-trang' && m === 'GET') return json(await layTinhTrang(env, tc));

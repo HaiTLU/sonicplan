@@ -1641,3 +1641,24 @@ try {
   if ((navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 2) document.documentElement.classList.add('may-yeu');
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('/sw.js').catch(() => {});
 } catch { /* bỏ qua */ }
+
+// ---------- Tự cập nhật: trang mở lâu ngày vẫn lên bản mới ----------
+// Hỏi máy chủ mã phiên bản mỗi 2 phút và khi quay lại thẻ. Khác mã thì hiện thanh báo, và tự tải lại khi không có ngăn nào đang mở.
+let banDau = null;
+let thanhBanMoi = null;
+async function kiemBanMoi() {
+  try {
+    const { ban } = await api('/api/phien-ban');
+    if (!ban) return;
+    if (banDau === null) { banDau = ban; return; }
+    if (ban === banDau) return;
+    if (!document.querySelector('dialog[open]') && document.hidden) { location.reload(); return; }
+    if (!thanhBanMoi) {
+      thanhBanMoi = h('div', { class: 'thanh-ban-moi', role: 'status' }, h('span', { text: 'Sonicplan có bản mới.' }), h('button', { class: 'nut nut-chinh nut-nho', type: 'button', text: 'Tải lại', onclick: () => location.reload() }));
+      document.body.append(thanhBanMoi);
+    }
+  } catch { /* mất mạng: thử lại lần sau */ }
+}
+kiemBanMoi();
+setInterval(kiemBanMoi, 120000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) kiemBanMoi(); });
