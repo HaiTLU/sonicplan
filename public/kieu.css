@@ -383,10 +383,14 @@ td.ghi-chu { max-width: 30rem; overflow-wrap: anywhere; color: var(--chu-2); }
 .luong-zalo .tin-cu { align-self: center; margin-bottom: 10px; }
 .ngay-phan { display: flex; justify-content: center; margin: 14px 0 8px; }
 .ngay-phan span { font-size: 12px; color: var(--phu); background: var(--mat-2); border: 1px solid var(--vach); padding: 3px 12px; border-radius: 999px; }
-.tin-zalo { display: flex; flex-direction: column; align-items: flex-start; max-width: min(78%, 620px); margin-top: 8px; }
+.tin-zalo { display: flex; flex-direction: row; align-items: flex-end; gap: 8px; max-width: min(82%, 640px); margin-top: 8px; }
+.tin-zalo .cot-tin { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.tin-zalo.toi .cot-tin { align-items: flex-end; }
+.tin-zalo > .anh-zalo, .tin-zalo > .cho-anh { width: 30px; height: 30px; font-size: 11px; flex: none; }
+.tin-zalo > .anh-zalo { border-radius: 50%; }
 .tin-zalo.lien { margin-top: 0; }
 .tin-zalo.toi { align-self: flex-end; align-items: flex-end; }
-.tin-zalo .ten-gui { font-size: 12px; font-weight: 600; color: var(--zalo); margin: 0 0 3px 12px; }
+.tin-zalo .ten-gui { font-size: 12px; font-weight: 600; color: var(--zalo); margin: 0 0 3px 4px; }
 .bong-chat { position: relative; padding: 8px 12px 6px; border-radius: 16px 16px 16px 5px; background: var(--mat-3); color: var(--chu); border: 1px solid var(--vach); }
 .tin-zalo.toi .bong-chat { border-radius: 16px 16px 5px 16px; background: color-mix(in srgb, var(--zalo) 22%, var(--mat)); border-color: color-mix(in srgb, var(--zalo) 35%, transparent); }
 .tin-zalo.lien .bong-chat { border-top-left-radius: 5px; }
@@ -760,3 +764,24 @@ dialog::backdrop { background: rgba(6, 9, 15, .6); }
 
 .tong-hop { padding: 14px; grid-column: 1 / -1; display: grid; gap: 10px; }
 .van-ban-tong-hop { margin: 0; white-space: pre-wrap; word-break: break-word; font: inherit; line-height: 1.6; max-width: 78ch; }
+
+/* Bong bóng Zalo: ảnh, tệp, thẻ liên kết */
+.bong-chat.co-anh { padding: 4px 4px 6px; }
+.bong-chat.co-anh time { padding-right: 8px; }
+.anh-tin { display: block; padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: 12px; overflow: hidden; }
+.anh-tin img { display: block; max-width: min(300px, 62vw); max-height: 320px; width: auto; height: auto; border-radius: 12px; background: var(--mat-2); min-width: 120px; min-height: 80px; object-fit: cover; }
+.anh-hong { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; padding: 14px 16px; min-width: 180px; color: var(--phu); }
+.anh-hong a { color: var(--nhan); font-size: 13px; }
+.the-tep-zalo { display: flex; align-items: center; gap: 10px; min-width: 220px; max-width: 100%; padding: 8px 10px; margin: 2px 0; border-radius: 12px; border: 1px solid var(--vach); background: var(--mat-2); color: inherit; text-align: left; text-decoration: none; cursor: pointer; font: inherit; }
+.the-tep-zalo:hover { border-color: var(--nhan); }
+.the-tep-zalo .tt-tep { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.the-tep-zalo strong { font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
+.the-tep-zalo small { color: var(--phu); font-size: 12px; }
+.ic-tep { flex: none; width: 40px; height: 44px; display: grid; place-items: center; border-radius: 8px; font: 700 11px/1 var(--phong); color: #fff; background: #6b7a8f; }
+.ic-tep.pdf { background: #d9483b; } .ic-tep.doc { background: #2f6fd6; } .ic-tep.xls { background: #1e8e5a; } .ic-tep.ppt { background: #d9772b; } .ic-tep.zip { background: #8a6bd1; }
+.the-lien-ket { display: flex; flex-direction: column; gap: 3px; max-width: 320px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--vach); background: var(--mat-2); color: inherit; text-decoration: none; }
+.the-lien-ket strong { font-size: 14px; overflow-wrap: anywhere; }
+.the-lien-ket span { font-size: 13px; color: var(--phu); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.the-lien-ket small { font-size: 12px; color: var(--nhan); }
+.bong-chat .chu-tin a { color: var(--nhan); overflow-wrap: anywhere; }
+.bong-chat .chu-tin.nhat { color: var(--phu); font-style: italic; }

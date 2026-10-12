@@ -117,3 +117,10 @@ body::before, body::after { display: none; }
 
 /* Chữ liên kết và viền focus theo màu mới. */
 :focus-visible { outline-color: var(--nhan); }
+
+/* Thẻ ảnh, tệp, liên kết trong bong bóng của mình (nền teal, chữ navy). */
+.tin-zalo.toi .the-tep-zalo, .tin-zalo.toi .the-lien-ket { background: rgba(255, 255, 255, .6); border-color: rgba(2, 21, 42, .14); color: var(--navy); }
+.tin-zalo.toi .the-tep-zalo small, .tin-zalo.toi .the-lien-ket span, .tin-zalo.toi .the-lien-ket small { color: rgba(2, 21, 42, .72); }
+.tin-zalo.toi .bong-chat .chu-tin a, .tin-zalo.toi .anh-hong a { color: var(--navy); text-decoration: underline; }
+.tin-zalo.toi .anh-hong, .tin-zalo.toi .chu-tin.nhat { color: rgba(2, 21, 42, .72); }
+.bong-chat.co-anh { padding: 4px 4px 6px; }

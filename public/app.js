@@ -1,5 +1,7 @@
 // Giao diện Sonicplan: một trang, chuyển mục theo dấu #, đọc ghi dữ liệu qua /api.
 
+import { mienCuaUrl, nhanTep, phanTichTin, tachLienKet } from './zalo-tin.js';
+
 const MUI_GIO = 'Asia/Ho_Chi_Minh';
 const fmt = {
   gioPhut: new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: MUI_GIO }),
@@ -869,6 +871,89 @@ function nhanNgayTin(iso) {
   if (ngay === congNgay(homNay(), -1)) return 'Hôm qua';
   return fmt.ngayDai.format(d);
 }
+
+// ---- Nội dung một bong bóng Zalo: ảnh, tệp, thẻ liên kết... ----
+const daNapTin = new Set();
+
+function moAnhNgoai(url) {
+  const hop = h('dialog', { class: 'xem-tep', 'aria-label': 'Xem ảnh' },
+    h('header', {}, h('div', {}, h('strong', { text: 'Ảnh trong tin nhắn' })), h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: 'Đóng', onclick: () => hop.close() })),
+    h('div', { class: 'khung-xem anh' }, h('img', { src: url, alt: 'Ảnh trong tin nhắn', referrerpolicy: 'no-referrer' })));
+  hop.addEventListener('close', () => hop.remove());
+  hop.addEventListener('click', (ev) => { if (ev.target === hop) hop.close(); });
+  document.body.append(hop);
+  hop.showModal();
+}
+
+// Ảnh hiện thu nhỏ trong bong bóng, bấm thì phóng to. tep có sẵn thì dùng bản lưu, chưa có thì hiện từ Zalo rồi tải về kho.
+function anhTrongTin(m, tep, urlNgoai) {
+  const nut = h('button', { class: 'anh-tin', type: 'button', 'aria-label': 'Phóng to ảnh' });
+  const hong = () => nut.replaceChildren(h('span', { class: 'anh-hong' }, icon('tep'), h('small', { text: 'Ảnh không còn tải được' }), urlNgoai ? h('a', { href: urlNgoai, target: '_blank', rel: 'noopener noreferrer', text: 'Mở ảnh gốc' }) : null));
+  const img = h('img', { loading: 'lazy', alt: 'Ảnh trong tin nhắn', referrerpolicy: 'no-referrer', src: tep ? `/api/tep/${tep.id}/xem` : urlNgoai });
+  const napVe = () => api(`/api/tin/${m.id}/nap`, { method: 'POST' }).then((r) => { tep = r.tep; return r.tep; });
+  img.addEventListener('load', () => {
+    if (!tep && !daNapTin.has(m.id)) { daNapTin.add(m.id); napVe().catch(() => {}); }
+  });
+  img.addEventListener('error', async () => {
+    if (!img.dataset.thu && urlNgoai) {
+      img.dataset.thu = '1';
+      try { await napVe(); img.src = `/api/tep/${tep.id}/xem`; return; } catch { /* hiện ảnh hỏng */ }
+    }
+    hong();
+  });
+  nut.addEventListener('click', () => { if (tep) moXemTep(tep, 'anh'); else moAnhNgoai(urlNgoai); });
+  nut.append(img);
+  return nut;
+}
+
+function theTep(ten, kichCo, bam, trangThai) {
+  const { nhan, nhom } = nhanTep(ten);
+  const noi = [h('span', { class: `ic-tep ${nhom}`, text: nhan }), h('span', { class: 'tt-tep' }, h('strong', { text: ten }), h('small', { text: trangThai || (kichCo ? kichThuoc(kichCo) : 'Tệp đính kèm') }))];
+  return typeof bam === 'string' ? h('a', { class: 'the-tep-zalo', href: bam }, ...noi) : h('button', { class: 'the-tep-zalo', type: 'button', onclick: bam }, ...noi);
+}
+
+function tepTrongTin(f) {
+  const kieu = kieuXemTep(f.ten);
+  if (kieu === 'anh') return anhTrongTin({ id: f.tin_nhan_id }, f, null);
+  return kieu ? theTep(f.ten, f.kich_thuoc, () => moXemTep(f, kieu)) : theTep(f.ten, f.kich_thuoc, `/api/tep/${f.id}/tai`);
+}
+
+// Tệp chia sẻ chỉ có đường dẫn Zalo: bấm thì tải về kho rồi mở xem trước.
+function tepNgoaiTrongTin(m, ten) {
+  const nut = theTep(ten, 0, async () => {
+    const nho = nut.querySelector('small');
+    nho.textContent = 'Đang tải về…';
+    try {
+      const { tep } = await api(`/api/tin/${m.id}/nap`, { method: 'POST' });
+      nho.textContent = kichThuoc(tep.kich_thuoc);
+      const kieu = kieuXemTep(tep.ten);
+      if (kieu) moXemTep(tep, kieu); else location.assign(`/api/tep/${tep.id}/tai`);
+    } catch (e) { nho.textContent = e.message; }
+  }, 'Bấm để tải về và xem');
+  return nut;
+}
+
+function chuCoLienKet(chu) {
+  return h('span', { class: 'chu-tin' }, ...tachLienKet(chu).map((p) => (p.url ? h('a', { href: p.url, target: '_blank', rel: 'noopener noreferrer', text: p.url }) : p.chu)));
+}
+
+function noiDungBong(m, files, tepTheoTin) {
+  const k = phanTichTin(m.noi_dung);
+  const ra = [];
+  if (k.kieu === 'anh') ra.push(anhTrongTin(m, files[0] || null, k.url));
+  else if (k.kieu === 'tep-ngoai') ra.push(files[0] ? tepTrongTin(files[0]) : tepNgoaiTrongTin(m, k.ten));
+  else if (k.kieu === 'tep-gui') { ra.push(...files.map(tepTrongTin)); if (k.chu) ra.push(chuCoLienKet(k.chu)); }
+  else if (k.kieu === 'the-lien-ket') ra.push(h('a', { class: 'the-lien-ket', href: k.url, target: '_blank', rel: 'noopener noreferrer' }, h('strong', { text: k.tieu_de }), k.mo_ta ? h('span', { text: k.mo_ta }) : null, h('small', { text: k.mien })));
+  else if (k.kieu === 'danh-thiep') ra.push(h('div', { class: 'the-lien-ket' }, h('strong', { text: k.ten || 'Danh thiếp' }), h('span', { text: k.dien_thoai }), h('small', { text: 'Danh thiếp Zalo' })));
+  else if (k.kieu === 'thu-hoi') ra.push(h('span', { class: 'chu-tin nhat', text: 'Tin nhắn đã thu hồi' }));
+  else if (k.kieu === 'nhan-dan') ra.push(h('span', { class: 'chu-tin nhat', text: 'Đã gửi một nhãn dán' }));
+  else if (k.kieu === 'binh-chon') ra.push(h('span', { class: 'chu-tin nhat', text: 'Bình chọn trong nhóm' }));
+  else if (k.kieu === 'video') ra.push(h('span', { class: 'chu-tin nhat', text: 'Đã gửi một video (xem trong Zalo)' }));
+  else ra.push(chuCoLienKet(k.chu));
+  if (files.length && !['tep-gui', 'anh', 'tep-ngoai'].includes(k.kieu)) ra.push(...files.map(tepTrongTin));
+  return { nut: ra, coAnh: k.kieu === 'anh' || (k.kieu === 'tep-gui' && files.some((f) => kieuXemTep(f.ten) === 'anh')) };
+}
+
 const khoaHoiThoai = (loai, ten) => `${loai}~${encodeURIComponent(ten)}`;
 
 async function veZalo(goc, thamSo) {
@@ -950,13 +1035,14 @@ async function veZalo(goc, thamSo) {
         const lien = truoc && !ngayMoi && truoc.nguoi_gui === m.nguoi_gui && Date.parse(m.thoi_diem) - Date.parse(truoc.thoi_diem) < 5 * 60000;
         const toi = m.nguoi_gui === 'Tôi';
         const files = theoTin.get(m.id) || [];
-        const chiTep = files.length && /^Gửi tệp:/.test(m.noi_dung || '');
+        const { nut, coAnh } = noiDungBong(m, files);
+        const ten = m.nguoi_gui || 'Không rõ';
+        const bong = h('div', { class: `bong-chat${coAnh ? ' co-anh' : ''}` }, ...nut, h('time', { datetime: m.thoi_diem, text: fmt.gioPhut.format(new Date(m.thoi_diem)) }));
         con.push(h('div', { class: `tin-zalo${toi ? ' toi' : ''}${lien ? ' lien' : ''}` },
-          !toi && loai === 'nhom' && !lien ? h('span', { class: 'ten-gui', text: m.nguoi_gui || 'Không rõ' }) : null,
-          h('div', { class: 'bong-chat' },
-            chiTep ? null : h('span', { class: 'chu-tin', text: m.noi_dung || '' }),
-            ...files.map((f) => h('a', { class: 'tep-dinh', href: `/api/tep/${f.id}/tai` }, icon('tai'), f.ten, h('small', { text: kichThuoc(f.kich_thuoc) }))),
-            h('time', { datetime: m.thoi_diem, text: fmt.gioPhut.format(new Date(m.thoi_diem)) }),
+          toi ? null : lien ? h('span', { class: 'cho-anh', 'aria-hidden': 'true' }) : anhZalo(ten, 'ca-nhan'),
+          h('div', { class: 'cot-tin' },
+            !toi && loai === 'nhom' && !lien ? h('span', { class: 'ten-gui', text: ten }) : null,
+            bong,
           ),
         ));
         truoc = m;

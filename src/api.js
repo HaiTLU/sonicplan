@@ -1,6 +1,7 @@
 // API cho giao diện. Mọi hàm nhận phien (người dùng và tổ chức đã xác định) và chỉ đọc ghi
 // dữ liệu của phien.to_chuc.id.
 
+import { napTepNgoai } from './zalo-ngoai.js';
 import { docTongHopCuoi, tongHopChoToChuc } from './tong-hop.js';
 import { docHoSo, LOAI_GHI_NHO, luuHoSo, TOI_DA_HO_SO } from './ghi-nho.js';
 import { goMaNhanViec, taoMaNhanViec } from './nhan-ngoai.js';
@@ -37,6 +38,9 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   if (p === '/api/tin/da-xem-het' && m === 'POST') {
     await env.CSDL.prepare('UPDATE tin_nhan SET da_xem = 1 WHERE to_chuc_id = ?1 AND da_xem = 0').bind(tc).run();
     return json({ ok: true });
+  }
+  if ((khop = p.match(/^\/api\/tin\/(\d+)\/nap$/)) && m === 'POST') {
+    try { return json({ tep: await napTepNgoai(env, tc, Number(khop[1])) }); } catch (e) { return loi(e.trangThai || 502, String(e.message || e).slice(0, 200)); }
   }
   if ((khop = p.match(/^\/api\/tin\/(\d+)$/)) && m === 'GET') return motTin(env, tc, Number(khop[1]));
 
