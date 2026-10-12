@@ -43,6 +43,7 @@
       <symbol id="i-lich" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8 3.5v3M16 3.5v3M4 10h16"/></symbol>
       <symbol id="i-telegram" viewBox="0 0 24 24"><path d="m20.5 4.5-17 6.8 5.8 2.1 2 6.1 3.3-4.1 4.4 3.3z"/><path d="m9.3 13.4 7.4-5.4"/></symbol>
       <symbol id="i-ai" viewBox="0 0 24 24"><path d="M12 3.5 13.8 9 19.5 11l-5.7 2-1.8 5.5-1.8-5.5L4.5 11 10.2 9z"/><path d="M18.5 3.5v3M17 5h3"/></symbol>
+      <symbol id="i-du-an" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
       <symbol id="i-kho" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7.5" ry="2.5"/><path d="M4.5 6v6c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5V6"/><path d="M4.5 12v6c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5v-6"/></symbol>
       <symbol id="i-tai" viewBox="0 0 24 24"><path d="M12 4v11m0 0 4-4m-4 4-4-4"/><path d="M5 19.5h14"/></symbol>
       <symbol id="i-chep" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></symbol>
@@ -65,6 +66,7 @@
         <a href="#hop-tin" data-muc="hop-tin"><svg aria-hidden="true"><use href="#i-hop-tin"/></svg><span>Hộp tin</span><b class="dem" id="dem-tin" hidden></b></a>
         <a href="#zalo" data-muc="zalo"><svg aria-hidden="true"><use href="#i-zalo"/></svg><span>Zalo</span></a>
         <a href="#viec" data-muc="viec"><svg aria-hidden="true"><use href="#i-viec"/></svg><span>Việc</span><b class="dem" id="dem-viec" hidden></b></a>
+        <a href="#du-an" data-muc="du-an"><svg aria-hidden="true"><use href="#i-du-an"/></svg><span>Dự án</span></a>
         <a href="#ghi-nho" data-muc="ghi-nho"><svg aria-hidden="true"><use href="#i-ghi-nho"/></svg><span>Ghi nhớ</span></a>
         <a href="#tep" data-muc="tep"><svg aria-hidden="true"><use href="#i-tep"/></svg><span>Tệp</span></a>
         <a href="#luong" data-muc="luong"><svg aria-hidden="true"><use href="#i-lap"/></svg><span>Luồng</span></a>
@@ -97,6 +99,7 @@
         <section data-trang="hop-tin" hidden></section>
         <section data-trang="zalo" hidden></section>
         <section data-trang="viec" hidden></section>
+        <section data-trang="du-an" hidden></section>
         <section data-trang="ghi-nho" hidden></section>
         <section data-trang="tep" hidden></section>
         <section data-trang="luong" hidden></section>
@@ -135,6 +138,7 @@
         <button type="button" data-han="7">Tuần sau</button>
         <button type="button" data-han="">Không hạn</button>
       </div>
+      <label class="truong"><span>Dự án</span><select name="du_an_id"><option value="">Chưa xếp dự án</option></select></label>
       <label class="truong"><span>Ghi chú</span><textarea name="ghi_chu" rows="4" maxlength="2000" placeholder="Ai nhờ, cần chuẩn bị gì…"></textarea></label>
       <p class="loi-form" role="alert" hidden></p>
       <footer>

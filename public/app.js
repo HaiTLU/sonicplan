@@ -1,5 +1,6 @@
 // Giao diện Sonicplan: một trang, chuyển mục theo dấu #, đọc ghi dữ liệu qua /api.
 
+import { veDuAn } from './du-an.js';
 import { mienCuaUrl, nhanTep, phanTichTin, tachLienKet } from './zalo-tin.js';
 
 const MUI_GIO = 'Asia/Ho_Chi_Minh';
@@ -113,8 +114,8 @@ function tenNhom(ten) {
   return /^nh[oó]m\s/i.test(ten) ? ten : `Nhóm ${ten}`;
 }
 
-const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', q: '', chon: null, ds: [] }, viec: { tab: 'mo' }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
-const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy' };
+const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', q: '', chon: null, ds: [] }, viec: { tab: 'mo', duAn: 'tat-ca' }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
+const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'du-an': 'Dự án', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy' };
 const KET_QUA = { xong: 'Xong', loi: 'Lỗi', dang_chay: 'Đang chạy' };
 const ICON_TP = { 'may-chu': 'he-thong', csdl: 'kho', 'hen-gio': 'dong-ho', thu: 'thu', zalo: 'zalo', tep: 'tep', lich: 'lich', ai: 'ai', telegram: 'telegram' };
 const TEN_DEN = { xanh: 'ổn', vang: 'đang chờ', do: 'lỗi', xam: 'chưa dùng' };
@@ -527,6 +528,19 @@ async function veHopTin(goc, thamSo) {
 // =====================================================================
 // Việc
 // =====================================================================
+let duAnDs = [];
+
+// Nhãn nguồn của việc: Zalo kèm tên nhóm hoặc người, Gmail kèm người gửi, Telegram, Tự thêm.
+function nhanNguon(v) {
+  const ma = v.nguon || v.tin_nguon || 'tay';
+  const ai = (v.tin_nhom || v.tin_nguoi_gui || '').split('<')[0].trim();
+  if (ma === 'zalo') return { ma, icon: 'zalo', chu: ai ? `Zalo · ${ai}` : 'Zalo' };
+  if (ma === 'gmail') return { ma, icon: 'thu', chu: ai ? `Gmail · ${ai}` : 'Gmail' };
+  if (ma === 'telegram') return { ma, icon: 'telegram', chu: 'Telegram' };
+  if (ma === 'api') return { ma, icon: 'ai', chu: 'Dịch vụ ngoài' };
+  return { ma: 'tay', icon: 'cong', chu: 'Tự thêm' };
+}
+
 async function veViec(goc) {
   const v = trang.viec;
   const oTen = h('input', { name: 'tieu_de', placeholder: 'Thêm nhanh một việc rồi nhấn Enter…', maxlength: '200', 'aria-label': 'Tên việc', autocomplete: 'off' });
@@ -552,12 +566,23 @@ async function veViec(goc) {
 
   const tab = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.tab === ma), onclick: () => { v.tab = ma; veViec(goc); } }, nhan);
   const vung = h('div', { class: 'cot-viec-wrap' }, ...[1, 2, 3].map(() => h('div', { class: 'cot-viec', style: 'padding:16px' }, xuong(16, '40%'), h('div', { style: 'height:14px' }), xuong(70), h('div', { style: 'height:8px' }), xuong(70))));
-  thay(goc, form, h('div', { class: 'thanh-loc' }, tab('mo', 'Đang mở'), tab('xong', 'Đã xong')), vung);
+  const locDuAn = h('div', { class: 'thanh-loc loc-du-an', 'aria-label': 'Lọc theo dự án' });
+  thay(goc, form, h('div', { class: 'thanh-loc' }, tab('mo', 'Đang mở'), tab('xong', 'Đã xong')), locDuAn, vung);
+
+  function veLoc(viec) {
+    const dem = (f) => viec.filter(f).length;
+    const chip = (ma, nhan, so) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.duAn === ma), onclick: () => { v.duAn = ma; napViec(); } }, nhan, h('b', { text: String(so) }));
+    const ds = duAnDs.filter((d) => viec.some((x) => x.du_an_id === d.id) || v.duAn === d.id);
+    thay(locDuAn, chip('tat-ca', 'Tất cả dự án', viec.length), ...ds.map((d) => chip(d.id, d.ten, dem((x) => x.du_an_id === d.id))), dem((x) => !x.du_an_id) ? chip('khong', 'Chưa xếp dự án', dem((x) => !x.du_an_id)) : null);
+  }
 
   async function napViec() {
     try {
-      const { viec, hom_nay: hn } = await api(`/api/viec?trang_thai=${v.tab}`);
-      if (v.tab === 'mo') capNhatDem(null, viec.length);
+      const [{ viec: tatCa, hom_nay: hn }, dsDa] = await Promise.all([api(`/api/viec?trang_thai=${v.tab}`), api('/api/du-an').catch(() => ({ du_an: [] }))]);
+      duAnDs = dsDa.du_an;
+      if (v.tab === 'mo') capNhatDem(null, tatCa.length);
+      veLoc(tatCa);
+      const viec = v.duAn === 'tat-ca' ? tatCa : tatCa.filter((x) => (v.duAn === 'khong' ? !x.du_an_id : x.du_an_id === v.duAn));
       thay(vung, ...(v.tab === 'mo' ? cotTheoHan(viec, hn) : [cotXong(viec)]));
     } catch (e) {
       thay(vung, khungLoi(e, napViec));
@@ -603,7 +628,8 @@ function theViec(v, hn) {
       h('div', { class: 'chan' },
         v.han_ngay ? h('span', { class: hn && v.han_ngay < hn ? 'tre' : '' }, icon('lich'), ngayHienThi(v.han_ngay)) : null,
         v.gio_hen ? h('span', {}, icon('dong-ho'), v.gio_hen) : null,
-        v.tin_nguon ? h('span', { class: v.tin_nguon, title: v.tin_nhom || v.tin_nguoi_gui || '' }, icon(v.tin_nguon === 'zalo' ? 'zalo' : 'thu'), v.tin_nguoi_gui?.split('<')[0].trim() || (v.tin_nguon === 'zalo' ? 'Zalo' : 'Thư')) : null,
+        h('span', { class: `nguon ${nhanNguon(v).ma}`, title: `Nguồn: ${v.tin_nhom || v.tin_nguoi_gui || nhanNguon(v).chu}` }, icon(nhanNguon(v).icon), nhanNguon(v).chu),
+        v.du_an_ten ? h('a', { class: 'nhan-du-an', href: `#du-an/${v.du_an_id}`, title: 'Xem lịch sử dự án' }, icon('du-an'), v.du_an_ten) : h('span', { class: 'nhan-du-an chua', text: 'Chưa xếp dự án' }),
         v.xong_luc ? h('span', {}, `Xong ${luc(v.xong_luc)}`) : null,
       ),
     ),
@@ -624,6 +650,10 @@ function moNganViec(v, macDinh = {}) {
   document.getElementById('nut-huy-viec').hidden = !v;
   const du = v || { han_ngay: homNay(), ...macDinh };
   for (const k of ['tieu_de', 'han_ngay', 'gio_hen', 'ghi_chu']) formViec.elements[k].value = du[k] || '';
+  const chon = formViec.elements.du_an_id;
+  thay(chon, h('option', { value: '', text: 'Chưa xếp dự án' }), ...duAnDs.map((d) => h('option', { value: String(d.id), text: d.ten })));
+  chon.value = du.du_an_id ? String(du.du_an_id) : '';
+  if (!duAnDs.length) api('/api/du-an').then((r) => { duAnDs = r.du_an; thay(chon, h('option', { value: '', text: 'Chưa xếp dự án' }), ...duAnDs.map((d) => h('option', { value: String(d.id), text: d.ten }))); chon.value = du.du_an_id ? String(du.du_an_id) : ''; }).catch(() => {});
   ngan.showModal();
   formViec.elements.tieu_de.focus();
 }
@@ -637,6 +667,7 @@ formViec.addEventListener('submit', async (e) => {
   e.preventDefault();
   const loiEl = formViec.querySelector('.loi-form');
   const du = Object.fromEntries(['tieu_de', 'han_ngay', 'gio_hen', 'ghi_chu'].map((k) => [k, formViec.elements[k].value.trim() || null]));
+  du.du_an_id = formViec.elements.du_an_id.value ? Number(formViec.elements.du_an_id.value) : null;
   if (!du.tieu_de) {
     loiEl.textContent = 'Nhập tên việc.';
     loiEl.hidden = false;
@@ -1431,7 +1462,10 @@ async function veLuongTrang(goc) {
   const { veLuong } = await import('/luong.js');
   await veLuong(goc, { h, icon, api, bao, thay, khungLoi, xuong, luc, chayNgay });
 }
-const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy };
+function veDuAnTrang(goc, thamSo) {
+  return veDuAn(goc, thamSo, { h, icon, api, bao, thay, khungLoi, xuong });
+}
+const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'du-an': veDuAnTrang, 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy };
 let mucTruoc = null;
 
 async function moMuc() {
@@ -1464,6 +1498,7 @@ const LENH = [
   { nhan: 'Hộp tin', icon: 'hop-tin', lam: () => (location.hash = 'hop-tin'), goi: 'G H' },
   { nhan: 'Zalo', icon: 'zalo', lam: () => (location.hash = 'zalo'), goi: 'G Z' },
   { nhan: 'Việc', icon: 'viec', lam: () => (location.hash = 'viec'), goi: 'G V' },
+  { nhan: 'Dự án và lịch sử', icon: 'du-an', lam: () => (location.hash = 'du-an') },
   { nhan: 'Ghi nhớ', icon: 'ghi-nho', lam: () => (location.hash = 'ghi-nho') },
   { nhan: 'Tệp', icon: 'tep', lam: () => (location.hash = 'tep') },
   { nhan: 'Luồng (sơ đồ, chỉnh giờ)', icon: 'lap', lam: () => (location.hash = 'luong') },

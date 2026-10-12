@@ -8,6 +8,7 @@ import { docLuong } from './luong.js';
 import { baoSuKien, dangViecMoi, docTichHop } from './tich-hop.js';
 import { boSungHan, ngayChoGio } from './ngay-viet.js';
 import { cat, doGiong, ngayVN } from './tien-ich.js';
+import { chonDuAn, docDuAn, ghiSuKien } from './du-an.js';
 
 // Tiêu đề giống từ 80% với một việc đang mở trong 14 ngày gần đây thì coi là trùng.
 export const NGUONG_TRUNG = 0.8;
@@ -40,7 +41,7 @@ export function timTrung(tieuDe, cacViec) {
   return cacViec.find((v) => doGiong(v.tieu_de, tieuDe) >= NGUONG_TRUNG) || null;
 }
 
-export async function themViec(env, toChucId, viec, { tinNhanId = null, boQuaTrung = false } = {}) {
+export async function themViec(env, toChucId, viec, { tinNhanId = null, boQuaTrung = false, duAnId = null, nguon = null } = {}) {
   // Có giờ mà chưa có ngày thì không để rơi vào "Chưa có hạn": hôm nay, hoặc mai nếu giờ đã qua.
   if (viec.gio_hen && !viec.han_ngay) viec = { ...viec, han_ngay: ngayChoGio(viec.gio_hen) };
   if (!boQuaTrung) {
@@ -53,9 +54,10 @@ export async function themViec(env, toChucId, viec, { tinNhanId = null, boQuaTru
   }
   const bayGio = new Date().toISOString();
   const dong = await env.CSDL.prepare(
-    `INSERT INTO viec (to_chuc_id, tieu_de, ghi_chu, han_ngay, gio_hen, trang_thai, tin_nhan_id, tao_luc, cap_nhat_luc, nhom, uu_tien)
-     VALUES (?1, ?2, ?3, ?4, ?5, 'mo', ?6, ?7, ?7, ?8, ?9) RETURNING id`,
-  ).bind(toChucId, viec.tieu_de, viec.ghi_chu || null, viec.han_ngay || null, viec.gio_hen || null, tinNhanId, bayGio, NHOM_THEO_SO[viec.nhom] || null, viec.uu_tien || null).first();
+    `INSERT INTO viec (to_chuc_id, tieu_de, ghi_chu, han_ngay, gio_hen, trang_thai, tin_nhan_id, tao_luc, cap_nhat_luc, nhom, uu_tien, du_an_id, nguon)
+     VALUES (?1, ?2, ?3, ?4, ?5, 'mo', ?6, ?7, ?7, ?8, ?9, ?10, ?11) RETURNING id`,
+  ).bind(toChucId, viec.tieu_de, viec.ghi_chu || null, viec.han_ngay || null, viec.gio_hen || null, tinNhanId, bayGio, NHOM_THEO_SO[viec.nhom] || null, viec.uu_tien || null, duAnId, nguon || 'tay').first();
+  await ghiSuKien(env, toChucId, dong.id, 'tao', viec.tieu_de, tinNhanId).catch(() => {});
   await baoSuKien(env, toChucId, dangViecMoi({ ...viec, id: dong.id }));
   return { id: dong.id, trung: false };
 }
@@ -76,6 +78,7 @@ export async function ghiLienKet(env, toChucId, lienKet, tin, viecMoIds) {
     if (!hien || String(hien.ghi_chu || '').includes(dong)) continue;
     await env.CSDL.prepare('UPDATE viec SET ghi_chu = ?1, cap_nhat_luc = ?2 WHERE id = ?3 AND to_chuc_id = ?4')
       .bind(cat([hien.ghi_chu, dong].filter(Boolean).join('\n'), 4000), new Date().toISOString(), k.viec_id, toChucId).run();
+    await ghiSuKien(env, toChucId, k.viec_id, 'tien_do', `${nguon} của ${t.nguoi_gui || 'không rõ'}: ${k.tien_do}${teps.length ? ` (tệp: ${teps.map((x) => x.ten).join(', ')})` : ''}`, t.id || null).catch(() => {});
     so++;
   }
   return so;
@@ -99,6 +102,7 @@ async function chayLoTin(env, toChucId, tin, bayGio) {
     `SELECT id, tieu_de FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' ORDER BY id DESC LIMIT 40`,
   ).bind(toChucId).all();
 
+  const duAn = await docDuAn(env, toChucId).catch(() => []);
   const ghiNho = await ghiNhoChoAi(env, toChucId, tin.map((t) => `${t.nguoi_gui || ''} ${t.nhom || ''} ${t.tieu_de || ''} ${t.noi_dung || ''}`).join(' '));
 
   let ketQua;
@@ -111,6 +115,7 @@ async function chayLoTin(env, toChucId, tin, bayGio) {
     ketQua = await tachViec(env, tin.map((t, i) => ({ ...t, so: i + 1 })), ngayVN(), ten?.ten, Object.assign(tuyChon, {
       daCo,
       viecMo,
+      duAn,
       ghiNho,
       baoLoi: (thongBao) => ghiTinHieu(env, toChucId, 'ai', `Dịch vụ AI ngoài lỗi, đã dùng AI có sẵn: ${thongBao}`),
     }));
@@ -134,7 +139,8 @@ async function chayLoTin(env, toChucId, tin, bayGio) {
     const nguon = v.tin_so && tin[v.tin_so - 1];
     const keHoach = ghiChuKeHoach(v);
     const ghiChu = [v.ghi_chu, keHoach].filter(Boolean).join('\n\n') || null;
-    const r = await themViec(env, toChucId, { ...v, ghi_chu: ghiChu }, { tinNhanId: nguon ? nguon.id : null });
+    const duAnId = chonDuAn(duAn, v.du_an, `${v.tieu_de} ${nguon?.nhom || ''} ${nguon?.nguoi_gui || ''} ${nguon?.tieu_de || ''} ${String(nguon?.noi_dung || '').slice(0, 300)}`);
+    const r = await themViec(env, toChucId, { ...v, ghi_chu: ghiChu }, { tinNhanId: nguon ? nguon.id : null, duAnId, nguon: (nguon || (tin.length === 1 ? tin[0] : null))?.nguon || null });
     if (!r.trung) soViec++;
     viecRa.push({ id: r.id, tieu_de: v.tieu_de, han_ngay: v.han_ngay || null, gio_hen: v.gio_hen || null, trung: r.trung });
   }
