@@ -5,7 +5,7 @@ import { goiNgoai } from './goi-ngoai.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { giaiMa, maHoa } from './ma-hoa.js';
 
-const KHOA_CAI_DAT = { ai: 'tich_hop_ai', webhook: 'tich_hop_webhook', google_client: 'tich_hop_google_client', google: 'tich_hop_google', github: 'tich_hop_github' };
+const KHOA_CAI_DAT = { ai: 'tich_hop_ai', webhook: 'tich_hop_webhook', google_client: 'tich_hop_google_client', google: 'tich_hop_google', github: 'tich_hop_github', kho_drive: 'tich_hop_kho_drive' };
 export const CLAUDE_MAC_DINH = 'claude-sonnet-5-5';
 const OPENAI_MAC_DINH = { dia_chi: 'https://api.openai.com/v1', mo_hinh: 'gpt-4o-mini' };
 

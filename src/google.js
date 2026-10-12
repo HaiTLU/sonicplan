@@ -108,7 +108,7 @@ export function thanSuKien(viec) {
 
 // ---- Đăng nhập và mã truy cập ----
 
-async function doiMa(client, thamSo) {
+export async function doiMa(client, thamSo) {
   const ph = await goiNgoai(DIA_CHI_MA, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -156,7 +156,7 @@ export async function goKetNoiGoogle(env, tc) {
   await env.CSDL.prepare('DELETE FROM tin_hieu WHERE to_chuc_id = ?1 AND nguon = ?2').bind(tc, 'google').run();
 }
 
-async function goiGoogle(token, duongDan, { method = 'GET', body } = {}) {
+export async function goiGoogle(token, duongDan, { method = 'GET', body } = {}) {
   const ph = await goiNgoai(`https://${duongDan}`, {
     method,
     headers: { authorization: `Bearer ${token}`, ...(body ? { 'content-type': 'application/json' } : {}) },
@@ -260,7 +260,7 @@ export function thanTaiLen(meta, noiDung, loai) {
   return { ranh, thanBody };
 }
 
-async function taoThuMuc(token, ten, cha) {
+export async function taoThuMuc(token, ten, cha) {
   const r = await goiGoogle(token, 'www.googleapis.com/drive/v3/files?fields=id', {
     method: 'POST',
     body: { name: ten, mimeType: 'application/vnd.google-apps.folder', ...(cha ? { parents: [cha] } : {}) },

@@ -1042,6 +1042,42 @@ async function veKetNoi(goc, { moi = false } = {}) {
     );
   }
   const lanCuoiLoiGg = gg.lan_cuoi?.ghi_chu?.startsWith('Lỗi');
+  // Kho Drive: tài khoản Google Drive riêng để giữ bản lưu tin nhắn, thư, tệp, bộ nhớ AI
+  const kho = kn.kho_drive || { da_noi: null, lan_cuoi: null };
+  const ketQuaKho = new URLSearchParams(location.search).get('kho');
+  if (ketQuaKho) {
+    history.replaceState(null, '', `${location.pathname}#ket-noi`);
+    if (ketQuaKho === 'ok') bao('Đã nối Drive kho. Tin nhắn, thư, tệp và bộ nhớ AI sẽ được lưu sang đó mỗi 5 phút.');
+    else bao(ketQuaKho, { loi: true });
+  }
+  const khoiKho = [];
+  const loiKho = kho.lan_cuoi?.ghi_chu?.startsWith('Lỗi');
+  if (kho.da_noi) {
+    khoiKho.push(
+      h('p', { class: 'mo-ta', text: `Đã nối ${kho.da_noi.email || 'tài khoản Drive'}. ${kho.lan_cuoi ? `${kho.lan_cuoi.ghi_chu}, ${luc(kho.lan_cuoi.lan_cuoi)}.` : 'Chờ lượt lưu đầu tiên.'} Thư mục Sonicplan kho trên Drive đó có các mục Tin nhắn, Thư, Tệp, Bộ nhớ AI, Việc. Tin và thư gom thành một tệp mỗi ngày; Bộ nhớ AI và Việc ghi đè đúng một tệp. Hệ thống không bao giờ xóa gì trên Drive.` }),
+      laChuGg ? h('div', { class: 'hang-nut' },
+        h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
+          ev.target.disabled = true;
+          try { const r = await api('/api/kho-drive/luu-ngay', { method: 'POST' }); bao(r.loi.length ? r.loi.join('; ') : `Đã lưu: ${r.tep} tệp, ${r.tin} ngày tin và thư, ${r.bo_nho + r.viec} danh sách.`, r.loi.length ? { loi: true } : undefined); ve(); }
+          catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
+        } }, icon('kho'), 'Lưu ngay'),
+        h('a', { class: 'nut nut-phu', href: '/api/kho-drive/bat-dau' }, 'Đổi tài khoản Drive'),
+        h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/kho-drive', { method: 'DELETE' }); bao('Đã gỡ Drive kho. Tệp đã lưu vẫn còn trên Drive.'); ve(); } }, 'Gỡ kết nối')) : null,
+    );
+  } else if (!gg.co_client) {
+    khoiKho.push(h('p', { class: 'mo-ta', text: 'Khai Client ID và Secret ở thẻ Google bên trên trước. Drive kho dùng chung chúng, không cần tạo thêm gì ở Google Cloud.' }));
+  } else {
+    khoiKho.push(
+      h('p', { class: 'mo-ta', text: 'Bấm nút, chọn tài khoản Google có Drive muốn dùng làm kho (có thể khác tài khoản đã nối ở trên) và tick quyền Drive. Hệ thống chỉ thấy thư mục và tệp do chính nó tạo ra.' }),
+      h('p', { class: 'canh-bao-nho', text: 'Nếu ứng dụng Google Cloud đang ở chế độ Testing, thêm email của tài khoản đó vào Test users ở mục OAuth consent screen trước, nếu không Google sẽ chặn.' }),
+      laChuGg ? h('div', { class: 'hang-nut' }, h('a', { class: 'nut nut-chinh', href: '/api/kho-drive/bat-dau' }, icon('kho'), 'Chọn tài khoản Drive kho')) : null,
+    );
+  }
+  const theKho = h('section', { class: 'bang the-kn rong' },
+    dau('kho', 'Drive kho: nơi lưu lại tin nhắn, thư, bộ nhớ AI', 'Một Google Drive riêng giữ bản lưu của tin Zalo, thư, tệp đính kèm, bộ nhớ AI và danh sách việc, phòng khi cần tra lại hoặc đổi hệ thống.', kho.da_noi ? (loiKho ? 'do' : 'xanh') : 'xam', kho.da_noi ? (loiKho ? 'Đang lỗi' : 'Đã nối') : 'Chưa nối'),
+    loiKho ? h('p', { class: 'canh-bao-nho', text: kho.lan_cuoi.ghi_chu }) : null,
+    ...khoiKho,
+  );
   const theGoogle = h('section', { class: 'bang the-kn rong' },
     dau('thu', 'Google: Gmail, Lịch, Tasks, Drive', 'Đăng nhập một lần, hệ thống đọc thư, ghi việc sang Tasks và Lịch, lưu tệp đính kèm vào Drive giúp bạn.', gg.da_noi ? (lanCuoiLoiGg ? 'do' : 'xanh') : gg.co_client ? 'vang' : 'xam', gg.da_noi ? (lanCuoiLoiGg ? 'Đang lỗi' : 'Đã nối') : gg.co_client ? 'Chờ đăng nhập' : 'Chưa nối'),
     lanCuoiLoiGg ? h('p', { class: 'canh-bao-nho', text: gg.lan_cuoi.ghi_chu }) : null,
@@ -1232,7 +1268,7 @@ async function veKetNoi(goc, { moi = false } = {}) {
     ),
   );
 
-  thay(goc, h('div', { class: 'ds-kn vao' }, theGoogle, theThu, theZalo, theLich, theTele, theApi, theNen));
+  thay(goc, h('div', { class: 'ds-kn vao' }, theGoogle, theKho, theThu, theZalo, theLich, theTele, theApi, theNen));
 }
 
 // =====================================================================
