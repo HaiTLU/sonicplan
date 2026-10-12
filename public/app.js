@@ -895,6 +895,18 @@ function khoiNhanGoogle() {
   return goc;
 }
 
+// Mở thư mục kho trên Drive bằng đúng tài khoản đã nối (authuser theo email, tránh mở nhầm tài khoản đang đăng nhập trình duyệt).
+function linkKhoDrive(kho) {
+  const m = kho.thu_muc || {};
+  const cuaTk = kho.da_noi?.email ? `authuser=${encodeURIComponent(kho.da_noi.email)}` : '';
+  const dia = (id) => `https://drive.google.com/drive/folders/${encodeURIComponent(id)}${cuaTk ? `?${cuaTk}` : ''}`;
+  if (!m.goc) return h('p', { class: 'mo-ta', text: 'Thư mục trên Drive sẽ có sau lượt lưu đầu tiên. Bấm "Lưu ngay" để tạo.' });
+  const muc = [['tin', 'Tin nhắn'], ['thu', 'Thư'], ['tep', 'Tệp'], ['phan_loai', 'Phân loại'], ['bo_nho', 'Bộ nhớ AI'], ['viec', 'Việc']].filter(([k]) => m[k]);
+  return h('div', { class: 'truy-cap-kho' },
+    h('div', { class: 'hang-nut' }, h('a', { class: 'nut nut-phu', href: dia(m.goc), target: '_blank', rel: 'noopener noreferrer' }, icon('kho'), `Mở Sonicplan kho trên Drive${kho.da_noi?.email ? ` (${kho.da_noi.email})` : ''}`)),
+    muc.length ? h('div', { class: 'hang-nut' }, ...muc.map(([k, ten]) => h('a', { class: 'chip', href: dia(m[k]), target: '_blank', rel: 'noopener noreferrer' }, ten))) : null);
+}
+
 async function veTep(goc) {
   const t = trang.tep;
   t.nhom ||= 'du-an'; t.loai ||= 'tat-ca'; t.xem ||= 'luoi';
@@ -1383,6 +1395,7 @@ async function veKetNoi(goc, { moi = false } = {}) {
   if (gg.da_noi) {
     khoiGg.push(
       h('p', { class: 'mo-ta', text: `Đã nối ${gg.da_noi.email || 'tài khoản Google'}. ${gg.lan_cuoi ? `${gg.lan_cuoi.ghi_chu}, ${luc(gg.lan_cuoi.lan_cuoi)}.` : 'Chờ lượt đồng bộ đầu tiên.'} Thư mới vào hộp tin; việc mới sang Google Tasks, việc có ngày sang Lịch; việc bấm xong bên Tasks sẽ xong ở đây.${gg.da_noi.co_drive ? ' Tệp đính kèm lưu thêm vào thư mục Sonicplan trên Drive.' : ''}` }),
+      gg.da_noi.email ? h('div', { class: 'hang-nut' }, ...[['Mở Gmail', 'https://mail.google.com/mail/'], ['Mở Lịch', 'https://calendar.google.com/calendar/r'], ['Mở Tasks', 'https://tasks.google.com/tasks/'], ['Mở Drive', 'https://drive.google.com/drive/my-drive']].map(([ten, dia]) => h('a', { class: 'chip', href: `${dia}?authuser=${encodeURIComponent(gg.da_noi.email)}`, target: '_blank', rel: 'noopener noreferrer', title: `Mở bằng tài khoản ${gg.da_noi.email}` }, ten))) : null,
       laChuGg ? khoiNhanGoogle() : null,
       gg.da_noi.co_drive ? null : h('p', { class: 'canh-bao-nho', text: 'Chưa có quyền Drive nên tệp đính kèm mới chỉ nằm ở kho của hệ thống. Bật Google Drive API trong dự án Google Cloud, rồi bấm Đăng nhập lại và tick quyền Drive.' }),
       laChuGg && !gg.da_noi.co_drive ? h('div', { class: 'hang-nut' }, h('a', { class: 'nut nut-chinh', href: '/api/google/bat-dau' }, icon('thu'), 'Đăng nhập lại để thêm Drive')) : null,
@@ -1429,6 +1442,7 @@ async function veKetNoi(goc, { moi = false } = {}) {
   if (kho.da_noi) {
     khoiKho.push(
       h('p', { class: 'mo-ta', text: `Đã nối ${kho.da_noi.email || 'tài khoản Drive'}. ${kho.lan_cuoi ? `${kho.lan_cuoi.ghi_chu}, ${luc(kho.lan_cuoi.lan_cuoi)}.` : 'Chờ lượt lưu đầu tiên.'} Thư mục Sonicplan kho trên Drive đó có các mục Tin nhắn, Thư, Tệp, Bộ nhớ AI, Việc. Tin và thư gom thành một tệp mỗi ngày; Bộ nhớ AI và Việc ghi đè đúng một tệp. Hệ thống không bao giờ xóa gì trên Drive.` }),
+      linkKhoDrive(kho),
       laChuGg ? h('div', { class: 'hang-nut' },
         h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
           ev.target.disabled = true;
