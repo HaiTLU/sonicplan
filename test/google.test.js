@@ -1,7 +1,7 @@
 // Kiểm thử phần thuần của nối Google: địa chỉ đăng nhập, đọc thư Gmail, dựng việc và sự kiện.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { QUYEN_DRIVE, thanTaiLen, diaChiGoiLai, emailTuIdToken, kiemClient, QUYEN, taoDiaChiDangNhap, thanSuKien, thanTask, tinTuThuGmail } from '../src/google.js';
+import { QUYEN_DRIVE, thanTaiLen, diaChiGoiLai, emailTuIdToken, kiemClient, QUYEN, taoDiaChiDangNhap, thanSuKien, thanTask, tepTuThuGmail, tinTuThuGmail } from '../src/google.js';
 
 const b64 = (s) => Buffer.from(s).toString('base64url');
 
@@ -62,4 +62,18 @@ test('thân tải lên Drive: JSON mô tả rồi nội dung nhị phân nguyên
   const vt = Buffer.from(thanBody).indexOf(Buffer.from(nd));
   assert.ok(vt > 0);
   assert.equal(Buffer.from(thanBody).subarray(0, vt).toString().includes('"parents":["abc"]'), true);
+});
+
+test('tệp đính kèm Gmail: giữ tệp thật, bỏ ảnh nhúng nhỏ, lời mời lịch và video', () => {
+  const ds = tepTuThuGmail({ payload: { parts: [
+    { mimeType: 'text/plain', body: { data: 'eA' } },
+    { mimeType: 'application/pdf', filename: 'hop-dong.pdf', body: { attachmentId: 'a1', size: 5000 } },
+    { mimeType: 'image/png', filename: 'logo.png', headers: [{ name: 'Content-ID', value: '<x>' }], body: { attachmentId: 'a2', size: 3000 } },
+    { mimeType: 'image/jpeg', filename: 'anh.jpg', body: { attachmentId: 'a3', size: 300000 } },
+    { mimeType: 'text/calendar', filename: 'moi.ics', body: { attachmentId: 'a4', size: 800 } },
+    { mimeType: 'video/mp4', filename: 'v.mp4', body: { attachmentId: 'a5', size: 9000 } },
+    { mimeType: 'multipart/mixed', parts: [{ mimeType: 'application/zip', filename: 'x.zip', body: { attachmentId: 'a6', size: 99999999 } }] },
+  ] } });
+  assert.deepEqual(ds.map((t) => t.ma_tep), ['a1', 'a3']);
+  assert.equal(ds[0].ten, 'hop-dong.pdf');
 });
