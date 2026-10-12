@@ -970,10 +970,28 @@ async function veZalo(goc, thamSo) {
 // =====================================================================
 // Kết nối
 // =====================================================================
-async function veKetNoi(goc) {
-  const ve = () => veKetNoi(goc).catch((e) => bao(e.message, { loi: true }));
-  thay(goc, h('div', { class: 'ds-kn' }, ...[1, 2, 3, 4].map(() => h('div', { class: 'bang the-kn' }, xuong(44, '44px'), xuong(16, '60%'), xuong(80)))));
-  const kn = await api('/api/ket-noi');
+// Trang Kết nối hiện ngay bản đã lưu lần trước (sessionStorage), rồi lấy bản mới và vẽ lại nếu có khác.
+// Sau mỗi thao tác (ve) luôn lấy bản mới, không dùng bản lưu, để không hiện trạng thái cũ.
+const KHOA_LUU_KN = 'sonicplan-ket-noi';
+function layLuuKn() {
+  try { return JSON.parse(sessionStorage.getItem(KHOA_LUU_KN) || 'null'); } catch { return null; }
+}
+function ghiLuuKn(kn) {
+  try { sessionStorage.setItem(KHOA_LUU_KN, JSON.stringify(kn)); } catch {}
+}
+
+async function veKetNoi(goc, { moi = false } = {}) {
+  const ve = () => veKetNoi(goc, { moi: true }).catch((e) => bao(e.message, { loi: true }));
+  const luu = moi ? null : layLuuKn();
+  if (!luu) thay(goc, h('div', { class: 'ds-kn' }, ...[1, 2, 3, 4].map(() => h('div', { class: 'bang the-kn' }, xuong(44, '44px'), xuong(16, '60%'), xuong(80)))));
+  const kn = luu || await api('/api/ket-noi');
+  if (luu) {
+    api('/api/ket-noi').then((moiKn) => {
+      const doi = JSON.stringify(moiKn) !== JSON.stringify(luu);
+      ghiLuuKn(moiKn);
+      if (doi && location.hash.slice(1).split('/')[0] === 'ket-noi') ve();
+    }).catch(() => {});
+  } else ghiLuuKn(kn);
   const daoTrangThai = (den, chu) => h('span', { class: `trang-thai-kn ${den}`, text: chu });
   const dau = (ten, tieuDe, moTa, den, chu) => h('header', {}, h('span', { class: 'tp-icon', dataset: { den } }, icon(ten)), h('div', {}, h('h2', { text: tieuDe }), h('p', { text: moTa })), daoTrangThai(den, chu));
 

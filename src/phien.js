@@ -4,10 +4,14 @@
 
 import { kiemDangNhap } from './xac-thuc.js';
 
-export async function xacDinhPhien(yeuCau, env) {
-  const email = await layEmail(yeuCau, env);
-  if (!email.duoc) return { duoc: false, ma: 401, ly_do: email.ly_do };
+// Nhớ danh sách tổ chức của một email trong 30 giây (theo từng Worker đang chạy), để mỗi lần bấm
+// không phải hỏi D1 lại. Đổi quyền thành viên có hiệu lực chậm nhất sau 30 giây.
+const NHO_MS = 30000;
+const nho = new Map();
 
+async function docThanhVien(env, email) {
+  const co = nho.get(email);
+  if (co && Date.now() - co.luc < NHO_MS) return co.dong;
   const { results } = await env.CSDL.prepare(
     `SELECT n.id AS nguoi_dung_id, n.ten AS ten_nguoi_dung, t.id AS to_chuc_id, t.ten AS ten_to_chuc, t.goi, v.vai_tro
      FROM nguoi_dung n
@@ -15,7 +19,19 @@ export async function xacDinhPhien(yeuCau, env) {
      JOIN to_chuc t ON t.id = v.to_chuc_id
      WHERE n.email = ?1
      ORDER BY v.tao_luc`,
-  ).bind(email.email).all();
+  ).bind(email).all();
+  if (results.length) {
+    if (nho.size > 200) nho.clear();
+    nho.set(email, { luc: Date.now(), dong: results });
+  }
+  return results;
+}
+
+export async function xacDinhPhien(yeuCau, env) {
+  const email = await layEmail(yeuCau, env);
+  if (!email.duoc) return { duoc: false, ma: 401, ly_do: email.ly_do };
+
+  const results = await docThanhVien(env, email.email);
   if (!results.length) return { duoc: false, ma: 403, ly_do: 'Tài khoản chưa được mời vào tổ chức nào' };
 
   // Một người có thể thuộc nhiều tổ chức; chọn theo tiêu đề x-to-chuc, mặc định tổ chức đầu tiên.

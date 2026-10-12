@@ -8,20 +8,18 @@
   "observability": { "enabled": true },
   "preview_urls": false,
 
-  // Dịch vụ AI ngoài (Anthropic, OpenAI) chặn yêu cầu từ một số vùng, nên chạy Worker gần máy chủ ở Mỹ.
-  "placement": { "region": "aws:us-east-1" },
-
   // Địa chỉ trang. Khi triển khai, Cloudflare tự tạo bản ghi DNS và chứng chỉ cho tên miền này
   // (tên miền sonicrec.app phải nằm trong cùng tài khoản Cloudflare).
   // Tắt địa chỉ *.workers.dev để chỉ có một cửa vào, cửa này được Access bảo vệ.
   "routes": [{ "pattern": "plan.sonicrec.app", "custom_domain": true }],
   "workers_dev": false,
 
-  // Mọi yêu cầu đi qua Worker trước để kiểm đăng nhập, kể cả trang tĩnh.
+  // Chỉ API, địa chỉ nhận tin và lịch đi qua Worker. Trang tĩnh (html, css, js, phông) do Cloudflare phát thẳng
+  // từ biên gần người dùng, không đánh thức Worker; Access vẫn đứng trước cả tên miền nên vẫn phải đăng nhập.
   "assets": {
     "directory": "public",
     "binding": "ASSETS",
-    "run_worker_first": true,
+    "run_worker_first": ["/api/*", "/nhan/*", "/lich/*"],
     "not_found_handling": "single-page-application"
   },
 
