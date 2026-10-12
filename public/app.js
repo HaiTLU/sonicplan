@@ -1,6 +1,7 @@
 // Giao diện Sonicplan: một trang, chuyển mục theo dấu #, đọc ghi dữ liệu qua /api.
 
 import { veDuAn } from './du-an.js';
+import { batKeoTha } from './keo-tha.js';
 import { mienCuaUrl, nhanTep, phanTichTin, tachLienKet } from './zalo-tin.js';
 
 const MUI_GIO = 'Asia/Ho_Chi_Minh';
@@ -114,7 +115,7 @@ function tenNhom(ten) {
   return /^nh[oó]m\s/i.test(ten) ? ten : `Nhóm ${ten}`;
 }
 
-const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', q: '', chon: null, ds: [] }, viec: { tab: 'mo', duAn: 'tat-ca' }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
+const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', q: '', chon: null, ds: [] }, viec: { tab: 'mo', duAn: 'tat-ca', xem: 'han' }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
 const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'du-an': 'Dự án', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy' };
 const KET_QUA = { xong: 'Xong', loi: 'Lỗi', dang_chay: 'Đang chạy' };
 const ICON_TP = { 'may-chu': 'he-thong', csdl: 'kho', 'hen-gio': 'dong-ho', thu: 'thu', zalo: 'zalo', tep: 'tep', lich: 'lich', ai: 'ai', telegram: 'telegram' };
@@ -529,6 +530,8 @@ async function veHopTin(goc, thamSo) {
 // Việc
 // =====================================================================
 let duAnDs = [];
+let cacViec = new Map();
+let homNayCuaViec = '';
 
 // Nhãn nguồn của việc: Zalo kèm tên nhóm hoặc người, Gmail kèm người gửi, Telegram, Tự thêm.
 function nhanNguon(v) {
@@ -567,7 +570,9 @@ async function veViec(goc) {
   const tab = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.tab === ma), onclick: () => { v.tab = ma; veViec(goc); } }, nhan);
   const vung = h('div', { class: 'cot-viec-wrap' }, ...[1, 2, 3].map(() => h('div', { class: 'cot-viec', style: 'padding:16px' }, xuong(16, '40%'), h('div', { style: 'height:14px' }), xuong(70), h('div', { style: 'height:8px' }), xuong(70))));
   const locDuAn = h('div', { class: 'thanh-loc loc-du-an', 'aria-label': 'Lọc theo dự án' });
-  thay(goc, form, h('div', { class: 'thanh-loc' }, tab('mo', 'Đang mở'), tab('xong', 'Đã xong')), locDuAn, vung);
+  const xem = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.xem === ma), onclick: () => { v.xem = ma; veViec(goc); } }, nhan);
+  thay(goc, form, h('div', { class: 'thanh-loc' }, tab('mo', 'Đang mở'), tab('xong', 'Đã xong'), v.tab === 'mo' ? h('span', { class: 'gian' }) : null, v.tab === 'mo' ? xem('han', 'Theo hạn') : null, v.tab === 'mo' ? xem('du-an', 'Theo dự án') : null), locDuAn, vung);
+  batKeoTha(vung, { khiTha: (d) => khiThaViec(d, v, napViec), nhanDuoc: (ma) => ma !== 'qua-han' && v.tab === 'mo' });
 
   function veLoc(viec) {
     const dem = (f) => viec.filter(f).length;
@@ -583,7 +588,9 @@ async function veViec(goc) {
       if (v.tab === 'mo') capNhatDem(null, tatCa.length);
       veLoc(tatCa);
       const viec = v.duAn === 'tat-ca' ? tatCa : tatCa.filter((x) => (v.duAn === 'khong' ? !x.du_an_id : x.du_an_id === v.duAn));
-      thay(vung, ...(v.tab === 'mo' ? cotTheoHan(viec, hn) : [cotXong(viec)]));
+      cacViec = new Map(tatCa.map((x) => [x.id, x]));
+      homNayCuaViec = hn;
+      thay(vung, ...(v.tab === 'mo' ? (v.xem === 'du-an' ? cotTheoDuAn(viec, hn) : cotTheoHan(viec, hn)) : [cotXong(viec)]));
     } catch (e) {
       thay(vung, khungLoi(e, napViec));
     }
@@ -611,6 +618,40 @@ function cotTheoHan(ds, hn) {
     ));
 }
 
+function cotTheoDuAn(ds, hn) {
+  const cot = [...duAnDs.map((d) => ({ ma: `da-${d.id}`, ten: d.ten, loc: (x) => x.du_an_id === d.id })), { ma: 'da-khong', ten: 'Chưa xếp dự án', loc: (x) => !x.du_an_id }];
+  return cot.map((c) => ({ ...c, ds: ds.filter(c.loc) })).map((c) => h('section', { class: 'cot-viec', dataset: { cot: c.ma }, 'aria-label': c.ten },
+    h('header', {}, h('h2', { text: c.ten }), h('span', { text: String(c.ds.length) })),
+    c.ds.length ? h('ul', {}, ...c.ds.map((x) => theViec(x, hn))) : h('p', { class: 'cot-trong', text: 'Kéo việc vào đây.' }),
+  ));
+}
+
+// Thả thẻ vào cột: đổi hạn (xem theo hạn) hoặc đổi dự án (xem theo dự án), rồi lưu thứ tự cột đích.
+async function khiThaViec({ id, tuCot, denCot, ids }, v, napLai) {
+  const x = cacViec.get(id);
+  if (!x) return napLai();
+  const hn = homNayCuaViec;
+  const cuaDuAn = denCot.startsWith('da-');
+  const sua = {};
+  if (cuaDuAn) {
+    const moi = denCot === 'da-khong' ? null : Number(denCot.slice(3));
+    if (moi !== (x.du_an_id || null)) sua.du_an_id = moi;
+  } else if (tuCot !== denCot) {
+    const han = { 'hom-nay': hn, 'ngay-mai': congNgay(hn, 1), tuan: congNgay(hn, 3), sau: congNgay(hn, 14), khong: null }[denCot];
+    if (han !== undefined && han !== (x.han_ngay || null)) sua.han_ngay = han;
+  }
+  try {
+    if (Object.keys(sua).length) await api(`/api/viec/${id}`, { method: 'PATCH', body: JSON.stringify(sua) });
+    if (!cuaDuAn) await api('/api/viec/sap-xep', { method: 'POST', body: JSON.stringify({ ids }) });
+    const ten = { 'hom-nay': 'Hôm nay', 'ngay-mai': 'Ngày mai', tuan: '7 ngày tới', sau: 'Sau đó', khong: 'Chưa có hạn' }[denCot] || duAnDs.find((d) => `da-${d.id}` === denCot)?.ten || 'Chưa xếp dự án';
+    const cu = { han_ngay: x.han_ngay || null, du_an_id: x.du_an_id || null };
+    if (Object.keys(sua).length) bao(`Đã chuyển sang ${ten}.`, { hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${id}`, { method: 'PATCH', body: JSON.stringify(Object.fromEntries(Object.keys(sua).map((k) => [k, cu[k]]))) }); napLai(); } } });
+  } catch (err) {
+    bao(err.message, { loi: true });
+  }
+  napLai();
+}
+
 function cotXong(ds) {
   return h('section', { class: 'cot-viec', 'aria-label': 'Đã xong', style: 'grid-column: 1 / -1' },
     h('header', {}, h('h2', { text: 'Đã xong gần đây' }), h('span', { text: String(ds.length) })),
@@ -620,7 +661,7 @@ function cotXong(ds) {
 
 function theViec(v, hn) {
   const o = h('input', { class: 'o-xong', type: 'checkbox', checked: v.trang_thai === 'xong', 'aria-label': `${v.trang_thai === 'xong' ? 'Mở lại' : 'Đánh dấu xong'}: ${v.tieu_de}` });
-  const the = h('li', { class: 'the-viec' },
+  const the = h('li', { class: 'the-viec', dataset: { id: String(v.id) } },
     o,
     h('div', { style: 'min-width:0' },
       h('button', { class: 'ten-viec', type: 'button', text: v.tieu_de, onclick: () => moNganViec(v) }),

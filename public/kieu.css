@@ -825,3 +825,13 @@ dialog::backdrop { background: rgba(6, 9, 15, .6); }
 .khoi-du-an .bang-dau { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .khoi-du-an .bang-dau h2 { margin: 0; font-size: 18px; }
 .chi-tiet-du-an > a { text-decoration: none; }
+
+/* Kéo thả thẻ việc */
+.the-viec { -webkit-touch-callout: none; }
+.thanh-loc .gian { flex: 1; }
+body.dang-keo-tha, body.dang-keo-tha * { user-select: none; -webkit-user-select: none; cursor: grabbing; }
+.the-viec.dang-keo { opacity: .3; }
+.bong-keo { position: fixed; z-index: 90; margin: 0; pointer-events: none; list-style: none; box-shadow: 0 14px 34px rgba(8, 20, 40, .28); opacity: .96; will-change: transform; }
+.cho-tha { list-style: none; border-radius: 14px; border: 2px dashed var(--nhan); background: var(--nhan-nhat, var(--mat-3)); min-height: 44px; }
+.cot-viec.dich-tha { outline: 2px solid var(--nhan); outline-offset: -2px; }
+@media (hover: hover) { .the-viec { cursor: grab; } }

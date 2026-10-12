@@ -268,6 +268,31 @@ async function dongBoViec(env, tc, token) {
   }
   await ghiCaiDat(env, tc, 'google_tasks_moc', new Date(Date.now() - 5 * 60000).toISOString());
 
+  // Việc vừa đổi hạn, giờ hoặc tên (kéo thả, sửa): cập nhật Task và sự kiện Lịch đã có.
+  const daDoi = (await env.CSDL.prepare(
+    `SELECT id, tieu_de, ghi_chu, han_ngay, gio_hen, google_task_id, lich_event_id FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND can_dong_bo = 1 LIMIT 25`,
+  ).bind(tc).all()).results;
+  for (const v of daDoi) {
+    if (v.google_task_id) {
+      // Bỏ hạn thì phải gửi due rỗng mới xóa được hạn bên Google.
+      const thanT = { ...thanTask(v), due: v.han_ngay ? `${v.han_ngay}T00:00:00.000Z` : null };
+      await goiGoogle(token, `tasks.googleapis.com/tasks/v1/lists/@default/tasks/${v.google_task_id}`, { method: 'PATCH', body: { ...thanT, notes: thanT.notes ?? '' } }).catch((e) => { if (e.trangThai !== 404) throw e; });
+    }
+    if (v.lich_event_id) {
+      const dich = `www.googleapis.com/calendar/v3/calendars/primary/events/${v.lich_event_id}`;
+      if (!v.han_ngay) {
+        await goiGoogle(token, dich, { method: 'DELETE' }).catch((e) => { if (e.trangThai !== 404 && e.trangThai !== 410) throw e; });
+        await env.CSDL.prepare('UPDATE viec SET lich_event_id = NULL WHERE id = ?1').bind(v.id).run();
+      } else {
+        await goiGoogle(token, dich, { method: 'PATCH', body: thanSuKien(v) }).catch(async (e) => {
+          if (e.trangThai !== 404 && e.trangThai !== 410) throw e;
+          await env.CSDL.prepare('UPDATE viec SET lich_event_id = NULL WHERE id = ?1').bind(v.id).run(); // sự kiện đã bị xóa: tạo lại ở bước dưới
+        });
+      }
+    }
+    await env.CSDL.prepare('UPDATE viec SET can_dong_bo = 0 WHERE id = ?1').bind(v.id).run();
+  }
+
   // Lịch: việc còn mở có ngày hạn thành sự kiện; việc xong thì gỡ sự kiện.
   const canLich = (await env.CSDL.prepare(
     `SELECT id, tieu_de, ghi_chu, han_ngay, gio_hen FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay IS NOT NULL AND lich_event_id IS NULL ORDER BY han_ngay LIMIT 25`,
