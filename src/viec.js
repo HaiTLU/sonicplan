@@ -111,7 +111,7 @@ async function chayLoTin(env, toChucId, tin, bayGio) {
   } catch (e) {
     console.error('Lưu ghi nhớ lỗi', e);
   }
-  return { soViec, viec: viecRa };
+  return { soViec, viec: viecRa, soAi: ketQua.viec.length, duPhong: Boolean(tuyChon.duPhong) };
 }
 
 // Lấy tối đa 20 tin chưa tách của một tổ chức, đánh dấu "đang xử lý" để hai lượt chạy không làm trùng.
@@ -126,11 +126,11 @@ export async function tachViecChoToChuc(env, toChucId) {
   if (!tin.length) return { so_tin: 0, so_viec: 0 };
   tin.sort((a, b) => a.id - b.id);
 
-  const { soViec } = await chayLoTin(env, toChucId, tin, bayGio);
+  const { soViec, viec, soAi, duPhong } = await chayLoTin(env, toChucId, tin, bayGio);
   await env.CSDL.prepare(
     `UPDATE tin_nhan SET da_tach = 1 WHERE to_chuc_id = ?1 AND da_tach = 2 AND id IN (${tin.map((_, i) => `?${i + 2}`).join(',')})`,
   ).bind(toChucId, ...tin.map((t) => t.id)).run();
-  return { so_tin: tin.length, so_viec: soViec };
+  return { so_tin: tin.length, so_viec: soViec, so_ai: soAi, so_trung: viec.filter((v) => v.trung).length, du_phong: duPhong };
 }
 
 // Tin nhắn trực tiếp (Telegram, dịch vụ ngoài): đi qua cùng lõi AI như tin Zalo nhưng không nằm trong hộp tin.

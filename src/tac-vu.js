@@ -109,13 +109,20 @@ export const CAC_TAC_VU = {
       .run();
     let soTin = 0;
     let soViec = 0;
+    let soAi = 0;
+    let soTrung = 0;
+    let duPhong = false;
     for (const { to_chuc_id: id } of results) {
       if (!(await docLuong(env, id)).bat['tach-viec']) continue;
       const kq = await tachViecChoToChuc(env, id);
       soTin += kq.so_tin;
       soViec += kq.so_viec;
+      soAi += kq.so_ai || 0;
+      soTrung += kq.so_trung || 0;
+      duPhong ||= Boolean(kq.du_phong);
     }
-    return { so_muc: soViec, ghi_chu: soTin ? `Đọc ${soTin} tin, thêm ${soViec} việc` : 'Không có tin mới' };
+    const chiTiet = `AI thấy ${soAi} việc, trùng ${soTrung}${duPhong ? ', dùng AI dự phòng' : ''}`;
+    return { so_muc: soViec, ghi_chu: soTin ? `Đọc ${soTin} tin, thêm ${soViec} việc (${chiTiet})` : 'Không có tin mới' };
   },
 
   'bao-viec-moi': async (env, bayGio) => {
