@@ -1,1 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" rx="9" fill="#151B26"/><path d="M8 18.5v-5M12 22v-12M16 19v-6M20 24V8M24 17.5v-3" stroke="#F5B85C" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="100 100 824 824">
+  <defs>
+    <linearGradient id="nen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#17476b"/><stop offset=".55" stop-color="#082a49"/><stop offset="1" stop-color="#02152a"/></linearGradient>
+    <linearGradient id="song" gradientUnits="userSpaceOnUse" x1="0" y1="280" x2="0" y2="745"><stop offset="0" stop-color="#7ff7f0"/><stop offset="1" stop-color="#06c9bf"/></linearGradient>
+    <linearGradient id="den" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <linearGradient id="vien" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset=".3" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#000" stop-opacity=".35"/></linearGradient>
+    <radialGradient id="sang" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#06e3d8" stop-opacity=".30"/><stop offset="1" stop-color="#06e3d8" stop-opacity="0"/></radialGradient>
+    <filter id="bong" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="22" stdDeviation="22" flood-color="#000" flood-opacity=".42"/></filter>
+    <clipPath id="khung"><rect x="100" y="100" width="824" height="824" rx="186"/></clipPath>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="186" fill="#02152a"/>
+  <g clip-path="url(#khung)">
+    <rect x="100" y="100" width="824" height="824" fill="url(#nen)"/>
+    <ellipse cx="512" cy="540" rx="330" ry="260" fill="url(#sang)"/>
+    <rect x="100" y="100" width="824" height="420" fill="url(#den)"/>
+  </g>
+  <g stroke="url(#song)" stroke-width="66" stroke-linecap="round" fill="none">
+    <path d="M296 452v120"/>
+    <path d="M404 366v292"/>
+    <path d="M512 416v192"/>
+    <path d="M620 286v452"/>
+    <path d="M728 462v100"/>
+  </g>
+  <rect x="101" y="101" width="822" height="822" rx="185" fill="none" stroke="url(#vien)" stroke-width="2"/>
+</svg>

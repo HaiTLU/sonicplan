@@ -1,5 +1,5 @@
 // Bộ nhớ đệm nhẹ để mở nhanh và vẫn thấy khung trang khi mất mạng. Không bao giờ đệm /api (dữ liệu luôn lấy mới).
-const BAN = 'sonicplan-v2';
+const BAN = 'sonicplan-v3';
 const KHUNG = ['/', '/kieu.css', '/apple.css', '/app.js', '/luong.js', '/bieu-tuong.svg'];
 
 self.addEventListener('install', (e) => {
