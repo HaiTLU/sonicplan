@@ -18,6 +18,7 @@ import { tinhTinhTrang } from './tinh-trang.js';
 import { chuTuDocx, loaiXem, TOI_DA_DOCX } from './xem-tep.js';
 import { themViec } from './viec.js';
 import { chuanMau } from './mau.js';
+import { chuanCauHinh, ganNhan, LOAI_NHAN } from './google-nhan.js';
 
 // Mã tệp trên Drive: ưu tiên bản đã xếp trong kho, không có thì bản ở thư mục Sonicplan.
 const COT_DRIVE = "COALESCE((SELECT NULLIF(k.drive_id, '') FROM kho_da_luu k WHERE k.to_chuc_id = tep.to_chuc_id AND k.loai = 'tep' AND k.ma = CAST(tep.id AS TEXT)), NULLIF(tep.drive_id, '')) AS drive_id";
@@ -103,6 +104,13 @@ export async function xuLyApi(yeuCau, env, phien, url) {
     return json({ ok: true });
   }
 
+  if (p === '/api/google-nhan' && m === 'GET') return json({ cau_hinh: chuanCauHinh(await docCaiDat(env, tc, 'google_nhan')), loai: LOAI_NHAN });
+  if (p === '/api/google-nhan' && m === 'PUT') {
+    const ch = chuanCauHinh((await yeuCau.json().catch(() => ({}))).cau_hinh);
+    await ghiCaiDat(env, tc, 'google_nhan', JSON.stringify(ch));
+    return json({ cau_hinh: ch });
+  }
+  if (p === '/api/google-nhan/xem-truoc' && m === 'POST') return json(await xemTruocNhan(env, tc, chuanCauHinh((await yeuCau.json().catch(() => ({}))).cau_hinh)));
   if (p === '/api/tep' && m === 'GET') return json(await dsTep(env, tc, url));
   if ((khop = p.match(/^\/api\/tep\/(\d+)\/tai$/)) && m === 'GET') return taiTep(env, tc, Number(khop[1]));
   if ((khop = p.match(/^\/api\/tep\/(\d+)\/anh-nho$/)) && m === 'GET') return anhNhoTep(env, tc, Number(khop[1]));
@@ -506,6 +514,18 @@ async function suaViec(env, tc, id, than) {
   // Đổi hạn hoặc giờ thì cho phép nhắc lại theo mốc mới.
   if ('han_ngay' in k.viec || 'gio_hen' in k.viec) await env.CSDL.prepare('DELETE FROM nhac_da_gui WHERE viec_id = ?1').bind(id).run();
   return json({ ok: true });
+}
+
+// ---- Nhãn Google ----
+
+// Xem trước: lấy vài việc thật (việc mở gần hạn, một việc đã xong) và cho thấy tiêu đề, ghi chú sẽ ra sao bên Google.
+async function xemTruocNhan(env, tc, ch) {
+  const cot = `SELECT v.tieu_de, v.ghi_chu, v.han_ngay, v.trang_thai, v.nguon, t.nguon AS tin_nguon, t.nguoi_gui AS tin_nguoi_gui, t.nhom AS tin_nhom,
+      d.ten AS du_an_ten, COALESCE(v.mau, d.mau) AS mau FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id LEFT JOIN du_an d ON d.id = v.du_an_id`;
+  const mo = (await env.CSDL.prepare(`${cot} WHERE v.to_chuc_id = ?1 AND v.trang_thai = 'mo' ORDER BY v.han_ngay IS NULL, v.han_ngay LIMIT 3`).bind(tc).all()).results;
+  const xong = (await env.CSDL.prepare(`${cot} WHERE v.to_chuc_id = ?1 AND v.trang_thai = 'xong' ORDER BY v.xong_luc DESC LIMIT 1`).bind(tc).all()).results;
+  const hn = ngayVN();
+  return { mau: [...mo, ...xong].map((v) => ({ goc: v.tieu_de, trang_thai: v.trang_thai, ...ganNhan(v, ch, hn) })) };
 }
 
 // ---- Tệp ----
