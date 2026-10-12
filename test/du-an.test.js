@@ -84,3 +84,14 @@ test('sắp xếp việc: lưu thứ tự theo danh sách, chỉ đúng tổ ch�
   assert.equal((await sapXepViec(env, 't', { ids: ['a'] })).status, 400);
   assert.equal((await sapXepViec(env, 't', {})).status, 400);
 });
+
+test('sắp xếp dự án: lưu thứ tự, bỏ qua dự án của tổ chức khác, từ chối danh sách sai', async () => {
+  const { sapXepDuAn } = await import('../src/du-an.js');
+  const env = csdlGia();
+  env.db.exec(`INSERT INTO du_an (id, to_chuc_id, ten, thu_tu, tao_luc) VALUES (1,'t','A',1,'x'),(2,'t','B',2,'x'),(3,'t','C',3,'x'),(4,'k','D',1,'x')`);
+  assert.deepEqual(await sapXepDuAn(env, 't', [3, 1, 2, 4]), {});
+  const o = (id) => env.db.prepare('SELECT thu_tu FROM du_an WHERE id = ?').get(id).thu_tu;
+  assert.deepEqual([o(3), o(1), o(2), o(4)], [1, 2, 3, 1]);
+  assert.ok((await sapXepDuAn(env, 't', ['x'])).loi);
+  assert.ok((await sapXepDuAn(env, 't', [])).loi);
+});
