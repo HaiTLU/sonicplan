@@ -117,3 +117,25 @@ body::before, body::after { display: none; }
 
 /* Chữ liên kết và viền focus theo màu mới. */
 :focus-visible { outline-color: var(--nhan); }
+
+/* ---------- Sửa lỗi theo bộ quy tắc giao diện (rà 12/10/2026) ---------- */
+/* Viền focus cho mọi phần tử bàn phím tới được, kể cả ô nhập mà kieu.css đã tắt outline. */
+html :focus-visible:not(h1):not(main) { outline: 2px solid var(--nhan); outline-offset: 2px; }
+/* Đầu trang dính: chừa chỗ để phần tử đang focus không bị che. */
+html { scroll-padding-top: 96px; }
+/* Cuộn trong hộp thoại, ngăn kéo, danh sách không kéo trang phía sau. */
+.ngan-keo, .bang-lenh, #ds-lenh, .bang-luong, .luong-zalo, .ds-tin, .doc-tin { overscroll-behavior: contain; }
+/* Vùng an toàn đáy màn hình (iPhone có thanh vuốt). */
+.vung-bao { bottom: max(20px, env(safe-area-inset-bottom)); }
+@media (max-width: 860px) { .bang-luong { padding-bottom: calc(18px + env(safe-area-inset-bottom)); } }
+/* Chuyển động lặp chỉ kéo dài vài giây, không chạy mãi. */
+.tp-icon[data-den="do"]::after { animation-iteration-count: 3; }
+.day-luong .lien.chay.noi-bat { animation-iteration-count: 3; }
+/* Không giữ will-change thường trực. */
+.ban-luong, .nut-luong { will-change: auto; }
+.chip { transition: color .2s, background-color .2s, border-color .2s; }
+.cong-tac:hover { background: color-mix(in srgb, var(--mat-3) 70%, var(--chu) 10%); }
+/* Phần chữ của thẻ Luồng là nút thật (không còn nút lồng nút). */
+button.chu-nut { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+/* Danh sách dài chỉ vẽ phần đang thấy. */
+.ds-tin li, .bang-cuon tbody tr, .luong-zalo .tin-zalo { content-visibility: auto; contain-intrinsic-size: auto 76px; }
