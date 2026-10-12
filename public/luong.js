@@ -29,6 +29,8 @@ const NUT = [
   { id: 'canh-viec', nhom: 'chay', ten: 'Canh việc mất', icon: 'he-thong', ma_tv: 'canh-viec', bat_nhan: 'Canh việc biến mất', nguong: ['mat_viec', 'mat_viec_mo'], mo_ta: 'So danh sách việc mỗi giờ, báo kèm tên khi mất bất thường.' },
   { id: 'don-cuoi-ngay', nhom: 'chay', ten: 'Dọn cuối ngày', icon: 'lap', ma_tv: 'don-cuoi-ngay', bat_nhan: 'Dời việc chưa xong sang mai', mo_ta: 'Lúc 23h dời việc có hạn chưa xong sang ngày mai.' },
   { id: 'sao-luu', nhom: 'chay', ten: 'Sao lưu đêm', icon: 'kho', ma_tv: 'sao-luu', bat_nhan: 'Sao lưu mỗi đêm', mo_ta: 'Lúc 23h lưu việc, tin 90 ngày, tệp và ghi nhớ vào kho.' },
+  { id: 'google-tasks', nhom: 'ra', ten: 'Google Tasks', icon: 'viec', den: 'google', theo_tv: 'dong-bo-google', so: ['tasks_google', 'việc đang mở trên Tasks'], mo_ta: 'Mỗi 5 phút: việc mới đẩy sang Google Tasks, đổi tên hay hạn thì cập nhật, việc xong ở đây thì đánh dấu xong bên đó. Việc bấm xong trong Google Tasks cũng về xong ở đây. Bật tắt ở nút Google.', lien_ket: ['viec', 'Mở trang Việc'] },
+  { id: 'google-lich', nhom: 'ra', ten: 'Google Lịch', icon: 'lich', den: 'google', theo_tv: 'dong-bo-google', so: ['lich_google', 'việc có trên Lịch'], mo_ta: 'Mỗi 5 phút: việc còn mở có ngày hạn thành sự kiện Lịch (có giờ hẹn thì đặt đúng giờ), đổi hạn thì dời sự kiện, việc xong thì gỡ. Bật tắt ở nút Google.', lien_ket: ['viec', 'Mở trang Việc'] },
   { id: 'kho-drive', nhom: 'ra', ten: 'Kho Drive', icon: 'kho', den: 'kho', ma_tv: 'luu-kho', bat_nhan: 'Lưu vào Drive kho mỗi 5 phút', mo_ta: 'Một Google Drive riêng (có thể là tài khoản khác) giữ bản lưu: tin nhắn Zalo và thư theo ngày, tệp đính kèm, bộ nhớ AI và danh sách việc. Không xóa gì trên Drive.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
   { id: 'telegram-ra', nhom: 'ra', ten: 'Telegram', icon: 'telegram', den: 'telegram', nguong: ['yen_tu', 'yen_den'], mo_ta: 'Nơi nhận mọi thông báo. Ngoài giờ yên lặng mới gửi, sáng gộp thành một tin.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
   { id: 'webhook-ra', nhom: 'ra', ten: 'Dịch vụ ngoài', icon: 'ket-noi', webhook: true, mo_ta: 'Mỗi việc mới được gửi tới địa chỉ bạn đã khai ở trang Kết nối.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
@@ -39,6 +41,7 @@ const LIEN_KET = [
   ['ai', 'ghi-nho'], ['ai', 'viec'], ['ghi-nho', 'ai'],
   ['viec', 'nhac-viec'], ['viec', 'giao-github'], ['viec', 'bao-viec-moi'], ['viec', 'ban-tin'], ['viec', 'bao-cao-tuan'], ['viec', 'canh-viec'], ['viec', 'don-cuoi-ngay'], ['viec', 'sao-luu'],
   ['nhac-viec', 'telegram-ra'], ['bao-viec-moi', 'telegram-ra'], ['ban-tin', 'telegram-ra'], ['bao-cao-tuan', 'telegram-ra'], ['canh-viec', 'telegram-ra'],
+  ['viec', 'google-tasks'], ['google-tasks', 'viec'], ['viec', 'google-lich'],
   ['viec', 'webhook-ra'], ['viec', 'kho-drive'], ['ghi-nho', 'kho-drive'], ['zalo', 'kho-drive'], ['google', 'kho-drive'],
 ];
 
@@ -91,8 +94,9 @@ export async function veLuong(goc, tro) {
 
   // ---------- Trạng thái từng nút ----------
   function trangThai(n) {
-    const tv = [n.ma_tv, n.phu?.ma_tv].filter(Boolean);
+    const tv = [n.ma_tv, n.phu?.ma_tv, n.theo_tv].filter(Boolean);
     if (tv.length && tv.every((m) => lg.bat[m] === false)) return { den: 'tat', chu: 'Đã tắt' };
+    if (n.theo_tv && n.so) { const d = denKetNoi[n.den]; return d ? { den: d.den, chu: `${lg.so_lieu[n.so[0]] ?? 0} ${n.so[1]}` } : { den: 'xam', chu: 'Chưa đăng nhập Google' }; }
     if (n.den && denKetNoi[n.den]) { const d = denKetNoi[n.den]; return { den: d.den, chu: d.mo_ta || DEN_TEN[d.den] }; }
     if (n.webhook) return lg.webhook ? { den: 'xanh', chu: 'Đã khai địa chỉ' } : { den: 'xam', chu: 'Chưa khai địa chỉ' };
     if (n.id === 'ai') return { den: 'xanh', chu: lg.ai ? `Claude, ${lg.ai.mo_hinh}` : 'AI có sẵn của hệ thống' };
@@ -111,7 +115,8 @@ export async function veLuong(goc, tro) {
       const cho = lg.so_lieu.tin_cho;
       return { chu: cho ? `${cho} tin chờ đọc` : (l?.ghi_chu || 'Không có tin chờ'), loai: l?.trang_thai === 'loi' ? 'loi' : 'on' };
     }
-    if (n.so) return { chu: `${lg.so_lieu[n.so[0]]} ${n.so[1]}`, loai: 'on' };
+    if (n.theo_tv && !denKetNoi[n.den]) return { chu: 'Chưa đăng nhập Google', loai: 'mo' };
+    if (n.so) return { chu: `${lg.so_lieu[n.so[0]] ?? 0} ${n.so[1]}`, loai: 'on' };
     if (n.webhook) return lg.webhook ? { chu: 'Gửi việc mới', loai: 'on' } : { chu: 'Chưa khai địa chỉ', loai: 'mo' };
     const l = n.ma_tv && lanCuoi[n.ma_tv];
     if (l) return { chu: rutGon(l.ghi_chu || (l.trang_thai === 'loi' ? 'Lỗi' : `Xong${l.so_muc ? `, ${l.so_muc} mục` : ''}`), 44), loai: l.trang_thai === 'loi' ? 'loi' : 'on' };
@@ -208,6 +213,15 @@ export async function veLuong(goc, tro) {
     const luu = boCuc[huong].vi_tri;
     viTri.clear();
     for (const [id, p] of Object.entries(tu)) viTri.set(id, luu[id] ? { x: luu[id][0], y: luu[id][1] } : p);
+    // Nút mới thêm vào nhóm đã được kéo sắp: đặt nối tiếp dưới nút thấp nhất của nhóm để không chồng lên.
+    for (const g of NHOM) {
+      const ds = NUT.filter((n) => n.nhom === g.ma && viTri.has(n.id));
+      const daLuu = ds.filter((n) => luu[n.id]);
+      if (!daLuu.length || daLuu.length === ds.length) continue;
+      let y = Math.max(...daLuu.map((n) => viTri.get(n.id).y + caoNut(n.id))) + KHE_NUT;
+      const x = viTri.get(daLuu[0].id).x;
+      for (const n of ds.filter((m) => !luu[m.id])) { viTri.set(n.id, { x, y }); y += caoNut(n.id) + KHE_NUT; }
+    }
     // Nhóm thu gọn chưa có vị trí lưu thì đặt ở chỗ nút đầu tiên của nhóm.
     for (const g of NHOM) {
       const id = `nhom-${g.ma}`;
@@ -312,7 +326,8 @@ export async function veLuong(goc, tro) {
       const khoa = `${tu}>${den}`;
       if (tu === den || da.has(khoa)) continue;
       da.add(khoa);
-      const nguoc = a === 'ghi-nho' && b === 'ai';
+      const thuTu = (id) => NHOM.findIndex((g) => g.ma === nhomCua(id));
+      const nguoc = thuTu(b) < thuTu(a);
       const el = s('path', { class: `canh${nguoc ? ' nguoc' : ''}` });
       canhHien.push({ tu, den, nguoc, el, a, b });
     }
@@ -734,6 +749,7 @@ export async function veLuong(goc, tro) {
           veBang();
         } })));
     };
+    if (n.theo_tv) phan.push(h('div', { class: 'khu-luong' }, h('strong', { class: 'tieu-de-nho', text: 'Lần đồng bộ gần đây' }), khuNhatKy(n.theo_tv)));
     if (n.ma_tv) khuTv(n.ma_tv, n.bat_nhan, n.nguong || []);
     else if (n.nguong?.length) phan.push(h('div', { class: 'khu-luong' }, ...n.nguong.map(oSo)));
     if (n.phu) khuTv(n.phu.ma_tv, n.phu.bat_nhan, n.phu.nguong || []);
