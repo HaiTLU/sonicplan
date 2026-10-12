@@ -18,6 +18,9 @@ import { tinhTinhTrang } from './tinh-trang.js';
 import { chuTuDocx, loaiXem, TOI_DA_DOCX } from './xem-tep.js';
 import { themViec } from './viec.js';
 
+// Mã tệp trên Drive: ưu tiên bản đã xếp trong kho, không có thì bản ở thư mục Sonicplan.
+const COT_DRIVE = "COALESCE((SELECT NULLIF(k.drive_id, '') FROM kho_da_luu k WHERE k.to_chuc_id = tep.to_chuc_id AND k.loai = 'tep' AND k.ma = CAST(tep.id AS TEXT)), NULLIF(tep.drive_id, '')) AS drive_id";
+
 const NGAY = /^\d{4}-\d{2}-\d{2}$/;
 const GIO = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -392,7 +395,7 @@ async function motTin(env, tc, id) {
   const tin = await env.CSDL.prepare('SELECT * FROM tin_nhan WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
   if (!tin) return loi(404, 'Không tìm thấy tin này.');
   const [tep, viec] = await env.CSDL.batch([
-    env.CSDL.prepare('SELECT id, ten, loai, kich_thuoc FROM tep WHERE tin_nhan_id = ?1 AND to_chuc_id = ?2').bind(id, tc),
+    env.CSDL.prepare(`SELECT id, ten, loai, kich_thuoc, ${COT_DRIVE} FROM tep WHERE tin_nhan_id = ?1 AND to_chuc_id = ?2`).bind(id, tc),
     env.CSDL.prepare('SELECT id, tieu_de, han_ngay, gio_hen, trang_thai FROM viec WHERE tin_nhan_id = ?1 AND to_chuc_id = ?2').bind(id, tc),
     env.CSDL.prepare('UPDATE tin_nhan SET da_xem = 1 WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc),
   ]);
@@ -497,7 +500,7 @@ async function suaViec(env, tc, id, than) {
 async function dsTep(env, tc, url) {
   const q = (url.searchParams.get('q') || '').trim();
   const { results } = await env.CSDL.prepare(
-    `SELECT id, ten, loai, kich_thuoc, nguon, nguoi_gui, thu_muc, tao_luc, tin_nhan_id FROM tep
+    `SELECT id, ten, loai, kich_thuoc, nguon, nguoi_gui, thu_muc, tao_luc, tin_nhan_id, ${COT_DRIVE} FROM tep
      WHERE to_chuc_id = ?1 ${q ? 'AND (ten LIKE ?2 OR nguoi_gui LIKE ?2)' : ''} ORDER BY id DESC LIMIT 200`,
   ).bind(tc, ...(q ? [`%${q.replace(/[%_]/g, '')}%`] : [])).all();
   return { tep: results };
@@ -669,7 +672,7 @@ async function tinHoiThoaiZalo(env, tc, url) {
   let tep = [];
   if (tin.length) {
     const ids = tin.map((t) => Number(t.id)).join(',');
-    tep = (await env.CSDL.prepare(`SELECT id, tin_nhan_id, ten, loai, kich_thuoc FROM tep WHERE to_chuc_id = ?1 AND tin_nhan_id IN (${ids})`).bind(tc).all()).results;
+    tep = (await env.CSDL.prepare(`SELECT id, tin_nhan_id, ten, loai, kich_thuoc, ${COT_DRIVE} FROM tep WHERE to_chuc_id = ?1 AND tin_nhan_id IN (${ids})`).bind(tc).all()).results;
   }
   if (!truocLuc) {
     await env.CSDL.prepare(`UPDATE tin_nhan SET da_xem = 1 WHERE ${dieuKien} AND da_xem = 0`).bind(tc, loai, ten).run();

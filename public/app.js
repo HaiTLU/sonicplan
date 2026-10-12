@@ -510,7 +510,7 @@ async function veHopTin(goc, thamSo) {
         h('h2', { text: tin.tieu_de && tin.nguon === 'gmail' ? tin.tieu_de : tin.nguoi_gui || 'Không rõ người gửi' }),
         h('p', { class: 'meta', text: `${tin.nguon === 'gmail' ? `Từ ${tin.nguoi_gui || 'không rõ'}, ` : ''}${fmt.ngayGio.format(new Date(tin.thoi_diem))}` }),
         h('div', { class: 'than', text: tin.noi_dung || '(Không có nội dung)' }),
-        tep.length ? h('div', { class: 'khoi' }, h('h3', { text: 'Tệp đính kèm' }), ...tep.map((f) => h('a', { class: 'tep-dinh', href: `/api/tep/${f.id}/tai` }, icon('tai'), f.ten, h('small', { text: kichThuoc(f.kich_thuoc) })))) : null,
+        tep.length ? h('div', { class: 'khoi' }, h('h3', { text: 'Tệp đính kèm' }), ...tep.map((f) => h('a', { class: 'tep-dinh', href: `/api/tep/${f.id}/tai`, onclick: (ev) => { const k = kieuMo(f); if (k && !ev.ctrlKey && !ev.metaKey) { ev.preventDefault(); moXemTep(f, k); } } }, icon('tai'), f.ten, h('small', { text: kichThuoc(f.kich_thuoc) })))) : null,
         h('div', { class: 'khoi' },
           h('h3', { text: viec.length ? 'Việc tách từ tin này' : 'Chưa có việc nào từ tin này' }),
           ...viec.map((v) => h('div', { class: 'muc-viec' }, h('span', { class: `nhan-kq ${v.trang_thai === 'xong' ? 'xong' : 'dang_chay'}`, text: v.trang_thai === 'xong' ? 'Xong' : 'Mở' }), h('button', { class: 'ten-viec', type: 'button', text: v.tieu_de, onclick: () => moNganViec(v) }), v.han_ngay ? h('span', { class: 'chip-gio', text: `${ngayHienThi(v.han_ngay)}${v.gio_hen ? ` ${v.gio_hen}` : ''}` }) : h('span'))),
@@ -761,7 +761,31 @@ function kieuXemTep(ten) {
   return duoi === 'pdf' ? 'pdf' : duoi === 'docx' ? 'docx' : null;
 }
 
+// Tệp đã nằm trên Drive thì mở thẳng bằng trình xem của Drive (Word, Excel, PowerPoint, PDF); ảnh vẫn xem bản lưu.
+const DUOI_DRIVE = ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'pdf', 'odt', 'rtf', 'csv'];
+function kieuMo(f) {
+  const duoi = (String(f.ten).match(/\.([A-Za-z0-9]{1,5})$/) || [])[1]?.toLowerCase();
+  return f.drive_id && DUOI_DRIVE.includes(duoi) ? 'drive' : kieuXemTep(f.ten);
+}
+
+function moXemDrive(f) {
+  const xem = `https://drive.google.com/file/d/${encodeURIComponent(f.drive_id)}`;
+  const hop = h('dialog', { class: 'xem-tep rong', 'aria-label': `Xem ${f.ten} trên Drive` },
+    h('header', {},
+      h('div', {}, h('strong', { text: f.ten }), h('small', { text: 'Đang xem từ Google Drive' })),
+      h('a', { class: 'nut nut-phu nut-nho', href: `${xem}/view`, target: '_blank', rel: 'noopener noreferrer' }, 'Mở trong Drive'),
+      h('a', { class: 'nut nut-phu nut-nho', href: `/api/tep/${f.id}/tai` }, icon('tai'), 'Tải về'),
+      h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: 'Đóng', onclick: () => hop.close() })),
+    h('div', { class: 'khung-xem pdf' }, h('iframe', { src: `${xem}/preview`, title: f.ten, allow: 'fullscreen' })),
+    h('p', { class: 'ghi-chu-trang', style: 'margin:8px 16px', text: 'Không thấy nội dung? Đăng nhập Google bằng tài khoản có quyền xem kho, hoặc bấm Mở trong Drive.' }));
+  hop.addEventListener('close', () => hop.remove());
+  hop.addEventListener('click', (ev) => { if (ev.target === hop) hop.close(); });
+  document.body.append(hop);
+  hop.showModal();
+}
+
 function moXemTep(f, kieu) {
+  if (kieu === 'drive') return moXemDrive(f);
   const nguon = `/api/tep/${f.id}/xem`;
   const oChu = kieu === 'docx' ? h('pre', { class: 'xem-chu', text: 'Đang đọc nội dung…' }) : null;
   const than = kieu === 'anh' ? h('img', { src: nguon, alt: f.ten }) : kieu === 'pdf' ? h('iframe', { src: nguon, title: f.ten }) : oChu;
@@ -794,7 +818,7 @@ async function veTep(goc) {
       }
       thay(luoi, ...tep.map((f) => {
         const [lop, nhan] = loaiTep(f.ten, f.loai);
-        const kieu = kieuXemTep(f.ten);
+        const kieu = kieuMo(f);
         const the = h(kieu ? 'button' : 'a', kieu ? { class: 'bang the-tep', type: 'button', 'aria-label': `Xem trước ${f.ten}`, onclick: () => moXemTep(f, kieu) } : { class: 'bang the-tep', href: `/api/tep/${f.id}/tai`, 'aria-label': `Tải ${f.ten}` },
           h('div', { class: 'dau' }, h('span', { class: 'loai-tep', dataset: { loai: lop }, text: nhan }), kieu ? h('span', { class: 'tai xem', text: 'Xem' }) : h('span', { class: 'tai' }, icon('tai'))),
           h('strong', { text: f.ten }),
@@ -985,7 +1009,7 @@ function theTep(ten, kichCo, bam, trangThai) {
 }
 
 function tepTrongTin(f) {
-  const kieu = kieuXemTep(f.ten);
+  const kieu = kieuMo(f);
   if (kieu === 'anh') return anhTrongTin({ id: f.tin_nhan_id }, f, null);
   return kieu ? theTep(f.ten, f.kich_thuoc, () => moXemTep(f, kieu)) : theTep(f.ten, f.kich_thuoc, `/api/tep/${f.id}/tai`);
 }
