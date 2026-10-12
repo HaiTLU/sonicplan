@@ -252,9 +252,11 @@ export function docKetQuaCham(tra, ids) {
 }
 
 // Chấm các việc chưa có độ nặng (việc mở trước, rồi việc xong 30 ngày để có số liệu quá khứ).
+// Việc mở AI đã chấm từ trước khi có lý do thì chấm lại một lần để có lý do (lý do trống lưu '' để khỏi lặp).
 export async function chamViecToChuc(env, tc, { gioiHan = TOI_DA_CHAM } = {}) {
   const { results: canCham } = await env.CSDL.prepare(
-    `SELECT id, tieu_de, ghi_chu, han_ngay FROM viec WHERE to_chuc_id = ?1 AND do_nang IS NULL
+    `SELECT id, tieu_de, ghi_chu, han_ngay FROM viec WHERE to_chuc_id = ?1
+       AND (do_nang IS NULL OR (trang_thai = 'mo' AND do_nang_nguon = 'ai' AND do_nang_ly_do IS NULL))
        AND (trang_thai = 'mo' OR (trang_thai = 'xong' AND xong_luc >= ?2))
      ORDER BY trang_thai = 'mo' DESC, id DESC LIMIT ?3`,
   ).bind(tc, new Date(Date.now() - 30 * NGAY_MS).toISOString(), gioiHan).all();
@@ -271,7 +273,7 @@ export async function chamViecToChuc(env, tc, { gioiHan = TOI_DA_CHAM } = {}) {
   if (!kq.length) throw new Error(`AI không trả kết quả chấm đọc được: ${String(typeof tra === 'string' ? tra : JSON.stringify(tra)).slice(0, 160)}`);
   const cau = kq.map((x) => env.CSDL.prepare(
     `UPDATE viec SET do_nang = ?1, phut_uoc = ?2, do_nang_nguon = 'ai', do_nang_ly_do = ?5, chua_ro = ?6 WHERE id = ?3 AND to_chuc_id = ?4 AND (do_nang_nguon IS NULL OR do_nang_nguon <> 'tay')`,
-  ).bind(x.do_nang, Math.round(x.phut * (heSo[x.do_nang] || 1)), x.id, tc, x.ly_do, x.chua_ro ? 1 : 0));
+  ).bind(x.do_nang, Math.round(x.phut * (heSo[x.do_nang] || 1)), x.id, tc, x.ly_do || '', x.chua_ro ? 1 : 0));
   await env.CSDL.batch(cau);
   return { so: kq.length };
 }
