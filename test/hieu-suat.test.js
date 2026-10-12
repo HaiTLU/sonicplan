@@ -52,3 +52,23 @@ test('đọc kết quả AI chấm: bỏ id lạ và độ nặng sai, giới h�
   const kq = docKetQuaCham('{"viec":[{"id":1,"do_nang":"nang","phut":9999},{"id":2,"do_nang":"x","phut":5},{"id":9,"do_nang":"nhe","phut":5},{"id":3,"do_nang":"nhe","phut":1}]}', [1, 2, 3]);
   assert.deepEqual(kq, [{ id: 1, do_nang: 'nang', phut: 960 }, { id: 3, do_nang: 'nhe', phut: 5 }]);
 });
+
+test('chia nhỏ: đọc đề xuất AI và không đếm hai lần việc cha', async () => {
+  const { docKetQuaChia } = await import('../src/hieu-suat.js');
+  assert.deepEqual(docKetQuaChia('{"viec_con":[{"tieu_de":"  Soạn  dàn ý ","phut":1},{"tieu_de":"","phut":30},{"tieu_de":"Gửi","phut":9999}]}'), [{ tieu_de: 'Soạn dàn ý', phut: 5 }, { tieu_de: 'Gửi', phut: 480 }]);
+  const ds = [
+    v(1, { han_ngay: '2026-10-12', do_nang: 'rat_nang', phut_uoc: 300 }),
+    v(2, { han_ngay: '2026-10-12', viec_cha_id: 1, phut_uoc: 60, do_nang: 'vua' }),
+    v(3, { trang_thai: 'xong', xong_luc: '2026-10-12T03:00:00Z', viec_cha_id: 1, phut_uoc: 30, do_nang: 'vua' }),
+  ];
+  const hs = tinhHieuSuat(ds, '2026-10-12', [], '2026-10-12T05:00:00Z');
+  assert.equal(hs.tai.phut_hom_nay, 60);
+  assert.deepEqual(hs.mo.find((x) => x.id === 1).con, { tong: 2, xong: 1, phut_con_lai: 60 });
+});
+
+test('đọc kết quả chấm: chấp nhận khối ```json, id dạng chữ, độ nặng có dấu', () => {
+  const tra = 'Đây là kết quả:\n```json\n{"viec":[{"id":"52","do_nang":"Rất nặng","phut":240},{"id":53,"do_nang":"vừa","phut_uoc":30}]}\n```';
+  assert.deepEqual(docKetQuaCham(tra, [52, 53]), [{ id: 52, do_nang: 'rat_nang', phut: 240 }, { id: 53, do_nang: 'vua', phut: 30 }]);
+  assert.deepEqual(docKetQuaCham({ response: { viec: [{ id: 1, do_nang: 'nhe', phut: 10 }] } }, [1]), [{ id: 1, do_nang: 'nhe', phut: 10 }]);
+  assert.deepEqual(docKetQuaCham('[{"id":1,"do_nang":"nang","phut":90}]', [1]), [{ id: 1, do_nang: 'nang', phut: 90 }]);
+});

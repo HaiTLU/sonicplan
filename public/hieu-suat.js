@@ -84,6 +84,14 @@ function cotGio(h, theoGio, khung) {
       g % 3 === 0 ? h('small', { text: `${g}h` }) : h('small', { text: '' }))));
 }
 
+// Việc con đứng ngay dưới việc cha (nếu việc cha còn mở).
+function xepCha(ds) {
+  const coCha = new Set(ds.map((v) => v.id));
+  const con = new Map();
+  for (const v of ds) if (v.viec_cha_id && coCha.has(v.viec_cha_id)) con.set(v.viec_cha_id, [...(con.get(v.viec_cha_id) || []), v]);
+  return ds.filter((v) => !(v.viec_cha_id && coCha.has(v.viec_cha_id))).flatMap((v) => [v, ...(con.get(v.id) || []).sort((a, b) => a.id - b.id)]);
+}
+
 function chipDoNang(h, v, luu) {
   const chon = h('select', { class: `hs-chip dn-${v.do_nang || 'chua'}`, 'aria-label': `Độ nặng của việc ${v.tieu_de}` },
     h('option', { value: '', text: v.do_nang ? '' : 'Chưa chấm', disabled: true, selected: !v.do_nang }),
@@ -92,6 +100,36 @@ function chipDoNang(h, v, luu) {
   else chon.firstChild.remove();
   chon.addEventListener('change', () => luu(chon.value));
   return chon;
+}
+
+// Bảng duyệt việc con: AI đề xuất, anh bỏ chọn hay sửa tên, số phút rồi bấm Tạo. Dùng ở trang Hiệu suất và màn game.
+export async function moBangChia(v, li, nut, t, napLai) {
+  const { h, icon, api, bao, thay, xuong } = t;
+  nut.disabled = true;
+  const khung = h('div', { class: 'hs-chia', 'aria-live': 'polite' }, xuong(14, '70%'), xuong(14, '85%'), xuong(14, '60%'));
+  li.after(khung);
+  let ds;
+  try { ds = (await api(`/api/hieu-suat/viec/${v.id}/chia`, { method: 'POST' })).viec_con; } catch (e) { bao(e.message, { loi: true }); khung.remove(); nut.disabled = false; return; }
+  const hang = ds.map((c) => {
+    const chon = h('input', { type: 'checkbox', checked: true, 'aria-label': 'Tạo việc con này' });
+    const ten = h('input', { class: 'hs-chia-ten', type: 'text', value: c.tieu_de, maxlength: '200', 'aria-label': 'Tên việc con' });
+    const phut = h('input', { class: 'hs-phut', type: 'number', min: '5', max: '480', step: '5', value: c.phut, 'aria-label': 'Số phút', inputmode: 'numeric' });
+    return { el: h('li', {}, chon, ten, h('label', { class: 'hs-phut-o' }, phut, h('span', { text: 'phút' }))), lay: () => (chon.checked && ten.value.trim() ? { tieu_de: ten.value.trim(), phut: Number(phut.value) || 30 } : null) };
+  });
+  const tong = () => hang.map((x) => x.lay()).filter(Boolean);
+  const nutTao = h('button', { class: 'nut nut-chinh nut-nho', type: 'button' }, icon('xong'), `Tạo ${ds.length} việc con`);
+  const capNhat = () => { const t = tong(); nutTao.lastChild.textContent = `Tạo ${t.length} việc con`; nutTao.disabled = !t.length; };
+  hang.forEach((x) => x.el.addEventListener('input', capNhat));
+  nutTao.addEventListener('click', async () => {
+    nutTao.disabled = true;
+    try { const r = await api(`/api/hieu-suat/viec/${v.id}/tao-con`, { method: 'POST', body: JSON.stringify({ viec_con: tong() }) }); bao(`Đã tạo ${r.ids.length} việc con.`); napLai(); } catch (e) { bao(e.message, { loi: true }); nutTao.disabled = false; }
+  });
+  thay(khung,
+    h('p', { class: 'mo-ta', text: `AI đề xuất chia "${v.tieu_de}" thành ${ds.length} việc. Bỏ chọn hoặc sửa tên, số phút rồi bấm Tạo. Chưa bấm thì chưa có gì thêm vào danh sách hay Google Tasks.` }),
+    h('ul', {}, ...hang.map((x) => x.el)),
+    h('div', { class: 'hs-chia-nut' }, h('button', { class: 'nut nut-phu nut-nho', type: 'button', onclick: () => { khung.remove(); nut.disabled = false; } }, 'Bỏ qua'), nutTao),
+  );
+  khung.querySelector('.hs-chia-ten')?.focus();
 }
 
 export async function veHieuSuat(goc, t) {
@@ -177,7 +215,13 @@ export async function veHieuSuat(goc, t) {
     const dangLam = Boolean(v.bat_dau_luc);
     const oPhut = h('input', { class: 'hs-phut', type: 'number', min: '5', max: '960', step: '5', value: v.phut_uoc ?? '', placeholder: '-', 'aria-label': `Số phút ước tính của ${v.tieu_de}`, inputmode: 'numeric' });
     oPhut.addEventListener('change', () => { if (v.do_nang || oPhut.value) sua(v.id, { hanh_dong: 'cham', do_nang: v.do_nang || 'vua', phut_uoc: oPhut.value }, 'Đã lưu thời lượng.'); });
-    return h('li', { class: `hs-viec${dangLam ? ' dang-lam' : ''}` },
+    const li = h('li', { class: `hs-viec${dangLam ? ' dang-lam' : ''}${v.viec_cha_id ? ' la-con' : ''}` });
+    const coTheChia = ['nang', 'rat_nang'].includes(v.do_nang) && !v.con && !v.viec_cha_id;
+    const tienDo = v.con ? h('div', { class: 'hs-tien-do', role: 'img', 'aria-label': `${v.con.xong} trên ${v.con.tong} việc con đã xong` },
+      h('span', { class: 'hs-ray' }, h('i', { style: `width:${(v.con.xong / v.con.tong) * 100}%` })),
+      h('small', { text: v.con.xong === v.con.tong ? `Xong cả ${v.con.tong} việc con, bấm Xong để đóng việc này` : `${v.con.xong}/${v.con.tong} việc con, còn ${gioPhut(v.con.phut_con_lai)}` })) : null;
+    const nutChia = coTheChia ? h('button', { class: 'hs-nut-chu', type: 'button', onclick: () => moChia(v, li, nutChia) }, icon('ai'), 'AI chia nhỏ việc này') : null;
+    li.append(
       h('div', { class: 'ten' }, h('strong', { text: v.tieu_de }),
         h('small', { text: [v.han_ngay ? `hạn ${ngayNgan(v.han_ngay)}${v.han_ngay < hs.hom_nay ? ' (trễ)' : ''}` : 'không hạn', TEN_NGUON[v.nguon] || v.nguon, v.do_nang_nguon === 'tay' ? 'bạn chấm' : v.do_nang ? 'AI chấm' : '', dangLam ? `đang làm từ ${new Date(v.bat_dau_luc).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' })}` : ''].filter(Boolean).join(' · ') })),
       h('div', { class: 'dk' },
@@ -188,7 +232,10 @@ export async function veHieuSuat(goc, t) {
           : h('button', { class: 'nut nut-phu nut-nho', type: 'button', onclick: () => sua(v.id, { hanh_dong: 'bat_dau' }, 'Đã bắt đầu tính giờ.') }, 'Bắt đầu'),
         h('button', { class: 'nut nut-chinh nut-nho', type: 'button', onclick: () => xongViec(v) }, icon('xong'), 'Xong'),
       ));
+    if (tienDo || nutChia) li.querySelector('.ten').append(tienDo || nutChia);
+    return li;
   };
+  const moChia = (v, li, nut) => moBangChia(v, li, nut, t, napLai);
   const nutCham = h('button', { class: 'nut nut-phu nut-nho', type: 'button' }, icon('ai'), hs.chua_cham ? `AI chấm ${hs.chua_cham} việc` : 'AI chấm lại');
   nutCham.hidden = !hs.chua_cham;
   nutCham.addEventListener('click', async () => {
@@ -198,10 +245,12 @@ export async function veHieuSuat(goc, t) {
   const bangMo = h('section', { class: 'bang hs-mo' },
     h('div', { class: 'bang-dau' }, h('h2', {}, icon('viec'), `Việc đang mở (${hs.mo.length})`), nutCham),
     h('p', { class: 'mo-ta hs-than', text: 'Bấm Bắt đầu khi bắt tay làm và Xong khi làm xong, Sonicplan đo được thời gian thật và AI ước lượng sát dần. Sửa độ nặng hay số phút thì AI không ghi đè.' }),
-    hs.mo.length ? h('ul', { class: 'hs-ds' }, ...hs.mo.map(dongMo)) : h('p', { class: 'mo-ta hs-than', text: 'Không còn việc nào mở.' }),
+    hs.mo.length ? h('ul', { class: 'hs-ds' }, ...xepCha(hs.mo).map(dongMo)) : h('p', { class: 'mo-ta hs-than', text: 'Không còn việc nào mở.' }),
   );
 
-  thay(goc, h('div', { class: 'hs vao' }, dauTrang, daiSo, bang30, bangNx, bangMo, bangDn, bangGio, bangDuAn, bangNguon));
+  const khuGame = h('div', { class: 'hs-game' });
+  import('./game-ui.js').then((m) => m.veKhuGame(khuGame, t, napLai)).catch((e) => console.error('Chế độ game lỗi', e));
+  thay(goc, h('div', { class: 'hs vao' }, khuGame, dauTrang, daiSo, bang30, bangNx, bangMo, bangDn, bangGio, bangDuAn, bangNguon));
 }
 
 // Dải nhỏ trên Tổng quan: tự nạp, lỗi thì ẩn để không làm hỏng trang.
