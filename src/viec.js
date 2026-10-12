@@ -6,7 +6,7 @@ import { docHoSo, ghiNhoChoAi, luuGhiNho } from './ghi-nho.js';
 import { ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { docLuong } from './luong.js';
 import { baoSuKien, dangViecMoi, docTichHop } from './tich-hop.js';
-import { doGiong, ngayVN } from './tien-ich.js';
+import { cat, doGiong, ngayVN } from './tien-ich.js';
 
 // Tiêu đề giống từ 80% với một việc đang mở trong 14 ngày gần đây thì coi là trùng.
 export const NGUONG_TRUNG = 0.8;
@@ -57,6 +57,27 @@ export async function themViec(env, toChucId, viec, { tinNhanId = null, boQuaTru
   return { id: dong.id, trung: false };
 }
 
+// Ghi tiến độ vào ghi chú việc: người gửi, tiêu đề thư và tên các tệp đính kèm đã lưu. Không tự đóng việc.
+export async function ghiLienKet(env, toChucId, lienKet, tin, viecMoIds) {
+  let so = 0;
+  const ngay = ngayVN().slice(5).split('-').reverse().join('/');
+  for (const k of lienKet || []) {
+    const t = k.tin_so && tin[k.tin_so - 1];
+    if (!viecMoIds.has(k.viec_id) || !t) continue;
+    const { results: teps } = t.id
+      ? await env.CSDL.prepare('SELECT ten FROM tep WHERE to_chuc_id = ?1 AND tin_nhan_id = ?2 ORDER BY id LIMIT 10').bind(toChucId, t.id).all()
+      : { results: [] };
+    const nguon = ({ gmail: 'Thư', zalo: 'Zalo' })[t.nguon] || 'Tin';
+    const dong = `[Tiến độ ${ngay}] ${k.tien_do}${k.xong ? ' (có vẻ đã đủ, anh xem rồi đóng việc)' : ''} - ${nguon} của ${t.nguoi_gui || 'không rõ'}${t.tieu_de ? `, tiêu đề "${cat(t.tieu_de, 80)}"` : ''}${teps.length ? `; tệp: ${teps.map((x) => x.ten).join(', ')}` : ''}.`;
+    const hien = await env.CSDL.prepare('SELECT ghi_chu FROM viec WHERE id = ?1 AND to_chuc_id = ?2 AND trang_thai = \'mo\'').bind(k.viec_id, toChucId).first();
+    if (!hien || String(hien.ghi_chu || '').includes(dong)) continue;
+    await env.CSDL.prepare('UPDATE viec SET ghi_chu = ?1, cap_nhat_luc = ?2 WHERE id = ?3 AND to_chuc_id = ?4')
+      .bind(cat([hien.ghi_chu, dong].filter(Boolean).join('\n'), 4000), new Date().toISOString(), k.viec_id, toChucId).run();
+    so++;
+  }
+  return so;
+}
+
 // Lõi xử lý một lô tin: AI đọc cùng ghi nhớ, tạo việc, lưu ghi nhớ. Dùng cho tin trong hộp tin và cho tin nhắn trực tiếp.
 // tin: [{ id (hoặc null), nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem }]. Trả { soViec, viec: [{ id, tieu_de, han_ngay, gio_hen, trung }] }.
 async function chayLoTin(env, toChucId, tin, bayGio) {
@@ -71,6 +92,10 @@ async function chayLoTin(env, toChucId, tin, bayGio) {
   ).bind(toChucId, new Date(Date.now() - 3 * 86400000).toISOString()).all();
   const daCo = daCoDong.map((v) => `${v.trang_thai === 'xong' ? '[đã xong] ' : ''}${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay})` : ''}`);
 
+  const { results: viecMo } = await env.CSDL.prepare(
+    `SELECT id, tieu_de FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' ORDER BY id DESC LIMIT 40`,
+  ).bind(toChucId).all();
+
   const ghiNho = await ghiNhoChoAi(env, toChucId, tin.map((t) => `${t.nguoi_gui || ''} ${t.nhom || ''} ${t.tieu_de || ''} ${t.noi_dung || ''}`).join(' '));
 
   let ketQua;
@@ -82,6 +107,7 @@ async function chayLoTin(env, toChucId, tin, bayGio) {
     tuyChon.tinTruoc = await tinTruocChoLo(env, toChucId, tin).catch(() => []);
     ketQua = await tachViec(env, tin.map((t, i) => ({ ...t, so: i + 1 })), ngayVN(), ten?.ten, Object.assign(tuyChon, {
       daCo,
+      viecMo,
       ghiNho,
       baoLoi: (thongBao) => ghiTinHieu(env, toChucId, 'ai', `Dịch vụ AI ngoài lỗi, đã dùng AI có sẵn: ${thongBao}`),
     }));
@@ -104,6 +130,13 @@ async function chayLoTin(env, toChucId, tin, bayGio) {
     if (!r.trung) soViec++;
     viecRa.push({ id: r.id, tieu_de: v.tieu_de, han_ngay: v.han_ngay || null, gio_hen: v.gio_hen || null, trung: r.trung });
   }
+  // Thư trả lời việc đang chờ: ghi tiến độ và tệp đính kèm vào việc đó, không tạo việc trùng.
+  let soLienKet = 0;
+  try {
+    soLienKet = await ghiLienKet(env, toChucId, ketQua.lien_ket, tin, new Set(viecMo.map((v) => v.id)));
+  } catch (e) {
+    console.error('Liên kết việc lỗi', e);
+  }
   // Ghi nhớ và phân tích: lỗi ở đây không được làm hỏng việc đã tạo.
   try {
     await luuGhiNho(env, toChucId, ketQua.ghi_nho, { tinNhanId: tin[0]?.id ?? null, doTinCay: tuyChon.duPhong ? 'thap' : 'cao' });
@@ -111,7 +144,7 @@ async function chayLoTin(env, toChucId, tin, bayGio) {
   } catch (e) {
     console.error('Lưu ghi nhớ lỗi', e);
   }
-  return { soViec, viec: viecRa, soAi: ketQua.viec.length, duPhong: Boolean(tuyChon.duPhong) };
+  return { soViec, soLienKet, viec: viecRa, soAi: ketQua.viec.length, duPhong: Boolean(tuyChon.duPhong) };
 }
 
 // Lấy tối đa 20 tin chưa tách của một tổ chức, đánh dấu "đang xử lý" để hai lượt chạy không làm trùng.
@@ -126,11 +159,11 @@ export async function tachViecChoToChuc(env, toChucId) {
   if (!tin.length) return { so_tin: 0, so_viec: 0 };
   tin.sort((a, b) => a.id - b.id);
 
-  const { soViec, viec, soAi, duPhong } = await chayLoTin(env, toChucId, tin, bayGio);
+  const { soViec, soLienKet, viec, soAi, duPhong } = await chayLoTin(env, toChucId, tin, bayGio);
   await env.CSDL.prepare(
     `UPDATE tin_nhan SET da_tach = 1 WHERE to_chuc_id = ?1 AND da_tach = 2 AND id IN (${tin.map((_, i) => `?${i + 2}`).join(',')})`,
   ).bind(toChucId, ...tin.map((t) => t.id)).run();
-  return { so_tin: tin.length, so_viec: soViec, so_ai: soAi, so_trung: viec.filter((v) => v.trung).length, du_phong: duPhong };
+  return { so_tin: tin.length, so_viec: soViec, so_ai: soAi, so_lien_ket: soLienKet, so_trung: viec.filter((v) => v.trung).length, du_phong: duPhong };
 }
 
 // Tin nhắn trực tiếp (Telegram, dịch vụ ngoài): đi qua cùng lõi AI như tin Zalo nhưng không nằm trong hộp tin.

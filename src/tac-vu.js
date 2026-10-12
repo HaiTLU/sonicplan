@@ -111,6 +111,7 @@ export const CAC_TAC_VU = {
     let soViec = 0;
     let soAi = 0;
     let soTrung = 0;
+    let soLienKet = 0;
     let duPhong = false;
     for (const { to_chuc_id: id } of results) {
       if (!(await docLuong(env, id)).bat['tach-viec']) continue;
@@ -119,9 +120,10 @@ export const CAC_TAC_VU = {
       soViec += kq.so_viec;
       soAi += kq.so_ai || 0;
       soTrung += kq.so_trung || 0;
+      soLienKet += kq.so_lien_ket || 0;
       duPhong ||= Boolean(kq.du_phong);
     }
-    const chiTiet = `AI thấy ${soAi} việc, trùng ${soTrung}${duPhong ? ', dùng AI dự phòng' : ''}`;
+    const chiTiet = `AI thấy ${soAi} việc, trùng ${soTrung}, gắn vào việc cũ ${soLienKet}${duPhong ? ', dùng AI dự phòng' : ''}`;
     return { so_muc: soViec, ghi_chu: soTin ? `Đọc ${soTin} tin, thêm ${soViec} việc (${chiTiet})` : 'Không có tin mới' };
   },
 

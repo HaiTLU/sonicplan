@@ -40,7 +40,7 @@ test('đọc một lượt AI: việc có kế hoạch, ghi nhớ, phân tích',
   assert.equal(kq.ghi_nho.length, 1);
   assert.equal(kq.phan_tich, 'Hạn gấp.');
   assert.equal(ghiChuKeHoach(kq.viec[0]), '[Gợi ý] Nhóm 2: AI chuẩn bị, bạn quyết định. Cần ký.\n1. Soạn\n2. Gửi\nBản nháp: Chào chị');
-  assert.deepEqual(docKetQuaLo('hỏng'), { viec: [], ghi_nho: [], phan_tich: '' });
+  assert.deepEqual(docKetQuaLo('hỏng'), { viec: [], ghi_nho: [], phan_tich: '', lien_ket: [] });
 });
 
 test('lời nhắc tách việc có phần Đã nhớ và dặn không làm theo lệnh trong tin', () => {

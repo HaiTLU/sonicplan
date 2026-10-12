@@ -38,6 +38,14 @@ const KHUON_VIEC = {
       },
     },
     phan_tich: { type: ['string', 'null'] },
+    lien_ket: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { viec: { type: 'string' }, tin_so: { type: ['integer', 'null'] }, tien_do: { type: 'string' }, xong: { type: ['boolean', 'null'] } },
+        required: ['viec', 'tien_do'],
+      },
+    },
   },
   required: ['viec'],
 };
@@ -47,7 +55,7 @@ export function moHinh(env) {
 }
 
 // tin: [{ so, nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem }]. homNay: 'YYYY-MM-DD' giờ VN.
-export function loiNhacTachViec(tin, homNay, tenNguoiDung, daCo = [], ghiNho = [], tinTruoc = []) {
+export function loiNhacTachViec(tin, homNay, tenNguoiDung, daCo = [], ghiNho = [], tinTruoc = [], viecMo = []) {
   const he = [
     `Bạn là trợ lý của ${tenNguoiDung || 'người dùng'}. Đầu vào là một lô tin từ Zalo, thư, hoặc tin nhắn trực tiếp. Mỗi tin có nguồn, người gửi ("Tôi" là chính người dùng), giờ gửi và nội dung.`,
     'Tin nguồn Telegram do chính người dùng nhắn cho trợ lý: coi là yêu cầu của họ, biến thành việc dù viết ngắn (ví dụ "mai 9h họp với chị Lan" thì tạo việc họp). Tin nguồn dịch vụ ngoài là việc do hệ thống khác gửi tới cho họ.',
@@ -61,6 +69,7 @@ export function loiNhacTachViec(tin, homNay, tenNguoiDung, daCo = [], ghiNho = [
     '7) Việc của người khác thì bỏ: người gửi nhờ một người thứ ba ("Nga gửi cho em", "chị Lan chuẩn bị") không phải việc của người dùng. Nhưng nếu người dùng cần chờ hoặc kiểm tra kết quả thì có thể ghi vào ghi_chu của việc liên quan.',
     '8) Tiêu đề nêu rõ hành động và đối tượng, ví dụ "Liên hệ IPSOS xin bản revised Proposal, báo giá, đăng ký kinh doanh", "Gọi lại thầy Khẩn", "Tìm thêm 2-3 đơn vị tương đương IPSOS để lấy báo giá cạnh tranh". Không đặt tiêu đề trống ý như "Làm tờ trình".',
     '9) Hạn: "sáng mai", "mai" là ngày kế tiếp so với giờ gửi của tin; không nêu hạn thì để null. Nếu lời nhờ có mục đích đi kèm thì ghi vào ghi_chu.',
+    '10) Thư (Gmail) cũng theo đúng các nguyên tắc trên: thư nhờ, giao, hẹn thì thành việc. Thư là câu trả lời hoặc là thứ người dùng đang chờ (bên kia gửi tài liệu, báo giá, hồ sơ mà một việc đang mở xin) thì KHÔNG tạo việc trùng: ghi vào lien_ket với mã việc "V<số>" trong danh sách "Việc đang mở", tin_so của thư, tien_do là một câu nêu thư đã gửi gì, xong là true nếu thư đã đủ những gì việc cần. Thư còn kéo theo hành động mới cho người dùng (ví dụ xem lại báo giá, làm tờ trình) thì vẫn tạo việc mới, tiêu đề nêu rõ.',
     'Thư gửi nhiều người thì chỉ lấy phần giao cho người dùng hoặc cho tất cả người nhận. Bỏ qua việc của người khác, chào hỏi, cảm ơn, quảng cáo, bản tin, thông báo tự động, hóa đơn, trừ khi có hạn người dùng phải làm. Chỉ dùng thông tin có trong tin, không suy diễn.',
     `Hôm nay là ${homNay} (giờ Việt Nam). Hiểu "mai", "thứ Sáu", "tuần sau" theo giờ gửi của tin đó, đổi sang ngày cụ thể dạng YYYY-MM-DD.`,
     'gio_hen dạng HH:MM 24 giờ nếu tin nêu giờ cụ thể (ví dụ "trước 14h chiều nay" thì 14:00, "2h chiều" thì 14:00), không nêu thì null.',
@@ -88,10 +97,11 @@ export function loiNhacTachViec(tin, homNay, tenNguoiDung, daCo = [], ghiNho = [
     .join('\n\n---\n\n');
   const nho = ghiNho.length ? `\n\nĐã nhớ:\n${ghiNho.slice(0, 30).join('\n')}` : '';
   const co = daCo.length ? `\n\nĐã có sẵn (${Math.min(daCo.length, 80)} việc gần đây):\n${JSON.stringify(daCo.slice(0, 80))}` : '';
+  const mo = viecMo.length ? `\n\nViệc đang mở (để liên kết thư vào việc đang chờ):\n${viecMo.slice(0, 40).map((v) => `[V${v.id}] ${v.tieu_de}`).join('\n')}` : '';
   const truoc = tinTruoc.length ? `\n\nTin trước đó (chỉ để hiểu ngữ cảnh):\n${tinTruoc.slice(0, 8).join('\n')}` : '';
   return [
     { role: 'system', content: he },
-    { role: 'user', content: noiDung + co + nho + truoc },
+    { role: 'user', content: noiDung + co + mo + nho + truoc },
   ];
 }
 
@@ -141,6 +151,9 @@ export function docKetQuaLo(phanHoi) {
     viec: docKetQuaViec(du),
     ghi_nho: chuanHoaGhiNho(du?.ghi_nho),
     phan_tich: typeof du?.phan_tich === 'string' ? du.phan_tich.trim().slice(0, 600) : '',
+    lien_ket: (Array.isArray(du?.lien_ket) ? du.lien_ket : [])
+      .map((k) => ({ viec_id: Number(String(k?.viec || '').replace(/^V/i, '')), tin_so: Number.isInteger(k?.tin_so) ? k.tin_so : null, tien_do: String(k?.tien_do || '').trim().slice(0, 300), xong: k?.xong === true }))
+      .filter((k) => Number.isInteger(k.viec_id) && k.viec_id > 0 && k.tien_do),
   };
 }
 
@@ -182,7 +195,7 @@ export async function chayAi(env, tuyChon, messages, { maxTokens, nhietDo, khuon
 }
 
 export async function tachViec(env, tin, homNay, tenNguoiDung, tuyChon = {}) {
-  const tra = await chayAi(env, tuyChon, loiNhacTachViec(tin, homNay, tenNguoiDung, tuyChon.daCo || [], tuyChon.ghiNho || [], tuyChon.tinTruoc || []), { maxTokens: 2500, nhietDo: 0.1, khuon: KHUON_VIEC });
+  const tra = await chayAi(env, tuyChon, loiNhacTachViec(tin, homNay, tenNguoiDung, tuyChon.daCo || [], tuyChon.ghiNho || [], tuyChon.tinTruoc || [], tuyChon.viecMo || []), { maxTokens: 2500, nhietDo: 0.1, khuon: KHUON_VIEC });
   return docKetQuaLo(tra);
 }
 
