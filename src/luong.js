@@ -23,11 +23,13 @@ export function macDinhLuong() {
 }
 
 export async function docLuong(env, toChucId) {
-  const kq = macDinhLuong();
+  const kq = { ...macDinhLuong(), bo_cuc: null };
   const { results } = await env.CSDL.prepare(`SELECT khoa, gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa LIKE 'luong\\_%' ESCAPE '\\'`).bind(toChucId).all();
   for (const { khoa, gia_tri: gt } of results) {
     const ten = khoa.slice('luong_'.length);
-    if (ten.startsWith('bat_')) {
+    if (ten === 'bo_cuc') {
+      try { kq.bo_cuc = kiemBoCuc(JSON.parse(gt)) ? JSON.parse(gt) : null; } catch { /* bỏ bố cục hỏng */ }
+    } else if (ten.startsWith('bat_')) {
       const ma = ten.slice(4);
       if (ma in kq.bat) kq.bat[ma] = gt !== '0';
     } else if (ten in NGUONG) {
@@ -56,8 +58,32 @@ export async function luuLuong(env, toChucId, thanDu) {
     if (!d || !Number.isInteger(so) || so < d.min || so > d.max) return `Giá trị "${k}" phải là số nguyên từ ${d ? `${d.min} đến ${d.max}` : '...'}.`;
     ghi.push([`luong_${k}`, String(so)]);
   }
+  if (thanDu && 'bo_cuc' in thanDu) {
+    if (thanDu.bo_cuc !== null && !kiemBoCuc(thanDu.bo_cuc)) return 'Bố cục sơ đồ không hợp lệ.';
+    ghi.push(['luong_bo_cuc', thanDu.bo_cuc === null ? 'null' : JSON.stringify(thanDu.bo_cuc)]);
+  }
   if (!ghi.length) return 'Không có gì để lưu.';
   await env.CSDL.batch(ghi.map(([khoa, gt]) =>
     env.CSDL.prepare(`INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES (?1, ?2, ?3) ON CONFLICT (to_chuc_id, khoa) DO UPDATE SET gia_tri = excluded.gia_tri`).bind(toChucId, khoa, gt)));
   return null;
+}
+
+// Bố cục sơ đồ trang Luồng: vị trí nút anh kéo và các nhóm đang thu gọn, riêng cho màn rộng (ngang) và hẹp (doc).
+// { ngang: { vi_tri: { id: [x, y] }, thu_gon: [nhom] }, doc: {...} }
+const MA_HOP_LE = /^[a-z0-9-]{1,40}$/;
+export function kiemBoCuc(bc) {
+  if (!bc || typeof bc !== 'object' || Array.isArray(bc)) return false;
+  for (const [huong, phan] of Object.entries(bc)) {
+    if (huong !== 'ngang' && huong !== 'doc') return false;
+    if (!phan || typeof phan !== 'object') return false;
+    const vt = phan.vi_tri || {};
+    if (typeof vt !== 'object' || Array.isArray(vt) || Object.keys(vt).length > 80) return false;
+    for (const [id, xy] of Object.entries(vt)) {
+      if (!MA_HOP_LE.test(id) || !Array.isArray(xy) || xy.length !== 2) return false;
+      if (!xy.every((so) => Number.isFinite(so) && Math.abs(so) <= 20000)) return false;
+    }
+    const tg = phan.thu_gon || [];
+    if (!Array.isArray(tg) || tg.length > 20 || !tg.every((m) => typeof m === 'string' && MA_HOP_LE.test(m))) return false;
+  }
+  return JSON.stringify(bc).length <= 8000;
 }
