@@ -39,3 +39,4 @@ Cập nhật: 11/10/2026. 5 phần cố định: Đang làm, Còn lại, Ưu ti�
 | 11/10 | Đổi tên thành Sonicplan, tách sang kho riêng, giao diện mới (Be Vietnam Pro, dải Nhịp hôm nay) | khởi tạo kho |
 | 11/10 | Tạo D1 `tro-ly-rieng` (APAC), dựng bảng 0001 và 0002 qua kết nối Cloudflare | - |
 | 11/10 | Hộp tin Zalo và thư, tệp R2, AI tách việc, lịch .ics, Telegram, dọn cuối ngày, sao lưu; giao diện tối nhiều trang (Tổng quan, Hộp tin, Việc, Tệp, Kết nối, Nhật ký) | PR đầu tiên của kho |
+| 12/10 | Drive kho: nối thêm một Google Drive (tài khoản khác được) để lưu tin Zalo, thư theo ngày, tệp, bộ nhớ AI, việc | PR Drive kho |

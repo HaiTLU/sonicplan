@@ -27,6 +27,7 @@ const NUT = [
   { id: 'canh-viec', cot: 'chay', ten: 'Canh việc mất', icon: 'he-thong', ma_tv: 'canh-viec', bat_nhan: 'Canh việc biến mất', nguong: ['mat_viec', 'mat_viec_mo'], mo_ta: 'So danh sách việc mỗi giờ, báo kèm tên khi mất bất thường.' },
   { id: 'don-cuoi-ngay', cot: 'chay', ten: 'Dọn cuối ngày', icon: 'lap', ma_tv: 'don-cuoi-ngay', bat_nhan: 'Dời việc chưa xong sang mai', mo_ta: 'Lúc 23h dời việc có hạn chưa xong sang ngày mai.' },
   { id: 'sao-luu', cot: 'chay', ten: 'Sao lưu đêm', icon: 'kho', ma_tv: 'sao-luu', bat_nhan: 'Sao lưu mỗi đêm', mo_ta: 'Lúc 23h lưu việc, tin 90 ngày, tệp và ghi nhớ vào kho.' },
+  { id: 'kho-drive', cot: 'ra', ten: 'Kho Drive', icon: 'kho', den: 'kho', ma_tv: 'luu-kho', bat_nhan: 'Lưu vào Drive kho mỗi 5 phút', mo_ta: 'Một Google Drive riêng (có thể là tài khoản khác) giữ bản lưu: tin nhắn Zalo và thư theo ngày, tệp đính kèm, bộ nhớ AI và danh sách việc. Không xóa gì trên Drive.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
   { id: 'telegram-ra', cot: 'ra', ten: 'Telegram', icon: 'telegram', den: 'telegram', nguong: ['yen_tu', 'yen_den'], mo_ta: 'Nơi nhận mọi thông báo. Ngoài giờ yên lặng mới gửi, sáng gộp thành một tin.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
   { id: 'webhook-ra', cot: 'ra', ten: 'Dịch vụ ngoài', icon: 'ai', webhook: true, mo_ta: 'Mỗi việc mới được gửi tới địa chỉ bạn đã khai ở trang Kết nối.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
 ];
@@ -36,7 +37,7 @@ const LIEN_KET = [
   ['ai', 'ghi-nho'], ['ai', 'viec'], ['ghi-nho', 'ai'],
   ['viec', 'nhac-viec'], ['viec', 'giao-github'], ['viec', 'bao-viec-moi'], ['viec', 'ban-tin'], ['viec', 'bao-cao-tuan'], ['viec', 'canh-viec'], ['viec', 'don-cuoi-ngay'], ['viec', 'sao-luu'],
   ['nhac-viec', 'telegram-ra'], ['bao-viec-moi', 'telegram-ra'], ['ban-tin', 'telegram-ra'], ['bao-cao-tuan', 'telegram-ra'], ['canh-viec', 'telegram-ra'],
-  ['viec', 'webhook-ra'],
+  ['viec', 'webhook-ra'], ['viec', 'kho-drive'], ['ghi-nho', 'kho-drive'], ['zalo', 'kho-drive'], ['google', 'kho-drive'],
 ];
 
 const NHAN_NGUONG = {

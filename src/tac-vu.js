@@ -5,6 +5,7 @@ import { banTinNgay, baoCaoTuan, cacToChuc, goiYMoi, gioDayDuVN } from './ban-ti
 import { taoIssue } from './github.js';
 import { dongBoGoogle } from './google.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
+import { dongBoKho } from './kho.js';
 import { nhacViec } from './nhac-viec.js';
 import { bamNutDuocChua, baoToChuc } from './telegram.js';
 import { docTichHop } from './tich-hop.js';
@@ -44,6 +45,27 @@ export const CAC_TAC_VU = {
     }
     if (loi.length && !thu && !viec) throw new Error(loi.join('; '));
     return { so_muc: thu + viec, ghi_chu: `${thu} thư mới, ${viec} việc đồng bộ${loi.length ? `, ${loi.length} lỗi` : ''}` };
+  },
+
+  'luu-kho': async (env) => {
+    const { results } = await env.CSDL.prepare(`SELECT DISTINCT to_chuc_id FROM cai_dat WHERE khoa = 'tich_hop_kho_drive'`).all();
+    if (!results.length) return { bo_qua: true };
+    let muc = 0;
+    const loi = [];
+    for (const { to_chuc_id: id } of results) {
+      if (!(await docLuong(env, id)).bat['luu-kho']) continue;
+      try {
+        const kq = await dongBoKho(env, id);
+        if (!kq) continue;
+        muc += kq.tep + kq.tin + kq.bo_nho + kq.viec;
+        loi.push(...kq.loi);
+      } catch (e) {
+        await ghiTinHieu(env, id, 'kho', `Lỗi ${String(e.message).slice(0, 120)}`);
+        loi.push(String(e.message).slice(0, 80));
+      }
+    }
+    if (loi.length && !muc) throw new Error(loi.join('; '));
+    return { so_muc: muc, ghi_chu: `Lưu ${muc} mục vào Drive kho${loi.length ? `, ${loi.length} lỗi` : ''}` };
   },
 
   'giao-github': async (env) => {

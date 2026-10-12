@@ -8,6 +8,7 @@ import { docLuong, luuLuong, NGUONG } from './luong.js';
 import { kiemCauHinhGithub, thuGithub } from './github.js';
 import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from './google.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
+import { dongBoKho, goKetNoiKho, hoanTatDangNhapKho, taoDiaChiDangNhapKho } from './kho.js';
 import { caiBot, layBot, maNoiTelegram } from './telegram.js';
 import { chuanHoaCauHinhAi, dangViecMoi, docTichHop, giaiTichHop, guiDiaChiNhan, KHOA_TICH_HOP, kiemDiaChiNhan, luuTichHop, thuAiNgoai, xoaTichHop } from './tich-hop.js';
 import { bam, cat, json, loi, maNgauNhien, ngayVN } from './tien-ich.js';
@@ -108,6 +109,29 @@ export async function xuLyApi(yeuCau, env, phien, url) {
     if (new URL(yeuCau.url).searchParams.get('het') === '1') await xoaTichHop(env, tc, 'google_client');
     return json({ ok: true });
   }
+  if (p === '/api/kho-drive/bat-dau' && m === 'GET') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức nối được Drive kho.');
+    const client = await docTichHop(env, tc, 'google_client');
+    if (!client) return loi(400, 'Chưa khai Client ID và Secret ở thẻ Google.');
+    const state = maNgauNhien(24);
+    await ghiCaiDat(env, tc, 'google_state', `${state}.${Date.now() + 10 * 60000}.kho`);
+    return Response.redirect(taoDiaChiDangNhapKho(client.client_id, diaChiGoiLai(url.origin), state), 302);
+  }
+  if (p === '/api/kho-drive/luu-ngay' && m === 'POST') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
+    try {
+      const kq = await dongBoKho(env, tc);
+      if (!kq) return loi(400, 'Chưa nối Drive kho.');
+      return json({ ok: true, ...kq });
+    } catch (e) {
+      return loi(502, e.message);
+    }
+  }
+  if (p === '/api/ket-noi/kho-drive' && m === 'DELETE') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
+    await goKetNoiKho(env, tc);
+    return json({ ok: true });
+  }
   if (p === '/api/google/bat-dau' && m === 'GET') {
     if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức nối được Google.');
     const client = await docTichHop(env, tc, 'google_client');
@@ -117,13 +141,15 @@ export async function xuLyApi(yeuCau, env, phien, url) {
     return Response.redirect(taoDiaChiDangNhap(client.client_id, diaChiGoiLai(url.origin), state), 302);
   }
   if (p === '/api/google/goi-lai' && m === 'GET') {
-    const [state, han] = String((await docCaiDat(env, tc, 'google_state')) || '').split('.');
+    const [state, han, dich] = String((await docCaiDat(env, tc, 'google_state')) || '').split('.');
     await env.CSDL.prepare(`DELETE FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = 'google_state'`).bind(tc).run();
-    const veTrang = (thongBao) => Response.redirect(`${url.origin}/?google=${encodeURIComponent(thongBao)}#ket-noi`, 302);
+    const laKho = dich === 'kho';
+    const veTrang = (thongBao) => Response.redirect(`${url.origin}/?${laKho ? 'kho' : 'google'}=${encodeURIComponent(thongBao)}#ket-noi`, 302);
     if (url.searchParams.get('error')) return veTrang(url.searchParams.get('error') === 'access_denied' ? 'Bạn đã từ chối ở màn hình Google.' : `Google báo lỗi: ${url.searchParams.get('error')}`);
-    if (!state || state !== url.searchParams.get('state') || Date.now() > Number(han)) return veTrang('Phiên đăng nhập đã hết hạn, bấm Đăng nhập Google lại.');
+    if (!state || state !== url.searchParams.get('state') || Date.now() > Number(han)) return veTrang('Phiên đăng nhập đã hết hạn, bấm nút đăng nhập lại.');
     try {
-      await hoanTatDangNhap(env, tc, url.searchParams.get('code'), diaChiGoiLai(url.origin));
+      if (laKho) await hoanTatDangNhapKho(env, tc, url.searchParams.get('code'), diaChiGoiLai(url.origin));
+      else await hoanTatDangNhap(env, tc, url.searchParams.get('code'), diaChiGoiLai(url.origin));
       return veTrang('ok');
     } catch (e) {
       return veTrang(e.message);
@@ -284,6 +310,7 @@ async function tinhKetNoi(env, tc, khoa, tinHieu) {
   if (th.github) ds.push({ loai: 'github', trang_thai: th.github.ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th.github.ghi_chu || 'Đã nối', cap_nhat_luc: th.github.lan_cuoi });
   if (th['api-vao']) ds.push({ loai: 'api-vao', trang_thai: th['api-vao'].ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th['api-vao'].ghi_chu || 'Đang nhận', cap_nhat_luc: th['api-vao'].lan_cuoi });
   if (th.google) ds.push({ loai: 'google', trang_thai: th.google.ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th.google.ghi_chu?.startsWith('Lỗi') ? th.google.ghi_chu.slice(0, 120) : `Đồng bộ ${gioTruoc(th.google.lan_cuoi)}`, cap_nhat_luc: th.google.lan_cuoi });
+  if (th.kho) ds.push({ loai: 'kho', trang_thai: th.kho.ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th.kho.ghi_chu?.startsWith('Lỗi') ? th.kho.ghi_chu.slice(0, 120) : `Lưu ${gioTruoc(th.kho.lan_cuoi)}`, cap_nhat_luc: th.kho.lan_cuoi });
   if (env.TEP) ds.push({ loai: 'tep', trang_thai: 'dang_chay', mo_ta: 'Kho R2 sẵn sàng' });
   if (coKhoa.lich) ds.push({ loai: 'lich', trang_thai: 'dang_chay', mo_ta: coKhoa.lich.dung_luc ? `Lịch đọc ${gioTruoc(coKhoa.lich.dung_luc)}` : 'Chờ ứng dụng lịch đọc lần đầu' });
   if (env.AI) {
@@ -464,8 +491,8 @@ async function layKetNoi(env, tc, url, phien) {
   } catch {}
   // Đã có thư thật về sau lần xác nhận thì không cần hiện nút xác nhận nữa.
   if (xacNhan && th.thu && th.thu.lan_cuoi > xacNhan.luc) xacNhan = null;
-  const [tichAi, tichWebhook, tichClient, tichGoogle, tichGithub, bot] = await Promise.all([
-    ...['ai', 'webhook', 'google_client', 'google', 'github'].map((loai) => giaiTichHop(env, cai[KHOA_TICH_HOP[loai]], loai)),
+  const [tichAi, tichWebhook, tichClient, tichGoogle, tichGithub, tichKho, bot] = await Promise.all([
+    ...['ai', 'webhook', 'google_client', 'google', 'github', 'kho_drive'].map((loai) => giaiTichHop(env, cai[KHOA_TICH_HOP[loai]], loai)),
     layBot(env),
   ]);
   const maNoi = bot ? cai.telegram_ma_noi || (await maNoiTelegram(env, tc)) : null;
@@ -479,6 +506,7 @@ async function layKetNoi(env, tc, url, phien) {
     github: tichGithub ? { repo: tichGithub.repo, nhan: tichGithub.nhan, lan_cuoi: th.github || null } : null,
     nhan_viec: { co: Boolean(cai.nhan_viec_bam), dia_chi: `${url.origin}/nhan/viec`, lan_cuoi: th['api-vao'] || null },
     google: { co_client: Boolean(tichClient), da_noi: tichGoogle ? { email: tichGoogle.email || null, co_drive: Boolean(tichGoogle.co_drive) } : null, dia_chi_goi_lai: diaChiGoiLai(url.origin), lan_cuoi: th.google || null },
+    kho_drive: { da_noi: tichKho ? { email: tichKho.email || null } : null, lan_cuoi: th.kho || null },
     thu: { dia_chi: env.EMAIL_DOMAIN && maNhan ? `${maNhan}@${env.EMAIL_DOMAIN}` : null, lan_cuoi: th.thu || null, xac_nhan: xacNhan },
     zalo: { khoa: khoaTheo('zalo'), lan_cuoi: th.zalo || null },
     lich: { khoa: khoaTheo('lich') },
