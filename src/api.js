@@ -756,15 +756,17 @@ async function layLuong(env, tc) {
       env.CSDL.prepare(`SELECT COUNT(*) AS n FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo'`).bind(tc),
       env.CSDL.prepare(`SELECT COUNT(*) AS n FROM tin_nhan WHERE to_chuc_id = ?1 AND da_tach = 0`).bind(tc),
       env.CSDL.prepare(`SELECT COUNT(*) AS n FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND gio_hen IS NOT NULL AND han_ngay >= ?2`).bind(tc, ngayVN()),
+      env.CSDL.prepare(`SELECT COUNT(*) AS n FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND google_task_id IS NOT NULL`).bind(tc),
+      env.CSDL.prepare(`SELECT COUNT(*) AS n FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND lich_event_id IS NOT NULL`).bind(tc),
     ]),
     docTichHop(env, tc, 'ai'),
     docTichHop(env, tc, 'webhook'),
   ]);
-  const [nho, viec, tinCho, nhac] = dem.map((d) => d.results[0].n);
+  const [nho, viec, tinCho, nhac, tasksGoogle, lichGoogle] = dem.map((d) => d.results[0].n);
   return {
     ...lg,
     gioi_han: Object.fromEntries(Object.entries(NGUONG).map(([k, v]) => [k, { min: v.min, max: v.max, mac_dinh: v.mac_dinh }])),
-    so_lieu: { ghi_nho: nho, viec_mo: viec, tin_cho: tinCho, nhac_sap_toi: nhac },
+    so_lieu: { ghi_nho: nho, viec_mo: viec, tin_cho: tinCho, nhac_sap_toi: nhac, tasks_google: tasksGoogle, lich_google: lichGoogle },
     ai: ai ? { loai: ai.loai, mo_hinh: ai.mo_hinh } : null,
     webhook: Boolean(webhook),
   };
