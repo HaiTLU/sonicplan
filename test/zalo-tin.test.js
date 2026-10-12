@@ -37,3 +37,12 @@ test('chỉ tải từ máy chủ Zalo', () => {
   assert.deepEqual(docDiaChiNgoai('[share.file] a b.docx - https://f.dlfl.vn/x'), { kieu: 'tep', url: 'https://f.dlfl.vn/x', ten: 'a b.docx' });
   assert.equal(docDiaChiNgoai('xin chào'), null);
 });
+
+test('dòng xem nhanh: tin đặc biệt thành câu ngắn', async () => {
+  const { trichTin } = await import('../public/zalo-tin.js');
+  assert.equal(trichTin('[chat.photo] https://photo-stal-16.zdn.vn/gr/jpg/abc.jpg'), 'Đã gửi một ảnh');
+  assert.equal(trichTin('[chat.recommended] sendBubbleMessage - Tiêu đề - mô tả - https://a.vn/x'), 'Liên kết: Tiêu đề');
+  assert.equal(trichTin('Gửi tệp: 261012_anh.jpg\nghi chú'), 'Đã gửi tệp: 261012_anh.jpg');
+  assert.equal(trichTin('[chat.recommended] sendBubbleMessage'), '');
+  assert.equal(trichTin('xin chào'), 'xin chào');
+});
