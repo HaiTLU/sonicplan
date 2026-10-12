@@ -28,9 +28,9 @@ function luc(iso) {
 }
 function kichThuoc(b) {
   if (b == null) return '';
-  if (b < 1024) return `${b} B`;
-  if (b < 1048576) return `${fmt.so.format(Math.round(b / 102.4) / 10)} KB`;
-  return `${fmt.so.format(Math.round(b / 104857.6) / 10)} MB`;
+  if (b < 1024) return `${b}\u00a0B`;
+  if (b < 1048576) return `${fmt.so.format(Math.round(b / 102.4) / 10)}\u00a0KB`;
+  return `${fmt.so.format(Math.round(b / 104857.6) / 10)}\u00a0MB`;
 }
 
 // ---------- Dựng phần tử ----------
@@ -71,9 +71,15 @@ async function api(duongDan, tuyChon = {}) {
   return duLieu;
 }
 
+// Hỏi lại trước việc khó hoàn tác (gỡ kết nối, xóa).
+function hoiXacNhan(cauHoi) { return window.confirm(cauHoi); }
+
+// Việt Nam không đổi giờ mùa hè: lệch cố định so với UTC (giờ trong lịch chạy của Worker là UTC).
+const LECH_GIO_VN = 7;
+
 function bao(noiDung, { loi = false, hanhDong } = {}) {
   const el = h('div', { class: `bao${loi ? ' loi' : ''}` }, h('span', { text: noiDung }));
-  if (hanhDong) el.append(h('button', { type: 'button', text: hanhDong.nhan, onclick: () => { hanhDong.lam(); el.remove(); } }));
+  if (hanhDong) el.append(h('button', { type: 'button', text: hanhDong.nhan, onclick: () => { Promise.resolve(hanhDong.lam()).catch((err) => bao(err.message, { loi: true })); el.remove(); } }));
   document.getElementById('vung-bao').append(el);
   setTimeout(() => el.remove(), hanhDong ? 6000 : 3500);
 }
@@ -403,7 +409,7 @@ function lichDeDoc(cron) {
   const [phut, gio] = String(cron || '').split(' ');
   if (phut?.startsWith('*/') && gio === '*') return `${phut.slice(2)} phút một lần`;
   if (phut === '0' && gio === '*') return 'Mỗi giờ';
-  if (/^\d+$/.test(phut) && /^\d+$/.test(gio)) return `${String((+gio + 7) % 24).padStart(2, '0')}:${phut.padStart(2, '0')} hằng ngày`;
+  if (/^\d+$/.test(phut) && /^\d+$/.test(gio)) return `${String((+gio + LECH_GIO_VN) % 24).padStart(2, '0')}:${phut.padStart(2, '0')} hằng ngày`;
   return cron || '';
 }
 
@@ -434,7 +440,7 @@ async function veHopTin(goc, thamSo) {
   const hop = h('div', { class: `hop-tin${t.chon && thamSo ? ' dang-doc' : ''}` }, khungDs, khungDoc);
 
   const nutLoc = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(t.loc === ma), onclick: () => { t.loc = ma; veHopTin(goc); } }, nhan);
-  const oTim = h('input', { type: 'search', placeholder: 'Tìm người gửi, nhóm, nội dung…', value: t.q, 'aria-label': 'Tìm tin' });
+  const oTim = h('input', { name: 'tim-tin', type: 'search', autocomplete: 'off', placeholder: 'Tìm người gửi, nhóm, nội dung…', value: t.q, 'aria-label': 'Tìm tin' });
   let hen;
   oTim.addEventListener('input', () => {
     clearTimeout(hen);
@@ -535,7 +541,9 @@ async function veViec(goc) {
     e.preventDefault();
     if (!oTen.value.trim()) {
       oTen.focus();
-      bao('Nhập tên việc trước đã.', { loi: true });
+      oTen.setCustomValidity('Nhập tên việc trước đã.');
+      oTen.reportValidity();
+      oTen.addEventListener('input', () => oTen.setCustomValidity(''), { once: true });
       return;
     }
     try {
@@ -623,10 +631,15 @@ function moNganViec(v, macDinh = {}) {
   const du = v || { han_ngay: homNay(), ...macDinh };
   for (const k of ['tieu_de', 'han_ngay', 'gio_hen', 'ghi_chu']) formViec.elements[k].value = du[k] || '';
   ngan.showModal();
+  formViecGoc = chupForm();
   formViec.elements.tieu_de.focus();
 }
+let formViecGoc = '';
+const chupForm = () => JSON.stringify([...new FormData(formViec).entries()]);
 ngan.addEventListener('click', (e) => {
-  if (e.target === ngan || e.target.closest('[data-dong]')) ngan.close();
+  // Bấm ra ngoài khi đã gõ dở thì hỏi lại, nút Đóng vẫn đóng ngay.
+  if (e.target.closest('[data-dong]')) ngan.close();
+  else if (e.target === ngan && (chupForm() === formViecGoc || hoiXacNhan('Bỏ những gì vừa nhập?'))) ngan.close();
 });
 formViec.querySelectorAll('[data-han]').forEach((b) => b.addEventListener('click', () => {
   formViec.elements.han_ngay.value = b.dataset.han === '' ? '' : congNgay(homNay(), Number(b.dataset.han));
@@ -641,6 +654,9 @@ formViec.addEventListener('submit', async (e) => {
     formViec.elements.tieu_de.focus();
     return;
   }
+  const nutLuu = formViec.querySelector('[type="submit"]');
+  const chuGoc = nutLuu?.textContent;
+  if (nutLuu) { nutLuu.disabled = true; nutLuu.textContent = 'Đang lưu…'; }
   try {
     if (viecDangSua) await api(`/api/viec/${viecDangSua.id}`, { method: 'PATCH', body: JSON.stringify(du) });
     else await api('/api/viec', { method: 'POST', body: JSON.stringify(du) });
@@ -650,6 +666,8 @@ formViec.addEventListener('submit', async (e) => {
   } catch (err) {
     loiEl.textContent = err.message;
     loiEl.hidden = false;
+  } finally {
+    if (nutLuu) { nutLuu.disabled = false; nutLuu.textContent = chuGoc; }
   }
 });
 document.getElementById('nut-huy-viec').addEventListener('click', async () => {
@@ -706,7 +724,7 @@ function moXemTep(f, kieu) {
 
 async function veTep(goc) {
   const t = trang.tep;
-  const oTim = h('input', { type: 'search', placeholder: 'Tìm tên tệp, người gửi…', value: t.q, 'aria-label': 'Tìm tệp' });
+  const oTim = h('input', { name: 'tim-tep', type: 'search', autocomplete: 'off', placeholder: 'Tìm tên tệp, người gửi…', value: t.q, 'aria-label': 'Tìm tệp' });
   const luoi = h('div', { class: 'luoi-tep' }, ...[1, 2, 3, 4, 5, 6].map(() => h('div', { class: 'bang the-tep' }, xuong(54, '46px'), xuong(16, '80%'), xuong(12, '50%'))));
   let hen;
   oTim.addEventListener('input', () => { clearTimeout(hen); hen = setTimeout(() => { t.q = oTim.value.trim(); nap(); }, 300); });
@@ -742,16 +760,16 @@ const LOAI_NHO = { nguoi: 'Người', du_an: 'Dự án', quyet_dinh: 'Quyết đ
 
 async function veGhiNho(goc) {
   const n = trang.nho;
-  const oTim = h('input', { type: 'search', placeholder: 'Tìm trong ghi nhớ…', value: n.q, 'aria-label': 'Tìm ghi nhớ' });
+  const oTim = h('input', { name: 'tim-ghi-nho', type: 'search', autocomplete: 'off', placeholder: 'Tìm trong ghi nhớ…', value: n.q, 'aria-label': 'Tìm ghi nhớ' });
   const chip = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(n.loai === ma), onclick: () => { n.loai = ma; veGhiNho(goc); } }, nhan);
   const ds = h('div', { class: 'ds-nho' }, ...[1, 2, 3].map(() => h('div', { class: 'bang the-nho' }, xuong(16, '40%'), xuong(14, '90%'))));
   const dauMuc = h('div', { class: 'thanh-loc' }, chip('tat-ca', 'Tất cả'), chip('moi', 'Mới, chờ duyệt'), ...Object.entries(LOAI_NHO).map(([ma, nhan]) => chip(ma, nhan)), h('label', { class: 'o-tim' }, icon('tim'), oTim));
   let hen;
   oTim.addEventListener('input', () => { clearTimeout(hen); hen = setTimeout(() => { n.q = oTim.value.trim(); nap(); }, 300); });
 
-  const oLoai = h('select', { 'aria-label': 'Loại' }, ...Object.entries(LOAI_NHO).map(([ma, nhan]) => h('option', { value: ma, text: nhan })));
-  const oTieu = h('input', { type: 'text', placeholder: 'Tiêu đề, ví dụ: Chị Lan', maxlength: '120', required: true, 'aria-label': 'Tiêu đề' });
-  const oNoi = h('input', { type: 'text', placeholder: 'Điều cần nhớ, ví dụ: Trưởng phòng đào tạo', maxlength: '600', required: true, 'aria-label': 'Nội dung' });
+  const oLoai = h('select', { name: 'loai', 'aria-label': 'Loại' }, ...Object.entries(LOAI_NHO).map(([ma, nhan]) => h('option', { value: ma, text: nhan })));
+  const oTieu = h('input', { name: 'tieu-de', type: 'text', placeholder: 'Tiêu đề, ví dụ: Chị Lan…', maxlength: '120', required: true, 'aria-label': 'Tiêu đề' });
+  const oNoi = h('input', { name: 'noi-dung', type: 'text', placeholder: 'Điều cần nhớ, ví dụ: Trưởng phòng đào tạo…', maxlength: '600', required: true, 'aria-label': 'Nội dung' });
   const form = h('form', { class: 'bang them-nho' }, oLoai, oTieu, oNoi, h('button', { class: 'nut nut-chinh', type: 'submit' }, icon('cong'), 'Thêm'));
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -771,10 +789,13 @@ async function veGhiNho(goc) {
   oHoSo.addEventListener('input', capNhatDem);
   const nutHoSo = h('button', { class: 'nut nut-chinh', type: 'button', onclick: async () => {
     nutHoSo.disabled = true;
-    try { await api('/api/ho-so', { method: 'PUT', body: JSON.stringify({ noi_dung: oHoSo.value }) }); bao('Đã lưu hồ sơ. Lần sau AI đọc tin sẽ dùng nó.'); } catch (err) { bao(err.message, { loi: true }); }
+    try { await api('/api/ho-so', { method: 'PUT', body: JSON.stringify({ noi_dung: oHoSo.value }) }); hoSoDaLuu = oHoSo.value; bao('Đã lưu hồ sơ. Lần sau AI đọc tin sẽ dùng nó.'); } catch (err) { bao(err.message, { loi: true }); }
     nutHoSo.disabled = false;
   } }, 'Lưu hồ sơ');
-  api('/api/ho-so').then((r) => { oHoSo.value = r.noi_dung || ''; capNhatDem(); }).catch(() => {});
+  let hoSoDaLuu = '';
+  api('/api/ho-so').then((r) => { oHoSo.value = r.noi_dung || ''; hoSoDaLuu = oHoSo.value; capNhatDem(); }).catch(() => {});
+  // Rời trang khi hồ sơ chưa lưu thì trình duyệt hỏi lại.
+  window.addEventListener('beforeunload', (e) => { if (oHoSo.isConnected && oHoSo.value !== hoSoDaLuu) e.preventDefault(); });
   const theHoSo = h('section', { class: 'bang ho-so' },
     h('h3', { text: 'Hồ sơ của bạn' }),
     h('p', { class: 'mo-ta', text: 'Vài dòng giúp AI hiểu bạn là ai và ai là ai trong công việc. AI đọc hồ sơ này mỗi lần tách việc, gợi ý, lập kế hoạch ngày và trả lời trên Telegram. Không ghi mật khẩu hay số thẻ.' }),
@@ -807,7 +828,7 @@ async function veGhiNho(goc) {
       nut('Xóa', 'xoa', async () => {
         try {
           await api(`/api/ghi-nho/${g.id}`, { method: 'DELETE' });
-          bao('Đã xóa.');
+          bao('Đã xóa ghi nhớ.', { hanhDong: { nhan: 'Hoàn tác', lam: async () => { try { await api('/api/ghi-nho', { method: 'POST', body: JSON.stringify({ loai: g.loai, tieu_de: g.tieu_de, noi_dung: g.noi_dung }) }); nap(); } catch (err) { bao(err.message, { loi: true }); } } } });
           nap();
         } catch (err) {
           bao(err.message, { loi: true });
@@ -816,7 +837,7 @@ async function veGhiNho(goc) {
     );
     const el = h('article', { class: `bang the-nho${g.ghim ? ' ghim' : ''}` }, h('div', { class: 'hang-nho' }, tren, hang), h('h3', { text: g.tieu_de }), noi);
     function sua() {
-      const o = h('textarea', { rows: '3', maxlength: '600', 'aria-label': 'Sửa nội dung' });
+      const o = h('textarea', { name: 'noi-dung-sua', rows: '3', maxlength: '600', 'aria-label': 'Sửa nội dung' });
       o.value = g.noi_dung;
       const luu = h('button', { class: 'nut nut-chinh nut-nho', type: 'button', text: 'Lưu', onclick: () => hanhDong(g.id, { noi_dung: o.value }, 'Đã lưu.') });
       const huy = h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: 'Hủy', onclick: () => noi.replaceWith(noi) });
@@ -882,7 +903,7 @@ async function veZalo(goc, thamSo) {
   const khungDoc = h('div', { class: 'bang doc-zalo', 'aria-live': 'polite' });
   const hop = h('div', { class: `hop-zalo${chon ? ' dang-doc' : ''}` }, khungDs, khungDoc);
   const nutLoc = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(z.loc === ma), onclick: () => { z.loc = ma; veZalo(goc, thamSo); } }, nhan);
-  const oTim = h('input', { type: 'search', placeholder: 'Tìm nhóm hoặc người…', value: z.q, 'aria-label': 'Tìm hội thoại' });
+  const oTim = h('input', { name: 'tim-hoi-thoai', type: 'search', autocomplete: 'off', placeholder: 'Tìm nhóm hoặc người…', value: z.q, 'aria-label': 'Tìm hội thoại' });
   let hen;
   oTim.addEventListener('input', () => { clearTimeout(hen); hen = setTimeout(() => { z.q = oTim.value.trim(); napDs(); }, 300); });
   thay(goc, h('div', { class: 'thanh-loc' }, nutLoc('tat-ca', 'Tất cả'), nutLoc('nhom', 'Nhóm'), nutLoc('ca-nhan', 'Cá nhân'), h('label', { class: 'o-tim' }, icon('tim'), oTim)), hop);
@@ -1030,15 +1051,15 @@ async function veKetNoi(goc, { moi = false } = {}) {
     if (ketQuaGg === 'ok') bao('Đã nối Google. Thư mới, việc và lịch sẽ đồng bộ mỗi 5 phút.');
     else bao(ketQuaGg, { loi: true });
   }
-  const oIdGg = h('input', { type: 'text', placeholder: 'Client ID (….apps.googleusercontent.com)', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Client ID' });
-  const oBiMatGg = h('input', { type: 'password', placeholder: 'Client Secret', autocomplete: 'off', 'aria-label': 'Client Secret' });
+  const oIdGg = h('input', { name: 'client-id', type: 'text', placeholder: 'Client ID (….apps.googleusercontent.com)', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Client ID' });
+  const oBiMatGg = h('input', { name: 'client-secret', type: 'password', placeholder: 'Client Secret…', autocomplete: 'off', 'aria-label': 'Client Secret' });
   const khoiGg = [];
   if (gg.da_noi) {
     khoiGg.push(
       h('p', { class: 'mo-ta', text: `Đã nối ${gg.da_noi.email || 'tài khoản Google'}. ${gg.lan_cuoi ? `${gg.lan_cuoi.ghi_chu}, ${luc(gg.lan_cuoi.lan_cuoi)}.` : 'Chờ lượt đồng bộ đầu tiên.'} Thư mới vào hộp tin; việc mới sang Google Tasks, việc có ngày sang Lịch; việc bấm xong bên Tasks sẽ xong ở đây.${gg.da_noi.co_drive ? ' Tệp đính kèm lưu thêm vào thư mục Sonicplan trên Drive.' : ''}` }),
       gg.da_noi.co_drive ? null : h('p', { class: 'canh-bao-nho', text: 'Chưa có quyền Drive nên tệp đính kèm mới chỉ nằm ở kho của hệ thống. Bật Google Drive API trong dự án Google Cloud, rồi bấm Đăng nhập lại và tick quyền Drive.' }),
       laChuGg && !gg.da_noi.co_drive ? h('div', { class: 'hang-nut' }, h('a', { class: 'nut nut-chinh', href: '/api/google/bat-dau' }, icon('thu'), 'Đăng nhập lại để thêm Drive')) : null,
-      laChuGg ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/google', { method: 'DELETE' }); bao('Đã gỡ kết nối Google.'); ve(); } }, 'Gỡ kết nối Google')) : null,
+      laChuGg ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { if (!hoiXacNhan('Gỡ kết nối Google? Gmail, Tasks và Lịch sẽ ngừng đồng bộ.')) return; await api('/api/ket-noi/google', { method: 'DELETE' }); bao('Đã gỡ kết nối Google.'); ve(); } }, 'Gỡ kết nối Google')) : null,
     );
   } else if (gg.co_client) {
     khoiGg.push(
@@ -1088,7 +1109,7 @@ async function veKetNoi(goc, { moi = false } = {}) {
           catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
         } }, icon('kho'), 'Lưu ngay'),
         h('a', { class: 'nut nut-phu', href: '/api/kho-drive/bat-dau' }, 'Đổi tài khoản Drive'),
-        h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/kho-drive', { method: 'DELETE' }); bao('Đã gỡ Drive kho. Tệp đã lưu vẫn còn trên Drive.'); ve(); } }, 'Gỡ kết nối')) : null,
+        h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { if (!hoiXacNhan('Gỡ Drive kho? Tệp đã lưu vẫn còn trên Drive.')) return; await api('/api/ket-noi/kho-drive', { method: 'DELETE' }); bao('Đã gỡ Drive kho. Tệp đã lưu vẫn còn trên Drive.'); ve(); } }, 'Gỡ kết nối')) : null,
     );
   } else if (!gg.co_client) {
     khoiKho.push(h('p', { class: 'mo-ta', text: 'Khai Client ID và Secret ở thẻ Google bên trên trước. Drive kho dùng chung chúng, không cần tạo thêm gì ở Google Cloud.' }));
@@ -1185,7 +1206,7 @@ async function veKetNoi(goc, { moi = false } = {}) {
     );
   }
   if (kn.telegram.quan_tri) {
-    const oMa = h('input', { type: 'password', placeholder: 'Dán mã bot @BotFather gửi', autocomplete: 'off', 'aria-label': 'Mã bot Telegram', style: 'flex:1;min-width:0' });
+    const oMa = h('input', { name: 'ma-bot', type: 'password', placeholder: 'Dán mã bot @BotFather gửi…', autocomplete: 'off', 'aria-label': 'Mã bot Telegram', style: 'flex:1;min-width:0' });
     theTele.append(
       h('p', { class: 'canh-bao-nho', style: 'margin-top:12px', text: kn.telegram.co_bot ? `Bot chung đang dùng: @${kn.telegram.ten_bot}. Dán mã khác nếu muốn đổi bot.` : 'Cài bot chung một lần: trong Telegram nhắn @BotFather, gõ /newbot, đặt tên, rồi dán mã nó gửi vào ô dưới.' }),
       h('div', { class: 'hang-nut' }, oMa, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => {
@@ -1203,10 +1224,10 @@ async function veKetNoi(goc, { moi = false } = {}) {
   // API: AI của riêng bạn và địa chỉ nhận việc mới
   const th = kn.tich_hop;
   const laChu = th.vai_tro === 'chu';
-  const oLoaiAi = h('select', { 'aria-label': 'Loại dịch vụ AI' }, h('option', { value: 'claude', text: 'Claude (Anthropic)' }), h('option', { value: 'openai', text: 'Loại tương thích OpenAI' }));
-  const oKhoaAi = h('input', { type: 'password', placeholder: 'Dán khóa API', autocomplete: 'off', 'aria-label': 'Khóa API' });
-  const oMoHinh = h('input', { type: 'text', placeholder: 'Mô hình (bỏ trống để dùng mặc định)', autocomplete: 'off', 'aria-label': 'Mô hình' });
-  const oDiaChiAi = h('input', { type: 'url', placeholder: 'Địa chỉ dịch vụ, ví dụ https://api.openai.com/v1', autocomplete: 'off', 'aria-label': 'Địa chỉ dịch vụ', hidden: true });
+  const oLoaiAi = h('select', { name: 'loai-ai', 'aria-label': 'Loại dịch vụ AI' }, h('option', { value: 'claude', text: 'Claude (Anthropic)' }), h('option', { value: 'openai', text: 'Loại tương thích OpenAI' }));
+  const oKhoaAi = h('input', { name: 'khoa-api', type: 'password', placeholder: 'Dán khóa API…', autocomplete: 'off', 'aria-label': 'Khóa API' });
+  const oMoHinh = h('input', { name: 'mo-hinh', type: 'text', placeholder: 'Mô hình (bỏ trống để dùng mặc định)…', autocomplete: 'off', 'aria-label': 'Mô hình' });
+  const oDiaChiAi = h('input', { name: 'dia-chi-dich-vu', type: 'url', placeholder: 'Địa chỉ dịch vụ, ví dụ https://api.openai.com/v1…', autocomplete: 'off', 'aria-label': 'Địa chỉ dịch vụ', hidden: true });
   oLoaiAi.addEventListener('change', () => { oDiaChiAi.hidden = oLoaiAi.value !== 'openai'; });
   const aiNut = h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
     ev.target.disabled = true;
@@ -1221,18 +1242,18 @@ async function veKetNoi(goc, { moi = false } = {}) {
     h('p', { class: 'mo-ta', text: th.ai ? `Đang dùng ${th.ai.loai === 'claude' ? 'Claude' : 'dịch vụ tương thích OpenAI'}, mô hình ${th.ai.mo_hinh}. Gặp lỗi thì tự quay về AI có sẵn.` : 'Mặc định tách việc bằng AI có sẵn của hệ thống. Dán khóa API của bạn nếu muốn dùng mô hình mạnh hơn.' }),
     th.ai?.loi ? h('p', { class: 'canh-bao-nho', text: th.ai.loi.ghi_chu }) : null,
     laChu ? (th.ai
-      ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/ai', { method: 'DELETE' }); bao('Đã gỡ, quay về AI có sẵn.'); ve(); } }, 'Gỡ dịch vụ này'))
+      ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { if (!hoiXacNhan('Gỡ dịch vụ AI này? Hệ thống quay về AI có sẵn.')) return; await api('/api/ket-noi/ai', { method: 'DELETE' }); bao('Đã gỡ, quay về AI có sẵn.'); ve(); } }, 'Gỡ dịch vụ này'))
       : h('div', { class: 'luoi-nhap' }, oLoaiAi, oKhoaAi, oMoHinh, oDiaChiAi, aiNut)) : null,
   );
 
-  const oDiaChiNhan = h('input', { type: 'url', placeholder: 'https://… địa chỉ nhận việc mới', autocomplete: 'off', 'aria-label': 'Địa chỉ nhận việc mới' });
+  const oDiaChiNhan = h('input', { name: 'dia-chi-nhan', type: 'url', placeholder: 'https://… địa chỉ nhận việc mới', autocomplete: 'off', 'aria-label': 'Địa chỉ nhận việc mới' });
   const khoiNhan = h('div', { class: 'khoi-api' },
     h('h3', { text: 'Báo việc mới tới dịch vụ khác' }),
     h('p', { class: 'mo-ta', text: th.webhook ? `Mỗi việc mới gửi tới ${th.webhook.host}. ${th.webhook.lan_cuoi ? `${th.webhook.lan_cuoi.ghi_chu}, ${luc(th.webhook.lan_cuoi.lan_cuoi)}.` : 'Chưa có việc nào được gửi.'}` : 'Mỗi việc mới (AI tách từ tin, hoặc bạn tự thêm) được gửi dạng JSON tới địa chỉ này. Dùng được với Zapier, Make, Google Apps Script, Slack, Notion và mọi dịch vụ có địa chỉ nhận (webhook).' }),
     laChu ? (th.webhook
       ? h('div', { class: 'hang-nut' },
         h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { try { await api('/api/ket-noi/webhook/thu', { method: 'POST' }); bao('Đã gửi một việc thử.'); } catch (e) { bao(e.message, { loi: true }); } } }, 'Gửi thử'),
-        h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/webhook', { method: 'DELETE' }); bao('Đã gỡ địa chỉ.'); ve(); } }, 'Gỡ'))
+        h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { if (!hoiXacNhan('Gỡ địa chỉ nhận việc mới?')) return; await api('/api/ket-noi/webhook', { method: 'DELETE' }); bao('Đã gỡ địa chỉ.'); ve(); } }, 'Gỡ'))
       : h('div', { class: 'luoi-nhap' }, oDiaChiNhan, h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
         ev.target.disabled = true;
         try {
@@ -1260,17 +1281,17 @@ async function veKetNoi(goc, { moi = false } = {}) {
         } catch (e) { bao(e.message, { loi: true }); }
         ev.target.disabled = false;
       } }, nv.co ? 'Tạo mã mới' : 'Tạo mã nhận việc'),
-      nv.co ? h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/nhan-viec', { method: 'DELETE' }); bao('Đã gỡ mã.'); ve(); } }, 'Gỡ mã') : null) : null,
+      nv.co ? h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { if (!hoiXacNhan('Gỡ mã nhận việc? Nơi đang dùng mã này sẽ không gửi việc vào được nữa.')) return; await api('/api/ket-noi/nhan-viec', { method: 'DELETE' }); bao('Đã gỡ mã.'); ve(); } }, 'Gỡ mã') : null) : null,
     khungMa,
   );
   const gh = kn.github;
-  const oTokenGh = h('input', { type: 'password', placeholder: 'Token GitHub (github_pat_…)', autocomplete: 'off', 'aria-label': 'Token GitHub' });
-  const oKhoGh = h('input', { type: 'text', placeholder: 'Kho nhận việc, ví dụ HaiTLU/ThangLong_KB', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Kho GitHub' });
+  const oTokenGh = h('input', { name: 'token-github', type: 'password', placeholder: 'Token GitHub (github_pat_…)', autocomplete: 'off', 'aria-label': 'Token GitHub' });
+  const oKhoGh = h('input', { name: 'kho-github', type: 'text', placeholder: 'Kho nhận việc, ví dụ HaiTLU/ThangLong_KB…', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Kho GitHub' });
   const khoiGit = h('div', { class: 'khoi-api' },
     h('h3', { text: 'Giao việc cho Claude qua GitHub' }),
-    h('p', { class: 'mo-ta', text: gh ? `Việc nhóm "AI tự làm" được mở thành issue ở ${gh.repo} (nhãn ${gh.nhan}). ${gh.lan_cuoi ? `${gh.lan_cuoi.ghi_chu}, ${luc(gh.lan_cuoi.lan_cuoi)}.` : 'Chờ lượt chạy đầu tiên.'}` : 'Mỗi giờ, việc AI xếp vào nhóm "AI tự làm" được mở thành một issue trong kho bạn chọn, để Claude nhận làm. Tạo token ở github.com/settings/personal-access-tokens, chọn đúng kho đó, quyền Issues: Read and write.' }),
+    h('p', { class: 'mo-ta', text: gh ? `Việc nhóm “AI tự làm” được mở thành issue ở ${gh.repo} (nhãn ${gh.nhan}). ${gh.lan_cuoi ? `${gh.lan_cuoi.ghi_chu}, ${luc(gh.lan_cuoi.lan_cuoi)}.` : 'Chờ lượt chạy đầu tiên.'}` : 'Mỗi giờ, việc AI xếp vào nhóm "AI tự làm" được mở thành một issue trong kho bạn chọn, để Claude nhận làm. Tạo token ở github.com/settings/personal-access-tokens, chọn đúng kho đó, quyền Issues: Read and write.' }),
     laChu ? (gh
-      ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/github', { method: 'DELETE' }); bao('Đã gỡ GitHub.'); ve(); } }, 'Gỡ GitHub'))
+      ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { if (!hoiXacNhan('Gỡ GitHub? Việc giao cho Claude sẽ không mở issue nữa.')) return; await api('/api/ket-noi/github', { method: 'DELETE' }); bao('Đã gỡ GitHub.'); ve(); } }, 'Gỡ GitHub'))
       : h('div', { class: 'luoi-nhap' }, oKhoGh, oTokenGh, h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
         ev.target.disabled = true;
         try {

@@ -87,9 +87,9 @@ export async function veLuong(goc, tro) {
   const cacNut = new Map();
   const tren = h('div', { class: 'cot-luong-wrap' });
   for (const c of COT) {
-    const cot = h('div', { class: 'cot-luong', dataset: { cot: c.ma } }, h('h3', { class: 'ten-cot', text: c.ten }));
+    const cot = h('div', { class: 'cot-luong', dataset: { cot: c.ma } }, h('h2', { class: 'ten-cot', text: c.ten }));
     for (const n of NUT.filter((x) => x.cot === c.ma)) {
-      const nut = h('div', { class: 'nut-luong', role: 'button', tabindex: n.sap_co ? '-1' : '0', dataset: { id: n.id, sapCo: n.sap_co ? '1' : undefined }, 'aria-label': n.ten, onclick: () => datChon(n.id), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); datChon(n.id); } } });
+      const nut = h('div', { class: 'nut-luong', role: 'group', dataset: { id: n.id, sapCo: n.sap_co ? '1' : undefined }, 'aria-label': n.ten, onclick: () => datChon(n.id) });
       cacNut.set(n.id, nut);
       cot.append(nut);
     }
@@ -113,7 +113,7 @@ export async function veLuong(goc, tro) {
       nut.classList.toggle('chon', n.id === chon);
       nut.classList.toggle('tat', tt1.den === 'tat');
       const dau = [h('span', { class: 'den-nut', 'aria-hidden': 'true' }), h('span', { class: 'bieu-nut' }, icon(n.icon))];
-      const chu = h('div', { class: 'chu-nut' }, h('strong', { text: n.ten }), h('span', { text: tt1.chu }));
+      const chu = h('button', { class: 'chu-nut', type: 'button', tabindex: n.sap_co ? '-1' : '0', 'aria-pressed': String(n.id === chon), onclick: (e) => { e.stopPropagation(); datChon(n.id); } }, h('strong', { text: n.ten }), h('span', { text: tt1.chu }));
       const them = [];
       if (n.ma_tv && !n.ai) {
         const bat = lg.bat[n.ma_tv] !== false;
@@ -154,7 +154,7 @@ export async function veLuong(goc, tro) {
   function oSo(khoa) {
     const [nhan, donVi] = NHAN_NGUONG[khoa];
     const g = lg.gioi_han[khoa];
-    const o = h('input', { type: 'number', min: String(g.min), max: String(g.max), step: '1', value: String(lg.nguong[khoa]), inputmode: 'numeric', 'aria-label': `${nhan} (${g.min} đến ${g.max})` });
+    const o = h('input', { name: khoa, type: 'number', min: String(g.min), max: String(g.max), step: '1', value: String(lg.nguong[khoa]), inputmode: 'numeric', 'aria-label': `${nhan} (${g.min} đến ${g.max})` });
     let hen;
     o.addEventListener('change', () => { clearTimeout(hen); hen = setTimeout(() => dat({ nguong: { [khoa]: Number(o.value) } }), 150); });
     return h('label', { class: 'o-nguong' }, h('span', { text: nhan }), h('div', {}, o, h('em', { text: donVi })), h('small', { text: `Từ ${g.min} đến ${g.max}, mặc định ${g.mac_dinh}` }));
@@ -175,13 +175,16 @@ export async function veLuong(goc, tro) {
         h('button', { class: 'nut nut-phu', type: 'button', text: 'Chạy ngay', onclick: async (ev) => {
           ev.target.disabled = true;
           ev.target.textContent = 'Đang chạy…';
-          const kq = await chayNgay(tv);
-          if (kq) {
-            const tt2 = await api('/api/tinh-trang').catch(() => null);
-            if (tt2) for (const t of tt2.tac_vu) lanCuoi[t.ma] = t.lan_cuoi;
+          try {
+            const kq = await chayNgay(tv);
+            if (kq) {
+              const tt2 = await api('/api/tinh-trang').catch(() => null);
+              if (tt2) for (const t of tt2.tac_vu) lanCuoi[t.ma] = t.lan_cuoi;
+            }
+          } finally {
+            veNut();
+            veBang();
           }
-          veNut();
-          veBang();
         } })));
     };
     if (n.ma_tv) khuTv(n.ma_tv, n.bat_nhan, n.nguong || []);
@@ -194,10 +197,10 @@ export async function veLuong(goc, tro) {
 
   // Dán khóa AI ngay trên sơ đồ, dùng chung API với trang Kết nối.
   function khuKhoaAi() {
-    const loai = h('select', { 'aria-label': 'Nhà cung cấp AI' }, h('option', { value: 'claude', text: 'Claude (Anthropic)' }), h('option', { value: 'openai', text: 'Loại tương thích OpenAI' }));
-    const khoa = h('input', { type: 'password', placeholder: 'Dán khóa API', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Khóa API' });
-    const diaChi = h('input', { type: 'url', placeholder: 'Địa chỉ dịch vụ (để trống nếu dùng OpenAI)', hidden: true, 'aria-label': 'Địa chỉ dịch vụ' });
-    const moHinh = h('input', { type: 'text', placeholder: 'Mô hình (bỏ trống để dùng mặc định)', 'aria-label': 'Mô hình' });
+    const loai = h('select', { name: 'nha-cung-cap', 'aria-label': 'Nhà cung cấp AI' }, h('option', { value: 'claude', text: 'Claude (Anthropic)' }), h('option', { value: 'openai', text: 'Loại tương thích OpenAI' }));
+    const khoa = h('input', { type: 'password', name: 'khoa-api', placeholder: 'Dán khóa API…', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Khóa API' });
+    const diaChi = h('input', { type: 'url', name: 'dia-chi-dich-vu', placeholder: 'Địa chỉ dịch vụ (để trống nếu dùng OpenAI)…', hidden: true, 'aria-label': 'Địa chỉ dịch vụ' });
+    const moHinh = h('input', { type: 'text', name: 'mo-hinh', placeholder: 'Mô hình (bỏ trống để dùng mặc định)…', 'aria-label': 'Mô hình' });
     loai.addEventListener('change', () => { diaChi.hidden = loai.value !== 'openai'; });
     const luu = h('button', { class: 'nut nut-chinh', type: 'submit', text: 'Kiểm tra và lưu' });
     const form = h('form', { class: 'khu-luong form-khoa' }, h('strong', { text: lg.ai ? 'Đổi khóa AI' : 'Dùng khóa AI của bạn' }), h('p', { class: 'lan-chay', text: lg.ai ? `Đang dùng ${lg.ai.loai === 'claude' ? 'Claude' : 'dịch vụ tương thích OpenAI'}, mô hình ${lg.ai.mo_hinh}. Lỗi thì tự quay về AI có sẵn.` : 'Đang dùng AI có sẵn của hệ thống. Dán khóa để dùng mô hình mạnh hơn.' }), loai, khoa, diaChi, moHinh, luu);
