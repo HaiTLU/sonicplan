@@ -1,3 +1,4 @@
+import { chuanMau, MAU_HOP_LE } from './mau.js';
 // Dự án: nhãn gom việc theo mảng, và lịch sử (dòng thời gian) của từng dự án.
 
 import { chuanHoa } from './tien-ich.js';
@@ -34,7 +35,7 @@ export function docTuKhoa(v) {
 
 export async function docDuAn(env, tc) {
   const { results } = await env.CSDL.prepare(
-    'SELECT id, ten, tu_khoa, thu_tu FROM du_an WHERE to_chuc_id = ?1 ORDER BY thu_tu, id',
+    'SELECT id, ten, tu_khoa, thu_tu, mau FROM du_an WHERE to_chuc_id = ?1 ORDER BY thu_tu, id',
   ).bind(tc).all();
   return results.map((d) => ({ ...d, tu_khoa: docTuKhoa(d.tu_khoa) }));
 }
@@ -58,6 +59,11 @@ export function kiemDuAn(than, { batBuoc }) {
     const ds = Array.isArray(than.tu_khoa) ? than.tu_khoa : String(than.tu_khoa || '').split(/[,\n]/);
     ra.tu_khoa = [...new Set(ds.map((x) => String(x).trim()).filter(Boolean))].slice(0, 20).map((x) => x.slice(0, 40));
   }
+  if ('mau' in than) {
+    const m = chuanMau(than.mau);
+    if (m === undefined) return { loi: 'Màu không hợp lệ.' };
+    ra.mau = m;
+  }
   return { duAn: ra };
 }
 
@@ -78,10 +84,17 @@ export async function taoDuAn(env, tc, than) {
   if (k.loi) return { loi: k.loi };
   const dem = await env.CSDL.prepare('SELECT COUNT(*) AS so, COALESCE(MAX(thu_tu), 0) AS cuoi FROM du_an WHERE to_chuc_id = ?1').bind(tc).first();
   if (dem.so >= DU_AN_TOI_DA) return { loi: `Tối đa ${DU_AN_TOI_DA} dự án.` };
+  // Không chọn màu thì lấy màu chưa dùng đầu tiên, hết thì quay vòng.
+  let mau = k.duAn.mau;
+  if (mau === undefined) {
+    const { results } = await env.CSDL.prepare('SELECT mau FROM du_an WHERE to_chuc_id = ?1').bind(tc).all();
+    const dung = new Set(results.map((r) => r.mau));
+    mau = MAU_HOP_LE.find((m) => !dung.has(m)) ?? MAU_HOP_LE[dem.so % MAU_HOP_LE.length];
+  }
   try {
     const d = await env.CSDL.prepare(
-      'INSERT INTO du_an (to_chuc_id, ten, tu_khoa, thu_tu, tao_luc) VALUES (?1, ?2, ?3, ?4, ?5) RETURNING id',
-    ).bind(tc, k.duAn.ten, JSON.stringify(k.duAn.tu_khoa || []), dem.cuoi + 1, new Date().toISOString()).first();
+      'INSERT INTO du_an (to_chuc_id, ten, tu_khoa, thu_tu, tao_luc, mau) VALUES (?1, ?2, ?3, ?4, ?5, ?6) RETURNING id',
+    ).bind(tc, k.duAn.ten, JSON.stringify(k.duAn.tu_khoa || []), dem.cuoi + 1, new Date().toISOString(), mau).first();
     return { id: d.id };
   } catch (e) {
     if (/UNIQUE/i.test(String(e.message))) return { loi: 'Đã có dự án tên này.' };
@@ -96,9 +109,12 @@ export async function suaDuAn(env, tc, id, than) {
   const gt = [];
   if ('ten' in k.duAn) { gt.push(k.duAn.ten); gan.push(`ten = ?${gt.length + 2}`); }
   if ('tu_khoa' in k.duAn) { gt.push(JSON.stringify(k.duAn.tu_khoa)); gan.push(`tu_khoa = ?${gt.length + 2}`); }
+  if ('mau' in k.duAn) { gt.push(k.duAn.mau); gan.push(`mau = ?${gt.length + 2}`); }
   if (!gan.length) return { loi: 'Không có gì để sửa.' };
   try {
     const kq = await env.CSDL.prepare(`UPDATE du_an SET ${gan.join(', ')} WHERE id = ?1 AND to_chuc_id = ?2`).bind(id, tc, ...gt).run();
+    // Đổi màu dự án thì các sự kiện Lịch của việc theo màu này cần đổi màu theo.
+    if (kq.meta.changes && 'mau' in k.duAn) await env.CSDL.prepare("UPDATE viec SET can_dong_bo = 1 WHERE to_chuc_id = ?1 AND du_an_id = ?2 AND mau IS NULL AND lich_event_id IS NOT NULL AND trang_thai = 'mo'").bind(tc, id).run();
     return kq.meta.changes ? {} : { loi: 'Không tìm thấy dự án.', ma: 404 };
   } catch (e) {
     if (/UNIQUE/i.test(String(e.message))) return { loi: 'Đã có dự án tên này.' };
@@ -115,7 +131,7 @@ export async function xoaDuAn(env, tc, id) {
 
 // Dòng thời gian của dự án: sự kiện của mọi việc đang thuộc dự án, cùng các tệp đi kèm tin của những việc đó.
 export async function lichSuDuAn(env, tc, id) {
-  const d = await env.CSDL.prepare('SELECT id, ten, tu_khoa FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+  const d = await env.CSDL.prepare('SELECT id, ten, tu_khoa, mau FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
   if (!d) return null;
   const [sk, tep, viec] = await Promise.all([
     env.CSDL.prepare(
