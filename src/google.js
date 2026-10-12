@@ -3,9 +3,9 @@
 
 import { chuTuHtml } from './nhan-thu.js';
 import { goiNgoai } from './goi-ngoai.js';
-import { docCaiDat, ghiCaiDat, ghiTinHieu, luuTin } from './hop-tin.js';
+import { docCaiDat, ghiCaiDat, ghiTinHieu, luuTep, luuTin, TEP_TOI_DA } from './hop-tin.js';
 import { docTichHop, luuTichHop, xoaTichHop } from './tich-hop.js';
-import { congNgay } from './tien-ich.js';
+import { congNgay, ngayVN } from './tien-ich.js';
 
 export const QUYEN = [
   'openid',
@@ -23,6 +23,7 @@ const DIA_CHI_DANG_NHAP = 'https://accounts.google.com/o/oauth2/v2/auth';
 const DIA_CHI_MA = 'https://oauth2.googleapis.com/token';
 const MUI_GIO = 'Asia/Ho_Chi_Minh';
 const TOI_DA_THU = 20;
+const TOI_DA_TEP_THU = 5;
 
 // ---- Phần thuần (kiểm thử được) ----
 
@@ -87,6 +88,30 @@ export function tinTuThuGmail(thu) {
     thoi_diem: ngay ? new Date(ngay).toISOString() : new Date().toISOString(),
   };
 }
+
+// Tệp đính kèm của thư Gmail: phần có tên tệp và mã tệp. Bỏ âm thanh, video, lời mời lịch và ảnh nhúng nhỏ (logo, chữ ký).
+export function tepTuThuGmail(thu) {
+  const ra = [];
+  const duyet = (phan) => {
+    if (!phan) return;
+    if (phan.filename && phan.body?.attachmentId) {
+      const loai = phan.mimeType || 'application/octet-stream';
+      const kichThuoc = Number(phan.body.size) || 0;
+      const nhung = (phan.headers || []).some((h) => h.name?.toLowerCase() === 'content-id');
+      const bo = !kichThuoc || kichThuoc > TEP_TOI_DA || /^(audio|video)\//.test(loai) || loai === 'text/calendar' || /\.ics$/i.test(phan.filename)
+        || (/^image\//.test(loai) && nhung && kichThuoc < 100 * 1024);
+      if (!bo) ra.push({ ten: phan.filename, loai, kich_thuoc: kichThuoc, ma_tep: phan.body.attachmentId });
+    }
+    for (const con of phan.parts || []) duyet(con);
+  };
+  duyet(thu.payload);
+  return ra;
+}
+
+const giaiB64UrlNhiPhan = (s) => {
+  const b = atob(String(s).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(b, (c) => c.charCodeAt(0));
+};
 
 export function thanTask(viec) {
   const ghiChu = [viec.ghi_chu, viec.gio_hen ? `Giờ: ${viec.gio_hen}` : ''].filter(Boolean).join('\n');
@@ -183,7 +208,21 @@ async function dongBoGmail(env, tc, token) {
     const thu = await goiGoogle(token, `gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`);
     const tin = tinTuThuGmail(thu);
     if (!tin.noi_dung) tin.noi_dung = thu.snippet || '';
-    if (await luuTin(env, tc, tin)) them++;
+    const tinId = await luuTin(env, tc, tin);
+    if (!tinId) continue;
+    them++;
+    // Tệp đính kèm lỗi thì bỏ qua tệp đó, thư vẫn được lưu.
+    const ngay = ngayVN(new Date(tin.thoi_diem)).slice(2).replace(/-/g, '');
+    for (const t of tepTuThuGmail(thu).slice(0, TOI_DA_TEP_THU)) {
+      try {
+        const kq = await goiGoogle(token, `gmail.googleapis.com/gmail/v1/users/me/messages/${id}/attachments/${t.ma_tep}`);
+        if (!kq.data) continue;
+        const du = giaiB64UrlNhiPhan(kq.data);
+        await luuTep(env, tc, { ten: `${ngay}_Gmail_${t.ten}`, loai: t.loai, kich_thuoc: du.byteLength, du_lieu: du, nguon: 'gmail', nguoi_gui: tin.nguoi_gui, nhom: tin.tieu_de, tin_nhan_id: tinId });
+      } catch (e) {
+        console.error('Tệp đính kèm Gmail lỗi', t.ten, e.message);
+      }
+    }
   }
   // Lùi mốc 2 phút để không sót thư đến sát giờ; tin trùng mã đã được bỏ qua ở luuTin.
   await ghiCaiDat(env, tc, 'google_gmail_moc', String(Math.floor(Date.now() / 1000) - 120));
