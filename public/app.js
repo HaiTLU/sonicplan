@@ -1394,7 +1394,8 @@ async function veKetNoi(goc, { moi = false } = {}) {
   const khoiGg = [];
   if (gg.da_noi) {
     khoiGg.push(
-      h('p', { class: 'mo-ta', text: `Đã nối ${gg.da_noi.email || 'tài khoản Google'}. ${gg.lan_cuoi ? `${gg.lan_cuoi.ghi_chu}, ${luc(gg.lan_cuoi.lan_cuoi)}.` : 'Chờ lượt đồng bộ đầu tiên.'} Thư mới vào hộp tin; việc mới sang Google Tasks, việc có ngày sang Lịch; việc bấm xong bên Tasks sẽ xong ở đây.${gg.da_noi.co_drive ? ' Tệp đính kèm lưu thêm vào thư mục Sonicplan trên Drive.' : ''}` }),
+      hangTaiKhoan(gg.da_noi.email || 'Tài khoản Google', gg.lan_cuoi ? `${gg.lan_cuoi.ghi_chu}, ${luc(gg.lan_cuoi.lan_cuoi)}` : 'Chờ lượt đồng bộ đầu tiên'),
+      h('p', { class: 'ghi-nho-kn', text: `Thư mới vào hộp tin; việc mới sang Google Tasks, việc có ngày sang Lịch; việc bấm xong bên Tasks sẽ xong ở đây.${gg.da_noi.co_drive ? ' Tệp đính kèm lưu thêm vào thư mục Sonicplan trên Drive.' : ''}` }),
       gg.da_noi.email ? h('div', { class: 'hang-nut' }, ...[['Mở Gmail', 'https://mail.google.com/mail/'], ['Mở Lịch', 'https://calendar.google.com/calendar/r'], ['Mở Tasks', 'https://tasks.google.com/tasks/'], ['Mở Drive', 'https://drive.google.com/drive/my-drive']].map(([ten, dia]) => h('a', { class: 'chip', href: `${dia}?authuser=${encodeURIComponent(gg.da_noi.email)}`, target: '_blank', rel: 'noopener noreferrer', title: `Mở bằng tài khoản ${gg.da_noi.email}` }, ten))) : null,
       laChuGg ? khoiNhanGoogle() : null,
       gg.da_noi.co_drive ? null : h('p', { class: 'canh-bao-nho', text: 'Chưa có quyền Drive nên tệp đính kèm mới chỉ nằm ở kho của hệ thống. Bật Google Drive API trong dự án Google Cloud, rồi bấm Đăng nhập lại và tick quyền Drive.' }),
@@ -1441,7 +1442,8 @@ async function veKetNoi(goc, { moi = false } = {}) {
   const loiKho = kho.lan_cuoi?.ghi_chu?.startsWith('Lỗi');
   if (kho.da_noi) {
     khoiKho.push(
-      h('p', { class: 'mo-ta', text: `Đã nối ${kho.da_noi.email || 'tài khoản Drive'}. ${kho.lan_cuoi ? `${kho.lan_cuoi.ghi_chu}, ${luc(kho.lan_cuoi.lan_cuoi)}.` : 'Chờ lượt lưu đầu tiên.'} Thư mục Sonicplan kho trên Drive đó có các mục Tin nhắn, Thư, Tệp, Bộ nhớ AI, Việc. Tin và thư gom thành một tệp mỗi ngày; Bộ nhớ AI và Việc ghi đè đúng một tệp. Hệ thống không bao giờ xóa gì trên Drive.` }),
+      hangTaiKhoan(kho.da_noi.email || 'Tài khoản Drive', kho.lan_cuoi ? `${kho.lan_cuoi.ghi_chu}, ${luc(kho.lan_cuoi.lan_cuoi)}` : 'Chờ lượt lưu đầu tiên'),
+      h('p', { class: 'ghi-nho-kn', text: 'Tin và thư gom thành một tệp mỗi ngày; Bộ nhớ AI và Việc ghi đè đúng một tệp. Hệ thống không bao giờ xóa gì trên Drive.' }),
       linkKhoDrive(kho),
       laChuGg ? h('div', { class: 'hang-nut' },
         h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
@@ -1656,7 +1658,38 @@ async function veKetNoi(goc, { moi = false } = {}) {
     ),
   );
 
-  thay(goc, h('div', { class: 'ds-kn vao' }, theGoogle, theKho, theThu, theZalo, theLich, theTele, theApi, theNen));
+  const nhomThe = [
+    ['Tài khoản Google', [['google', theGoogle], ['kho', theKho]]],
+    ['Tin vào', [['thu', theThu], ['zalo', theZalo], ['telegram', theTele]]],
+    ['Gửi ra', [['lich', theLich], ['api', theApi]]],
+    ['Hệ thống', [['nen', theNen]]],
+  ];
+  const cacThe = nhomThe.map(([ten, ds]) => [ten, ds.map(([ma, the]) => gapTheKn(the, ma))]);
+  const tomTat = h('div', { class: 'tom-tat-kn', role: 'list' }, ...cacThe.flatMap(([, ds]) => ds).map((t) => h('button', { type: 'button', class: 'o-kn', role: 'listitem', dataset: { den: t.den }, onclick: () => {
+    t.the.open = true;
+    t.the.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    t.the.querySelector('summary').focus({ preventScroll: true });
+  } }, t.bieuTuong, h('span', { class: 'o-kn-chu' }, h('b', { text: t.ten }), h('small', { text: t.trangThai })))));
+  thay(goc, tomTat, ...cacThe.map(([ten, ds]) => h('section', { class: 'nhom-kn', 'aria-label': ten }, h('h2', { class: 'tieu-nhom-kn', text: ten }), h('div', { class: 'ds-kn' }, ...ds.map((t) => t.the)))));
+}
+
+// Hàng tài khoản đã nối: chữ cái đầu, email, dòng trạng thái lần chạy cuối.
+function hangTaiKhoan(email, dong) {
+  return h('div', { class: 'tai-khoan-kn' }, h('span', { class: 'dau-tk', 'aria-hidden': 'true', text: String(email).trim().charAt(0).toUpperCase() }), h('div', {}, h('b', { translate: 'no', text: email }), h('small', { text: dong })));
+}
+
+// Biến thẻ kết nối thành thẻ gập: tiêu đề luôn thấy, phần chi tiết mở khi cần làm gì (chưa nối, lỗi), gập khi đã ổn.
+function gapTheKn(the, ma) {
+  const dau = the.querySelector(':scope > header');
+  const bieuTuong = dau.querySelector('.tp-icon');
+  const den = bieuTuong.dataset.den;
+  const ten = dau.querySelector('h2').textContent;
+  const trangThai = dau.querySelector('.trang-thai-kn')?.textContent || '';
+  const ct = h('details', { class: the.className, id: `kn-${ma}` });
+  ct.open = den !== 'xanh';
+  const tomTat = h('summary', {}, ...dau.children, h('span', { class: 'mui-kn', 'aria-hidden': 'true' }));
+  ct.append(tomTat, h('div', { class: 'than-kn' }, ...[...the.children].filter((c) => c !== dau)));
+  return { the: ct, ma, ten: ten.split(':')[0], den, trangThai, bieuTuong: bieuTuong.cloneNode(true) };
 }
 
 // =====================================================================
