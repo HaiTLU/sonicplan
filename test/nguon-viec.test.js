@@ -22,3 +22,12 @@ test('tin gốc của việc: không đoán bừa khi chỉ chung một từ hay
   assert.equal(timTinNguon({ tieu_de: 'Nộp', tin_so: null }, LO), null);
   assert.equal(timTinNguon({ tieu_de: 'Gửi báo giá khách', tin_so: null }, LO), null);
 });
+
+import { laViecVanVat } from '../src/viec.js';
+
+test('việc vụn vặt đời thường bị loại, việc công việc thì giữ', () => {
+  for (const ten of ['Mua trà thạch đào cho nhóm', 'Đi ăn trưa với các chị', 'Nhận hoa quả', 'Mua nước cho cô giáo', 'Đặt cà phê cho cả lớp']) assert.equal(laViecVanVat({ tieu_de: ten }), true, ten);
+  for (const ten of ['Gửi báo giá cho Ipsos', 'Review tờ trình tổ chức Workshop', 'Gọi lại thầy Khẩn', 'Trả lại chị Hà 2 triệu']) assert.equal(laViecVanVat({ tieu_de: ten }), false, ten);
+  assert.equal(laViecVanVat({ tieu_de: 'Đặt cà phê tiếp khách Ipsos', uu_tien: 'cao' }), false);
+  assert.equal(laViecVanVat({ tieu_de: 'Mua nước cho khách họp', du_an: 'AI Lab' }), false);
+});

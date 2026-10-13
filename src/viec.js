@@ -64,6 +64,15 @@ function nguonChung(tin) {
   return ds.length === 1 ? { nguon: ds[0] } : null;
 }
 
+// Việc đời thường vụn vặt (ăn uống, mua nước, quà, chuyện lớp): AI hay lỡ tạo dù đã dặn, nên chặn thêm bằng code.
+// Việc có hạn thuộc dự án hoặc ưu tiên cao thì giữ lại, vì đó là việc người dùng chủ động đặt ra.
+const TU_VAN = /\b(an trua|an toi|an sang|di an|bua an|com trua|uong nuoc|tra sua|tra thach|tra dao|ca phe|cafe|mua nuoc|mua tra|mua do an|banh ngot|hoa qua|nhan hoa|ra nhan|tang qua|nuoc ngot|tra da|chai nuoc)\b/;
+export function laViecVanVat(v) {
+  const ten = chuanHoa(v?.tieu_de);
+  if (!TU_VAN.test(ten)) return false;
+  return v?.uu_tien !== 'cao' && !v?.du_an;
+}
+
 export function timTrung(tieuDe, cacViec) {
   return cacViec.find((v) => doGiong(v.tieu_de, tieuDe) >= NGUONG_TRUNG) || null;
 }
@@ -162,7 +171,7 @@ async function chayLoTin(env, toChucId, tin, bayGio) {
     const g = timTinNguon(x, tin);
     return { ...boSungHan(x, g?.noi_dung || '', g?.thoi_diem || bayGio), nguon_tin: g };
   });
-  for (const v of viecDay.filter((x) => laViecRo(x) || String(x?.tieu_de || '').trim().split(/\s+/).length >= 2 && x.han_ngay).slice(0, 10)) {
+  for (const v of viecDay.filter((x) => (laViecRo(x) || String(x?.tieu_de || '').trim().split(/\s+/).length >= 2 && x.han_ngay) && !laViecVanVat(x)).slice(0, 10)) {
     const nguon = v.nguon_tin;
     const keHoach = ghiChuKeHoach(v);
     const ghiChu = [v.ghi_chu, keHoach].filter(Boolean).join('\n\n') || null;
