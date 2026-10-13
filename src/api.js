@@ -524,8 +524,6 @@ async function tinhKetNoi(env, tc, khoa, tinHieu) {
   const coKhoa = Object.fromEntries(khoa.map((k) => [k.loai, k]));
   const th = Object.fromEntries(tinHieu.map((t) => [t.nguon, t]));
   const ds = [];
-  if (th.thu) ds.push({ loai: 'thu', trang_thai: 'dang_chay', mo_ta: `Thư cuối ${gioTruoc(th.thu.lan_cuoi)}`, cap_nhat_luc: th.thu.lan_cuoi });
-  else if (env.EMAIL_DOMAIN) ds.push({ loai: 'thu', trang_thai: 'cho', mo_ta: 'Chờ thư đầu tiên' });
   if (coKhoa.zalo) {
     const z = th.zalo;
     if (!z) ds.push({ loai: 'zalo', trang_thai: 'cho', mo_ta: 'Đã tạo mã, chờ máy Mac gửi tin' });

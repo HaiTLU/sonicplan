@@ -727,7 +727,7 @@ function bangTinMoi(ds) {
     h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-tin' }, icon('hop-tin'), 'Tin mới'), h('a', { class: 'lien-ket-nho', href: '#hop-tin' }, 'Mở hộp tin', icon('mui-ten'))),
   );
   if (!ds.length) {
-    goc.append(h('div', { class: 'trong-trai', style: 'min-height:220px' }, icon('hop-tin'), h('h3', { text: 'Hộp tin còn trống' }), h('p', { text: 'Nối Zalo và chuyển tiếp thư ở trang Kết nối để tin bắt đầu về.' })));
+    goc.append(h('div', { class: 'trong-trai', style: 'min-height:220px' }, icon('hop-tin'), h('h3', { text: 'Hộp tin còn trống' }), h('p', { text: 'Nối Zalo và Google ở trang Kết nối để tin bắt đầu về.' })));
     return goc;
   }
   goc.append(h('ul', { class: 'ds-tin-ngan' }, ...ds.map((t) =>
@@ -880,7 +880,7 @@ async function veHopTin(goc, thamSo) {
 
   function veDs() {
     if (!t.ds.length) {
-      thay(khungDs, h('div', { class: 'trong-trai' }, icon('hop-tin'), h('h3', { text: t.q ? 'Không tìm thấy tin nào' : 'Chưa có tin' }), h('p', { text: t.q ? 'Thử từ khóa khác.' : 'Tin Zalo và thư chuyển tiếp sẽ về đây.' })));
+      thay(khungDs, h('div', { class: 'trong-trai' }, icon('hop-tin'), h('h3', { text: t.q ? 'Không tìm thấy tin nào' : 'Chưa có tin' }), h('p', { text: t.q ? 'Thử từ khóa khác.' : 'Tin Zalo và thư Gmail sẽ về đây.' })));
       return;
     }
     thay(khungDs, h('ul', {}, ...t.ds.map((x) => {
@@ -930,7 +930,7 @@ async function veHopTin(goc, thamSo) {
       if (!(chan || []).length) spam.nut.hidden = true;
       thay(khungDoc, 
         h('button', { class: 'nut nut-phu nut-nho nut-quay', type: 'button', text: 'Quay lại danh sách', onclick: () => { t.chon = null; location.hash = 'hop-tin'; } }),
-        h('div', { class: 'nguon' }, h('span', { class: `huy-hieu ${tin.nguon}` }, icon(tin.nguon === 'zalo' ? 'zalo' : 'thu')), tin.nguon === 'zalo' ? (tin.nhom ? `Zalo, ${tenNhom(tin.nhom)}` : 'Zalo, tin riêng') : 'Thư chuyển tiếp'),
+        h('div', { class: 'nguon' }, h('span', { class: `huy-hieu ${tin.nguon}` }, icon(tin.nguon === 'zalo' ? 'zalo' : 'thu')), tin.nguon === 'zalo' ? (tin.nhom ? `Zalo, ${tenNhom(tin.nhom)}` : 'Zalo, tin riêng') : 'Thư Gmail'),
         h('h2', { text: tin.tieu_de && tin.nguon === 'gmail' ? tin.tieu_de : tin.nguoi_gui || 'Không rõ người gửi' }),
         h('p', { class: 'meta', text: `${tin.nguon === 'gmail' ? `Từ ${tin.nguoi_gui || 'không rõ'}, ` : ''}${fmt.ngayGio.format(new Date(tin.thoi_diem))}` }),
         h('div', { class: 'than', text: tin.noi_dung || '(Không có nội dung)' }),
@@ -2080,30 +2080,6 @@ async function veKetNoi(goc, { moi = false } = {}) {
     ...khoiGg,
   );
 
-  // Thư
-  const theThu = h('section', { class: 'bang the-kn' },
-    dau('thu', 'Thư chuyển tiếp', 'Cách không cần đăng nhập: Gmail chuyển bản sao thư về đây, kèm tệp đính kèm.', kn.thu.lan_cuoi ? 'xanh' : kn.thu.dia_chi ? 'vang' : 'xam', kn.thu.lan_cuoi ? `Thư cuối ${luc(kn.thu.lan_cuoi.lan_cuoi)}` : kn.thu.xac_nhan ? 'Chờ bấm xác nhận' : kn.thu.dia_chi ? 'Chưa nối' : 'Chưa bật'),
-  );
-  if (kn.thu.xac_nhan) {
-    const xn = kn.thu.xac_nhan;
-    theThu.append(
-      h('p', { text: `Gmail ${xn.tu || ''} vừa xin chuyển thư về đây. Bấm nút để đồng ý${xn.ma ? ` (mã ${xn.ma})` : ''}, rồi làm bước 3 bên dưới.` }),
-      h('div', { class: 'hang-nut' }, xn.duong_dan ? h('a', { class: 'nut nut-chinh', href: xn.duong_dan, target: '_blank', rel: 'noopener' }, icon('thu'), 'Xác nhận chuyển thư') : oChep(xn.ma || '')),
-    );
-  }
-  if (kn.thu.dia_chi) {
-    theThu.append(oChep(kn.thu.dia_chi), h('ol', { class: 'buoc' },
-      h('li', {}, 'Bấm nút Mở cài đặt Gmail, chọn Thêm địa chỉ chuyển tiếp, dán địa chỉ trên.'),
-      h('li', {}, 'Quay lại trang này, nút Xác nhận chuyển thư sẽ hiện sau vài giây. Bấm nút đó.'),
-      h('li', {}, 'Trong cài đặt Gmail, chọn Chuyển tiếp bản sao thư đến địa chỉ trên, bấm Lưu thay đổi.'),
-    ), h('div', { class: 'hang-nut' },
-      h('a', { class: 'nut nut-phu', href: 'https://mail.google.com/mail/u/0/#settings/fwdandpop', target: '_blank', rel: 'noopener' }, icon('thu'), 'Mở cài đặt Gmail'),
-      h('button', { class: 'nut nut-phu', type: 'button', onclick: () => ve() }, icon('lap'), 'Kiểm tra lại'),
-    ));
-  } else {
-    theThu.append(h('p', { class: 'canh-bao-nho', text: 'Hệ thống đang chuẩn bị địa chỉ nhận thư.' }));
-  }
-
   // Zalo
   const oLenhZalo = h('div');
   const theZalo = h('section', { class: 'bang the-kn' },
@@ -2277,7 +2253,7 @@ async function veKetNoi(goc, { moi = false } = {}) {
 
   const nhomThe = [
     ['Tài khoản Google', [['google', theGoogle], ['kho', theKho]]],
-    ['Tin vào', [['thu', theThu], ['zalo', theZalo], ['telegram', theTele]]],
+    ['Tin vào', [['zalo', theZalo], ['telegram', theTele]]],
     ['Gửi ra', [['lich', theLich], ['api', theApi]]],
     ['Hệ thống', [['nen', theNen]]],
   ];
