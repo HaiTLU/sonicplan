@@ -213,6 +213,7 @@ async function dongBoGmail(env, tc, token) {
     const tinId = await luuTin(env, tc, tin);
     if (!tinId) continue;
     them++;
+    if (tin.an) continue; // nguồn đã chặn: không lưu tệp
     // Tệp đính kèm lỗi thì bỏ qua tệp đó, thư vẫn được lưu.
     const ngay = ngayVN(new Date(tin.thoi_diem)).slice(2).replace(/-/g, '');
     for (const t of tepTuThuGmail(thu).slice(0, TOI_DA_TEP_THU)) {

@@ -51,15 +51,17 @@ export async function nhanThu(thu, env, ctx) {
   const xacNhan = xacNhanGmail(docThu);
   if (xacNhan) await ghiCaiDat(env, toChuc.id, 'gmail_xac_nhan', JSON.stringify({ ...xacNhan, luc: new Date().toISOString() }));
   const nguoiGui = docThu.from?.name ? `${docThu.from.name} <${docThu.from.address}>` : docThu.from?.address || thu.from;
-  const tinId = await luuTin(env, toChuc.id, {
+  const tinThu = {
     nguon: 'gmail',
     ma_goc: docThu.messageId || `${thu.from}-${docThu.date}-${docThu.subject}`,
     nguoi_gui: nguoiGui,
     tieu_de: docThu.subject || '(không có tiêu đề)',
     noi_dung: (docThu.text || chuTuHtml(docThu.html)).trim(),
     thoi_diem: Number.isNaN(Date.parse(docThu.date)) ? new Date().toISOString() : new Date(docThu.date).toISOString(),
-  });
+  };
+  const tinId = await luuTin(env, toChuc.id, tinThu);
   if (!tinId) return; // thư trùng
+  if (tinThu.an) return; // nguồn đã chặn: không lưu tệp, không tách việc
   for (const tep of docThu.attachments || []) {
     const kichThuoc = tep.content?.byteLength ?? 0;
     if (!kichThuoc || kichThuoc > TEP_TOI_DA) continue;

@@ -119,12 +119,12 @@ function tenNhom(ten) {
 }
 
 const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', q: '', chon: null, ds: [] }, viec: { tab: 'mo', duAn: 'tat-ca', xem: 'han', anTrong: false }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
-const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'hieu-suat': 'Hiệu suất', 'du-an': 'Dự án', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy', 'du-lieu': 'Dữ liệu của bạn' };
+const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'hieu-suat': 'Hiệu suất', 'du-an': 'Dự án', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy', 'du-lieu': 'Dữ liệu của bạn', 'da-chan': 'Đã chặn' };
 // Bốn mục chính, mỗi mục gom vài trang con (kế hoạch chuẩn quốc tế 13/10/2026, giai đoạn 3).
 // Đường dẫn cũ (#viec, #zalo...) giữ nguyên để liên kết đã lưu vẫn mở được.
 const NHOM = [
   { ma: 'hom-nay', ten: 'Hôm nay', con: ['tong-quan', 'viec', 'hieu-suat'] },
-  { ma: 'hop-tin', ten: 'Hộp tin', con: ['hop-tin', 'zalo'] },
+  { ma: 'hop-tin', ten: 'Hộp tin', con: ['hop-tin', 'zalo', 'da-chan'] },
   { ma: 'du-an', ten: 'Dự án', con: ['du-an', 'tep', 'ghi-nho'] },
   { ma: 'cai-dat', ten: 'Cài đặt', con: ['ket-noi', 'luong', 'nhat-ky', 'du-lieu'] },
 ];
@@ -443,6 +443,69 @@ function bangTacVu(ds) {
 }
 
 // =====================================================================
+// Spam: chặn một nguồn tin
+// =====================================================================
+// Nút Spam mở khung xác nhận ngay tại chỗ. tuyChon: các cách chặn ({ loai, gia_tri, nhan }), gui(tuyChon) gọi API,
+// sauKhi() chạy khi chặn xong. Tin cũ của nguồn bị ẩn, việc chưa xong sinh từ đó bị gỡ, AI không đọc nguồn này nữa.
+function moTaChan(c, nguon) {
+  if (c.loai === 'nhom') return tenNhom(c.nhan);
+  if (c.loai === 'dia_chi') return `Mọi thư từ ${c.nhan}`;
+  return nguon === 'zalo' ? `Tin riêng với "${c.nhan}"` : `Thư của "${c.nhan}"`;
+}
+
+function nutSpam({ nguon, tuyChon, gui, sauKhi }) {
+  const khung = h('div', { class: 'hop-spam', hidden: true });
+  const nut = h('button', { class: 'nut nut-nguy nut-nho', type: 'button', 'aria-expanded': 'false', onclick: () => { khung.hidden = !khung.hidden; nut.setAttribute('aria-expanded', String(!khung.hidden)); } }, icon('chan'), 'Spam');
+  let chon = tuyChon[0];
+  const tenNhom = `chan-${Math.random().toString(36).slice(2, 8)}`;
+  const dongY = h('button', { class: 'nut nut-nguy nut-nho', type: 'button', text: 'Chặn' });
+  dongY.addEventListener('click', async () => {
+    dongY.disabled = true;
+    try {
+      const kq = await gui(chon);
+      bao(`Đã chặn ${kq.nhan}. Ẩn ${kq.an_tin} tin${kq.go_viec ? `, gỡ ${kq.go_viec} việc chưa xong` : ''}. Bỏ chặn ở mục Đã chặn.`);
+      api('/api/tong-quan').then((k) => capNhatDem(k.so_lieu.tin_chua_xem, k.so_lieu.viec_mo)).catch(() => {});
+      sauKhi();
+    } catch (e) {
+      bao(e.message, { loi: true });
+      dongY.disabled = false;
+    }
+  });
+  khung.append(
+    h('p', { class: 'hop-spam-dau', text: 'Không hiện và không tính thành việc cần làm:' }),
+    ...tuyChon.map((c, i) => h('label', { class: 'hop-spam-chon' }, h('input', { type: 'radio', name: tenNhom, ...(i === 0 ? { checked: '' } : {}), onchange: () => { chon = c; } }), h('span', { text: moTaChan(c, nguon) }))),
+    h('p', { class: 'mo-ta', text: 'Tin cũ của nguồn này sẽ ẩn và việc chưa xong sinh ra từ đó sẽ gỡ. Việc đã xong được giữ lại.' }),
+    h('div', { class: 'hang-nut' }, dongY, h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: 'Hủy', onclick: () => { khung.hidden = true; nut.setAttribute('aria-expanded', 'false'); } })),
+  );
+  return { nut, khung };
+}
+
+async function veDaChan(goc) {
+  thay(goc, h('div', { class: 'bang' }, xuong(20, '40%'), h('div', { style: 'height:12px' }), xuong(60)));
+  const ve = async () => {
+    let ds;
+    try { ds = (await api('/api/chan')).ds; } catch (e) { thay(goc, khungLoi(e, ve)); return; }
+    const ten = { zalo: 'Zalo', gmail: 'Thư' };
+    const LOAI_CHAN = { nhom: 'cả nhóm', nguoi: 'theo người gửi', dia_chi: 'cả địa chỉ' };
+    thay(goc, h('div', { class: 'bang vao' },
+      h('div', { class: 'bang-dau' }, h('h2', {}, icon('chan'), 'Nguồn đã chặn')),
+      h('p', { class: 'mo-ta', text: 'Tin từ các nguồn này không hiện trong Hộp tin và không bao giờ được tính thành việc. Bỏ chặn thì tin cũ hiện lại, nhưng việc đã gỡ không tự trở lại.' }),
+      ds.length
+        ? h('ul', { class: 'ds-chan' }, ...ds.map((c) => h('li', {},
+          h('span', { class: `huy-hieu ${c.nguon}` }, icon(c.nguon === 'zalo' ? 'zalo' : 'thu')),
+          h('div', { style: 'min-width:0' }, h('strong', { text: c.nhan }), h('small', { text: `${ten[c.nguon]}, ${LOAI_CHAN[c.loai]}, chặn ${luc(c.tao_luc)}` })),
+          h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: 'Bỏ chặn', onclick: async (ev) => {
+            ev.target.disabled = true;
+            try { const kq = await api(`/api/chan/${c.id}`, { method: 'DELETE' }); bao(`Đã bỏ chặn ${c.nhan}${kq.hien_tin ? `, ${kq.hien_tin} tin hiện lại` : ''}.`); ve(); } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
+          } }),
+        )))
+        : h('div', { class: 'trong-trai' }, icon('chan'), h('h3', { text: 'Chưa chặn nguồn nào' }), h('p', { text: 'Mở một tin hoặc hội thoại không cần xem, bấm Spam để ẩn và không tính thành việc.' })),
+    ));
+  };
+  await ve();
+}
+
+// =====================================================================
 // Hộp tin
 // =====================================================================
 async function veHopTin(goc, thamSo) {
@@ -513,12 +576,19 @@ async function veHopTin(goc, thamSo) {
     khungDs.querySelectorAll('button[data-id]').forEach((b) => b.setAttribute('aria-current', String(Number(b.dataset.id) === id)));
     thay(khungDoc, xuong(14, '30%'), h('div', { style: 'height:16px' }), xuong(34, '70%'), h('div', { style: 'height:20px' }), xuong(160));
     try {
-      const { tin, tep, viec } = await api(`/api/tin/${id}`);
+      const { tin, tep, viec, chan } = await api(`/api/tin/${id}`);
       const muc = t.ds.find((x) => x.id === id);
       if (muc && !muc.da_xem) {
         muc.da_xem = 1;
         khungDs.querySelector(`button[data-id="${id}"]`)?.parentElement.classList.remove('chua-xem');
       }
+      const spam = nutSpam({
+        nguon: tin.nguon,
+        tuyChon: chan || [],
+        gui: (c) => api('/api/chan', { method: 'POST', body: JSON.stringify({ tin_id: tin.id, loai: c.loai }) }),
+        sauKhi: () => { t.chon = null; location.hash = 'hop-tin'; veHopTin(goc); },
+      });
+      if (!(chan || []).length) spam.nut.hidden = true;
       thay(khungDoc, 
         h('button', { class: 'nut nut-phu nut-nho nut-quay', type: 'button', text: 'Quay lại danh sách', onclick: () => { t.chon = null; location.hash = 'hop-tin'; } }),
         h('div', { class: 'nguon' }, h('span', { class: `huy-hieu ${tin.nguon}` }, icon(tin.nguon === 'zalo' ? 'zalo' : 'thu')), tin.nguon === 'zalo' ? (tin.nhom ? `Zalo, ${tenNhom(tin.nhom)}` : 'Zalo, tin riêng') : 'Thư chuyển tiếp'),
@@ -529,7 +599,11 @@ async function veHopTin(goc, thamSo) {
         h('div', { class: 'khoi' },
           h('h3', { text: viec.length ? 'Việc tách từ tin này' : 'Chưa có việc nào từ tin này' }),
           ...viec.map((v) => h('div', { class: 'muc-viec' }, h('span', { class: `nhan-kq ${v.trang_thai === 'xong' ? 'xong' : 'dang_chay'}`, text: v.trang_thai === 'xong' ? 'Xong' : 'Mở' }), h('button', { class: 'ten-viec', type: 'button', text: v.tieu_de, onclick: () => moNganViec(v) }), v.han_ngay ? h('span', { class: 'chip-gio', text: `${ngayHienThi(v.han_ngay)}${v.gio_hen ? ` ${v.gio_hen}` : ''}` }) : h('span'))),
-          h('button', { class: 'nut nut-phu nut-nho', type: 'button', style: 'margin-top:10px', onclick: () => moNganViec(null, { tieu_de: '', ghi_chu: `Từ ${tin.nguoi_gui || ''}: ${(tin.noi_dung || '').slice(0, 300)}` }) }, icon('cong'), 'Tạo việc từ tin này'),
+          h('div', { class: 'hang-nut' },
+            h('button', { class: 'nut nut-phu nut-nho', type: 'button', onclick: () => moNganViec(null, { tieu_de: '', ghi_chu: `Từ ${tin.nguoi_gui || ''}: ${(tin.noi_dung || '').slice(0, 300)}` }) }, icon('cong'), 'Tạo việc từ tin này'),
+            spam.nut,
+          ),
+          spam.khung,
         ),
       );
       api('/api/tong-quan').then((kq) => capNhatDem(kq.so_lieu.tin_chua_xem, kq.so_lieu.viec_mo)).catch(() => {});
@@ -1336,6 +1410,12 @@ async function veZalo(goc, thamSo) {
       }
       thay(luong, con);
     };
+    const spamZalo = nutSpam({
+      nguon: 'zalo',
+      tuyChon: [{ loai: loai === 'nhom' ? 'nhom' : 'nguoi', gia_tri: ten, nhan: ten }],
+      gui: (c) => api('/api/chan', { method: 'POST', body: JSON.stringify({ nguon: 'zalo', loai: c.loai, gia_tri: c.gia_tri, nhan: c.nhan }) }),
+      sauKhi: () => { location.hash = 'zalo'; veZalo(goc); },
+    });
     try {
       const kq = await tai(null);
       tin = kq.tin; tep = kq.tep; conNua = kq.con_nua;
@@ -1343,8 +1423,10 @@ async function veZalo(goc, thamSo) {
         h('header', { class: 'dau-zalo' },
           h('button', { class: 'nut nut-phu nut-nho nut-quay', type: 'button', 'aria-label': 'Quay lại danh sách', onclick: () => { location.hash = 'zalo'; } }, icon('mui-ten')),
           anhZalo(ten, loai),
-          h('div', {}, h('h2', { text: ten }), h('p', { text: loai === 'nhom' ? 'Nhóm Zalo' : 'Tin riêng' })),
+          h('div', { style: 'flex:1;min-width:0' }, h('h2', { text: ten }), h('p', { text: loai === 'nhom' ? 'Nhóm Zalo' : 'Tin riêng' })),
+          spamZalo.nut,
         ),
+        spamZalo.khung,
         luong,
         h('p', { class: 'zalo-chi-doc', text: 'Sonicplan chỉ đọc tin Zalo, không gửi tin thay bạn.' }),
       );
@@ -1794,7 +1876,7 @@ function veDuLieu(goc) {
   ));
 }
 
-const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'hieu-suat': (goc) => veHieuSuat(goc, { h, icon, api, bao, thay, khungLoi, xuong }), 'du-an': veDuAnTrang, 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy, 'du-lieu': veDuLieu };
+const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'hieu-suat': (goc) => veHieuSuat(goc, { h, icon, api, bao, thay, khungLoi, xuong }), 'du-an': veDuAnTrang, 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy, 'du-lieu': veDuLieu, 'da-chan': veDaChan };
 let mucTruoc = null;
 
 async function moMuc() {

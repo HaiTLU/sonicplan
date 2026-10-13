@@ -25,7 +25,7 @@ export async function tinTruocChoLo(env, toChucId, tin) {
   if (nguoi.length) dk.push(`(nhom IS NULL AND nguoi_gui IN (${nguoi.map((_, i) => `?${4 + nhom.length + i}`).join(',')}))`);
   const { results } = await env.CSDL.prepare(
     `SELECT nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem FROM tin_nhan
-     WHERE to_chuc_id = ?1 AND da_tach = 1 AND id < ?2 AND tao_luc >= ?3 AND (${dk.join(' OR ')}) ORDER BY id DESC LIMIT 8`,
+     WHERE to_chuc_id = ?1 AND da_tach = 1 AND an = 0 AND id < ?2 AND tao_luc >= ?3 AND (${dk.join(' OR ')}) ORDER BY id DESC LIMIT 8`,
   ).bind(...tham).all();
   return results.reverse().map((t) => `[${t.thoi_diem?.slice(0, 16) || ''}${t.nhom ? ` nhóm "${t.nhom}"` : ''} từ ${t.nguoi_gui || 'không rõ'}] ${t.tieu_de ? `${t.tieu_de}: ` : ''}${String(t.noi_dung || '').replace(/\s+/g, ' ').slice(0, 300)}`);
 }
