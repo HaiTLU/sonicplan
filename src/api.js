@@ -63,7 +63,12 @@ export async function xuLyApi(yeuCau, env, phien, url) {
     if (kq.ok) quenPhien();
     return kq.loi ? loi(kq.ma, kq.loi) : json(kq);
   }
-  if (p === '/api/tong-quan' && m === 'GET') return json(await tongQuan(env, tc));
+  if (p === '/api/tong-quan' && m === 'GET') return json(await tongQuan(env, tc, phien));
+  if (p === '/api/tong-quan/bo-cuc' && m === 'PUT') {
+    const bc = chuanBoCuc(await yeuCau.json().catch(() => null));
+    await ghiCaiDat(env, tc, `tq_bo_cuc:${phien.nguoi_dung.id}`, JSON.stringify(bc));
+    return json({ bo_cuc: bc });
+  }
   if (p === '/api/tinh-trang' && m === 'GET') return json(await layTinhTrang(env, tc));
   if (p === '/api/nhat-ky' && m === 'GET') return json(await layNhatKy(env, tc, url));
 
@@ -337,15 +342,31 @@ export async function xuLyApi(yeuCau, env, phien, url) {
 
 // ---- Tổng quan ----
 
-async function tongQuan(env, tc) {
+// Các khối của trang Tổng quan, người dùng ẩn hiện và đổi thứ tự được (lưu theo từng người).
+export const KHOI_TONG_QUAN = ['can-lam', 'chi-so', 'du-an', 'viec-toi', 'nhip', 'hieu-suat', 'tong-hop', 'tin-moi', 'he-thong'];
+
+export function chuanBoCuc(x) {
+  const hop = (ds) => [...new Set((Array.isArray(ds) ? ds : []).filter((k) => KHOI_TONG_QUAN.includes(k)))];
+  const thuTu = hop(x?.thu_tu);
+  return { thu_tu: [...thuTu, ...KHOI_TONG_QUAN.filter((k) => !thuTu.includes(k))], an: hop(x?.an) };
+}
+
+async function tongQuan(env, tc, phien) {
   const homNay = ngayVN();
   const tuanTruoc = new Date(Date.now() - 7 * 86400000).toISOString();
+  const haiTuan = new Date(Date.now() - 14 * 86400000).toISOString();
+  const ngay8 = congNgayIso(homNay, -7);
   const theoGio = (bang, cot, them = '') =>
     env.CSDL.prepare(
       `SELECT CAST(strftime('%H', datetime(${cot}, '+7 hours')) AS INTEGER) AS gio, COUNT(*) AS n FROM ${bang}
        WHERE to_chuc_id IN ${bang === 'nhat_ky_chay' ? "('', ?1)" : '(?1)'} ${bang === 'tin_nhan' ? 'AND an = 0' : ''} AND date(datetime(${cot}, '+7 hours')) = ?2 ${them} GROUP BY gio`,
     ).bind(tc, homNay);
-  const [soLieu, tinGio, viecGio, chayGio, chayLoiGio, sapToi, tinMoi, tinTuan] = await env.CSDL.batch([
+  const theoNgay = (bang, cot, them = '') =>
+    env.CSDL.prepare(
+      `SELECT date(datetime(${cot}, '+7 hours')) AS ngay, COUNT(*) AS n FROM ${bang}
+       WHERE to_chuc_id = ?1 ${them} AND date(datetime(${cot}, '+7 hours')) >= ?2 GROUP BY ngay`,
+    ).bind(tc, ngay8);
+  const [soLieu, tinGio, viecGio, chayGio, chayLoiGio, sapToi, tinMoi, tinTuan, viecNgay, xongNgay, theoDuAn, claude, boCuc] = await env.CSDL.batch([
     env.CSDL.prepare(
       `SELECT
         (SELECT COUNT(*) FROM tin_nhan WHERE to_chuc_id = ?1 AND an = 0 AND date(datetime(thoi_diem, '+7 hours')) = ?2) AS tin_hom_nay,
@@ -354,8 +375,9 @@ async function tongQuan(env, tc) {
         (SELECT COUNT(*) FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay < ?2) AS viec_qua_han,
         (SELECT COUNT(*) FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay = ?2) AS viec_hom_nay,
         (SELECT COUNT(*) FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'xong' AND date(datetime(xong_luc, '+7 hours')) = ?2) AS xong_hom_nay,
-        (SELECT COUNT(*) FROM tep WHERE to_chuc_id = ?1 AND tao_luc >= ?3) AS tep_tuan`,
-    ).bind(tc, homNay, tuanTruoc),
+        (SELECT COUNT(*) FROM tep WHERE to_chuc_id = ?1 AND tao_luc >= ?3) AS tep_tuan,
+        (SELECT COUNT(*) FROM tep WHERE to_chuc_id = ?1 AND tao_luc >= ?4 AND tao_luc < ?3) AS tep_tuan_truoc`,
+    ).bind(tc, homNay, tuanTruoc, haiTuan),
     theoGio('tin_nhan', 'thoi_diem'),
     theoGio('viec', 'tao_luc'),
     theoGio('nhat_ky_chay', 'bat_dau'),
@@ -368,10 +390,34 @@ async function tongQuan(env, tc) {
       `SELECT id, nguon, nguoi_gui, nhom, tieu_de, substr(noi_dung, 1, 160) AS trich, thoi_diem, da_xem FROM tin_nhan
        WHERE to_chuc_id = ?1 AND an = 0 ORDER BY thoi_diem DESC LIMIT 6`,
     ).bind(tc),
+    theoNgay('tin_nhan', 'thoi_diem', 'AND an = 0'),
+    theoNgay('viec', 'tao_luc'),
+    theoNgay('viec', 'xong_luc', "AND trang_thai = 'xong'"),
+    // Bảng theo dự án: đang mở, quá hạn, tới hạn 7 ngày, xong 7 ngày.
     env.CSDL.prepare(
-      `SELECT date(datetime(thoi_diem, '+7 hours')) AS ngay, COUNT(*) AS n FROM tin_nhan WHERE to_chuc_id = ?1 AND an = 0 AND thoi_diem >= ?2 GROUP BY ngay`,
+      `SELECT d.id, d.ten, d.mau,
+         SUM(v.trang_thai = 'mo') AS mo,
+         SUM(v.trang_thai = 'mo' AND v.han_ngay < ?2) AS qua_han,
+         SUM(v.trang_thai = 'mo' AND v.han_ngay >= ?2 AND v.han_ngay <= ?3) AS sap_han,
+         SUM(v.trang_thai = 'xong' AND v.xong_luc >= ?4) AS xong_7
+       FROM du_an d LEFT JOIN viec v ON v.du_an_id = d.id AND v.to_chuc_id = d.to_chuc_id
+       WHERE d.to_chuc_id = ?1 GROUP BY d.id ORDER BY mo DESC, qua_han DESC, d.ten`,
+    ).bind(tc, homNay, congNgayIso(homNay, 7), tuanTruoc),
+    // Claude: lượt 7 ngày và việc đang chờ người dùng (hỏi lại hoặc xong chưa duyệt).
+    env.CSDL.prepare(
+      `SELECT
+        (SELECT COUNT(*) FROM luot_claude WHERE to_chuc_id = ?1 AND lo_id IS NULL AND tao_luc >= ?2) AS luot_7,
+        (SELECT COUNT(*) FROM luot_claude WHERE to_chuc_id = ?1 AND lo_id IS NULL AND tao_luc >= ?2 AND trang_thai = 'xong') AS xong_7,
+        (SELECT COUNT(*) FROM luot_claude WHERE to_chuc_id = ?1 AND lo_id IS NULL AND tao_luc >= ?2 AND trang_thai = 'loi') AS loi_7,
+        (SELECT COUNT(*) FROM luot_claude WHERE to_chuc_id = ?1 AND trang_thai IN ('cho', 'dang_lam')) AS dang_chay,
+        (SELECT COUNT(*) FROM viec v JOIN luot_claude l ON l.id = (SELECT MAX(id) FROM luot_claude k WHERE k.viec_id = v.id AND k.to_chuc_id = v.to_chuc_id)
+           WHERE v.to_chuc_id = ?1 AND v.trang_thai = 'mo' AND l.trang_thai = 'xong' AND l.danh_gia IS NULL) AS cho_ban`,
     ).bind(tc, tuanTruoc),
+    env.CSDL.prepare('SELECT gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = ?2').bind(tc, `tq_bo_cuc:${phien?.nguoi_dung?.id || ''}`),
   ]);
+  const mang8 = (kq) => Array.from({ length: 8 }, (_, i) => kq.results.find((r) => r.ngay === congNgayIso(homNay, i - 7))?.n || 0);
+  let bc = null;
+  try { bc = JSON.parse(boCuc.results[0]?.gia_tri || 'null'); } catch {}
   const mang24 = (kq) => {
     const a = Array(24).fill(0);
     for (const r of kq.results) if (r.gio >= 0 && r.gio < 24) a[r.gio] = r.n;
@@ -382,10 +428,20 @@ async function tongQuan(env, tc) {
     so_lieu: soLieu.results[0],
     nhip: { tin: mang24(tinGio), viec: mang24(viecGio), chay: mang24(chayGio), loi: mang24(chayLoiGio) },
     tin_7_ngay: tinTuan.results,
+    theo_ngay: { tin: mang8(tinTuan), viec: mang8(viecNgay), xong: mang8(xongNgay) },
+    du_an: theoDuAn.results,
+    claude: claude.results[0],
+    bo_cuc: chuanBoCuc(bc),
     viec_sap_toi: sapToi.results,
     tin_moi: tinMoi.results,
     tinh_trang: await layTinhTrang(env, tc),
   };
+}
+
+function congNgayIso(ngay, n) {
+  const d = new Date(`${ngay}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
 }
 
 async function layTinhTrang(env, tc) {
