@@ -296,7 +296,7 @@ async function luuTep(env, tc, token) {
 async function luuTin(env, tc, token) {
   const nhom = (await env.CSDL.prepare(
     `SELECT nguon, substr(datetime(thoi_diem, '+7 hours'), 1, 10) AS ngay, COUNT(*) AS n, MAX(id) AS mx
-     FROM tin_nhan WHERE to_chuc_id = ?1 AND an = 0 GROUP BY nguon, ngay ORDER BY ngay DESC LIMIT 400`,
+     FROM tin_nhan WHERE to_chuc_id = ?1 AND an = 0 AND nguon IN ('zalo', 'gmail') GROUP BY nguon, ngay ORDER BY ngay DESC LIMIT 400`,
   ).bind(tc).all()).results;
   const daLuu = new Map((await env.CSDL.prepare(`SELECT ma, moc FROM kho_da_luu WHERE to_chuc_id = ?1 AND loai = 'tin_dau'`).bind(tc).all()).results.map((r) => [r.ma, r.moc]));
   const can = nhom.filter((g) => daLuu.get(`${g.nguon}|${g.ngay}`) !== `${g.n}:${g.mx}`).slice(0, TOI_DA_NGAY);

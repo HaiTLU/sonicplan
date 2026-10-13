@@ -33,6 +33,7 @@
   --loi-nhat: rgba(242, 116, 103, .12);
   --zalo: #6FA8FF;
   --thu: #C9A2FF;
+  --hop: #F2B45A;
   --bong: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 18px 40px -24px rgba(2, 6, 14, .9);
   --bong-noi: 0 30px 80px -20px rgba(2, 6, 14, .85), 0 0 0 1px var(--vach-2);
   --r-lon: 20px;
@@ -52,7 +53,7 @@
     --nhan: #C47A12; --nhan-chu: #FFFFFF; --nhan-nhat: rgba(196, 122, 18, .10);
     --on: #138A62; --on-nhat: rgba(19, 138, 98, .10);
     --loi: #C8402F; --loi-nhat: rgba(200, 64, 47, .09);
-    --zalo: #2F6FE0; --thu: #7D4CD6;
+    --zalo: #2F6FE0; --thu: #7D4CD6; --hop: #B4650A;
     --bong: 0 1px 2px rgba(18, 24, 40, .05), 0 12px 32px -20px rgba(18, 24, 40, .25);
     --bong-noi: 0 30px 80px -24px rgba(18, 24, 40, .35), 0 0 0 1px var(--vach-2);
   }
@@ -275,6 +276,7 @@ main:focus { outline: none; }
 .huy-hieu { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; }
 .huy-hieu.zalo { background: color-mix(in srgb, var(--zalo) 14%, transparent); color: var(--zalo); }
 .huy-hieu.gmail { background: color-mix(in srgb, var(--thu) 14%, transparent); color: var(--thu); }
+.huy-hieu.hop { background: color-mix(in srgb, var(--hop) 16%, transparent); color: var(--hop); }
 .ds-tin-ngan .dong-1 { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
 .ds-tin-ngan .dong-1 strong { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ds-tin-ngan .dong-1 span { color: var(--phu); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -447,6 +449,7 @@ td.ghi-chu { max-width: 30rem; overflow-wrap: anywhere; color: var(--chu-2); }
 .the-viec .chan span svg { width: 12px; height: 12px; }
 .the-viec .chan span.zalo { color: var(--zalo); }
 .the-viec .chan span.gmail { color: var(--thu); }
+.the-viec .chan span.hop { color: var(--hop); }
 .the-viec .chan span.tre { color: var(--loi); background: var(--loi-nhat); }
 .cot-trong { margin: 6px 16px 18px; padding: 18px; border: 1px dashed var(--vach-2); border-radius: 14px; color: var(--mo); font-size: 13px; text-align: center; }
 

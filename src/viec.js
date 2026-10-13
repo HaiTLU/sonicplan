@@ -108,7 +108,7 @@ export async function ghiLienKet(env, toChucId, lienKet, tin, viecMoIds) {
     const { results: teps } = t.id
       ? await env.CSDL.prepare('SELECT ten FROM tep WHERE to_chuc_id = ?1 AND tin_nhan_id = ?2 ORDER BY id LIMIT 10').bind(toChucId, t.id).all()
       : { results: [] };
-    const nguon = ({ gmail: 'Thư', zalo: 'Zalo' })[t.nguon] || 'Tin';
+    const nguon = ({ gmail: 'Thư', zalo: 'Zalo', hop: 'Biên bản họp' })[t.nguon] || 'Tin';
     const dong = `[Tiến độ ${ngay}] ${k.tien_do}${k.xong ? ' (có vẻ đã đủ, anh xem rồi đóng việc)' : ''} - ${nguon} của ${t.nguoi_gui || 'không rõ'}${t.tieu_de ? `, tiêu đề "${cat(t.tieu_de, 80)}"` : ''}${teps.length ? `; tệp: ${teps.map((x) => x.ten).join(', ')}` : ''}.`;
     const hien = await env.CSDL.prepare('SELECT ghi_chu FROM viec WHERE id = ?1 AND to_chuc_id = ?2 AND trang_thai = \'mo\'').bind(k.viec_id, toChucId).first();
     if (!hien || String(hien.ghi_chu || '').includes(dong)) continue;

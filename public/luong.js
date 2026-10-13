@@ -15,6 +15,7 @@ const NHOM = [
 const NUT = [
   { id: 'zalo', nhom: 'vao', ten: 'Zalo', icon: 'zalo', den: 'zalo', ma_tv: 'canh-zalo', bat_nhan: 'Canh máy Mac gửi Zalo', nguong: ['zalo_im_gio'], mo_ta: 'Tin nhóm và cá nhân từ máy Mac. Công tắc là việc canh: báo Telegram khi máy im quá lâu.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
   { id: 'google', nhom: 'vao', ten: 'Google', icon: 'thu', den: 'google', ma_tv: 'dong-bo-google', bat_nhan: 'Đồng bộ Gmail, Tasks, Lịch', mo_ta: 'Đăng nhập Google một lần: thư mới vào hộp tin, việc sang Tasks, việc có ngày sang Lịch, việc xong bên Tasks về lại, tệp đính kèm lưu thêm vào Drive.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
+  { id: 'hop', nhom: 'vao', ten: 'Ghi âm họp', icon: 'ghi-am', ma_tv: 'quet-hop', bat_nhan: 'Quét thư mục họp mỗi 5 phút', mo_ta: 'Thư mục Drive chứa ghi âm và biên bản họp. Mỗi cuộc họp mới thành một tin trong Hộp tin; AI đọc biên bản, chỉ ghi việc được giao cho bạn.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
   { id: 'thu', nhom: 'vao', ten: 'Thư', icon: 'thu', den: 'thu', mo_ta: 'Thư chuyển tiếp từ Gmail vào hộp tin.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
   { id: 'telegram-vao', nhom: 'vao', ten: 'Telegram', icon: 'telegram', den: 'telegram', mo_ta: 'Nhắn thường để tạo việc; /viec, /nho, /hoi, /tomtat.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
   { id: 'api-vao', nhom: 'vao', ten: 'Dịch vụ ngoài', icon: 'ket-noi', den: 'api-vao', mo_ta: 'Zapier, Make, biểu mẫu gửi việc vào qua một địa chỉ riêng có mã. Việc có tiêu đề tạo ngay, văn bản tự do thì AI đọc.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
@@ -37,12 +38,12 @@ const NUT = [
 ];
 
 const LIEN_KET = [
-  ['zalo', 'ai'], ['google', 'ai'], ['thu', 'ai'], ['telegram-vao', 'ai'], ['api-vao', 'ai'],
+  ['zalo', 'ai'], ['google', 'ai'], ['hop', 'ai'], ['thu', 'ai'], ['telegram-vao', 'ai'], ['api-vao', 'ai'],
   ['ai', 'ghi-nho'], ['ai', 'viec'], ['ghi-nho', 'ai'],
   ['viec', 'nhac-viec'], ['viec', 'giao-github'], ['viec', 'bao-viec-moi'], ['viec', 'ban-tin'], ['viec', 'bao-cao-tuan'], ['viec', 'canh-viec'], ['viec', 'don-cuoi-ngay'], ['viec', 'sao-luu'],
   ['nhac-viec', 'telegram-ra'], ['bao-viec-moi', 'telegram-ra'], ['ban-tin', 'telegram-ra'], ['bao-cao-tuan', 'telegram-ra'], ['canh-viec', 'telegram-ra'],
   ['viec', 'google-tasks'], ['google-tasks', 'viec'], ['viec', 'google-lich'],
-  ['viec', 'webhook-ra'], ['viec', 'kho-drive'], ['ghi-nho', 'kho-drive'], ['zalo', 'kho-drive'], ['google', 'kho-drive'],
+  ['viec', 'webhook-ra'], ['viec', 'kho-drive'], ['ghi-nho', 'kho-drive'], ['zalo', 'kho-drive'], ['google', 'kho-drive'], ['hop', 'kho-drive'],
 ];
 
 const NHAN_NGUONG = {
