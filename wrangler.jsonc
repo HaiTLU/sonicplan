@@ -36,6 +36,10 @@
   // Kho tệp đính kèm và bản sao lưu hằng đêm (cần bật R2 trong trang Cloudflare, README bước 2).
   "r2_buckets": [{ "binding": "TEP", "bucket_name": "sonicplan-tep" }],
 
+  // Phòng chat của trang Claude, mỗi tổ chức một phòng (Durable Object lưu bằng SQLite, có trong gói miễn phí).
+  "durable_objects": { "bindings": [{ "name": "TRAM", "class_name": "TramClaude" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TramClaude"] }],
+
   // Workers AI để tách việc và tóm tắt tin, không cần khóa ngoài.
   "ai": { "binding": "AI" },
 

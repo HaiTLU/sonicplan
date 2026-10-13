@@ -6,6 +6,7 @@ import { dongHieuSuat, veHieuSuat } from './hieu-suat.js';
 import { batKeoTha } from './keo-tha.js';
 import { hexMau, mauViec, oChonMau } from './mau.js';
 import { caiNguCanh, dongTrinhDon, moTrinhDon } from './trinh-don.js';
+import { veTram } from './tram.js';
 import { mienCuaUrl, nhanTep, phanTichTin, tachLienKet, trichTin } from './zalo-tin.js';
 
 const MUI_GIO = 'Asia/Ho_Chi_Minh';
@@ -163,13 +164,13 @@ function docXemViec() {
   try { return localStorage.getItem('sp.viec.xem') === 'han' ? 'han' : 'du-an'; } catch { return 'du-an'; }
 }
 const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', gio: null, q: '', chon: null, ds: [] }, viec: { tab: 'mo', duAn: 'tat-ca', xem: docXemViec(), anTrong: false, nguon: 'tat-ca', han: 'tat-ca', nang: 'tat-ca', chiSao: false }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
-const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'hieu-suat': 'Hiệu suất', 'du-an': 'Dự án', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy', 'du-lieu': 'Dữ liệu của bạn', 'da-chan': 'Đã chặn' };
+const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'hieu-suat': 'Hiệu suất', 'du-an': 'Dự án', claude: 'Claude', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy', 'du-lieu': 'Dữ liệu của bạn', 'da-chan': 'Đã chặn' };
 // Bốn mục chính, mỗi mục gom vài trang con (kế hoạch chuẩn quốc tế 13/10/2026, giai đoạn 3).
 // Đường dẫn cũ (#viec, #zalo...) giữ nguyên để liên kết đã lưu vẫn mở được.
 const NHOM = [
   { ma: 'hom-nay', ten: 'Hôm nay', con: ['tong-quan', 'viec', 'hieu-suat'] },
   { ma: 'hop-tin', ten: 'Hộp tin', con: ['hop-tin', 'zalo', 'da-chan'] },
-  { ma: 'du-an', ten: 'Dự án', con: ['du-an', 'tep', 'ghi-nho'] },
+  { ma: 'du-an', ten: 'Dự án', con: ['du-an', 'claude', 'tep', 'ghi-nho'] },
   { ma: 'cai-dat', ten: 'Cài đặt', con: ['ket-noi', 'luong', 'nhat-ky', 'du-lieu'] },
 ];
 const TEN_TAB = { 'hop-tin': 'Tất cả tin', 'du-an': 'Dự án', 'nhat-ky': 'Nhật ký' };
@@ -2427,7 +2428,7 @@ function veNutXoa() {
   );
 }
 
-const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'hieu-suat': (goc) => veHieuSuat(goc, { h, icon, api, bao, thay, khungLoi, xuong }), 'du-an': veDuAnTrang, 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy, 'du-lieu': veDuLieu, 'da-chan': veDaChan };
+const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'hieu-suat': (goc) => veHieuSuat(goc, { h, icon, api, bao, thay, khungLoi, xuong }), 'du-an': veDuAnTrang, claude: (goc, thamSo) => veTram(goc, { h, icon, api, bao, thay, meo, oChep, kichThuoc, luc, laChu: trang.toi?.to_chuc?.vai_tro === 'chu' }, thamSo), 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy, 'du-lieu': veDuLieu, 'da-chan': veDaChan };
 let mucTruoc = null;
 
 async function moMuc() {
@@ -2504,6 +2505,7 @@ const LENH = [
   { nhan: 'Việc', icon: 'viec', lam: () => (location.hash = 'viec'), goi: 'G V' },
   { nhan: 'Hiệu suất, quá tải, độ nặng việc', icon: 'tong-quan', lam: () => (location.hash = 'hieu-suat') },
   { nhan: 'Dự án và lịch sử', icon: 'du-an', lam: () => (location.hash = 'du-an') },
+  { nhan: 'Claude (giao việc, chat như Claude Code)', icon: 'ai', lam: () => (location.hash = 'claude'), goi: 'G C' },
   { nhan: 'Ghi nhớ', icon: 'ghi-nho', lam: () => (location.hash = 'ghi-nho') },
   { nhan: 'Tệp', icon: 'tep', lam: () => (location.hash = 'tep') },
   { nhan: 'Luồng (sơ đồ, chỉnh giờ)', icon: 'lap', lam: () => (location.hash = 'luong') },
@@ -2558,7 +2560,7 @@ document.addEventListener('keydown', (e) => {
   if (e.target.closest('input, textarea, select, dialog') || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (phimTruoc === 'g') {
-    const dich = { t: 'tong-quan', h: 'hop-tin', v: 'viec' }[k];
+    const dich = { t: 'tong-quan', h: 'hop-tin', v: 'viec', c: 'claude' }[k];
     if (dich) location.hash = dich;
     phimTruoc = '';
     return;
