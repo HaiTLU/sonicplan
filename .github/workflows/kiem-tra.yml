@@ -1,0 +1,21 @@
+# Kiểm tra tự động cho mọi PR và mỗi lần gộp vào main: chạy kiểm thử và đóng gói thử Worker.
+name: Kiem tra
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  kiem:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npx wrangler deploy --dry-run --outdir .dung-thu

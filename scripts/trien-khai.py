@@ -72,7 +72,7 @@ def tai_trang_tinh(ten, cau_hinh):
     thu_muc = GOC / cau_hinh['directory']
     tep = {}
     for p in sorted(thu_muc.rglob('*')):
-        if p.is_file():
+        if p.is_file() and p.name not in ('_headers', '.DS_Store'):  # _headers gửi trong cấu hình, không tải như trang
             noi_dung = p.read_bytes()
             b64 = base64.b64encode(noi_dung).decode()
             ma = hashlib.sha256((b64 + p.suffix.lstrip('.')).encode()).hexdigest()[:32]
@@ -125,6 +125,9 @@ def main():
         rang_buoc.append({'type': 'assets', 'name': a['binding']})
         meta['assets'] = {'jwt': tai_trang_tinh(ten, a), 'config': {
             k: a[k] for k in ('run_worker_first', 'not_found_handling', 'html_handling') if k in a}}
+        tieu_de = GOC / a['directory'] / '_headers'
+        if tieu_de.is_file():
+            meta['assets']['config']['_headers'] = tieu_de.read_text()
 
     thu_muc_ma = (GOC / ch['main']).parent
     phan = [('metadata', (None, json.dumps(meta), 'application/json'))]
