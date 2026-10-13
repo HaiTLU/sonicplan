@@ -63,17 +63,10 @@
         <span>Sonicplan</span>
       </a>
       <nav class="dieu-huong" aria-label="Các mục">
-        <a href="#tong-quan" data-muc="tong-quan"><svg aria-hidden="true"><use href="#i-tong-quan"/></svg><span>Tổng quan</span></a>
-        <a href="#hop-tin" data-muc="hop-tin"><svg aria-hidden="true"><use href="#i-hop-tin"/></svg><span>Hộp tin</span><b class="dem" id="dem-tin" hidden></b></a>
-        <a href="#zalo" data-muc="zalo"><svg aria-hidden="true"><use href="#i-zalo"/></svg><span>Zalo</span></a>
-        <a href="#viec" data-muc="viec"><svg aria-hidden="true"><use href="#i-viec"/></svg><span>Việc</span><b class="dem" id="dem-viec" hidden></b></a>
-        <a href="#hieu-suat" data-muc="hieu-suat"><svg aria-hidden="true"><use href="#i-tong-quan"/></svg><span>Hiệu suất</span></a>
-        <a href="#du-an" data-muc="du-an"><svg aria-hidden="true"><use href="#i-du-an"/></svg><span>Dự án</span></a>
-        <a href="#ghi-nho" data-muc="ghi-nho"><svg aria-hidden="true"><use href="#i-ghi-nho"/></svg><span>Ghi nhớ</span></a>
-        <a href="#tep" data-muc="tep"><svg aria-hidden="true"><use href="#i-tep"/></svg><span>Tệp</span></a>
-        <a href="#luong" data-muc="luong"><svg aria-hidden="true"><use href="#i-lap"/></svg><span>Luồng</span></a>
-        <a href="#ket-noi" data-muc="ket-noi"><svg aria-hidden="true"><use href="#i-ket-noi"/></svg><span>Kết nối</span></a>
-        <a href="#nhat-ky" data-muc="nhat-ky"><svg aria-hidden="true"><use href="#i-nhat-ky"/></svg><span>Nhật ký chạy</span></a>
+        <a href="#tong-quan" data-nhom="hom-nay"><svg aria-hidden="true"><use href="#i-viec"/></svg><span>Hôm nay</span><b class="dem" id="dem-viec" hidden></b></a>
+        <a href="#hop-tin" data-nhom="hop-tin"><svg aria-hidden="true"><use href="#i-hop-tin"/></svg><span>Hộp tin</span><b class="dem" id="dem-tin" hidden></b></a>
+        <a href="#du-an" data-nhom="du-an"><svg aria-hidden="true"><use href="#i-du-an"/></svg><span>Dự án</span></a>
+        <a href="#ket-noi" data-nhom="cai-dat"><svg aria-hidden="true"><use href="#i-he-thong"/></svg><span>Cài đặt</span></a>
       </nav>
       <button class="nut-lenh" type="button" id="mo-bang-lenh" aria-haspopup="dialog">
         <svg aria-hidden="true"><use href="#i-tim"/></svg><span>Tìm, chuyển mục</span><kbd>Ctrl K</kbd>
@@ -89,6 +82,7 @@
         <div>
           <p class="ngay" id="ngay-hom-nay"></p>
           <h1 id="tieu-de-trang" tabindex="-1">Tổng quan</h1>
+          <nav class="tab-con" id="tab-con" aria-label="Mục con" hidden></nav>
         </div>
         <div class="dau-trang-nut">
           <button class="nut nut-phu chi-di-dong" type="button" id="mo-bang-lenh-2" aria-label="Tìm, chuyển mục"><svg aria-hidden="true"><use href="#i-tim"/></svg></button>
@@ -108,6 +102,7 @@
         <section data-trang="luong" hidden></section>
         <section data-trang="ket-noi" hidden></section>
         <section data-trang="nhat-ky" hidden></section>
+        <section data-trang="du-lieu" hidden></section>
       </main>
     </div>
   </div>

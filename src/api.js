@@ -6,6 +6,7 @@ import { docTongHopCuoi, tongHopChoToChuc } from './tong-hop.js';
 import { docHoSo, LOAI_GHI_NHO, luuHoSo, TOI_DA_HO_SO } from './ghi-nho.js';
 import { goMaNhanViec, taoMaNhanViec } from './nhan-ngoai.js';
 import { docLuong, luuLuong, NGUONG } from './luong.js';
+import { xuatDuLieu } from './du-lieu.js';
 import { caiWorkflow, danhGiaLuot, dsLuot, giaoClaude } from './claude-code.js';
 import { kiemCauHinhGithub, thuGithub } from './github.js';
 import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from './google.js';
@@ -37,6 +38,13 @@ export async function xuLyApi(yeuCau, env, phien, url) {
 
   if (p === '/api/phien-ban' && m === 'GET') return json({ ban: env.PHIEN_BAN || '' });
   if (p === '/api/toi' && m === 'GET') return json({ email: phien.email, nguoi_dung: phien.nguoi_dung, to_chuc: phien.to_chuc, cac_to_chuc: phien.cac_to_chuc });
+  if (p === '/api/du-lieu/xuat' && m === 'GET') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức tải được toàn bộ dữ liệu.');
+    const ra = await xuatDuLieu(env, tc);
+    return new Response(JSON.stringify(ra, null, 1), {
+      headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'content-disposition': `attachment; filename="sonicplan-du-lieu-${ngayVN()}.json"` },
+    });
+  }
   if (p === '/api/tong-quan' && m === 'GET') return json(await tongQuan(env, tc));
   if (p === '/api/tinh-trang' && m === 'GET') return json(await layTinhTrang(env, tc));
   if (p === '/api/nhat-ky' && m === 'GET') return json(await layNhatKy(env, tc, url));

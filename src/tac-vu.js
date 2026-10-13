@@ -221,14 +221,21 @@ export const CAC_TAC_VU = {
     let soToChuc = 0;
     for (const tc of await cacToChuc(env)) {
       if (!(await docLuong(env, tc.id)).bat['sao-luu']) continue;
-      const [viec, tin, tep, caiDat, ghiNho] = await env.CSDL.batch([
+      const [viec, tin, tep, caiDat, ghiNho, duAn, suKien, luotClaude] = await env.CSDL.batch([
         env.CSDL.prepare('SELECT * FROM viec WHERE to_chuc_id = ?1').bind(tc.id),
         env.CSDL.prepare('SELECT * FROM tin_nhan WHERE to_chuc_id = ?1 AND thoi_diem >= ?2').bind(tc.id, new Date(Date.now() - 90 * 86400000).toISOString()),
         env.CSDL.prepare('SELECT * FROM tep WHERE to_chuc_id = ?1').bind(tc.id),
         env.CSDL.prepare(`SELECT khoa, gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa NOT LIKE '%ma_noi%' AND khoa NOT LIKE 'tich_hop%' AND khoa <> 'google_state'`).bind(tc.id),
         env.CSDL.prepare('SELECT * FROM ghi_nho WHERE to_chuc_id = ?1').bind(tc.id),
+        // Dự án và lịch sử dự án: thiếu thì việc khôi phục lại trỏ tới dự án không còn (thử khôi phục 13/10/2026).
+        env.CSDL.prepare('SELECT * FROM du_an WHERE to_chuc_id = ?1').bind(tc.id),
+        env.CSDL.prepare('SELECT * FROM viec_su_kien WHERE to_chuc_id = ?1').bind(tc.id),
+        env.CSDL.prepare('SELECT id, to_chuc_id, viec_id, trang_thai, dan, ket_qua, nhanh, pr, nhat_ky, danh_gia, tao_luc, cap_nhat_luc FROM luot_claude WHERE to_chuc_id = ?1').bind(tc.id),
       ]);
-      const banSao = { to_chuc: tc, luc: bayGio, viec: viec.results, tin_nhan: tin.results, tep: tep.results, cai_dat: caiDat.results, ghi_nho: ghiNho.results };
+      const banSao = {
+        to_chuc: tc, luc: bayGio, viec: viec.results, tin_nhan: tin.results, tep: tep.results, cai_dat: caiDat.results, ghi_nho: ghiNho.results,
+        du_an: duAn.results, viec_su_kien: suKien.results, luot_claude: luotClaude.results,
+      };
       await env.TEP.put(`sao-luu/${tc.id}/${ngayVN(bayGio)}.json`, JSON.stringify(banSao), {
         httpMetadata: { contentType: 'application/json' },
       });

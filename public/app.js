@@ -119,7 +119,17 @@ function tenNhom(ten) {
 }
 
 const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', q: '', chon: null, ds: [] }, viec: { tab: 'mo', duAn: 'tat-ca', xem: 'han', anTrong: false }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
-const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'hieu-suat': 'Hiệu suất', 'du-an': 'Dự án', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy' };
+const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'hieu-suat': 'Hiệu suất', 'du-an': 'Dự án', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy', 'du-lieu': 'Dữ liệu của bạn' };
+// Bốn mục chính, mỗi mục gom vài trang con (kế hoạch chuẩn quốc tế 13/10/2026, giai đoạn 3).
+// Đường dẫn cũ (#viec, #zalo...) giữ nguyên để liên kết đã lưu vẫn mở được.
+const NHOM = [
+  { ma: 'hom-nay', ten: 'Hôm nay', con: ['tong-quan', 'viec', 'hieu-suat'] },
+  { ma: 'hop-tin', ten: 'Hộp tin', con: ['hop-tin', 'zalo'] },
+  { ma: 'du-an', ten: 'Dự án', con: ['du-an', 'tep', 'ghi-nho'] },
+  { ma: 'cai-dat', ten: 'Cài đặt', con: ['ket-noi', 'luong', 'nhat-ky', 'du-lieu'] },
+];
+const TEN_TAB = { 'hop-tin': 'Tất cả tin', 'du-an': 'Dự án', 'nhat-ky': 'Nhật ký' };
+const nhomCua = (muc) => NHOM.find((n) => n.con.includes(muc)) || NHOM[0];
 const KET_QUA = { xong: 'Xong', loi: 'Lỗi', dang_chay: 'Đang chạy' };
 const ICON_TP = { 'may-chu': 'he-thong', csdl: 'kho', 'hen-gio': 'dong-ho', thu: 'thu', zalo: 'zalo', tep: 'tep', lich: 'lich', ai: 'ai', telegram: 'telegram' };
 const TEN_DEN = { xanh: 'ổn', vang: 'đang chờ', do: 'lỗi', xam: 'chưa dùng' };
@@ -1758,17 +1768,47 @@ async function veLuongTrang(goc) {
 function veDuAnTrang(goc, thamSo) {
   return veDuAn(goc, thamSo, { h, icon, api, bao, thay, khungLoi, xuong });
 }
-const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'hieu-suat': (goc) => veHieuSuat(goc, { h, icon, api, bao, thay, khungLoi, xuong }), 'du-an': veDuAnTrang, 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy };
+// Trang "Dữ liệu của bạn": nói rõ hệ thống lưu gì, ai xem, giữ bao lâu; nút tải toàn bộ dữ liệu.
+function veDuLieu(goc) {
+  const laChu = trang.toi?.to_chuc?.vai_tro === 'chu';
+  const muc = (tieuDe, ...con) => h('section', { class: 'bang' }, h('h2', { text: tieuDe }), ...con);
+  thay(goc, h('div', { class: 'trang-du-lieu vao' },
+    muc('Sonicplan lưu gì',
+      h('ul', {},
+        h('li', { text: 'Tin Zalo và thư bạn cho phép chuyển về, tệp đính kèm của các tin đó.' }),
+        h('li', { text: 'Việc, dự án, ghi nhớ, hồ sơ bạn tự nhập hoặc AI tách ra từ tin.' }),
+        h('li', { text: 'Kết quả các lần giao việc cho Claude Code.' }),
+        h('li', { text: 'Khóa kết nối (Google, GitHub, AI, Telegram) được mã hóa trước khi lưu, không ai đọc lại được từ giao diện.' }),
+      )),
+    muc('Ai xem được',
+      h('p', { text: 'Chỉ thành viên tổ chức của bạn, sau khi đăng nhập. Mỗi tổ chức có dữ liệu riêng, hệ thống luôn lọc theo tổ chức trước khi đọc.' }),
+      h('p', { text: 'Khi AI đọc tin để tách việc, nội dung tin được gửi tới dịch vụ AI chọn ở trang Kết nối (mặc định là Workers AI của Cloudflare). Khi giao việc cho Claude Code, nội dung việc được gửi tới kho GitHub bạn đã nối.' })),
+    muc('Giữ bao lâu',
+      h('p', { text: 'Dữ liệu được giữ đến khi bạn xóa. Mỗi đêm hệ thống sao lưu việc, dự án, ghi nhớ, danh sách tệp, kết quả Claude và tin 90 ngày gần nhất vào kho tệp, mỗi tổ chức một thư mục riêng.' })),
+    muc('Quyền của bạn',
+      h('p', { text: 'Bạn được tải về toàn bộ dữ liệu của tổ chức ở dạng JSON để xem hoặc chuyển sang nơi khác. Khóa và mã truy cập không nằm trong tệp tải về.' }),
+      laChu
+        ? h('div', { class: 'hang-nut' }, h('a', { class: 'nut nut-chinh', href: '/api/du-lieu/xuat', download: '' }, icon('tai'), h('span', { text: 'Tải toàn bộ dữ liệu' })))
+        : h('p', { class: 'mo-ta', text: 'Chỉ chủ tổ chức tải được toàn bộ dữ liệu.' }),
+      h('p', { class: 'mo-ta', text: 'Muốn sửa hoặc xóa dữ liệu: sửa, xóa ngay trên từng trang; muốn xóa toàn bộ tổ chức, nhắn người quản trị Sonicplan.' })),
+  ));
+}
+
+const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'hieu-suat': (goc) => veHieuSuat(goc, { h, icon, api, bao, thay, khungLoi, xuong }), 'du-an': veDuAnTrang, 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy, 'du-lieu': veDuLieu };
 let mucTruoc = null;
 
 async function moMuc() {
   const [ma, thamSo] = (location.hash.slice(1) || 'tong-quan').split('/');
   const muc = VE[ma] ? ma : 'tong-quan';
   document.querySelectorAll('[data-trang]').forEach((sec) => { sec.hidden = sec.dataset.trang !== muc; });
-  document.querySelectorAll('[data-muc]').forEach((a) => {
-    if (a.dataset.muc === muc) a.setAttribute('aria-current', 'page');
+  const nhom = nhomCua(muc);
+  document.querySelectorAll('[data-nhom]').forEach((a) => {
+    if (a.dataset.nhom === nhom.ma) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
+  const tabCon = document.getElementById('tab-con');
+  thay(tabCon, ...nhom.con.map((c) => h('a', { href: `#${c}`, ...(c === muc ? { 'aria-current': 'page' } : {}), text: TEN_TAB[c] || TEN_MUC[c] })));
+  tabCon.hidden = nhom.con.length < 2;
   const tieuDe = document.getElementById('tieu-de-trang');
   tieuDe.textContent = TEN_MUC[muc];
   document.title = `${TEN_MUC[muc]} - Sonicplan`;
@@ -1798,6 +1838,7 @@ const LENH = [
   { nhan: 'Luồng (sơ đồ, chỉnh giờ)', icon: 'lap', lam: () => (location.hash = 'luong') },
   { nhan: 'Kết nối', icon: 'ket-noi', lam: () => (location.hash = 'ket-noi') },
   { nhan: 'Nhật ký chạy', icon: 'nhat-ky', lam: () => (location.hash = 'nhat-ky') },
+  { nhan: 'Dữ liệu của bạn (tải về, chính sách)', icon: 'tai', lam: () => (location.hash = 'du-lieu') },
   { nhan: 'Thêm việc mới', icon: 'cong', lam: () => moNganViec(null), goi: 'N' },
   { nhan: 'Tin chưa xem', icon: 'hop-tin', lam: () => { trang.tin.loc = 'chua-xem'; location.hash = 'hop-tin'; moMuc(); } },
   { nhan: 'Việc đã xong', icon: 'viec', lam: () => { trang.viec.tab = 'xong'; location.hash = 'viec'; moMuc(); } },

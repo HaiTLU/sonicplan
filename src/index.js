@@ -35,6 +35,11 @@ export default {
         return loi(phien.ma, phien.ma === 403 ? 'Tài khoản chưa được mời dùng hệ thống.' : 'Bạn cần đăng nhập lại.');
       }
 
+      // Chống giả mạo yêu cầu từ trang khác (OWASP ASVS V3/V4): lệnh ghi phải đến từ chính trang này.
+      if (url.pathname.startsWith('/api/') && !['GET', 'HEAD'].includes(yeuCau.method) && !cungNguon(yeuCau, url)) {
+        return loi(403, 'Yêu cầu không đến từ trang Sonicplan.');
+      }
+
       // Chạy ngay một tác vụ hẹn giờ (nút "Chạy ngay" ở trang Luồng và Nhật ký). Chỉ chủ tổ chức.
       if (url.pathname === '/api/chay-ngay' && yeuCau.method === 'POST') {
         if (phien.to_chuc.vai_tro !== 'chu') return json({ loi: 'Chỉ chủ tổ chức chạy tay được.' }, 403);
@@ -123,4 +128,12 @@ function trangChuaMoi() {
       'Tài khoản này chưa được mời dùng Sonicplan. Liên hệ người quản trị để được thêm vào.</p>',
     { status: 403, headers: { 'content-type': 'text/html; charset=utf-8' } },
   );
+}
+
+// Trình duyệt luôn gửi Sec-Fetch-Site hoặc Origin với lệnh ghi; thiếu cả hai (công cụ dòng lệnh đã qua Access) thì cho qua.
+export function cungNguon(yeuCau, url) {
+  const site = yeuCau.headers.get('sec-fetch-site');
+  if (site) return site === 'same-origin' || site === 'none';
+  const nguon = yeuCau.headers.get('origin');
+  return !nguon || nguon === url.origin;
 }

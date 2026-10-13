@@ -13,12 +13,12 @@
   --vach-2: rgba(0, 0, 0, .16);
   --chu: #1d1d1f;
   --chu-2: #424245;
-  --phu: #6e6e73;
-  --mo: #767679;
+  --phu: #5f5f64;             /* đủ 4.5:1 trên mọi nền sáng (WCAG 2.2 AA) */
+  --mo: #66666b;
   --nhan: #00756f;            /* teal đậm: chữ và biểu tượng nhấn trên nền sáng (đủ 4.5:1) */
   --nhan-chu: #02152a;
   --nhan-nhat: rgba(6, 227, 216, .16);
-  --on: #0a7f5a;
+  --on: #08704f;
   --on-nhat: rgba(10, 127, 90, .10);
   --loi: #b42318;
   --loi-nhat: rgba(254, 48, 28, .10);
