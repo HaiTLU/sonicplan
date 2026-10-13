@@ -50,7 +50,7 @@
     // Mã AUD của ứng dụng Access (README bước 5).
     "ACCESS_AUD": "3c6d37c2645cc2d9276921c4684b8a5e9a175f346ee93b79ff1736910e161f1c",
     // Tên miền nhận thư qua Email Routing, ví dụ "sonicplan.vn". Để trống thì chưa nhận thư.
-    "EMAIL_DOMAIN": "",
+    "EMAIL_DOMAIN": "sonicrec.app",
     // Người quản trị hệ thống (cài bot Telegram chung ở trang Kết nối), nhiều email cách nhau dấu phẩy.
     // Bot chung được dán ngay trong trang, mã hóa bằng bí mật KHOA_MA_HOA rồi lưu trong D1.
     "QUAN_TRI": "hainnam@gmail.com",

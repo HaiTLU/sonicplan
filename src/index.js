@@ -6,6 +6,7 @@ import { nhanViecNgoai } from './nhan-ngoai.js';
 import { taoIcs } from './lich-ics.js';
 import { TAC_VU, tacVuTheoLich } from './lich-chay.js';
 import { nhanThu } from './nhan-thu.js';
+import { nhanThuQuaHttp } from './nhan-thu-http.js';
 import { lenhCaiZalo, nhanZalo, toChucTheoKhoa } from './nhan-zalo.js';
 import { xacDinhPhien } from './phien.js';
 import { baoLoiTacVu, CAC_TAC_VU } from './tac-vu.js';
@@ -23,6 +24,7 @@ export default {
       if (cai && yeuCau.method === 'GET') return lenhCaiZalo(env, cai[1], url);
       if (url.pathname.startsWith('/nhan/zalo-')) return nhanZalo(yeuCau, env, ctx, url.pathname);
       if (url.pathname === '/nhan/viec') return nhanViecNgoai(yeuCau, env, ctx);
+      if (url.pathname === '/nhan/thu') return nhanThuQuaHttp(yeuCau, env, ctx);
       if (url.pathname === '/nhan/claude') return nhanKetQuaClaude(yeuCau, env);
       if (url.pathname === '/nhan/telegram' && yeuCau.method === 'POST') return nhanWebhook(yeuCau, env, ctx);
       const lich = url.pathname.match(/^\/lich\/([a-z0-9]{20,64})\.ics$/);
