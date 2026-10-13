@@ -1,5 +1,6 @@
-// Kho Drive theo dự án: mỗi dự án bật lên có một thư mục "Sonicplan kho/Dự án/<tên>" gồm Thu, Zalo, Tep, Claude, Lich, LichSu
-// và tệp Tong-quan.md. Thư thật, tin Zalo, tệp đính kèm, kết quả Claude, lịch và lịch sử dự án cùng về một chỗ.
+// Kho Drive theo dự án: mỗi dự án bật lên có một thư mục "Sonicplan kho/Dự án/<tên>" gồm Thu, Zalo, Tep, Media, Claude, Chat, Lich, LichSu
+// và tệp Tong-quan.md. Thư thật, tin Zalo, tệp đính kèm (ảnh, video, ghi âm vào Media), kết quả và lịch sử chat với Claude,
+// lịch và lịch sử giao việc của dự án cùng về một chỗ.
 // Chỉ ghi thêm hoặc ghi đè đúng tệp do mình tạo, không xóa gì trên Drive. Quyền drive.file nên không ghi vào thư mục người dùng tự dán.
 
 import { goiGoogle, taoThuMuc } from './google.js';
@@ -8,7 +9,19 @@ import { docCaiDat, ghiCaiDat } from './hop-tin.js';
 import { cat } from './tien-ich.js';
 
 const LECH_VN_MS = 7 * 3600000;
-const TEN_CON = ['Thu', 'Zalo', 'Tep', 'Claude', 'Lich', 'LichSu'];
+const TEN_CON = ['Thu', 'Zalo', 'Tep', 'Media', 'Claude', 'Chat', 'Lich', 'LichSu'];
+// Tên hiển thị và mô tả từng thư mục con, dùng ở trang Dự án.
+export const THU_MUC_CON = [
+  { ma: 'Thu', nhan: 'Thư', mo_ta: 'Thư Gmail liên quan, gộp theo ngày' },
+  { ma: 'Zalo', nhan: 'Tin Zalo', mo_ta: 'Tin nhắn Zalo liên quan, gộp theo ngày' },
+  { ma: 'Tep', nhan: 'Tệp tài liệu', mo_ta: 'Tệp đính kèm: văn bản, bảng tính, PDF' },
+  { ma: 'Media', nhan: 'Ảnh, video, ghi âm', mo_ta: 'Tệp media đính kèm của dự án' },
+  { ma: 'Claude', nhan: 'Kết quả của Claude', mo_ta: 'Kết quả mỗi lần giao việc cho Claude' },
+  { ma: 'Chat', nhan: 'Lịch sử chat với Claude', mo_ta: 'Yêu cầu, câu hỏi lại và kết quả, theo ngày' },
+  { ma: 'Lich', nhan: 'Lịch', mo_ta: 'Các việc có hạn của dự án' },
+  { ma: 'LichSu', nhan: 'Lịch sử giao việc', mo_ta: 'Nhật ký thêm, xong, đổi việc, theo ngày' },
+];
+export const laMedia = (ten, loai) => /^(image|video|audio)\//i.test(String(loai || '')) || /\.(jpe?g|png|gif|webp|heic|bmp|svg|mp4|mov|m4v|webm|avi|mkv|mp3|m4a|wav|ogg|aac|opus)$/i.test(String(ten || ''));
 const TOI_DA_GHI = 12; // số tệp chữ ghi mỗi lượt cho một dự án
 const TOI_DA_TEP = 6; // số tệp đính kèm tải lên mỗi lượt
 const KHOA_NHO = 'kho_du_an_thu_muc';
@@ -48,6 +61,20 @@ export function vanBanLichSuNgay(duAn, ngay, suKien) {
   const dong = [`# ${duAn.ten} - ngày ${ngay}`, '', `${suKien.length} sự kiện, giờ Việt Nam. Lưu tự động từ Sonicplan.`, ''];
   for (const e of suKien) {
     dong.push(`- ${gioVN(e.luc)} ${NHAN_SK[e.loai] || e.loai}: ${e.tieu_de || e.noi_dung || ''}${e.noi_dung && e.tieu_de && e.noi_dung !== e.tieu_de ? `\n  ${String(e.noi_dung).replace(/\s*\n\s*/g, '\n  ')}` : ''}`);
+  }
+  return dong.join('\n');
+}
+
+// Lịch sử chat với Claude trong một ngày: mỗi lượt gồm yêu cầu, câu hỏi Claude hỏi lại và kết quả.
+export function vanBanChatNgay(duAn, ngay, luots) {
+  const dong = [`# ${duAn.ten} - chat với Claude ngày ${ngay}`, '', `${luots.length} lượt, giờ Việt Nam. Lưu tự động từ Sonicplan.`, ''];
+  for (const l of luots) {
+    dong.push(`## ${gioVN(l.tao_luc)} - ${l.tieu_de || 'việc'} (lượt ${l.id}, ${l.trang_thai})`, '');
+    dong.push('Bạn:', '', l.dan ? cat(l.dan, 3000) : '(giao việc, không có lời dặn thêm)', '');
+    let hoi = [];
+    try { hoi = JSON.parse(l.cau_hoi || '[]'); } catch {}
+    if (hoi.length) dong.push('Claude hỏi lại:', '', ...hoi.map((c) => `- ${c}`), '');
+    dong.push('Claude:', '', l.ket_qua ? cat(l.ket_qua, 8000) : '(chưa có kết quả)', '');
   }
   return dong.join('\n');
 }
@@ -140,7 +167,7 @@ async function dauDuAn(env, tc, id) {
        (SELECT COUNT(*) || ':' || COALESCE(MAX(cap_nhat_luc), '') FROM viec WHERE to_chuc_id = ?1 AND du_an_id = ?2) AS v,
        (SELECT COUNT(*) || ':' || COALESCE(MAX(id), 0) FROM tin_nhan WHERE an = 0 AND id IN ${SQL_TIN}) AS t,
        (SELECT COUNT(*) || ':' || COALESCE(MAX(id), 0) FROM tep WHERE to_chuc_id = ?1 AND du_an_id = ?2) AS f,
-       (SELECT COUNT(*) || ':' || COALESCE(MAX(cap_nhat_luc), '') FROM luot_claude WHERE to_chuc_id = ?1 AND trang_thai = 'xong' AND viec_id IN (SELECT id FROM viec WHERE to_chuc_id = ?1 AND du_an_id = ?2)) AS c,
+       (SELECT COUNT(*) || ':' || COALESCE(MAX(cap_nhat_luc), '') FROM luot_claude WHERE to_chuc_id = ?1 AND viec_id IN (SELECT id FROM viec WHERE to_chuc_id = ?1 AND du_an_id = ?2)) AS c,
        (SELECT COUNT(*) || ':' || COALESCE(MAX(id), 0) FROM viec_su_kien WHERE to_chuc_id = ?1 AND du_an_id = ?2) AS s`,
   ).bind(tc, id).first();
   return `${r.v}|${r.t}|${r.f}|${r.c}|${r.s}`;
@@ -177,6 +204,14 @@ export async function dongBoMotDuAn(env, tc, token, dc, duAn) {
   ).bind(tc, duAn.id).all()).results;
   for (const l of luot) await luu({ loai: `da${duAn.id}_claude`, ma: String(l.id), ten: `${ngayVN(l.cap_nhat_luc)}_Claude_${l.id}.md`, thuMuc: cay.Claude, noiDung: vanBanKetQuaClaude(l) });
 
+  const chat = (await env.CSDL.prepare(
+    `SELECT l.id, l.dan, l.ket_qua, l.cau_hoi, l.trang_thai, l.tao_luc, v.tieu_de FROM luot_claude l JOIN viec v ON v.id = l.viec_id
+     WHERE l.to_chuc_id = ?1 AND v.du_an_id = ?2 ORDER BY l.id DESC LIMIT 60`,
+  ).bind(tc, duAn.id).all()).results.reverse();
+  const chatNgay = new Map();
+  for (const l of chat) { const n = ngayVN(l.tao_luc); if (!chatNgay.has(n)) chatNgay.set(n, []); chatNgay.get(n).push(l); }
+  for (const [ngay, ds] of chatNgay) await luu({ loai: `da${duAn.id}_chat`, ma: ngay, ten: `${ngay}_Chat.md`, thuMuc: cay.Chat, noiDung: vanBanChatNgay(duAn, ngay, ds) });
+
   const sk = (await env.CSDL.prepare(
     `SELECT e.loai, e.noi_dung, e.luc, v.tieu_de FROM viec_su_kien e LEFT JOIN viec v ON v.id = e.viec_id
      WHERE e.to_chuc_id = ?1 AND e.du_an_id = ?2 ORDER BY e.luc LIMIT 800`,
@@ -185,7 +220,7 @@ export async function dongBoMotDuAn(env, tc, token, dc, duAn) {
   for (const e of sk) { const n = ngayVN(e.luc); if (!theoNgay.has(n)) theoNgay.set(n, []); theoNgay.get(n).push(e); }
   for (const [ngay, ds] of theoNgay) await luu({ loai: `da${duAn.id}_ls`, ma: ngay, ten: `${ngay}.md`, thuMuc: cay.LichSu, noiDung: vanBanLichSuNgay(duAn, ngay, ds) });
 
-  // Tệp đính kèm của dự án: chép một bản vào thư mục Tep, đã chép rồi thì bỏ qua.
+  // Tệp đính kèm của dự án: chép một bản vào thư mục Tep (ảnh, video, ghi âm vào Media), đã chép rồi thì bỏ qua.
   if (env.TEP) {
     const teps = (await env.CSDL.prepare(
       `SELECT t.id, t.ten, t.loai, t.r2_khoa, k.drive_id FROM tep t LEFT JOIN kho_da_luu k ON k.to_chuc_id = t.to_chuc_id AND k.loai = ?3 AND k.ma = CAST(t.id AS TEXT)
@@ -196,7 +231,7 @@ export async function dongBoMotDuAn(env, tc, token, dc, duAn) {
       if (len >= TOI_DA_TEP) { conDo = true; break; }
       const vat = await env.TEP.get(t.r2_khoa);
       if (!vat) { await dc.ghiNhoDaLuu(env, tc, `da${duAn.id}_tep`, String(t.id), '', 'mat'); continue; }
-      const id = await dc.taoTepDrive(token, t.ten, cay.Tep, await vat.arrayBuffer(), t.loai);
+      const id = await dc.taoTepDrive(token, t.ten, laMedia(t.ten, t.loai) ? cay.Media : cay.Tep, await vat.arrayBuffer(), t.loai);
       await dc.ghiNhoDaLuu(env, tc, `da${duAn.id}_tep`, String(t.id), id, 'da-chep');
       len++; ghi++;
     }
@@ -218,4 +253,18 @@ export async function dongBoDuAn(env, tc, token, dc) {
     }
   }
   return { so: tong, loi };
+}
+
+// Các thư mục con của dự án (để trang Dự án hiện đường dẫn và nút mở). Chưa tạo thì trả danh sách rỗng.
+export async function thuMucDuAn(env, tc, duAnId) {
+  const d = await env.CSDL.prepare('SELECT id, ten, drive_kho_id FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(duAnId, tc).first();
+  if (!d) return null;
+  const cay = (await docNho(env, tc))[duAnId] || {};
+  const goc = d.drive_kho_id || cay.goc || null;
+  const duongDan = `Sonicplan kho/Dự án/${tenSach(d.ten)}`;
+  return {
+    bat: Boolean(d.drive_kho_id),
+    goc: goc ? { duong_dan: duongDan, link: linkThuMuc(goc) } : null,
+    thu_muc: goc ? THU_MUC_CON.map((m) => ({ ...m, duong_dan: `${duongDan}/${m.ma}`, link: cay[m.ma] ? linkThuMuc(cay[m.ma]) : null })) : [],
+  };
 }

@@ -28,16 +28,51 @@ async function veDanhSach(goc, t) {
   const { du_an: ds } = await api('/api/du-an');
   const oTen = h('input', { name: 'ten', placeholder: 'Tên dự án mới…', maxlength: '60', 'aria-label': 'Tên dự án', autocomplete: 'off' });
   const oKhoa = h('input', { name: 'tu_khoa', placeholder: 'Từ khóa, cách nhau bằng dấu phẩy', 'aria-label': 'Từ khóa', autocomplete: 'off' });
-  const form = h('form', { class: 'bang them-nhanh' }, oTen, oKhoa, h('button', { class: 'nut nut-chinh', type: 'submit' }, icon('cong'), 'Thêm dự án'));
+  // "Lưu tệp ở": mặc định tự tạo thư mục trong Sonicplan kho; hoặc dán link thư mục Drive có sẵn (chỉ để mở).
+  const oLuuO = h('select', { name: 'luu_o', 'aria-label': 'Lưu tệp ở' },
+    h('option', { value: 'kho', text: 'Lưu tệp ở: tự tạo trong Sonicplan kho (khuyến nghị)' }),
+    h('option', { value: 'link', text: 'Lưu tệp ở: thư mục Drive có sẵn (chỉ để mở)' }),
+    h('option', { value: 'khong', text: 'Lưu tệp ở: chưa chọn' }));
+  const oLink = h('input', { name: 'drive_link', placeholder: 'Dán link thư mục Drive', 'aria-label': 'Link thư mục Drive', autocomplete: 'off', hidden: true });
+  const ghiLuuO = h('p', { class: 'ghi-chu-trang' });
+  const veGhi = () => {
+    oLink.hidden = oLuuO.value !== 'link';
+    ghiLuuO.textContent = oLuuO.value === 'kho' ? `Sẽ tạo "Sonicplan kho/Dự án/${oTen.value.trim() || '<tên dự án>'}" gồm Thu, Zalo, Tep, Media, Claude, Chat, Lich, LichSu và tự lưu mọi thứ của dự án vào đó.`
+      : oLuuO.value === 'link' ? 'Hệ thống chỉ mở được thư mục này, không tự ghi vào. Muốn tự lưu thì chọn tự tạo.' : 'Có thể bật sau bằng nút "Lưu dự án vào Drive".';
+  };
+  oLuuO.addEventListener('change', veGhi); oTen.addEventListener('input', veGhi); veGhi();
+  const form = h('form', { class: 'bang them-nhanh' }, oTen, oKhoa, oLuuO, oLink, h('button', { class: 'nut nut-chinh', type: 'submit' }, icon('cong'), 'Thêm dự án'), ghiLuuO);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!oTen.value.trim()) { oTen.focus(); bao('Nhập tên dự án trước đã.', { loi: true }); return; }
     try {
-      await api('/api/du-an', { method: 'POST', body: JSON.stringify({ ten: oTen.value, tu_khoa: oKhoa.value }) });
-      bao('Đã thêm dự án.');
+      const r = await api('/api/du-an', { method: 'POST', body: JSON.stringify({ ten: oTen.value, tu_khoa: oKhoa.value, luu_o: oLuuO.value, ...(oLuuO.value === 'link' && oLink.value.trim() ? { drive_link: oLink.value.trim() } : {}) }) });
+      if (r.drive_loi) bao(`Đã thêm dự án. ${r.drive_loi}`, { loi: true });
+      else bao(r.drive_kho_id ? 'Đã thêm dự án và tạo thư mục Drive.' : 'Đã thêm dự án.');
       veDanhSach(goc, t);
     } catch (err) { bao(err.message, { loi: true }); }
   });
+  // Danh sách thư mục con của dự án, nạp khi mở: tên, mô tả, đường dẫn và nút mở trên Drive.
+  const noiLuuTep = (d) => {
+    const khung = h('div', { class: 'noi-luu-tep' }, h('p', { class: 'ghi-chu-trang', text: 'Đang tải…' }));
+    const chiTiet = h('details', { class: 'noi-luu' }, h('summary', { text: 'Nơi lưu tệp của dự án' }), khung);
+    let daNap = false;
+    chiTiet.addEventListener('toggle', async () => {
+      if (!chiTiet.open || daNap) return;
+      daNap = true;
+      try {
+        const r = await api(`/api/du-an/${d.id}/thu-muc`);
+        thay(khung,
+          r.goc ? h('p', { class: 'ghi-chu-trang' }, 'Thư mục gốc: ', h('code', { text: r.goc.duong_dan }), ' ', h('a', { href: r.goc.link, target: '_blank', rel: 'noopener noreferrer', text: 'Mở trên Drive' })) : null,
+          h('ul', { class: 'ds-noi-luu' }, ...r.thu_muc.map((m) => h('li', {},
+            icon('tep'),
+            h('div', {}, h('b', { text: m.nhan }), h('small', { text: m.mo_ta }), h('code', { text: m.duong_dan })),
+            m.link ? h('a', { class: 'nut nut-phu nut-nho', href: m.link, target: '_blank', rel: 'noopener noreferrer', 'aria-label': `Mở thư mục ${m.nhan} trên Drive` }, 'Mở') : h('span', { class: 'chip-gio', text: 'Tạo ở lần lưu kế' })))),
+        );
+      } catch (err) { daNap = false; thay(khung, h('p', { class: 'ghi-chu-trang', text: err.message })); }
+    });
+    return chiTiet;
+  };
   const the = (d) => {
     const khoa = h('input', { value: d.tu_khoa.join(', '), 'aria-label': `Từ khóa của ${d.ten}`, placeholder: 'Từ khóa, cách nhau bằng dấu phẩy' });
     const ten = h('input', { value: d.ten, maxlength: '60', 'aria-label': 'Tên dự án' });
@@ -63,6 +98,7 @@ async function veDanhSach(goc, t) {
       h('a', { class: 'ten-du-an', href: `#du-an/${d.id}`, ...(hexMau(d.mau) ? { style: `--mau:${hexMau(d.mau)}` } : {}) }, hexMau(d.mau) ? h('i', { class: 'cham-mau lon' }) : icon('du-an'), h('b', { text: d.ten }), h('span', { text: `${d.dang_mo} đang mở, ${d.da_xong} đã xong` })),
       linkDrive,
       hangDrive,
+      d.drive_kho_id ? noiLuuTep(d) : null,
       h('details', {}, h('summary', { text: 'Sửa tên, màu, từ khóa và thư mục Drive' }), h('div', { class: 'sua-du-an' }, ten, khoa, driveLink, driveDuong, oChonMau(h, mau, (m) => { mau = m; }, { nhan: `Màu của ${d.ten}` }), luu, go)),
     );
     li._td = () => ({ nhan: `Thao tác với dự án ${d.ten}`, muc: t.mucDuAn(d) });
