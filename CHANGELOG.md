@@ -2,6 +2,18 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [1.2.0] - 2026-10-13
+
+### Đổi
+- Gom 11 mục thành 4 mục chính: Hôm nay, Hộp tin, Dự án, Cài đặt; mỗi mục có thanh mục con dưới tiêu đề. Điện thoại có 4 nút ở đáy. Đường dẫn cũ vẫn mở được.
+- Màu chữ phụ ở giao diện sáng đậm hơn để đủ tương phản 4.5:1 (WCAG 2.2 AA).
+
+### Thêm
+- Trang "Dữ liệu của bạn": lưu gì, ai xem, giữ bao lâu; nút tải toàn bộ dữ liệu dạng JSON.
+- Chặn lệnh ghi gửi từ trang khác (chống giả mạo yêu cầu).
+- Sao lưu hằng đêm có thêm dự án, lịch sử dự án, kết quả Claude.
+- Bảng kiểm chuẩn quốc tế: `docs/CHUAN-QUOC-TE.md`.
+
 ## [1.1.0] - 2026-10-13
 
 ### Thêm

@@ -1,0 +1,25 @@
+// Quyền của người dùng với dữ liệu cá nhân (Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15, tham chiếu GDPR điều 15, 20):
+// tải về toàn bộ dữ liệu của tổ chức ở dạng JSON đọc được bằng máy.
+// Không xuất khóa, mã truy cập, mã băm: những thứ đó chỉ để hệ thống chạy, lộ ra thì nguy hiểm.
+
+// [bảng, câu hỏi]. Mọi câu hỏi lọc theo to_chuc_id = ?1.
+export const BANG_XUAT = [
+  ['thanh_vien', 'SELECT v.vai_tro, v.tao_luc, n.email, n.ten FROM thanh_vien v JOIN nguoi_dung n ON n.id = v.nguoi_dung_id WHERE v.to_chuc_id = ?1'],
+  ['viec', 'SELECT * FROM viec WHERE to_chuc_id = ?1'],
+  ['du_an', 'SELECT * FROM du_an WHERE to_chuc_id = ?1'],
+  ['viec_su_kien', 'SELECT * FROM viec_su_kien WHERE to_chuc_id = ?1'],
+  ['tin_nhan', 'SELECT * FROM tin_nhan WHERE to_chuc_id = ?1'],
+  ['tep', 'SELECT * FROM tep WHERE to_chuc_id = ?1'],
+  ['ghi_nho', 'SELECT * FROM ghi_nho WHERE to_chuc_id = ?1'],
+  ['luot_claude', 'SELECT id, viec_id, trang_thai, dan, ket_qua, nhanh, pr, nhat_ky, danh_gia, tao_luc, cap_nhat_luc FROM luot_claude WHERE to_chuc_id = ?1'],
+  ['kho_da_luu', 'SELECT * FROM kho_da_luu WHERE to_chuc_id = ?1'],
+  ['cai_dat', `SELECT khoa, gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa NOT LIKE 'tich_hop%' AND khoa NOT LIKE '%ma_noi%' AND khoa NOT LIKE '%bam%' AND khoa <> 'google_state'`],
+  ['nhat_ky_chay', 'SELECT * FROM nhat_ky_chay WHERE to_chuc_id = ?1 ORDER BY id DESC LIMIT 2000'],
+];
+
+export async function xuatDuLieu(env, tc, luc = new Date().toISOString()) {
+  const kq = await env.CSDL.batch(BANG_XUAT.map(([, cau]) => env.CSDL.prepare(cau).bind(tc)));
+  const ra = { phien_ban: 1, to_chuc_id: tc, xuat_luc: luc, ghi_chu: 'Dữ liệu Sonicplan của tổ chức. Khóa và mã truy cập không được xuất.' };
+  BANG_XUAT.forEach(([ten], i) => { ra[ten] = kq[i].results; });
+  return ra;
+}
