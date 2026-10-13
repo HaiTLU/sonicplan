@@ -1100,3 +1100,11 @@ body.dang-keo-tha, body.dang-keo-tha * { user-select: none; -webkit-user-select:
 .ds-chan strong, .ds-chan small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ds-chan small { color: var(--chu-2); font-size: 12.5px; }
 .doc-tin .khoi .hang-nut, .hop-spam .hang-nut { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+
+/* Trang Dữ liệu của bạn: nhật ký truy cập, xóa tổ chức */
+.cuon-bang { overflow-x: auto; max-height: 360px; overflow-y: auto; border: 1px solid var(--vach); border-radius: 10px; }
+.cuon-bang table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cuon-bang th, .cuon-bang td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--vach); color: var(--chu-2); white-space: nowrap; }
+.cuon-bang th { position: sticky; top: 0; background: var(--mat); color: var(--chu); font-weight: 600; }
+.form-xoa { display: grid; gap: 12px; }
+.form-xoa input { max-width: 420px; }

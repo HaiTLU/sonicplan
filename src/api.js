@@ -6,7 +6,9 @@ import { docTongHopCuoi, tongHopChoToChuc } from './tong-hop.js';
 import { docHoSo, LOAI_GHI_NHO, luuHoSo, TOI_DA_HO_SO } from './ghi-nho.js';
 import { goMaNhanViec, taoMaNhanViec } from './nhan-ngoai.js';
 import { docLuong, luuLuong, NGUONG } from './luong.js';
-import { xuatDuLieu } from './du-lieu.js';
+import { dsTruyCap, ghiTruyCap, xuatDuLieu } from './du-lieu.js';
+import { xoaToChuc } from './xoa-to-chuc.js';
+import { quenPhien } from './phien.js';
 import { caiWorkflow, danhGiaLuot, dsLuot, giaoClaude } from './claude-code.js';
 import { kiemCauHinhGithub, thuGithub } from './github.js';
 import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from './google.js';
@@ -38,13 +40,27 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   let khop;
 
   if (p === '/api/phien-ban' && m === 'GET') return json({ ban: env.PHIEN_BAN || '' });
-  if (p === '/api/toi' && m === 'GET') return json({ email: phien.email, nguoi_dung: phien.nguoi_dung, to_chuc: phien.to_chuc, cac_to_chuc: phien.cac_to_chuc });
+  if (p === '/api/toi' && m === 'GET') {
+    await ghiTruyCap(env, tc, phien.email, 'mo_trang').catch(() => {});
+    return json({ email: phien.email, nguoi_dung: phien.nguoi_dung, to_chuc: phien.to_chuc, cac_to_chuc: phien.cac_to_chuc });
+  }
   if (p === '/api/du-lieu/xuat' && m === 'GET') {
     if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức tải được toàn bộ dữ liệu.');
     const ra = await xuatDuLieu(env, tc);
+    await ghiTruyCap(env, tc, phien.email, 'xuat_du_lieu').catch(() => {});
     return new Response(JSON.stringify(ra, null, 1), {
       headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'content-disposition': `attachment; filename="sonicplan-du-lieu-${ngayVN()}.json"` },
     });
+  }
+  if (p === '/api/du-lieu/truy-cap' && m === 'GET') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức xem được nhật ký truy cập.');
+    return json({ ds: await dsTruyCap(env, tc) });
+  }
+  if (p === '/api/to-chuc/xoa' && m === 'POST') {
+    const than = await yeuCau.json().catch(() => ({}));
+    const kq = await xoaToChuc(env, phien.to_chuc, phien.email, than.ten_xac_nhan);
+    if (kq.ok) quenPhien();
+    return kq.loi ? loi(kq.ma, kq.loi) : json(kq);
   }
   if (p === '/api/tong-quan' && m === 'GET') return json(await tongQuan(env, tc));
   if (p === '/api/tinh-trang' && m === 'GET') return json(await layTinhTrang(env, tc));
@@ -143,7 +159,15 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   }
   if (p === '/api/google-nhan/xem-truoc' && m === 'POST') return json(await xemTruocNhan(env, tc, chuanCauHinh((await yeuCau.json().catch(() => ({}))).cau_hinh)));
   if (p === '/api/tep' && m === 'GET') return json(await dsTep(env, tc, url));
-  if ((khop = p.match(/^\/api\/tep\/(\d+)\/tai$/)) && m === 'GET') return taiTep(env, tc, Number(khop[1]));
+  if ((khop = p.match(/^\/api\/tep\/(\d+)\/tai$/)) && m === 'GET') {
+    const kq = await taiTep(env, tc, Number(khop[1]));
+    if (kq.ok) {
+      let ten = `tệp số ${khop[1]}`;
+      try { ten = decodeURIComponent((kq.headers.get('content-disposition') || '').split("''")[1] || '') || ten; } catch { /* giữ tên mặc định */ }
+      await ghiTruyCap(env, tc, phien.email, 'tai_tep', ten).catch(() => {});
+    }
+    return kq;
+  }
   if ((khop = p.match(/^\/api\/tep\/(\d+)\/anh-nho$/)) && m === 'GET') return anhNhoTep(env, tc, Number(khop[1]));
   if ((khop = p.match(/^\/api\/tep\/(\d+)$/)) && m === 'PATCH') return suaTep(env, tc, Number(khop[1]), await yeuCau.json().catch(() => ({})));
   if ((khop = p.match(/^\/api\/tep\/(\d+)\/xem$/)) && m === 'GET') return xemTep(env, tc, Number(khop[1]));

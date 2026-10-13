@@ -71,7 +71,8 @@
 .hs-nhan, .hs-chip { display: inline-flex; align-items: center; font: 600 12px/1 var(--phong); padding: 6px 9px; border-radius: 8px; border: 0; }
 .dn-nhe { background: color-mix(in srgb, var(--on) 16%, transparent); color: var(--on); }
 .dn-vua { background: color-mix(in srgb, var(--zalo) 16%, transparent); color: var(--zalo); }
-.dn-nang { background: color-mix(in srgb, #f5a524 20%, transparent); color: color-mix(in srgb, #f5a524 80%, var(--chu)); }
+.dn-nang { background: color-mix(in srgb, #f5a524 20%, transparent); color: color-mix(in srgb, #f5a524 45%, var(--chu)); }
+@media (prefers-color-scheme: dark) { .dn-nang { color: color-mix(in srgb, #f5a524 80%, var(--chu)); } }
 .dn-rat_nang { background: var(--loi-nhat); color: var(--loi); }
 .dn-chua { background: var(--mat-3); color: var(--phu); }
 .hs-chip { cursor: pointer; appearance: none; -webkit-appearance: none; padding-right: 9px; min-height: 32px; }
