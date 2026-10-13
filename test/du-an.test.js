@@ -32,7 +32,7 @@ test('kiểm dự án: tên bắt buộc, từ khóa tách theo dấu phẩy và
 
 function csdlGia() {
   const db = new DatabaseSync(':memory:');
-  db.exec(`CREATE TABLE du_an (id INTEGER PRIMARY KEY AUTOINCREMENT, to_chuc_id TEXT, ten TEXT, tu_khoa TEXT DEFAULT '[]', thu_tu INTEGER DEFAULT 0, tao_luc TEXT, mau TEXT, sao INTEGER DEFAULT 0, UNIQUE (to_chuc_id, ten));
+  db.exec(`CREATE TABLE du_an (id INTEGER PRIMARY KEY AUTOINCREMENT, to_chuc_id TEXT, ten TEXT, tu_khoa TEXT DEFAULT '[]', thu_tu INTEGER DEFAULT 0, tao_luc TEXT, mau TEXT, sao INTEGER DEFAULT 0, drive_link TEXT, drive_duong_dan TEXT, UNIQUE (to_chuc_id, ten));
     CREATE TABLE viec (id INTEGER PRIMARY KEY, to_chuc_id TEXT, tieu_de TEXT, trang_thai TEXT, du_an_id INTEGER, tin_nhan_id INTEGER, nguon TEXT, mau TEXT, can_dong_bo INTEGER DEFAULT 0, lich_event_id TEXT);
     CREATE TABLE viec_su_kien (id INTEGER PRIMARY KEY AUTOINCREMENT, to_chuc_id TEXT, viec_id INTEGER, du_an_id INTEGER, loai TEXT, noi_dung TEXT, tin_nhan_id INTEGER, luc TEXT);
     CREATE TABLE tep (id INTEGER PRIMARY KEY, to_chuc_id TEXT, ten TEXT, nguon TEXT, nguoi_gui TEXT, tao_luc TEXT, tin_nhan_id INTEGER, thu_muc TEXT, du_an_id INTEGER, du_an_nguon TEXT);
@@ -142,4 +142,31 @@ test('phân dự án cho tệp: theo từ khóa, theo việc cùng tin, theo nh�
   assert.equal(du(4).d, b.id); // từ khóa trong tên tệp
   assert.deepEqual(du(5), { d: null, n: 'tay' }); // chọn tay thì giữ nguyên
   assert.equal(du(7).d, b.id); // theo dự án phổ biến của cùng nhóm
+});
+
+test('thư mục Drive của dự án: link phải là Google, đường dẫn tương đối không có ..', async () => {
+  const { chuanLinkDrive, chuanDuongDanDrive } = await import('../src/du-an.js');
+  assert.equal(chuanLinkDrive(''), null);
+  assert.equal(chuanLinkDrive('https://drive.google.com/drive/folders/abc'), 'https://drive.google.com/drive/folders/abc');
+  assert.equal(chuanLinkDrive('http://drive.google.com/x'), undefined);
+  assert.equal(chuanLinkDrive('https://evil.example.com/drive.google.com/x'), undefined);
+  assert.equal(chuanDuongDanDrive(' /01_Projects/IPSOS/ '), '01_Projects/IPSOS');
+  assert.equal(chuanDuongDanDrive(''), null);
+  for (const xau of ['../etc', 'a/../b', 'a//b', 'a\\b', './a', 'a/\u0000b']) assert.equal(chuanDuongDanDrive(xau), undefined, xau);
+  assert.ok(kiemDuAn({ drive_duong_dan: '../x' }, { batBuoc: false }).loi);
+  assert.deepEqual(kiemDuAn({ drive_link: 'https://docs.google.com/a', drive_duong_dan: 'A/B' }, { batBuoc: false }).duAn, { drive_link: 'https://docs.google.com/a', drive_duong_dan: 'A/B' });
+});
+
+test('thư mục Drive: tạo, sửa, đọc lại và xóa trắng', async () => {
+  const { dungCsdl, d1 } = await import('./csdl-thu.js');
+  const env = { CSDL: d1(dungCsdl()) };
+  const t = await taoDuAn(env, 1, { ten: 'IPSOS', drive_link: 'https://drive.google.com/drive/folders/abc', drive_duong_dan: '01_Projects/IPSOS' });
+  assert.ok(t.id, JSON.stringify(t));
+  let ds = await dsDuAnKemSo(env, 1);
+  assert.equal(ds[0].drive_duong_dan, '01_Projects/IPSOS');
+  assert.equal((await suaDuAn(env, 1, t.id, { drive_duong_dan: '../x' })).loi?.includes('không hợp lệ'), true);
+  assert.deepEqual(await suaDuAn(env, 1, t.id, { drive_link: '', drive_duong_dan: '' }), {});
+  ds = await dsDuAnKemSo(env, 1);
+  assert.equal(ds[0].drive_link, null);
+  assert.equal(ds[0].drive_duong_dan, null);
 });
