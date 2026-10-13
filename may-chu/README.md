@@ -41,7 +41,8 @@ Nạp một lần: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/vn.s
 ## Cập nhật bản mới trên máy
 1. Một lần: trên cơ sở dữ liệu nạp từ D1, đánh dấu các migration đã có: `node may-chu/migrate.js --co-san`. Từ đó mỗi lần cập nhật chỉ áp migration mới.
 2. Cập nhật tay bất kỳ lúc nào: `bash may-chu/cap-nhat.sh` (kéo main, áp migration, khởi động lại dịch vụ, kiểm tra `/api/suc-khoe`).
-3. `scripts/trien-khai.py` (đưa lên Cloudflare) không còn dùng khi trang chạy trên Mac.
+3. Tự động mỗi lần gộp vào main (anh đã chọn bật): đăng ký runner tự host cho kho `HaiTLU/sonicplan` với nhãn `sonicplan-may`: GitHub, kho sonicplan, Settings, Actions, Runners, New self-hosted runner, làm theo các lệnh, thêm `--labels sonicplan-may` ở bước `./config.sh`, rồi `./svc.sh install && ./svc.sh start`. Workflow `.github/workflows/trien-khai-mac.yml` chạy `cap-nhat.sh` trên runner đó. Thư mục cài khác `~/sonicplan` hay tên dịch vụ khác thì đặt biến kho `SONICPLAN_DIR`, `SONICPLAN_LAUNCHD`. Chưa có runner thì job chỉ chờ, không hỏng gì.
+4. `scripts/trien-khai.py` (đưa lên Cloudflare) không còn dùng khi trang chạy trên Mac.
 
 ## Rào an toàn
 - `EMAIL_THU` đặt cùng `PUBLIC_ORIGIN` thì máy chủ từ chối khởi động.
