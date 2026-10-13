@@ -1,5 +1,6 @@
 // Lưu tin nhắn, tệp và mốc tín hiệu của từng tổ chức. Dùng chung cho thư, Zalo và Telegram.
 
+import { anTinNeuBiChan } from './chan-tin.js';
 import { cat } from './tien-ich.js';
 
 export const TEP_TOI_DA = 25 * 1024 * 1024;
@@ -8,6 +9,7 @@ export const TEP_TOI_DA = 25 * 1024 * 1024;
 export const KHO_TOI_DA = 9 * 1000 * 1000 * 1000;
 
 // Ghi một tin; tin trùng mã gốc trong cùng tổ chức thì bỏ qua. Trả id tin mới hoặc null nếu trùng.
+// Tin thuộc nguồn đã chặn (Spam) vẫn được lưu nhưng ẩn, và đặt tin.an = true để bên gọi bỏ qua tệp đính kèm.
 export async function luuTin(env, toChucId, tin) {
   const bayGio = new Date().toISOString();
   const kq = await env.CSDL.prepare(
@@ -26,6 +28,7 @@ export async function luuTin(env, toChucId, tin) {
     tin.thoi_diem || bayGio,
     bayGio,
   ).first();
+  if (kq) tin.an = await anTinNeuBiChan(env, toChucId, kq.id);
   return kq ? kq.id : null;
 }
 

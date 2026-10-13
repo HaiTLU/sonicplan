@@ -281,7 +281,7 @@ async function luuTep(env, tc, token) {
 async function luuTin(env, tc, token) {
   const nhom = (await env.CSDL.prepare(
     `SELECT nguon, substr(datetime(thoi_diem, '+7 hours'), 1, 10) AS ngay, COUNT(*) AS n, MAX(id) AS mx
-     FROM tin_nhan WHERE to_chuc_id = ?1 GROUP BY nguon, ngay ORDER BY ngay DESC LIMIT 400`,
+     FROM tin_nhan WHERE to_chuc_id = ?1 AND an = 0 GROUP BY nguon, ngay ORDER BY ngay DESC LIMIT 400`,
   ).bind(tc).all()).results;
   const daLuu = new Map((await env.CSDL.prepare(`SELECT ma, moc FROM kho_da_luu WHERE to_chuc_id = ?1 AND loai = 'tin_dau'`).bind(tc).all()).results.map((r) => [r.ma, r.moc]));
   const can = nhom.filter((g) => daLuu.get(`${g.nguon}|${g.ngay}`) !== `${g.n}:${g.mx}`).slice(0, TOI_DA_NGAY);
@@ -289,7 +289,7 @@ async function luuTin(env, tc, token) {
   for (const g of can) {
     const tins = (await env.CSDL.prepare(
       `SELECT nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem FROM tin_nhan
-       WHERE to_chuc_id = ?1 AND nguon = ?2 AND substr(datetime(thoi_diem, '+7 hours'), 1, 10) = ?3 ORDER BY thoi_diem, id`,
+       WHERE to_chuc_id = ?1 AND an = 0 AND nguon = ?2 AND substr(datetime(thoi_diem, '+7 hours'), 1, 10) = ?3 ORDER BY thoi_diem, id`,
     ).bind(tc, g.nguon, g.ngay).all()).results;
     await luuVanBan(env, tc, token, {
       loai: 'tin',
