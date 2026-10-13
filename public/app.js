@@ -213,7 +213,7 @@ let boCucTQ = null;
 const TRANG_KHOI = { 'can-lam': 'viec', 'chi-so': 'viec', 'du-an': 'du-an', 'viec-toi': 'viec', nhip: 'hop-tin', 'hieu-suat': 'hieu-suat', 'tong-hop': 'hop-tin', 'tin-moi': 'hop-tin', 'he-thong': 'ket-noi' };
 
 async function veTongQuan(goc) {
-  thay(goc,
+  if (!lamMoiEm) thay(goc,
     h('div', { class: 'luoi-tq' },
       h('div', { class: 'bang can-lam' }, ...[1, 2, 3, 4].map(() => h('div', { class: 'o-can' }, xuong(14, '50%'), h('div', { style: 'height:10px' }), xuong(36, '40%')))),
       h('div', { class: 'bang chi-so' }, xuong(150)),
@@ -256,7 +256,7 @@ async function veTongQuan(goc) {
     'tin-moi': () => bangTinMoi(kq.tin_moi.slice(0, 5)),
     'he-thong': () => khoiHeThong(tp, kq.tinh_trang.tac_vu, on, dungDuoc.length),
   };
-  const luoi = h('div', { class: 'luoi-tq vao' }, dau);
+  const luoi = h('div', { class: lamMoiEm ? 'luoi-tq' : 'luoi-tq vao' }, dau);
   const hien = boCuc.thu_tu.filter((k) => !boCuc.an.includes(k) && ve[k]);
   for (const k of hien) {
     const el = ve[k]();
@@ -652,13 +652,7 @@ async function mucTrinhDonViec(v) {
     }
   }
   if (!xong) {
-    muc.push({ vach: true }, { nhan: 'Hủy việc', nguy: true, lam: async () => {
-      try {
-        await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'huy' }) });
-        bao(`Đã hủy: ${v.tieu_de}`, { hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'mo' }) }); moMuc(); } } });
-      } catch (e) { bao(e.message, { loi: true }); }
-      moMuc();
-    } });
+    muc.push({ vach: true }, { nhan: 'Hủy việc', nguy: true, lam: () => huyViec(v) });
   }
   return muc;
 }
@@ -666,16 +660,66 @@ async function moTrinhDonViec(v, x, y) {
   moTrinhDon({ x, y, muc: await mucTrinhDonViec(v), nhan: `Thao tác với việc: ${v.tieu_de}` });
 }
 
+// Làm mới êm: vẽ lại dữ liệu ngay tại chỗ, không hiện khung xương và không chạy lại hiệu ứng vào trang.
+let lamMoiEm = false;
+async function moMucEm() {
+  lamMoiEm = true;
+  try { await moMuc(); } finally { lamMoiEm = false; }
+}
+const dangOTrangViec = () => (location.hash.slice(1) || 'tong-quan').split('/')[0] === 'viec';
+function napSauKhiDoi() { return dangOTrangViec() ? napLaiViec() : moMucEm(); }
+const itChuyenDong = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Dòng việc mờ dần rồi thu chiều cao về 0, các dòng dưới trượt lên; trả về hàm gỡ hiệu ứng nếu cần hoàn lại.
+function rutGon(el) {
+  if (!el?.isConnected || itChuyenDong()) return { xong: Promise.resolve(), hoan: () => {} };
+  const cs = getComputedStyle(el);
+  const khoang = parseFloat(getComputedStyle(el.parentElement).rowGap) || 0;
+  const cu = el.getAttribute('style');
+  el.style.boxSizing = 'border-box';
+  el.style.height = `${el.offsetHeight}px`;
+  el.style.overflow = 'hidden';
+  el.style.pointerEvents = 'none';
+  el.style.transition = 'height .3s var(--em), opacity .22s, padding .3s var(--em), margin .3s var(--em), border-width .3s';
+  void el.offsetHeight;
+  Object.assign(el.style, { height: '0px', opacity: '0', paddingTop: '0px', paddingBottom: '0px', borderTopWidth: '0px', borderBottomWidth: '0px', marginBottom: `${-khoang}px` });
+  if (cs.display === 'grid') el.style.minHeight = '0';
+  return {
+    xong: new Promise((r) => setTimeout(r, 320)),
+    hoan: () => { if (cu == null) el.removeAttribute('style'); else el.setAttribute('style', cu); },
+  };
+}
+const timDongViec = (id) => [...document.querySelectorAll('.the-viec, .muc-viec')].find((e) => e._viec?.id === id);
+
+// Cập nhật lạc quan: ô tick và dòng việc đổi ngay, API chạy ngầm, lỗi thì hoàn lại.
 async function doiXong(v, xong, el) {
+  const rut = el ? rutGon(el) : null;
+  el?.classList.add('dang-xong');
   try {
-    el?.classList.add('dang-xong');
     await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: xong ? 'xong' : 'mo' }) });
     bao(xong ? `Đã xong: ${v.tieu_de}` : 'Đã mở lại việc.', { hanhDong: xong ? { nhan: 'Hoàn tác', lam: () => doiXong(v, false) } : null });
-    setTimeout(() => moMuc(), 350);
+    await rut?.xong;
+    await napSauKhiDoi();
   } catch (e) {
+    rut?.hoan();
     el?.classList.remove('dang-xong');
+    const o = el?.querySelector('.o-xong');
+    if (o) o.checked = !xong;
     bao(e.message, { loi: true });
   }
+}
+
+// Hủy việc (xóa khỏi danh sách) cũng thu dòng mượt rồi mới làm mới.
+async function huyViec(v) {
+  const rut = rutGon(timDongViec(v.id));
+  try {
+    await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'huy' }) });
+    bao(`Đã hủy: ${v.tieu_de}`, { hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'mo' }) }); await napSauKhiDoi(); } } });
+    await rut.xong;
+  } catch (e) {
+    rut.hoan();
+    bao(e.message, { loi: true });
+  }
+  await napSauKhiDoi();
 }
 
 function bangTinMoi(ds) {
@@ -1269,14 +1313,8 @@ formViec.addEventListener('submit', async (e) => {
 document.getElementById('nut-huy-viec').addEventListener('click', async () => {
   if (!viecDangSua) return;
   const v = viecDangSua;
-  try {
-    await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'huy' }) });
-    ngan.close();
-    bao(`Đã hủy: ${v.tieu_de}`, { hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'mo' }) }); moMuc(); } } });
-    moMuc();
-  } catch (err) {
-    bao(err.message, { loi: true });
-  }
+  ngan.close();
+  huyViec(v);
 });
 document.getElementById('nut-them-viec').addEventListener('click', () => moNganViec(null));
 
