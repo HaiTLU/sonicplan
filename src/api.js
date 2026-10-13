@@ -17,7 +17,7 @@ import { docCaiDat, ghiCaiDat } from './hop-tin.js';
 import { congCuKho, dongBoKho, goKetNoiKho, hoanTatDangNhapKho, layAnhNhoDrive, layTruyCapKho, taoDiaChiDangNhapKho } from './kho.js';
 import { datThuMucHop, goKetNoiHop, hoanTatDangNhapHop, quetHop, taoDiaChiDangNhapHop } from './ghi-am-hop.js';
 import { batDriveKho, datLaiDuAn, dongBoMotDuAn, tatDriveKho, thuMucDuAn } from './kho-du-an.js';
-import { dsDuAnKemSo, lichSuDuAn, phanDuAnChoTep, sapXepDuAn, suaDuAn, taoDuAn, xoaDuAn, ghiSuKien } from './du-an.js';
+import { datAnhDuAn, docAnhDuAn, dsDuAnKemSo, lichSuDuAn, xoaAnhDuAn, phanDuAnChoTep, sapXepDuAn, suaDuAn, taoDuAn, xoaDuAn, ghiSuKien } from './du-an.js';
 import { caiBot, layBot, maNoiTelegram } from './telegram.js';
 import { chuanHoaCauHinhAi, dangViecMoi, docTichHop, giaiTichHop, guiDiaChiNhan, KHOA_TICH_HOP, kiemDiaChiNhan, luuTichHop, thuAiNgoai, xoaTichHop } from './tich-hop.js';
 import { bam, cat, json, loi, maNgauNhien, ngayVN } from './tien-ich.js';
@@ -149,6 +149,23 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   if (p === '/api/du-an/sap-xep' && m === 'POST') {
     const r = await sapXepDuAn(env, tc, (await yeuCau.json().catch(() => ({}))).ids);
     return r.loi ? loi(400, r.loi) : json({ ok: true });
+  }
+  if ((khop = p.match(/^\/api\/du-an\/(\d+)\/anh$/))) {
+    const id = Number(khop[1]);
+    if (m === 'GET') {
+      const vat = await docAnhDuAn(env, tc, id);
+      if (!vat) return loi(404, 'Dự án chưa có ảnh.');
+      return new Response(vat.body, { headers: { 'content-type': vat.httpMetadata?.contentType || 'image/jpeg', 'cache-control': 'private, max-age=31536000, immutable', 'x-content-type-options': 'nosniff' } });
+    }
+    if (m === 'PUT') {
+      const loai = (yeuCau.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+      const r = await datAnhDuAn(env, tc, id, loai, await yeuCau.arrayBuffer());
+      return r.loi ? loi(r.ma || 400, r.loi) : json(r);
+    }
+    if (m === 'DELETE') {
+      const r = await xoaAnhDuAn(env, tc, id);
+      return r.loi ? loi(r.ma || 400, r.loi) : json({ ok: true });
+    }
   }
   if ((khop = p.match(/^\/api\/du-an\/(\d+)\/lich-su$/)) && m === 'GET') {
     const r = await lichSuDuAn(env, tc, Number(khop[1]));
@@ -667,7 +684,7 @@ async function dsViec(env, tc, url) {
   const { results } = await env.CSDL.prepare(
     `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.trang_thai, v.tin_nhan_id, v.tao_luc, v.xong_luc,
        t.nguon AS tin_nguon, t.nguoi_gui AS tin_nguoi_gui, t.nhom AS tin_nhom,
-       v.du_an_id, v.nguon, v.mau, v.sao, v.do_nang, d.ten AS du_an_ten, d.mau AS du_an_mau,
+       v.du_an_id, v.nguon, v.mau, v.sao, v.do_nang, d.ten AS du_an_ten, d.mau AS du_an_mau, d.icon AS du_an_icon, d.anh_khoa AS du_an_anh,
        (SELECT CASE WHEN l.trang_thai = 'xong' AND l.cau_hoi IS NOT NULL AND l.danh_gia IS NULL THEN 'hoi' ELSE l.trang_thai END FROM luot_claude l WHERE l.to_chuc_id = v.to_chuc_id AND l.viec_id = v.id ORDER BY l.id DESC LIMIT 1) AS claude_trang_thai
      FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id LEFT JOIN du_an d ON d.id = v.du_an_id
      WHERE v.to_chuc_id = ?1 AND v.trang_thai = ?2 ORDER BY ${thuTu.replace(/\b(xong_luc|han_ngay|gio_hen|thu_tu|sao|id)\b/g, 'v.$1')} LIMIT 300`,

@@ -1,6 +1,7 @@
 // Giao diện Sonicplan: một trang, chuyển mục theo dấu #, đọc ghi dữ liệu qua /api.
 
 import { CHU_TRANG_THAI, dungKhoiClaude, moKhungGiaoClaude, veKhoiClaude } from './claude.js';
+import { anhDuAn, boAnh, chonVaTaiAnh, oChonIcon } from './anh-du-an.js';
 import { veDuAn } from './du-an.js';
 import { dongHieuSuat, veHieuSuat } from './hieu-suat.js';
 import { batKeoTha } from './keo-tha.js';
@@ -1038,9 +1039,9 @@ async function veViec(goc) {
 
   function veLoc(viec) {
     const dem = (f) => viec.filter(f).length;
-    const chip = (ma, nhan, so, mau) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.duAn === ma), onclick: () => { v.duAn = ma; napViec(); } }, hexMau(mau) ? h('i', { class: 'cham-mau', style: `--mau:${hexMau(mau)}` }) : null, nhan, h('b', { text: String(so) }));
+    const chip = (ma, nhan, so, mau, da) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.duAn === ma), onclick: () => { v.duAn = ma; napViec(); } }, da && (da.icon || da.anh_khoa) ? anhDuAn(h, da, 'nho') : hexMau(mau) ? h('i', { class: 'cham-mau', style: `--mau:${hexMau(mau)}` }) : null, nhan, h('b', { text: String(so) }));
     const ds = duAnDs.filter((d) => viec.some((x) => x.du_an_id === d.id) || v.duAn === d.id);
-    thay(locDuAn, chip('tat-ca', 'Tất cả dự án', viec.length), ...ds.map((d) => chip(d.id, d.ten, dem((x) => x.du_an_id === d.id), d.mau)), dem((x) => !x.du_an_id) ? chip('khong', 'Chưa xếp dự án', dem((x) => !x.du_an_id)) : null);
+    thay(locDuAn, chip('tat-ca', 'Tất cả dự án', viec.length), ...ds.map((d) => chip(d.id, d.ten, dem((x) => x.du_an_id === d.id), d.mau, d)), dem((x) => !x.du_an_id) ? chip('khong', 'Chưa xếp dự án', dem((x) => !x.du_an_id)) : null);
   }
 
   async function napViec() {
@@ -1092,13 +1093,13 @@ function nutClaudeCot(c) {
 }
 
 function cotTheoDuAn(ds, hn) {
-  const cot = [...duAnDs.map((d) => ({ ma: `da-${d.id}`, id: d.id, sao: d.sao, drive_link: d.drive_link, drive_kho_id: d.drive_kho_id, ten: d.ten, mau: d.mau, loc: (x) => x.du_an_id === d.id })), { ma: 'da-khong', ten: 'Chưa xếp dự án', loc: (x) => !x.du_an_id }];
+  const cot = [...duAnDs.map((d) => ({ ma: `da-${d.id}`, id: d.id, sao: d.sao, drive_link: d.drive_link, drive_kho_id: d.drive_kho_id, ten: d.ten, mau: d.mau, icon: d.icon, anh_khoa: d.anh_khoa, loc: (x) => x.du_an_id === d.id })), { ma: 'da-khong', ten: 'Chưa xếp dự án', loc: (x) => !x.du_an_id }];
   return cot.map((c) => ({ ...c, ds: ds.filter(c.loc) })).filter((c) => !(trang.viec.anTrong && !c.ds.length && c.ma !== 'da-khong')).map((c) => {
     const muc = () => (c.id ? mucTrinhDonDuAn(c, { ds: c.ds, cot: true }) : [{ nhan: 'Thêm việc chưa xếp dự án', lam: () => moNganViec(null) }]);
     const baCham = h('button', { class: 'nut-ba-cham nut-menu-cot', type: 'button', 'aria-label': `Thao tác với ${c.ten}`, 'aria-haspopup': 'menu', title: 'Thao tác' }, icon('ba-cham'));
     baCham.addEventListener('click', (ev) => { ev.stopPropagation(); const r = baCham.getBoundingClientRect(); moTrinhDon({ x: r.left, y: r.bottom + 4, muc: muc(), nhan: `Thao tác với ${c.ten}` }); });
     const el = h('section', { class: `cot-viec${c.id && cotThu.has(c.id) ? ' thu-gon' : ''}`, dataset: { cot: c.ma }, 'aria-label': c.ten, ...(hexMau(c.mau) ? { style: `--mau:${hexMau(c.mau)}` } : {}) },
-      h('header', {}, h('h2', { text: c.ten }), h('span', { class: 'dau-cot' }, nutClaudeCot(c), c.id ? nutSao(Boolean(c.sao), `dự án ${c.ten}`, () => saoDuAn(c.id, !c.sao)) : null, h('span', { text: String(c.ds.length) }), baCham)),
+      h('header', {}, h('h2', {}, c.id ? anhDuAn(h, c, 'nho') : null, c.ten), h('span', { class: 'dau-cot' }, nutClaudeCot(c), c.id ? nutSao(Boolean(c.sao), `dự án ${c.ten}`, () => saoDuAn(c.id, !c.sao)) : null, h('span', { text: String(c.ds.length) }), baCham)),
       c.ds.length ? h('ul', {}, ...c.ds.map((x) => theViec(x, hn))) : h('p', { class: 'cot-trong', text: 'Kéo việc vào đây.' }),
     );
     el._td = () => ({ muc: muc(), nhan: `Thao tác với ${c.ten}` });
@@ -1213,6 +1214,9 @@ function mucTrinhDonDuAn(d, { ds = [], cot = false } = {}) {
     d.drive_kho_id ? { nhan: 'Tắt lưu vào Drive', lam: () => driveDuAn(d, 'tat') } : null,
     { vach: true },
     { nhan: 'Đổi tên', lam: () => { const ten = (prompt('Tên dự án', d.ten) || '').trim(); if (ten && ten !== d.ten) suaDuAnNhanh(d, { ten }, 'Đã đổi tên dự án.'); } },
+    { nhan: 'Đổi biểu tượng', con: [{ node: oChonIcon(h, d.icon || null, (bt) => { dongTrinhDon(); suaDuAnNhanh(d, { icon: bt }, 'Đã đổi biểu tượng dự án.'); }, { nhan: `Biểu tượng của ${d.ten}` }) }] },
+    { nhan: d.anh_khoa ? 'Đổi ảnh đại diện…' : 'Tải ảnh đại diện…', lam: () => chonVaTaiAnh(d, { bao, xong: () => moMuc() }) },
+    d.anh_khoa ? { nhan: 'Gỡ ảnh đại diện', lam: async () => { try { await boAnh(d.id); bao('Đã gỡ ảnh.'); } catch (e) { bao(e.message, { loi: true }); } moMuc(); } } : null,
     { nhan: 'Đổi màu', con: [{ node: oChonMau(h, d.mau || null, (ma) => { dongTrinhDon(); suaDuAnNhanh(d, { mau: ma || null }, 'Đã đổi màu dự án.'); }, { nhan: `Màu của ${d.ten}` }) }] },
     { vach: true },
     { nhan: 'Gỡ dự án', nguy: true, lam: async () => {
@@ -1267,7 +1271,7 @@ function theViec(v, hn) {
         v.han_ngay ? h('span', { class: hn && v.han_ngay < hn ? 'tre' : '' }, icon('lich'), ngayHienThi(v.han_ngay)) : null,
         v.gio_hen ? h('span', {}, icon('dong-ho'), v.gio_hen) : null,
         h('span', { class: `nguon ${nhanNguon(v).ma}`, title: `Nguồn: ${v.tin_nhom || v.tin_nguoi_gui || nhanNguon(v).chu}` }, icon(nhanNguon(v).icon), nhanNguon(v).chu),
-        v.du_an_ten ? h('a', { class: 'nhan-du-an', href: `#du-an/${v.du_an_id}`, title: 'Xem lịch sử dự án' }, icon('du-an'), v.du_an_ten) : h('span', { class: 'nhan-du-an chua', text: 'Chưa xếp dự án' }),
+        v.du_an_ten ? h('a', { class: 'nhan-du-an', href: `#du-an/${v.du_an_id}`, title: 'Xem lịch sử dự án' }, v.du_an_icon || v.du_an_anh ? anhDuAn(h, v, 'nho') : icon('du-an'), v.du_an_ten) : h('span', { class: 'nhan-du-an chua', text: 'Chưa xếp dự án' }),
         v.xong_luc ? h('span', {}, `Xong ${luc(v.xong_luc)}`) : null,
         nutClaudeThe(v),
       ),
@@ -2419,7 +2423,7 @@ async function veLuongTrang(goc) {
   await veLuong(goc, { h, icon, api, bao, thay, khungLoi, xuong, luc, chayNgay });
 }
 function veDuAnTrang(goc, thamSo) {
-  return veDuAn(goc, thamSo, { h, icon, api, bao, thay, khungLoi, xuong, mucDuAn: mucTrinhDonDuAn, driveDuAn });
+  return veDuAn(goc, thamSo, { h, icon, api, bao, thay, khungLoi, xuong, mucDuAn: mucTrinhDonDuAn, driveDuAn, themViec: (d) => moNganViec(null, { du_an_id: d.id }) });
 }
 // Trang "Dữ liệu của bạn": nói rõ hệ thống lưu gì, ai xem, giữ bao lâu; nút tải toàn bộ dữ liệu.
 function veDuLieu(goc) {
