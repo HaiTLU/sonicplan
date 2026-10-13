@@ -49,10 +49,12 @@ async function veDanhSach(goc, t) {
       if (!confirm(`Gỡ dự án "${d.ten}"? Các việc vẫn còn, chỉ mất nhãn dự án.`)) return;
       try { await api(`/api/du-an/${d.id}`, { method: 'DELETE' }); bao('Đã gỡ dự án.'); veDanhSach(goc, t); } catch (err) { bao(err.message, { loi: true }); }
     } }, 'Gỡ');
-    return h('li', { class: 'the-du-an' },
+    const li = h('li', { class: 'the-du-an' },
       h('a', { class: 'ten-du-an', href: `#du-an/${d.id}`, ...(hexMau(d.mau) ? { style: `--mau:${hexMau(d.mau)}` } : {}) }, hexMau(d.mau) ? h('i', { class: 'cham-mau lon' }) : icon('du-an'), h('b', { text: d.ten }), h('span', { text: `${d.dang_mo} đang mở, ${d.da_xong} đã xong` })),
       h('details', {}, h('summary', { text: 'Sửa tên, màu và từ khóa' }), h('div', { class: 'sua-du-an' }, ten, khoa, oChonMau(h, mau, (m) => { mau = m; }, { nhan: `Màu của ${d.ten}` }), luu, go)),
     );
+    li._td = () => ({ nhan: `Thao tác với dự án ${d.ten}`, muc: t.mucDuAn(d) });
+    return li;
   };
   thay(goc, form,
     ds.length ? h('ul', { class: 'ds-du-an' }, ...ds.map(the)) : h('p', { class: 'cot-trong', text: 'Chưa có dự án. Thêm dự án đầu tiên ở trên.' }),
