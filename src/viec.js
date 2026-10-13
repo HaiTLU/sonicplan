@@ -7,7 +7,7 @@ import { ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { docLuong } from './luong.js';
 import { baoSuKien, dangViecMoi, docTichHop } from './tich-hop.js';
 import { boSungHan, ngayChoGio } from './ngay-viet.js';
-import { cat, doGiong, ngayVN } from './tien-ich.js';
+import { cat, chuanHoa, doGiong, ngayVN } from './tien-ich.js';
 import { chonDuAn, docDuAn, ghiSuKien } from './du-an.js';
 
 // Tiêu đề giống từ 80% với một việc đang mở trong 14 ngày gần đây thì coi là trùng.
@@ -35,6 +35,33 @@ export function laViecRo(v) {
   const chu = String(v?.tieu_de || '').trim().split(/\s+/).filter(Boolean).length;
   const ghiChu = String(v?.ghi_chu || '').trim().length;
   return chu >= 3 || (chu === 2 && Boolean(v?.han_ngay || ghiChu >= 20));
+}
+
+// Tin sinh ra việc. AI hay bỏ trống tin_so khi lô có nhiều tin, làm việc mất liên kết với tin gốc và bị gắn nhãn "Tự thêm".
+// Thứ tự: tin_so hợp lệ, lô chỉ có một tin, rồi tin trùng nhiều từ nhất với tên việc (có từ 80% từ của tên việc, nhiều tin cùng đủ thì lấy tin ngắn nhất).
+export function timTinNguon(viec, tin) {
+  const theoSo = viec?.tin_so && tin[viec.tin_so - 1];
+  if (theoSo) return theoSo;
+  if (tin.length === 1) return tin[0];
+  const tu = (chu) => new Set(chuanHoa(chu).split(' ').filter((w) => w.length >= 2));
+  const cua = tu(viec?.tieu_de);
+  if (cua.size < 2) return null;
+  let tot = null;
+  let dai = Infinity;
+  for (const t of tin) {
+    const trongTin = tu(`${t.nhom || ''} ${t.tieu_de || ''} ${String(t.noi_dung || '').slice(0, 2000)}`);
+    let chung = 0;
+    for (const w of cua) if (trongTin.has(w)) chung++;
+    // Phải có gần đủ từ của tên việc; nhiều tin cùng đủ thì lấy tin ngắn nhất (thư dài chứa mọi từ thông dụng).
+    if (chung >= 2 && chung / cua.size >= 0.8 && trongTin.size < dai) { tot = t; dai = trongTin.size; }
+  }
+  return tot;
+}
+
+// Cả lô cùng một nguồn (toàn Zalo hay toàn thư) thì việc không rõ tin gốc vẫn mang nhãn nguồn đó, không rơi về "Tự thêm".
+function nguonChung(tin) {
+  const ds = [...new Set(tin.map((t) => t.nguon).filter(Boolean))];
+  return ds.length === 1 ? { nguon: ds[0] } : null;
 }
 
 export function timTrung(tieuDe, cacViec) {
@@ -132,15 +159,15 @@ async function chayLoTin(env, toChucId, tin, bayGio) {
   const viecRa = [];
   // Lớp kiểm tra bằng code: ngày giờ viết trong tiêu đề, ghi chú hoặc tin gốc luôn được đọc, kể cả khi AI bỏ sót.
   const viecDay = ketQua.viec.map((x) => {
-    const g = x.tin_so && tin[x.tin_so - 1];
-    return boSungHan(x, g?.noi_dung || '', g?.thoi_diem || bayGio);
+    const g = timTinNguon(x, tin);
+    return { ...boSungHan(x, g?.noi_dung || '', g?.thoi_diem || bayGio), nguon_tin: g };
   });
   for (const v of viecDay.filter((x) => laViecRo(x) || String(x?.tieu_de || '').trim().split(/\s+/).length >= 2 && x.han_ngay).slice(0, 10)) {
-    const nguon = v.tin_so && tin[v.tin_so - 1];
+    const nguon = v.nguon_tin;
     const keHoach = ghiChuKeHoach(v);
     const ghiChu = [v.ghi_chu, keHoach].filter(Boolean).join('\n\n') || null;
     const duAnId = chonDuAn(duAn, v.du_an, `${v.tieu_de} ${nguon?.nhom || ''} ${nguon?.nguoi_gui || ''} ${nguon?.tieu_de || ''} ${String(nguon?.noi_dung || '').slice(0, 300)}`);
-    const r = await themViec(env, toChucId, { ...v, ghi_chu: ghiChu }, { tinNhanId: nguon ? nguon.id : null, duAnId, nguon: (nguon || (tin.length === 1 ? tin[0] : null))?.nguon || null });
+    const r = await themViec(env, toChucId, { ...v, ghi_chu: ghiChu }, { tinNhanId: nguon ? nguon.id : null, duAnId, nguon: (nguon || nguonChung(tin))?.nguon || null });
     if (!r.trung) soViec++;
     viecRa.push({ id: r.id, tieu_de: v.tieu_de, han_ngay: v.han_ngay || null, gio_hen: v.gio_hen || null, trung: r.trung });
   }
