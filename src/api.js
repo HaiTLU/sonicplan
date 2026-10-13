@@ -65,6 +65,14 @@ export async function xuLyApi(yeuCau, env, phien, url) {
     if (kq.ok) quenPhien();
     return kq.loi ? loi(kq.ma, kq.loi) : json(kq);
   }
+  // Hai số đếm ở thanh dưới, làm mới mỗi 2 phút: chỉ 2 truy vấn có chỉ mục, thay vì cả Tổng quan (khoảng 10 truy vấn).
+  if (p === '/api/dem' && m === 'GET') {
+    const r = await env.CSDL.prepare(
+      `SELECT (SELECT COUNT(*) FROM tin_nhan WHERE to_chuc_id = ?1 AND an = 0 AND da_xem = 0) AS tin_chua_xem,
+              (SELECT COUNT(*) FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo') AS viec_mo`,
+    ).bind(tc).first();
+    return json({ tin_chua_xem: r?.tin_chua_xem ?? 0, viec_mo: r?.viec_mo ?? 0 });
+  }
   if (p === '/api/tong-quan' && m === 'GET') return json(await tongQuan(env, tc, phien));
   if (p === '/api/tong-quan/bo-cuc' && m === 'PUT') {
     const bc = chuanBoCuc(await yeuCau.json().catch(() => null));
