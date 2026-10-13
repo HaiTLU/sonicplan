@@ -70,7 +70,7 @@ export function docTuKhoa(v) {
 
 export async function docDuAn(env, tc) {
   const { results } = await env.CSDL.prepare(
-    'SELECT id, ten, tu_khoa, thu_tu, mau, sao FROM du_an WHERE to_chuc_id = ?1 ORDER BY sao DESC, thu_tu, id',
+    'SELECT id, ten, tu_khoa, thu_tu, mau, sao, drive_link, drive_duong_dan FROM du_an WHERE to_chuc_id = ?1 ORDER BY sao DESC, thu_tu, id',
   ).bind(tc).all();
   return results.map((d) => ({ ...d, tu_khoa: docTuKhoa(d.tu_khoa) }));
 }
@@ -100,7 +100,34 @@ export function kiemDuAn(than, { batBuoc }) {
     ra.mau = m;
   }
   if ('sao' in than) ra.sao = than.sao ? 1 : 0;
+  if ('drive_link' in than) {
+    const l = chuanLinkDrive(than.drive_link);
+    if (l === undefined) return { loi: 'Link thư mục Drive phải bắt đầu bằng https://drive.google.com/ hoặc https://docs.google.com/.' };
+    ra.drive_link = l;
+  }
+  if ('drive_duong_dan' in than) {
+    const d = chuanDuongDanDrive(than.drive_duong_dan);
+    if (d === undefined) return { loi: 'Đường dẫn trong Drive không hợp lệ: dùng dạng 01_Projects/IPSOS, không bắt đầu bằng dấu /, không có "..".' };
+    ra.drive_duong_dan = d;
+  }
   return { duAn: ra };
+}
+
+// Trả null nếu để trống, undefined nếu sai, chuỗi nếu đúng.
+export function chuanLinkDrive(v) {
+  const s = String(v ?? '').trim();
+  if (!s) return null;
+  if (s.length > 300 || !/^https:\/\/(drive|docs)\.google\.com\/[^\s]+$/.test(s)) return undefined;
+  return s;
+}
+
+// Đường dẫn tương đối, các đoạn cách nhau dấu /, không đoạn nào là "." hoặc "..", không ký tự điều khiển hay dấu \.
+export function chuanDuongDanDrive(v) {
+  const s = String(v ?? '').trim().replace(/^\/+|\/+$/g, '');
+  if (!s) return null;
+  if (s.length > 200 || /[\\\u0000-\u001f]/.test(s)) return undefined;
+  if (s.split('/').some((d) => !d.trim() || d === '.' || d === '..')) return undefined;
+  return s;
 }
 
 export async function dsDuAnKemSo(env, tc) {
@@ -129,8 +156,8 @@ export async function taoDuAn(env, tc, than) {
   }
   try {
     const d = await env.CSDL.prepare(
-      'INSERT INTO du_an (to_chuc_id, ten, tu_khoa, thu_tu, tao_luc, mau) VALUES (?1, ?2, ?3, ?4, ?5, ?6) RETURNING id',
-    ).bind(tc, k.duAn.ten, JSON.stringify(k.duAn.tu_khoa || []), dem.cuoi + 1, new Date().toISOString(), mau).first();
+      'INSERT INTO du_an (to_chuc_id, ten, tu_khoa, thu_tu, tao_luc, mau, drive_link, drive_duong_dan) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) RETURNING id',
+    ).bind(tc, k.duAn.ten, JSON.stringify(k.duAn.tu_khoa || []), dem.cuoi + 1, new Date().toISOString(), mau, k.duAn.drive_link ?? null, k.duAn.drive_duong_dan ?? null).first();
     return { id: d.id };
   } catch (e) {
     if (/UNIQUE/i.test(String(e.message))) return { loi: 'Đã có dự án tên này.' };
@@ -147,6 +174,8 @@ export async function suaDuAn(env, tc, id, than) {
   if ('tu_khoa' in k.duAn) { gt.push(JSON.stringify(k.duAn.tu_khoa)); gan.push(`tu_khoa = ?${gt.length + 2}`); }
   if ('mau' in k.duAn) { gt.push(k.duAn.mau); gan.push(`mau = ?${gt.length + 2}`); }
   if ('sao' in k.duAn) { gt.push(k.duAn.sao); gan.push(`sao = ?${gt.length + 2}`); }
+  if ('drive_link' in k.duAn) { gt.push(k.duAn.drive_link); gan.push(`drive_link = ?${gt.length + 2}`); }
+  if ('drive_duong_dan' in k.duAn) { gt.push(k.duAn.drive_duong_dan); gan.push(`drive_duong_dan = ?${gt.length + 2}`); }
   if (!gan.length) return { loi: 'Không có gì để sửa.' };
   try {
     const kq = await env.CSDL.prepare(`UPDATE du_an SET ${gan.join(', ')} WHERE id = ?1 AND to_chuc_id = ?2`).bind(id, tc, ...gt).run();
@@ -168,7 +197,7 @@ export async function xoaDuAn(env, tc, id) {
 
 // Dòng thời gian của dự án: sự kiện của mọi việc đang thuộc dự án, cùng các tệp đi kèm tin của những việc đó.
 export async function lichSuDuAn(env, tc, id) {
-  const d = await env.CSDL.prepare('SELECT id, ten, tu_khoa, mau FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+  const d = await env.CSDL.prepare('SELECT id, ten, tu_khoa, mau, drive_link, drive_duong_dan FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
   if (!d) return null;
   const [sk, tep, viec] = await Promise.all([
     env.CSDL.prepare(

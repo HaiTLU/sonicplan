@@ -3,6 +3,7 @@
 // -> workflow báo "đang làm" rồi "xong"/"lỗi" về /nhan/claude kèm mã dùng một lần của lượt.
 // Khóa Claude (gói Max: CLAUDE_CODE_OAUTH_TOKEN) nằm trong Secrets của kho GitHub, Sonicplan không giữ.
 
+import { chuanDuongDanDrive } from './du-an.js';
 import { goiGithub } from './github.js';
 import { docTichHop } from './tich-hop.js';
 import { baoToChuc } from './telegram.js';
@@ -26,6 +27,7 @@ on:
       yeu_cau: { description: 'Viec can lam', required: true }
       dia_chi_bao: { description: 'Dia chi bao ket qua', required: true }
       ma_bao: { description: 'Ma bao ket qua, dung mot lan', required: true }
+      thu_muc_drive: { description: 'Duong dan thu muc Drive cua du an, de trong neu khong co', required: false, default: '' }
 permissions:
   contents: write
   pull-requests: write
@@ -192,6 +194,14 @@ const CHUA_CHAY_PHUT = 20; // GitHub chưa bắt đầu chạy (máy chạy tắ
 const CHU_CHUA_CHAY = 'GitHub chưa chạy lượt này sau 20 phút. Có thể máy chạy riêng đang tắt hoặc ngủ, hoặc tài khoản GitHub hết phút chạy. Bấm "Xem các lượt chạy" để xem, rồi giao lại.';
 const CHU_QUA_HAN = 'Không nhận được kết quả từ GitHub. Bấm "Xem nhật ký" để xem lý do, rồi giao lại.';
 
+// Thư mục Drive để chép kết quả: chỉ khi mọi việc trong lượt thuộc cùng một dự án và dự án đó có đường dẫn hợp lệ.
+export async function duongDanDriveCua(env, tc, ds) {
+  const ids = [...new Set(ds.map((v) => v.du_an_id))];
+  if (ids.length !== 1 || !ids[0]) return null;
+  const d = await env.CSDL.prepare('SELECT drive_duong_dan FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(ids[0], tc).first();
+  return chuanDuongDanDrive(d?.drive_duong_dan) || null;
+}
+
 // Giao một hoặc nhiều việc. tuyChon: { dan, traLoi, cach: 'gop' | 'tung_viec', tiepLuot }.
 // Gộp: một lượt chạy chung, mỗi việc còn lại có dòng riêng trỏ về lượt chính (lo_id) để thẻ việc cùng hiện kết quả.
 export async function giaoClaude(env, tc, viecIds, tuyChon, goc) {
@@ -203,7 +213,7 @@ export async function giaoClaude(env, tc, viecIds, tuyChon, goc) {
   const cauHinh = await cauHinhClaude(env, tc);
   if (!cauHinh) return { ma: 400, loi: 'Chưa nối GitHub. Vào Kết nối, mục Claude Code.' };
   const { results: viec } = await env.CSDL.prepare(
-    `SELECT id, tieu_de, ghi_chu, han_ngay, gio_hen, trang_thai FROM viec WHERE to_chuc_id = ?1 AND id IN (${ids.map((_, i) => `?${i + 2}`).join(',')})`,
+    `SELECT id, tieu_de, ghi_chu, han_ngay, gio_hen, trang_thai, du_an_id FROM viec WHERE to_chuc_id = ?1 AND id IN (${ids.map((_, i) => `?${i + 2}`).join(',')})`,
   ).bind(tc, ...ids).all();
   if (viec.length !== ids.length) return { ma: 404, loi: 'Không tìm thấy việc.' };
   viec.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
@@ -245,6 +255,7 @@ export async function giaoClaude(env, tc, viecIds, tuyChon, goc) {
     const { meta } = await env.CSDL.prepare('INSERT INTO luot_claude (to_chuc_id, viec_id, dan, ma_bam, tao_luc, cap_nhat_luc) VALUES (?1, ?2, ?3, ?4, ?5, ?5)')
       .bind(tc, ds[0].id, ghiDan, await bam(ma), bayGio).run();
     const luotId = meta.last_row_id;
+    const duongDrive = await duongDanDriveCua(env, tc, ds);
     for (const v of ds.slice(1)) {
       await env.CSDL.prepare(`INSERT INTO luot_claude (to_chuc_id, viec_id, lo_id, dan, ma_bam, tao_luc, cap_nhat_luc) VALUES (?1, ?2, ?3, ?4, '', ?5, ?5)`)
         .bind(tc, v.id, luotId, ghiDan, bayGio).run();
@@ -252,7 +263,7 @@ export async function giaoClaude(env, tc, viecIds, tuyChon, goc) {
     try {
       await goiGithub(cauHinh, `/repos/${cauHinh.repo}/actions/workflows/${TEN_WORKFLOW}/dispatches`, {
         method: 'POST',
-        body: { ref: kho.default_branch || 'main', inputs: { luot: String(luotId), yeu_cau: loiNhacClaude(ds, luotId, dan, { traLoi, truoc }), dia_chi_bao: `${goc}/nhan/claude`, ma_bao: ma } },
+        body: { ref: kho.default_branch || 'main', inputs: { luot: String(luotId), yeu_cau: loiNhacClaude(ds, luotId, dan, { traLoi, truoc }), dia_chi_bao: `${goc}/nhan/claude`, ma_bao: ma, ...(duongDrive ? { thu_muc_drive: duongDrive } : {}) } },
       });
     } catch (e) {
       const thongBao = /\(404\)/.test(e.message) ? 'Kho chưa có luồng Claude. Vào Kết nối, bấm "Cài luồng Claude".' : e.message;

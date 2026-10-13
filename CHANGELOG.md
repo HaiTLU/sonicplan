@@ -5,6 +5,7 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 ## [1.3.0] - 2026-10-13
 
 ### Thêm
+- Thư mục Drive cho từng dự án: link để bấm mở và đường dẫn trong Drive để máy chạy Claude chép kết quả vào. Cần chạy migration 0020 và cập nhật luồng trong kho làm việc trước khi triển khai.
 - Nút "Spam" ở Hộp tin (PR #61): chặn nhóm Zalo, người gửi hoặc địa chỉ thư; tin của họ không hiện, không tách thành việc; mục "Đã chặn" để bỏ chặn.
 - Nhật ký ai xem, tải dữ liệu ở trang Dữ liệu của bạn.
 - Chủ tổ chức tự xóa cả tổ chức: hỏi hai lần, sao lưu trước, giữ bản sao 30 ngày.

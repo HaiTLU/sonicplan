@@ -98,3 +98,20 @@ test('tách câu hỏi cuối kết quả, lời dặn có luật hỏi lại', 
   assert.match(loiNhacClaude({ tieu_de: 'A' }, 1), /CÂU HỎI CHO BẠN:/);
   assert.match(loiNhacClaude({ tieu_de: 'A' }, 1, null, { truoc: 'Kết quả cũ' }), /Kết quả lần trước[\s\S]*Kết quả cũ/);
 });
+
+test('thư mục Drive: chỉ gửi khi mọi việc cùng một dự án có đường dẫn hợp lệ', async () => {
+  const { db, env } = await dung();
+  db.exec(`INSERT INTO du_an (id, to_chuc_id, ten, tao_luc, drive_duong_dan) VALUES (10, 'tc', 'IPSOS', '2026-10-01', '01_Projects/IPSOS'), (11, 'tc', 'Khác', '2026-10-01', '../ngoai')`);
+  db.exec(`UPDATE viec SET du_an_id = 10 WHERE id IN (1, 2); UPDATE viec SET du_an_id = 11 WHERE id = 3`);
+  let goi = giaGithub();
+  await giaoClaude(env, 'tc', [1, 2], { cach: 'gop' }, 'https://x');
+  assert.equal(goi.find((g) => g.url.endsWith('/dispatches')).body.inputs.thu_muc_drive, '01_Projects/IPSOS');
+  db.exec(`DELETE FROM luot_claude`);
+  goi = giaGithub();
+  await giaoClaude(env, 'tc', [1, 3], { cach: 'gop' }, 'https://x'); // khác dự án: không gửi
+  assert.equal('thu_muc_drive' in goi.find((g) => g.url.endsWith('/dispatches')).body.inputs, false);
+  db.exec(`DELETE FROM luot_claude`);
+  goi = giaGithub();
+  await giaoClaude(env, 'tc', [3], { cach: 'gop' }, 'https://x'); // đường dẫn có ..: không gửi
+  assert.equal('thu_muc_drive' in goi.find((g) => g.url.endsWith('/dispatches')).body.inputs, false);
+});
