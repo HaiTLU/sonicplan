@@ -597,7 +597,7 @@ async function dsTin(env, tc, url) {
   const dieuKien = ['t.to_chuc_id = ?1', 't.an = 0'];
   const thamSo = [tc];
   const nguon = url.searchParams.get('nguon');
-  if (nguon === 'zalo' || nguon === 'gmail' || nguon === 'hop') {
+  if (/^[a-z][a-z0-9-]{1,20}$/.test(nguon || '')) {
     thamSo.push(nguon);
     dieuKien.push(`t.nguon = ?${thamSo.length}`);
   }

@@ -724,7 +724,9 @@ async function huyViec(v) {
 }
 
 // Biểu tượng nguồn tin; cuộc họp (ghi âm, biên bản) đứng tên cuộc họp thay cho người gửi.
-const iconNguon = (nguon) => icon(nguon === 'zalo' ? 'zalo' : nguon === 'hop' ? 'ghi-am' : 'thu');
+// Các nguồn tin của Hộp tin. Thêm nguồn mới: thêm một dòng ở đây (tên, biểu tượng), màu ở .huy-hieu.<mã> trong kieu.css.
+const NGUON_TIN = { zalo: { ten: 'Zalo', icon: 'zalo' }, gmail: { ten: 'Thư', icon: 'thu' }, hop: { ten: 'Họp', icon: 'ghi-am' } };
+const iconNguon = (nguon) => icon(NGUON_TIN[nguon]?.icon || 'thu');
 const tenGuiTin = (t) => (t.nguon === 'hop' ? t.tieu_de || 'Cuộc họp' : t.nguoi_gui || 'Không rõ');
 const dongPhuTin = (t) => (t.nguon === 'hop' ? 'Cuộc họp' : t.nhom ? tenNhom(t.nhom) : t.tieu_de);
 
@@ -871,7 +873,7 @@ async function veHopTin(goc, thamSo) {
   });
   thay(goc, 
     h('div', { class: 'thanh-loc' },
-      nutLoc('tat-ca', 'Tất cả'), nutLoc('hom-nay', nhanHomNay), nutLoc('chua-xem', 'Chưa xem'), nutLoc('zalo', 'Zalo'), nutLoc('gmail', 'Thư'), nutLoc('hop', 'Họp'),
+      nutLoc('tat-ca', 'Tất cả'), nutLoc('hom-nay', nhanHomNay), nutLoc('chua-xem', 'Chưa xem'), ...Object.entries(NGUON_TIN).map(([ma, n]) => nutLoc(ma, n.ten)),
       h('button', { class: 'chip', type: 'button', onclick: async () => { await api('/api/tin/da-xem-het', { method: 'POST' }); bao('Đã đánh dấu xem hết.'); capNhatDem(0); veHopTin(goc); } }, 'Đánh dấu xem hết'),
       h('label', { class: 'o-tim' }, icon('tim'), oTim),
     ),
@@ -883,7 +885,7 @@ async function veHopTin(goc, thamSo) {
     if (t.loc === 'chua-xem') q.set('chua_xem', '1');
     if (t.loc === 'hom-nay') q.set('hom_nay', '1');
     if (t.loc === 'hom-nay' && t.gio != null) q.set('gio', String(t.gio));
-    if (t.loc === 'zalo' || t.loc === 'gmail' || t.loc === 'hop') q.set('nguon', t.loc);
+    if (NGUON_TIN[t.loc]) q.set('nguon', t.loc);
     if (t.q) q.set('q', t.q);
     try {
       const { tin } = await api(`/api/tin?${q}`);
