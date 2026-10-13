@@ -14,7 +14,8 @@ import { chayAi } from './ai.js';
 import { kiemCauHinhGithub, thuGithub } from './github.js';
 import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from './google.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
-import { dongBoKho, goKetNoiKho, hoanTatDangNhapKho, layAnhNhoDrive, taoDiaChiDangNhapKho } from './kho.js';
+import { congCuKho, dongBoKho, goKetNoiKho, hoanTatDangNhapKho, layAnhNhoDrive, layTruyCapKho, taoDiaChiDangNhapKho } from './kho.js';
+import { batDriveKho, datLaiDuAn, dongBoMotDuAn, tatDriveKho } from './kho-du-an.js';
 import { dsDuAnKemSo, lichSuDuAn, phanDuAnChoTep, sapXepDuAn, suaDuAn, taoDuAn, xoaDuAn, ghiSuKien } from './du-an.js';
 import { caiBot, layBot, maNoiTelegram } from './telegram.js';
 import { chuanHoaCauHinhAi, dangViecMoi, docTichHop, giaiTichHop, guiDiaChiNhan, KHOA_TICH_HOP, kiemDiaChiNhan, luuTichHop, thuAiNgoai, xoaTichHop } from './tich-hop.js';
@@ -128,6 +129,29 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   if ((khop = p.match(/^\/api\/du-an\/(\d+)\/lich-su$/)) && m === 'GET') {
     const r = await lichSuDuAn(env, tc, Number(khop[1]));
     return r ? json(r) : loi(404, 'Không tìm thấy dự án.');
+  }
+  if ((khop = p.match(/^\/api\/du-an\/(\d+)\/drive-kho(\/dong-bo)?$/)) && (m === 'POST' || m === 'DELETE')) {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
+    const id = Number(khop[1]);
+    if (m === 'DELETE') {
+      const r = await tatDriveKho(env, tc, id);
+      return r.loi ? loi(r.ma || 400, r.loi) : json({ ok: true });
+    }
+    const token = await layTruyCapKho(env, tc);
+    if (!token) return loi(400, 'Chưa nối Drive kho. Vào Cài đặt, Kết nối, thẻ Drive kho để nối trước.');
+    try {
+      if (!khop[2]) {
+        const r = await batDriveKho(env, tc, token, congCuKho(env, tc), id);
+        return r.loi ? loi(r.ma || 400, r.loi) : json({ ok: true, ...r });
+      }
+      const d = await env.CSDL.prepare('SELECT id, ten, tu_khoa, drive_link, drive_kho_id FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+      if (!d) return loi(404, 'Không tìm thấy dự án.');
+      if (!d.drive_kho_id) return loi(400, 'Dự án chưa bật lưu vào Drive.');
+      await datLaiDuAn(env, tc, id);
+      return json({ ok: true, so: await dongBoMotDuAn(env, tc, token, congCuKho(env, tc), d) });
+    } catch (e) {
+      return loi(502, `Drive báo lỗi: ${String(e.message).slice(0, 120)}`);
+    }
   }
   if ((khop = p.match(/^\/api\/du-an\/(\d+)$/)) && (m === 'PATCH' || m === 'DELETE')) {
     const r = m === 'PATCH' ? await suaDuAn(env, tc, Number(khop[1]), await yeuCau.json().catch(() => ({}))) : await xoaDuAn(env, tc, Number(khop[1]));

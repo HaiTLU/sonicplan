@@ -1020,7 +1020,7 @@ function nutClaudeCot(c) {
 }
 
 function cotTheoDuAn(ds, hn) {
-  const cot = [...duAnDs.map((d) => ({ ma: `da-${d.id}`, id: d.id, sao: d.sao, ten: d.ten, mau: d.mau, loc: (x) => x.du_an_id === d.id })), { ma: 'da-khong', ten: 'Chưa xếp dự án', loc: (x) => !x.du_an_id }];
+  const cot = [...duAnDs.map((d) => ({ ma: `da-${d.id}`, id: d.id, sao: d.sao, drive_link: d.drive_link, drive_kho_id: d.drive_kho_id, ten: d.ten, mau: d.mau, loc: (x) => x.du_an_id === d.id })), { ma: 'da-khong', ten: 'Chưa xếp dự án', loc: (x) => !x.du_an_id }];
   return cot.map((c) => ({ ...c, ds: ds.filter(c.loc) })).filter((c) => !(trang.viec.anTrong && !c.ds.length && c.ma !== 'da-khong')).map((c) => {
     const muc = () => (c.id ? mucTrinhDonDuAn(c, { ds: c.ds, cot: true }) : [{ nhan: 'Thêm việc chưa xếp dự án', lam: () => moNganViec(null) }]);
     const baCham = h('button', { class: 'nut-ba-cham nut-menu-cot', type: 'button', 'aria-label': `Thao tác với ${c.ten}`, 'aria-haspopup': 'menu', title: 'Thao tác' }, icon('ba-cham'));
@@ -1099,6 +1099,30 @@ async function suaDuAnNhanh(d, thanThay, loiNhan) {
   } catch (e) { bao(e.message, { loi: true }); }
   moMuc();
 }
+// Lưu mọi thứ của dự án vào thư mục Drive riêng: bật (tự tạo thư mục), lưu lại toàn bộ, tắt.
+async function driveDuAn(d, kieu) {
+  try {
+    if (kieu === 'bat') {
+      bao('Đang tạo thư mục Drive cho dự án…');
+      const r = await api(`/api/du-an/${d.id}/drive-kho`, { method: 'POST' });
+      bao('Đã bật lưu dự án vào Drive. Thư, tin Zalo, tệp, kết quả Claude, lịch và lịch sử sẽ về thư mục trong vài phút.', { hanhDong: { nhan: 'Mở thư mục', lam: () => window.open(r.link, '_blank', 'noopener') } });
+    } else if (kieu === 'dong-bo') {
+      bao('Đang lưu lại toàn bộ vào Drive…');
+      const r = await api(`/api/du-an/${d.id}/drive-kho/dong-bo`, { method: 'POST' });
+      bao(r.so ? `Đã lưu ${r.so} mục vào Drive. Nếu dự án còn nhiều tệp, phần còn lại tự về trong các lượt sau.` : 'Đã kiểm, Drive đã đủ.');
+    } else if (kieu === 'tat') {
+      if (!confirm(`Tắt lưu "${d.ten}" vào Drive? Thư mục và tệp đã lưu vẫn còn nguyên trên Drive.`)) return;
+      await api(`/api/du-an/${d.id}/drive-kho`, { method: 'DELETE' });
+      bao('Đã tắt lưu vào Drive.');
+    } else if (kieu === 'link') {
+      const link = prompt('Dán link thư mục Drive có sẵn (chỉ để bấm mở; Sonicplan không ghi vào thư mục này)', d.drive_link || '');
+      if (link === null) return;
+      await api(`/api/du-an/${d.id}`, { method: 'PATCH', body: JSON.stringify({ drive_link: link }) });
+      bao('Đã lưu link thư mục.');
+    }
+  } catch (e) { bao(e.message, { loi: true }); }
+  moMuc();
+}
 function mucTrinhDonDuAn(d, { ds = [], cot = false } = {}) {
   const moDs = ds.filter((x) => x.trang_thai === 'mo' && !['cho', 'dang_lam'].includes(x.claude_trang_thai));
   const thu = cotThu.has(d.id);
@@ -1108,6 +1132,13 @@ function mucTrinhDonDuAn(d, { ds = [], cot = false } = {}) {
     cot && moDs.length ? { nhan: `Giao Claude cả dự án (${moDs.length} việc)`, lam: () => giaoClaudeNhanh(moDs, d.ten) } : null,
     { nhan: d.sao ? 'Bỏ sao' : 'Gắn sao', lam: () => (cot ? saoDuAn(d.id, !d.sao) : suaDuAnNhanh(d, { sao: !d.sao }, d.sao ? 'Đã bỏ sao.' : 'Đã gắn sao.')) },
     cot ? { nhan: thu ? 'Mở rộng cột' : 'Thu gọn cột', lam: () => datThuGon(d.id, !thu) } : null,
+    { vach: true },
+    d.drive_link ? { nhan: 'Mở thư mục Drive', lam: () => window.open(d.drive_link, '_blank', 'noopener') } : null,
+    d.drive_kho_id
+      ? { nhan: 'Đồng bộ lại toàn bộ vào Drive', lam: () => driveDuAn(d, 'dong-bo') }
+      : { nhan: 'Lưu dự án vào Drive (tự tạo thư mục)', lam: () => driveDuAn(d, 'bat') },
+    { nhan: d.drive_link ? 'Đổi link thư mục Drive' : 'Dán link thư mục Drive có sẵn', lam: () => driveDuAn(d, 'link') },
+    d.drive_kho_id ? { nhan: 'Tắt lưu vào Drive', lam: () => driveDuAn(d, 'tat') } : null,
     { vach: true },
     { nhan: 'Đổi tên', lam: () => { const ten = (prompt('Tên dự án', d.ten) || '').trim(); if (ten && ten !== d.ten) suaDuAnNhanh(d, { ten }, 'Đã đổi tên dự án.'); } },
     { nhan: 'Đổi màu', con: [{ node: oChonMau(h, d.mau || null, (ma) => { dongTrinhDon(); suaDuAnNhanh(d, { mau: ma || null }, 'Đã đổi màu dự án.'); }, { nhan: `Màu của ${d.ten}` }) }] },
@@ -2284,7 +2315,7 @@ async function veLuongTrang(goc) {
   await veLuong(goc, { h, icon, api, bao, thay, khungLoi, xuong, luc, chayNgay });
 }
 function veDuAnTrang(goc, thamSo) {
-  return veDuAn(goc, thamSo, { h, icon, api, bao, thay, khungLoi, xuong, mucDuAn: mucTrinhDonDuAn });
+  return veDuAn(goc, thamSo, { h, icon, api, bao, thay, khungLoi, xuong, mucDuAn: mucTrinhDonDuAn, driveDuAn });
 }
 // Trang "Dữ liệu của bạn": nói rõ hệ thống lưu gì, ai xem, giữ bao lâu; nút tải toàn bộ dữ liệu.
 function veDuLieu(goc) {

@@ -32,7 +32,7 @@ test('kiểm dự án: tên bắt buộc, từ khóa tách theo dấu phẩy và
 
 function csdlGia() {
   const db = new DatabaseSync(':memory:');
-  db.exec(`CREATE TABLE du_an (id INTEGER PRIMARY KEY AUTOINCREMENT, to_chuc_id TEXT, ten TEXT, tu_khoa TEXT DEFAULT '[]', thu_tu INTEGER DEFAULT 0, tao_luc TEXT, mau TEXT, sao INTEGER DEFAULT 0, drive_link TEXT, drive_duong_dan TEXT, UNIQUE (to_chuc_id, ten));
+  db.exec(`CREATE TABLE du_an (id INTEGER PRIMARY KEY AUTOINCREMENT, to_chuc_id TEXT, ten TEXT, tu_khoa TEXT DEFAULT '[]', thu_tu INTEGER DEFAULT 0, tao_luc TEXT, mau TEXT, sao INTEGER DEFAULT 0, drive_link TEXT, drive_duong_dan TEXT, drive_kho_id TEXT, UNIQUE (to_chuc_id, ten));
     CREATE TABLE viec (id INTEGER PRIMARY KEY, to_chuc_id TEXT, tieu_de TEXT, trang_thai TEXT, du_an_id INTEGER, tin_nhan_id INTEGER, nguon TEXT, mau TEXT, can_dong_bo INTEGER DEFAULT 0, lich_event_id TEXT);
     CREATE TABLE viec_su_kien (id INTEGER PRIMARY KEY AUTOINCREMENT, to_chuc_id TEXT, viec_id INTEGER, du_an_id INTEGER, loai TEXT, noi_dung TEXT, tin_nhan_id INTEGER, luc TEXT);
     CREATE TABLE tep (id INTEGER PRIMARY KEY, to_chuc_id TEXT, ten TEXT, nguon TEXT, nguoi_gui TEXT, tao_luc TEXT, tin_nhan_id INTEGER, thu_muc TEXT, du_an_id INTEGER, du_an_nguon TEXT);

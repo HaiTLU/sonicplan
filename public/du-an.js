@@ -52,9 +52,17 @@ async function veDanhSach(goc, t) {
       try { await api(`/api/du-an/${d.id}`, { method: 'DELETE' }); bao('Đã gỡ dự án.'); veDanhSach(goc, t); } catch (err) { bao(err.message, { loi: true }); }
     } }, 'Gỡ');
     const linkDrive = d.drive_link ? h('a', { class: 'nut nut-phu', href: d.drive_link, target: '_blank', rel: 'noopener noreferrer', 'aria-label': `Mở thư mục Drive của ${d.ten}` }, icon('tep'), 'Thư mục Drive') : null;
+    const hangDrive = h('div', { class: 'hang-nut hang-drive' },
+      d.drive_kho_id
+        ? [h('span', { class: 'chip-gio', title: 'Thư, tin Zalo, tệp, kết quả Claude, lịch và lịch sử của dự án tự lưu vào thư mục Drive này', text: 'Đang lưu vào Drive' }),
+          h('button', { class: 'nut nut-phu nut-nho', type: 'button', onclick: () => t.driveDuAn(d, 'dong-bo') }, 'Đồng bộ lại toàn bộ'),
+          h('button', { class: 'nut nut-phu nut-nho', type: 'button', onclick: () => t.driveDuAn(d, 'tat') }, 'Tắt')]
+        : h('button', { class: 'nut nut-phu nut-nho', type: 'button', title: 'Tự tạo thư mục Drive cho dự án và lưu mọi thứ của dự án vào đó', onclick: () => t.driveDuAn(d, 'bat') }, icon('tep'), 'Lưu dự án vào Drive'),
+    );
     const li = h('li', { class: 'the-du-an' },
       h('a', { class: 'ten-du-an', href: `#du-an/${d.id}`, ...(hexMau(d.mau) ? { style: `--mau:${hexMau(d.mau)}` } : {}) }, hexMau(d.mau) ? h('i', { class: 'cham-mau lon' }) : icon('du-an'), h('b', { text: d.ten }), h('span', { text: `${d.dang_mo} đang mở, ${d.da_xong} đã xong` })),
       linkDrive,
+      hangDrive,
       h('details', {}, h('summary', { text: 'Sửa tên, màu, từ khóa và thư mục Drive' }), h('div', { class: 'sua-du-an' }, ten, khoa, driveLink, driveDuong, oChonMau(h, mau, (m) => { mau = m; }, { nhan: `Màu của ${d.ten}` }), luu, go)),
     );
     li._td = () => ({ nhan: `Thao tác với dự án ${d.ten}`, muc: t.mucDuAn(d) });
