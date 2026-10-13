@@ -74,7 +74,7 @@ export function taoMayChu(cauHinh = {}) {
     TEP: moR2(cfg.TEP_DIR || resolve(thuMucDuLieu, 'tep')),
     ASSETS: moTinh(resolve(GOC, 'public')),
     ...Object.fromEntries(
-      ['ACCESS_TEAM_DOMAIN', 'ACCESS_AUD', 'EMAIL_DOMAIN', 'QUAN_TRI', 'AI_MODEL', 'KHOA_MA_HOA', 'EMAIL_THU', 'PHIEN_BAN']
+      ['ACCESS_TEAM_DOMAIN', 'ACCESS_AUD', 'EMAIL_DOMAIN', 'QUAN_TRI', 'AI_MODEL', 'KHOA_MA_HOA', 'EMAIL_THU', 'THU_MA', 'PHIEN_BAN']
         .filter((k) => cfg[k] !== undefined && cfg[k] !== '')
         .map((k) => [k, cfg[k]]),
     ),

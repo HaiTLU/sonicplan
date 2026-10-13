@@ -1,0 +1,12 @@
+// Email Worker nhỏ: nhận thư từ Cloudflare Email Routing, đẩy thư thô về máy chủ Sonicplan (Mac mini).
+// Mã THU_MA đặt bằng: wrangler secret put THU_MA (cùng giá trị với THU_MA trong may-chu/.env).
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "sonicplan-thu",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-25",
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true },
+  "vars": { "DICH": "https://plan.sonicrec.app/nhan/thu" }
+}
