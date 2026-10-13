@@ -2448,11 +2448,49 @@ async function moMuc() {
   const goc = document.querySelector(`[data-trang="${muc}"]`);
   if (mucTruoc && mucTruoc !== muc) tieuDe.focus({ preventScroll: true });
   mucTruoc = muc;
+  // Vào lại trang đã xem: giữ ảnh chụp trang cũ phủ lên cho tới khi trang mới vẽ xong, không để khung xương nhấp nháy.
+  const kl = dungAnhCu(goc, muc);
   try {
     await VE[muc](goc, thamSo);
+    mucDaVe.add(muc);
   } catch (e) {
     thay(goc, khungLoi(e, moMuc));
   }
+  if (kl) boAnhCu(kl, goc);
+}
+
+const mucDaVe = new Set();
+let anhCuDangPhu = null;
+function boAnhCuNgay() {
+  if (!anhCuDangPhu) return;
+  anhCuDangPhu.kl.remove();
+  anhCuDangPhu.goc.classList.remove('giu-cu');
+  anhCuDangPhu = null;
+}
+function dungAnhCu(goc, muc) {
+  boAnhCuNgay();
+  if (!mucDaVe.has(muc) || !goc.firstElementChild || goc.querySelector('.xuong')) return null;
+  const cha = goc.offsetParent || goc.parentElement;
+  const kl = goc.cloneNode(true);
+  kl.removeAttribute('hidden');
+  kl.removeAttribute('data-trang');
+  kl.setAttribute('aria-hidden', 'true');
+  kl.inert = true;
+  kl.classList.add('anh-cu');
+  Object.assign(kl.style, { top: `${goc.offsetTop}px`, left: `${goc.offsetLeft}px`, width: `${goc.offsetWidth}px`, minHeight: `${goc.offsetHeight}px` });
+  cha.append(kl);
+  goc.classList.add('giu-cu');
+  anhCuDangPhu = { kl, goc };
+  return kl;
+}
+// Đợi khung xương biến mất (tối đa 1,8 giây) rồi mờ ảnh cũ đi.
+async function boAnhCu(kl, goc) {
+  const han = Date.now() + 1800;
+  while (goc.querySelector('.xuong') && Date.now() < han && anhCuDangPhu?.kl === kl) await new Promise((r) => setTimeout(r, 40));
+  if (anhCuDangPhu?.kl !== kl) return;
+  if (itChuyenDong()) { boAnhCuNgay(); return; }
+  kl.classList.add('mo-di');
+  setTimeout(() => { if (anhCuDangPhu?.kl === kl) boAnhCuNgay(); }, 200);
 }
 
 // ---------- Bảng lệnh (Ctrl K) ----------
