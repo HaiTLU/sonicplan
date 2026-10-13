@@ -2,6 +2,13 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [1.6.0] - 2026-10-13
+
+### Thêm
+- Trang Claude (mục Dự án): chat với Claude Code như trên máy. Chữ trả lời hiện dần, mỗi việc Claude làm hiện thành một dòng mở ra xem được, tệp Claude tạo hiện thành thẻ để xem hoặc tải, nút Dừng (hoặc Esc) để ngắt giữa chừng. Chọn dự án, model (Opus, Sonnet, Haiku, Fable), effort (thấp tới tối đa), chế độ tự sửa tệp hoặc chỉ lập kế hoạch. Đính kèm bằng nút kẹp giấy, kéo thả hoặc dán ảnh chụp màn hình. Danh sách phiên cũ ở cột trái, lượt sau Claude nhớ hội thoại trước.
+- Trạm Claude trên máy Mac: chương trình chạy nền (launchd) gọi Claude Code bằng tài khoản đang đăng nhập trên máy, chỉ nối ra ngoài tới Sonicplan. Cài bằng một lệnh lấy ở trang Claude. Tệp Claude tạo nằm ở `~/Sonicplan Claude/<dự án>/Claude/`.
+- Phòng chat là Durable Object `TramClaude` (không đọc ghi D1); trên máy chủ Node (`may-chu/`) phòng chạy ngay trong tiến trình, có WebSocket riêng.
+
 ## [1.3.0] - 2026-10-13
 
 ### Thêm

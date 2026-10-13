@@ -11,6 +11,9 @@ import { moR2 } from './lop-r2.js';
 import { moTinh } from './lop-tinh.js';
 import { moAi } from './lop-ai.js';
 import { batHenGio } from './lich.js';
+import { moTram } from './lop-tram.js';
+import { batTay, boc } from './lop-ws.js';
+import { xacDinhPhien } from '../src/phien.js';
 
 const GOC = resolve(fileURLToPath(import.meta.url), '../..');
 const TOI_DA_THAN = 30 * 1024 * 1024;
@@ -79,6 +82,9 @@ export function taoMayChu(cauHinh = {}) {
         .map((k) => [k, cfg[k]]),
     ),
   };
+  // Phòng chat của trang Claude: chạy ngay trong tiến trình này, lưu ở du-lieu/tram/.
+  const tram = moTram(resolve(thuMucDuLieu, 'tram'));
+  env.TRAM_NOI_BO = tram;
   const ai = moAi({ taiKhoan: cfg.CF_ACCOUNT_ID, token: cfg.CF_AI_TOKEN });
   if (ai) env.AI = ai;
 
@@ -124,6 +130,38 @@ export function taoMayChu(cauHinh = {}) {
     }
   });
 
+  // WebSocket của trang Claude: trình duyệt ở /api/tram/ws (qua đăng nhập), trạm ở /nhan/tram/ws (kiểm mã trong tin đầu).
+  maychu.on('upgrade', async (req, socket) => {
+    try {
+      if (cfg.EMAIL_THU && !laVongLap(req.socket.remoteAddress)) return socket.destroy();
+      const goc = congKhai || `http://${req.headers.host || 'localhost'}`;
+      const url = new URL(req.url, goc);
+      let tc = null;
+      let vaiTro = null;
+      if (url.pathname === '/api/tram/ws') {
+        const nguon = req.headers.origin;
+        if (nguon && nguon !== new URL(goc).origin) return socket.destroy();
+        const phien = await xacDinhPhien(new Request(url, { headers: Object.fromEntries(Object.entries(req.headers).filter(([k]) => k !== 'host')) }), env);
+        if (!phien.duoc) { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); return socket.destroy(); }
+        tc = phien.to_chuc.id;
+        vaiTro = 'nguoi';
+      } else if (url.pathname === '/nhan/tram/ws') {
+        tc = url.searchParams.get('tc') || '';
+        if (!/^[\w-]{1,64}$/.test(tc)) return socket.destroy();
+        vaiTro = 'tram';
+      } else return socket.destroy();
+      if (!batTay(req, socket)) return socket.destroy();
+      const ws = boc(socket, {
+        khiTin: (w, chu) => tram.phong(tc).nhanTin(w, chu).catch((e) => console.error('Trạm Claude lỗi', e)),
+        khiDong: (w) => tram.bo(tc, w),
+      });
+      tram.them(tc, ws, { vai_tro: vaiTro, xac_thuc: false });
+    } catch (e) {
+      console.error('WebSocket lỗi', e);
+      socket.destroy();
+    }
+  });
+
   let dungHen = () => {};
   return {
     maychu,
@@ -133,6 +171,7 @@ export function taoMayChu(cauHinh = {}) {
     batHenGio: () => { dungHen = batHenGio(worker, env, ctx); },
     dong: async () => {
       dungHen();
+      tram.dong();
       await new Promise((xong) => maychu.close(xong));
       await Promise.allSettled([...dangCho]);
       csdl.dong();
