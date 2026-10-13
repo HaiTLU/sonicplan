@@ -16,7 +16,7 @@ Ký hiệu: Đạt, Một phần, Chưa.
 | Tiêu đề bảo mật | CSP, HSTS, nosniff, chặn nhúng | Đạt | `public/_headers`; API trả `nosniff` |
 | Báo lỗi | Không lộ chi tiết kỹ thuật cho người dùng | Đạt | `loi()` trong `src/tien-ich.js` chỉ trả một câu tiếng Việt |
 | Thư viện | Cập nhật bản vá | Đạt | Dependabot hằng tuần; mã chạy không dùng gói npm ngoài |
-| Nhật ký | Ghi lại tác vụ tự chạy và lỗi | Một phần | Có `nhat_ky_chay`; chưa ghi nhật ký ai xem hoặc tải dữ liệu |
+| Nhật ký | Ghi lại tác vụ tự chạy, lỗi, và ai xem, tải dữ liệu | Đạt | `nhat_ky_chay`; `nhat_ky_truy_cap` ghi lần mở trang đầu mỗi ngày, tải toàn bộ dữ liệu, tải tệp; xem ở trang Dữ liệu của bạn; giữ 1 năm, không lưu IP |
 | Giới hạn tần suất | Chống gọi dồn dập | Một phần | Claude Code tối đa 20 lượt mỗi 24 giờ; các API khác dựa vào Access |
 
 ## Truy cập cho người khuyết tật: WCAG 2.2 mức AA
@@ -30,7 +30,7 @@ Ký hiệu: Đạt, Một phần, Chưa.
 | Giảm chuyển động | Đạt | `prefers-reduced-motion` |
 | Tên cho nút và biểu đồ | Đạt | `aria-label`, `role="img"` cho biểu đồ |
 | Thông báo trạng thái | Đạt | Vùng `aria-live` cho thông báo và tiến độ Claude |
-| Kiểm tự động bằng axe | Chưa | Máy dựng không tải được axe; làm khi có mạng npm |
+| Kiểm tự động bằng axe | Đạt | Việc `tro-nang` trong CI chạy `scripts/kiem-tro-nang.mjs`: 13 trang, sáng và tối, rộng 1280 và 390; lỗi mức serious, critical làm PR đỏ |
 
 ## Dữ liệu cá nhân: Luật 91/2025/QH15, Nghị định 356/2025, tham chiếu GDPR
 
@@ -38,8 +38,8 @@ Ký hiệu: Đạt, Một phần, Chưa.
 |---|---|---|
 | Nói rõ lưu gì, ai xem, giữ bao lâu | Đạt | Trang "Dữ liệu của bạn" (Cài đặt) |
 | Quyền tải dữ liệu về | Đạt | Nút "Tải toàn bộ dữ liệu", `/api/du-lieu/xuat`, không xuất khóa và mã băm |
-| Quyền xóa | Một phần | Xóa từng mục trên trang; xóa cả tổ chức còn qua người quản trị |
-| Hồ sơ đánh giá tác động, điều khoản | Chưa | Cần người có chuyên môn pháp lý trước khi bán (giai đoạn 4) |
+| Quyền xóa | Đạt | Xóa từng mục trên trang; chủ tổ chức tự xóa cả tổ chức ở trang Dữ liệu của bạn: hỏi 2 lần (hộp xác nhận, gõ lại tên), tự sao lưu và đọc lại bản sao trước khi xóa, giữ tệp và bản sao 30 ngày rồi tự xóa hẳn. Thử trên cơ sở dữ liệu thử (`test/xoa-to-chuc.test.js`), chưa bấm trên dữ liệu thật |
+| Hồ sơ đánh giá tác động, điều khoản | Bản nháp | Bản nháp chính sách và đánh giá tác động ở `_EXPORTS/2026-10-13_Sonicplan_HoSoDuLieuCaNhan_BanNhap.md`; cần người có chuyên môn pháp lý duyệt trước khi bán |
 
 ## Sao lưu và khôi phục
 

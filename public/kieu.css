@@ -1122,3 +1122,11 @@ body.dang-keo-tha, body.dang-keo-tha * { user-select: none; -webkit-user-select:
 @media (hover: none) { .nut-ba-cham { opacity: .7; } }
 @media (prefers-reduced-motion: reduce) { .td-muc.co-con::after, .nut-ba-cham { transition: none; } }
 .the-viec > div { padding-right: 18px; }
+
+/* Trang Dữ liệu của bạn: nhật ký truy cập, xóa tổ chức */
+.cuon-bang { overflow-x: auto; max-height: 360px; overflow-y: auto; border: 1px solid var(--vach); border-radius: 10px; }
+.cuon-bang table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cuon-bang th, .cuon-bang td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--vach); color: var(--chu-2); white-space: nowrap; }
+.cuon-bang th { position: sticky; top: 0; background: var(--mat); color: var(--chu); font-weight: 600; }
+.form-xoa { display: grid; gap: 12px; }
+.form-xoa input { max-width: 420px; }

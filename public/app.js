@@ -221,7 +221,7 @@ async function veTongQuan(goc) {
           h('span', { class: 'tp-icon', dataset: { den: p.den }, role: 'img', 'aria-label': `${p.ten}: ${TEN_DEN[p.den]}` }, icon(ICON_TP[p.ma] || 'he-thong')),
           h('div', {}, h('strong', { text: p.ten }), h('span', { text: p.mo_ta })),
         ))),
-      h('div', { class: 'bang-cuon' }, bangTacVu(kq.tinh_trang.tac_vu)),
+      h('div', { class: 'bang-cuon', tabindex: '0', role: 'region', 'aria-label': 'Bảng tác vụ' }, bangTacVu(kq.tinh_trang.tac_vu)),
     ),
   );
   thay(goc, luoi);
@@ -1899,7 +1899,7 @@ async function veNhatKy(goc) {
   const chip = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(locNhatKy === ma), onclick: () => { locNhatKy = ma; veNhatKy(goc); } }, nhan);
   thay(goc, 
     h('div', { class: 'thanh-loc' }, chip('tat-ca', 'Tất cả'), chip('loi', h('span', {}, 'Lỗi ', h('b', { text: String(soLoi) }))), ...cacTacVu.map((t) => chip(t, t))),
-    h('div', { class: 'bang' }, h('div', { class: 'bang-cuon' },
+    h('div', { class: 'bang' }, h('div', { class: 'bang-cuon', tabindex: '0', role: 'region', 'aria-label': 'Bảng nhật ký' },
       loc.length
         ? h('table', {},
           h('thead', {}, h('tr', {}, h('th', { scope: 'col', text: 'Bắt đầu' }), h('th', { scope: 'col', text: 'Tác vụ' }), h('th', { scope: 'col', text: 'Kết quả' }), h('th', { scope: 'col', class: 'so', text: 'Số mục' }), h('th', { scope: 'col', text: 'Ghi chú' }), h('th', { scope: 'col' }, h('span', { class: 'chi-doc-man-hinh', text: 'Chạy lại' })))),
@@ -1942,14 +1942,79 @@ function veDuLieu(goc) {
       h('p', { text: 'Chỉ thành viên tổ chức của bạn, sau khi đăng nhập. Mỗi tổ chức có dữ liệu riêng, hệ thống luôn lọc theo tổ chức trước khi đọc.' }),
       h('p', { text: 'Khi AI đọc tin để tách việc, nội dung tin được gửi tới dịch vụ AI chọn ở trang Kết nối (mặc định là Workers AI của Cloudflare). Khi giao việc cho Claude Code, nội dung việc được gửi tới kho GitHub bạn đã nối.' })),
     muc('Giữ bao lâu',
-      h('p', { text: 'Dữ liệu được giữ đến khi bạn xóa. Mỗi đêm hệ thống sao lưu việc, dự án, ghi nhớ, danh sách tệp, kết quả Claude và tin 90 ngày gần nhất vào kho tệp, mỗi tổ chức một thư mục riêng.' })),
+      h('p', { text: 'Dữ liệu được giữ đến khi bạn xóa. Mỗi đêm hệ thống sao lưu việc, dự án, ghi nhớ, danh sách tệp, kết quả Claude và tin 90 ngày gần nhất vào kho tệp, mỗi tổ chức một thư mục riêng.' }),
+      h('p', { text: 'Tin của nhóm hoặc người gửi bạn đánh dấu spam vẫn được lưu để bỏ chặn được, nhưng không hiện và không đưa cho AI. Nhật ký truy cập giữ 1 năm.' })),
     muc('Quyền của bạn',
       h('p', { text: 'Bạn được tải về toàn bộ dữ liệu của tổ chức ở dạng JSON để xem hoặc chuyển sang nơi khác. Khóa và mã truy cập không nằm trong tệp tải về.' }),
       laChu
         ? h('div', { class: 'hang-nut' }, h('a', { class: 'nut nut-chinh', href: '/api/du-lieu/xuat', download: '' }, icon('tai'), h('span', { text: 'Tải toàn bộ dữ liệu' })))
         : h('p', { class: 'mo-ta', text: 'Chỉ chủ tổ chức tải được toàn bộ dữ liệu.' }),
-      h('p', { class: 'mo-ta', text: 'Muốn sửa hoặc xóa dữ liệu: sửa, xóa ngay trên từng trang; muốn xóa toàn bộ tổ chức, nhắn người quản trị Sonicplan.' })),
+      h('p', { class: 'mo-ta', text: 'Muốn sửa hoặc xóa từng mục: sửa, xóa ngay trên trang đó.' })),
+    laChu ? muc('Ai đã xem, tải dữ liệu', khungTruyCap) : null,
+    laChu ? muc('Xóa toàn bộ tổ chức', khungXoa) : null,
   ));
+  if (laChu) {
+    napTruyCap();
+    veNutXoa();
+  }
+}
+
+// Nhật ký truy cập: lần đầu mở trang mỗi ngày, mỗi lần tải dữ liệu, tải tệp.
+const khungTruyCap = h('div', { class: 'truy-cap' });
+async function napTruyCap() {
+  thay(khungTruyCap, xuong(14, '60%'));
+  try {
+    const { ds } = await api('/api/du-lieu/truy-cap');
+    if (!ds.length) { thay(khungTruyCap, h('p', { class: 'mo-ta', text: 'Chưa có lượt nào.' })); return; }
+    thay(khungTruyCap,
+      h('p', { class: 'mo-ta', text: 'Ghi lần đầu mở trang mỗi ngày, mỗi lần tải toàn bộ dữ liệu và mỗi lần tải tệp. Không ghi địa chỉ IP.' }),
+      h('div', { class: 'cuon-bang', tabindex: '0', role: 'region', 'aria-label': 'Nhật ký truy cập' }, h('table', {},
+        h('thead', {}, h('tr', {}, h('th', { scope: 'col', text: 'Lúc' }), h('th', { scope: 'col', text: 'Ai' }), h('th', { scope: 'col', text: 'Làm gì' }))),
+        h('tbody', {}, ...ds.map((r) => h('tr', {},
+          h('td', {}, h('time', { datetime: r.luc, text: fmt.ngayGio.format(new Date(r.luc)) })),
+          h('td', { text: r.email }),
+          h('td', { text: r.chi_tiet ? `${r.ten_hanh_dong}: ${r.chi_tiet}` : r.ten_hanh_dong }),
+        ))),
+      )),
+    );
+  } catch (e) {
+    thay(khungTruyCap, khungLoi(e, napTruyCap));
+  }
+}
+
+// Xóa cả tổ chức: hỏi lần 1 bằng hộp xác nhận, lần 2 bắt gõ lại tên tổ chức. Máy chủ sao lưu trước khi xóa.
+const khungXoa = h('div', { class: 'xoa-to-chuc' });
+function veNutXoa() {
+  const ten = trang.toi?.to_chuc?.ten || '';
+  thay(khungXoa,
+    h('p', { text: 'Xóa hết việc, tin, tệp, dự án, ghi nhớ, kết nối và thành viên của tổ chức. Trước khi xóa, hệ thống tự sao lưu toàn bộ vào kho tệp; bản sao và tệp được giữ 30 ngày để khôi phục khi bấm nhầm, sau đó tự xóa hẳn.' }),
+    h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-nguy', type: 'button', onclick: () => {
+      if (!confirm(`Xóa toàn bộ tổ chức "${ten}"?\n\nMọi người trong tổ chức sẽ mất quyền vào và mọi dữ liệu bị xóa. Bản sao lưu giữ 30 ngày.`)) return;
+      const oTen = h('input', { type: 'text', autocomplete: 'off', 'aria-describedby': 'goi-y-xoa' });
+      const nutXoa = h('button', { class: 'nut nut-nguy', type: 'submit', disabled: '' }, 'Xóa vĩnh viễn');
+      oTen.addEventListener('input', () => { nutXoa.disabled = oTen.value.trim() !== ten.trim(); });
+      thay(khungXoa,
+        h('form', { class: 'form-xoa', onsubmit: async (ev) => {
+          ev.preventDefault();
+          nutXoa.disabled = true;
+          nutXoa.textContent = 'Đang sao lưu rồi xóa…';
+          try {
+            const kq = await api('/api/to-chuc/xoa', { method: 'POST', body: JSON.stringify({ ten_xac_nhan: oTen.value }) });
+            thay(khungXoa, h('p', { role: 'status', text: `Đã xóa tổ chức (${kq.so_viec} việc, ${kq.so_tin} tin, ${kq.so_tep} tệp). Bản sao lưu giữ ${kq.giu_ngay} ngày. Trang sẽ tải lại.` }));
+            setTimeout(() => location.reload(), 4000);
+          } catch (e) {
+            bao(e.message, { loi: true });
+            nutXoa.textContent = 'Xóa vĩnh viễn';
+            nutXoa.disabled = false;
+          }
+        } },
+          h('label', { class: 'truong' }, h('span', { id: 'goi-y-xoa', text: `Lần xác nhận thứ hai: gõ đúng tên tổ chức "${ten}"` }), oTen),
+          h('div', { class: 'hang-nut' }, nutXoa, h('button', { class: 'nut nut-phu', type: 'button', onclick: veNutXoa }, 'Thôi, không xóa')),
+        ),
+      );
+      oTen.focus();
+    } }, icon('xoa'), h('span', { text: 'Xóa toàn bộ tổ chức' }))),
+  );
 }
 
 const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'hieu-suat': (goc) => veHieuSuat(goc, { h, icon, api, bao, thay, khungLoi, xuong }), 'du-an': veDuAnTrang, 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy, 'du-lieu': veDuLieu, 'da-chan': veDaChan };

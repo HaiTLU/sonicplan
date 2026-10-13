@@ -2,6 +2,14 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [1.3.0] - 2026-10-13
+
+### Thêm
+- Nút "Spam" ở Hộp tin (PR #61): chặn nhóm Zalo, người gửi hoặc địa chỉ thư; tin của họ không hiện, không tách thành việc; mục "Đã chặn" để bỏ chặn.
+- Nhật ký ai xem, tải dữ liệu ở trang Dữ liệu của bạn.
+- Chủ tổ chức tự xóa cả tổ chức: hỏi hai lần, sao lưu trước, giữ bản sao 30 ngày.
+- Kiểm tra trợ năng tự động bằng axe-core trong CI.
+
 ## [1.2.0] - 2026-10-13
 
 ### Đổi

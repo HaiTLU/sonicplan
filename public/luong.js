@@ -241,7 +241,7 @@ export async function veLuong(goc, tro) {
     for (const g of NHOM) {
       if (thuGon().has(g.ma)) {
         const id = `nhom-${g.ma}`;
-        const el = h('div', { class: 'nut-so-do nut-nhom-gon', role: 'button', tabindex: '0', dataset: { id }, 'aria-label': `Nhóm ${g.ten}, đang thu gọn` });
+        const el = h('div', { class: 'nut-so-do nut-nhom-gon', role: 'group', tabindex: '0', dataset: { id }, 'aria-label': `Nhóm ${g.ten}, đang thu gọn` });
         cacNut.set(id, el);
         lopNut.append(el);
       } else {
@@ -251,7 +251,7 @@ export async function veLuong(goc, tro) {
         cacKhung.set(g.ma, el);
         lopKhung.append(el);
         for (const n of NUT.filter((x) => x.nhom === g.ma)) {
-          const nut = h('div', { class: `nut-so-do${n.ai ? ' nut-ai' : ''}`, role: 'button', tabindex: '0', dataset: { id: n.id }, 'aria-label': n.ten });
+          const nut = h('div', { class: `nut-so-do${n.ai ? ' nut-ai' : ''}`, role: 'group', tabindex: '0', dataset: { id: n.id }, 'aria-label': n.ten });
           cacNut.set(n.id, nut);
           lopNut.append(nut);
         }
@@ -275,7 +275,7 @@ export async function veLuong(goc, tro) {
           h('span', { class: 'cong cong-vao', 'aria-hidden': 'true' }), h('span', { class: 'cong cong-ra', 'aria-hidden': 'true' }),
           h('span', { class: 'chong-bieu', 'aria-hidden': 'true' }, ...ds.slice(0, 3).map((n) => h('span', { class: 'bieu-nut' }, icon(n.icon)))),
           h('div', { class: 'chu-nut' }, h('strong', { text: g.ten }), h('span', { text: `${ds.length} khâu, ${bat} đang chạy${loi ? ', có lỗi' : ''}` })),
-          h('button', { class: 'nut-thu-gon mo', type: 'button', 'aria-label': `Mở rộng nhóm ${g.ten}`, title: 'Mở rộng nhóm', onclick: (e) => { e.stopPropagation(); doiThuGon(g.ma); } }, '+'),
+          h('button', { class: 'nut-thu-gon mo', type: 'button', tabindex: '-1', 'aria-hidden': 'true', title: 'Mở rộng nhóm', onclick: (e) => { e.stopPropagation(); doiThuGon(g.ma); } }, '+'),
           h('span', { class: 'the-ket-qua', 'aria-hidden': 'true' }), h('span', { class: 'vong-chay', 'aria-hidden': 'true' }));
         continue;
       }
@@ -288,7 +288,8 @@ export async function veLuong(goc, tro) {
         h('span', { class: 'bieu-nut' }, icon(n.icon)),
         h('div', { class: 'chu-nut', title: `${n.ten}: ${t.chu}` }, h('strong', { text: n.ten }), h('span', { text: t.chu })),
       ];
-      if (n.ma_tv && !n.ai) con.push(congTac(lg.bat[n.ma_tv] !== false, `Bật tắt ${n.ten}`, (v) => dat({ bat: { [n.ma_tv]: v } })));
+      // Công tắc trên sơ đồ là lối tắt cho chuột; bàn phím và trình đọc màn hình dùng công tắc ở bảng chi tiết (Enter trên nút).
+      if (n.ma_tv && !n.ai) con.push(congTac(lg.bat[n.ma_tv] !== false, `Bật tắt ${n.ten}`, (v) => dat({ bat: { [n.ma_tv]: v } }), { chiChuot: true }));
       else con.push(h('span', { class: 'den-nut', 'aria-hidden': 'true' }));
       con.push(h('span', { class: 'the-ket-qua', 'aria-hidden': 'true' }), h('span', { class: 'vong-chay', 'aria-hidden': 'true' }));
       el.replaceChildren(...con);
@@ -660,8 +661,9 @@ export async function veLuong(goc, tro) {
   }
 
   // ---------- Chọn nút, bảng bên ----------
-  function congTac(bat, nhan, khiDoi) {
-    return h('button', { class: 'cong-tac', type: 'button', role: 'switch', 'aria-checked': String(bat), 'aria-label': nhan, onclick: (e) => { e.stopPropagation(); khiDoi(!bat); } }, h('span'));
+  function congTac(bat, nhan, khiDoi, { chiChuot = false } = {}) {
+    const an = chiChuot ? { tabindex: '-1', 'aria-hidden': 'true' } : {};
+    return h('button', { class: 'cong-tac', type: 'button', role: 'switch', 'aria-checked': String(bat), 'aria-label': nhan, ...an, onclick: (e) => { e.stopPropagation(); khiDoi(!bat); } }, h('span'));
   }
 
   async function dat(thanDu) {
