@@ -2,6 +2,11 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [Chưa phát hành]
+
+### Thêm
+- Trang Việc, xem "Theo dự án": ô "Thêm dự án" ở cuối dãy cột và nút "Thêm dự án" ở hàng lọc dự án; nhập tên là cột mới hiện ngay để kéo việc vào.
+
 ## [1.3.0] - 2026-10-13
 
 ### Thêm

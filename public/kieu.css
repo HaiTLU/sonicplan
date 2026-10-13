@@ -1336,3 +1336,8 @@ details.bang-suc-khoe[open] > summary { padding-bottom: 0; }
 .tq-du-an .bang-cuon { padding: 4px 10px 12px; }
 .tq-du-an .bang-so { font-size: 13.5px; }
 .tq-du-an .bang-so th, .tq-du-an .bang-so td { padding: 9px 8px; }
+
+/* Ô "Thêm dự án" cuối dãy cột dự án (trang Việc) */
+.cot-them-du-an { border-style: dashed; background: transparent; }
+.cot-them-du-an .them-nhanh { grid-template-columns: minmax(0, 1fr) auto; margin: 0; padding: 4px 16px 18px; }
+.chip-them { border-style: dashed; }
