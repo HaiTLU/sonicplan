@@ -6,7 +6,10 @@ import { docTongHopCuoi, tongHopChoToChuc } from './tong-hop.js';
 import { docHoSo, LOAI_GHI_NHO, luuHoSo, TOI_DA_HO_SO } from './ghi-nho.js';
 import { goMaNhanViec, taoMaNhanViec } from './nhan-ngoai.js';
 import { docLuong, luuLuong, NGUONG } from './luong.js';
-import { xuatDuLieu } from './du-lieu.js';
+import { dsTruyCap, ghiTruyCap, xuatDuLieu } from './du-lieu.js';
+import { xoaToChuc } from './xoa-to-chuc.js';
+import { quenPhien } from './phien.js';
+import { boChan, danhDauSpam, dsChan, LOAI_TIN_ZALO, TEN_TIN_ZALO } from './chan-tin.js';
 import { caiWorkflow, danhGiaLuot, dsLuot, giaoClaude } from './claude-code.js';
 import { kiemCauHinhGithub, thuGithub } from './github.js';
 import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from './google.js';
@@ -37,13 +40,27 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   let khop;
 
   if (p === '/api/phien-ban' && m === 'GET') return json({ ban: env.PHIEN_BAN || '' });
-  if (p === '/api/toi' && m === 'GET') return json({ email: phien.email, nguoi_dung: phien.nguoi_dung, to_chuc: phien.to_chuc, cac_to_chuc: phien.cac_to_chuc });
+  if (p === '/api/toi' && m === 'GET') {
+    await ghiTruyCap(env, tc, phien.email, 'mo_trang').catch(() => {});
+    return json({ email: phien.email, nguoi_dung: phien.nguoi_dung, to_chuc: phien.to_chuc, cac_to_chuc: phien.cac_to_chuc });
+  }
   if (p === '/api/du-lieu/xuat' && m === 'GET') {
     if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức tải được toàn bộ dữ liệu.');
     const ra = await xuatDuLieu(env, tc);
+    await ghiTruyCap(env, tc, phien.email, 'xuat_du_lieu').catch(() => {});
     return new Response(JSON.stringify(ra, null, 1), {
       headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'content-disposition': `attachment; filename="sonicplan-du-lieu-${ngayVN()}.json"` },
     });
+  }
+  if (p === '/api/du-lieu/truy-cap' && m === 'GET') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức xem được nhật ký truy cập.');
+    return json({ ds: await dsTruyCap(env, tc) });
+  }
+  if (p === '/api/to-chuc/xoa' && m === 'POST') {
+    const than = await yeuCau.json().catch(() => ({}));
+    const kq = await xoaToChuc(env, phien.to_chuc, phien.email, than.ten_xac_nhan);
+    if (kq.ok) quenPhien();
+    return kq.loi ? loi(kq.ma, kq.loi) : json(kq);
   }
   if (p === '/api/tong-quan' && m === 'GET') return json(await tongQuan(env, tc));
   if (p === '/api/tinh-trang' && m === 'GET') return json(await layTinhTrang(env, tc));
@@ -64,6 +81,15 @@ export async function xuLyApi(yeuCau, env, phien, url) {
     try { return json({ tep: await napTepNgoai(env, tc, Number(khop[1])) }); } catch (e) { return loi(e.trangThai || 502, String(e.message || e).slice(0, 200)); }
   }
   if ((khop = p.match(/^\/api\/tin\/(\d+)$/)) && m === 'GET') return motTin(env, tc, Number(khop[1]));
+  if ((khop = p.match(/^\/api\/tin\/(\d+)\/spam$/)) && m === 'POST') {
+    const kq = await danhDauSpam(env, tc, Number(khop[1]));
+    return kq.loi ? loi(kq.ma, kq.loi) : json(kq);
+  }
+  if (p === '/api/chan-tin' && m === 'GET') return json({ ds: await dsChan(env, tc) });
+  if ((khop = p.match(/^\/api\/chan-tin\/(\d+)$/)) && m === 'DELETE') {
+    const kq = await boChan(env, tc, Number(khop[1]));
+    return kq.loi ? loi(kq.ma, kq.loi) : json(kq);
+  }
 
   if (p === '/api/viec' && m === 'GET') return json(await dsViec(env, tc, url));
   if (p === '/api/viec/sap-xep' && m === 'POST') return sapXepViec(env, tc, await yeuCau.json().catch(() => ({})));
@@ -136,7 +162,15 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   }
   if (p === '/api/google-nhan/xem-truoc' && m === 'POST') return json(await xemTruocNhan(env, tc, chuanCauHinh((await yeuCau.json().catch(() => ({}))).cau_hinh)));
   if (p === '/api/tep' && m === 'GET') return json(await dsTep(env, tc, url));
-  if ((khop = p.match(/^\/api\/tep\/(\d+)\/tai$/)) && m === 'GET') return taiTep(env, tc, Number(khop[1]));
+  if ((khop = p.match(/^\/api\/tep\/(\d+)\/tai$/)) && m === 'GET') {
+    const kq = await taiTep(env, tc, Number(khop[1]));
+    if (kq.ok) {
+      let ten = `tệp số ${khop[1]}`;
+      try { ten = decodeURIComponent((kq.headers.get('content-disposition') || '').split("''")[1] || '') || ten; } catch { /* giữ tên mặc định */ }
+      await ghiTruyCap(env, tc, phien.email, 'tai_tep', ten).catch(() => {});
+    }
+    return kq;
+  }
   if ((khop = p.match(/^\/api\/tep\/(\d+)\/anh-nho$/)) && m === 'GET') return anhNhoTep(env, tc, Number(khop[1]));
   if ((khop = p.match(/^\/api\/tep\/(\d+)$/)) && m === 'PATCH') return suaTep(env, tc, Number(khop[1]), await yeuCau.json().catch(() => ({})));
   if ((khop = p.match(/^\/api\/tep\/(\d+)\/xem$/)) && m === 'GET') return xemTep(env, tc, Number(khop[1]));
@@ -310,15 +344,15 @@ async function tongQuan(env, tc) {
   const [soLieu, tinGio, viecGio, chayGio, chayLoiGio, sapToi, tinMoi, tinTuan] = await env.CSDL.batch([
     env.CSDL.prepare(
       `SELECT
-        (SELECT COUNT(*) FROM tin_nhan WHERE to_chuc_id = ?1 AND date(datetime(thoi_diem, '+7 hours')) = ?2) AS tin_hom_nay,
-        (SELECT COUNT(*) FROM tin_nhan WHERE to_chuc_id = ?1 AND da_xem = 0) AS tin_chua_xem,
+        (SELECT COUNT(*) FROM tin_nhan WHERE to_chuc_id = ?1 AND spam = 0 AND date(datetime(thoi_diem, '+7 hours')) = ?2) AS tin_hom_nay,
+        (SELECT COUNT(*) FROM tin_nhan WHERE to_chuc_id = ?1 AND spam = 0 AND da_xem = 0) AS tin_chua_xem,
         (SELECT COUNT(*) FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo') AS viec_mo,
         (SELECT COUNT(*) FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay < ?2) AS viec_qua_han,
         (SELECT COUNT(*) FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay = ?2) AS viec_hom_nay,
         (SELECT COUNT(*) FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'xong' AND date(datetime(xong_luc, '+7 hours')) = ?2) AS xong_hom_nay,
         (SELECT COUNT(*) FROM tep WHERE to_chuc_id = ?1 AND tao_luc >= ?3) AS tep_tuan`,
     ).bind(tc, homNay, tuanTruoc),
-    theoGio('tin_nhan', 'thoi_diem'),
+    theoGio('tin_nhan', 'thoi_diem', 'AND spam = 0'),
     theoGio('viec', 'tao_luc'),
     theoGio('nhat_ky_chay', 'bat_dau'),
     theoGio('nhat_ky_chay', 'bat_dau', "AND trang_thai = 'loi'"),
@@ -328,10 +362,10 @@ async function tongQuan(env, tc) {
     ).bind(tc),
     env.CSDL.prepare(
       `SELECT id, nguon, nguoi_gui, nhom, tieu_de, substr(noi_dung, 1, 160) AS trich, thoi_diem, da_xem FROM tin_nhan
-       WHERE to_chuc_id = ?1 ORDER BY thoi_diem DESC LIMIT 6`,
+       WHERE to_chuc_id = ?1 AND spam = 0 ORDER BY thoi_diem DESC LIMIT 6`,
     ).bind(tc),
     env.CSDL.prepare(
-      `SELECT date(datetime(thoi_diem, '+7 hours')) AS ngay, COUNT(*) AS n FROM tin_nhan WHERE to_chuc_id = ?1 AND thoi_diem >= ?2 GROUP BY ngay`,
+      `SELECT date(datetime(thoi_diem, '+7 hours')) AS ngay, COUNT(*) AS n FROM tin_nhan WHERE to_chuc_id = ?1 AND spam = 0 AND thoi_diem >= ?2 GROUP BY ngay`,
     ).bind(tc, tuanTruoc),
   ]);
   const mang24 = (kq) => {
@@ -412,7 +446,7 @@ async function layNhatKy(env, tc, url) {
 // ---- Hộp tin ----
 
 async function dsTin(env, tc, url) {
-  const dieuKien = ['t.to_chuc_id = ?1'];
+  const dieuKien = ['t.to_chuc_id = ?1', 't.spam = 0'];
   const thamSo = [tc];
   const nguon = url.searchParams.get('nguon');
   if (nguon === 'zalo' || nguon === 'gmail') {
@@ -744,16 +778,13 @@ async function taoKhoa(env, tc, loai, url) {
 
 // ---- Zalo: danh sách hội thoại và tin theo dòng thời gian, giống ứng dụng Zalo ----
 
-// Nhóm có tên nhóm; tin riêng gom theo tên người đối diện (tieu_de), thiếu thì theo người gửi.
-const TEN_TIN_ZALO = `CASE WHEN COALESCE(nhom, '') <> '' THEN nhom ELSE COALESCE(NULLIF(tieu_de, ''), NULLIF(nguoi_gui, ''), 'Không rõ') END`;
-const LOAI_TIN_ZALO = `CASE WHEN COALESCE(nhom, '') <> '' THEN 'nhom' ELSE 'ca-nhan' END`;
 
 async function dsHoiThoaiZalo(env, tc, url) {
   const q = (url.searchParams.get('q') || '').trim().replace(/[%_]/g, '');
   const { results } = await env.CSDL.prepare(
     `WITH t AS (
        SELECT id, ${LOAI_TIN_ZALO} AS loai, ${TEN_TIN_ZALO} AS ten, nguoi_gui, noi_dung, thoi_diem, da_xem
-       FROM tin_nhan WHERE to_chuc_id = ?1 AND nguon = 'zalo'
+       FROM tin_nhan WHERE to_chuc_id = ?1 AND nguon = 'zalo' AND spam = 0
      ), x AS (
        SELECT *, ROW_NUMBER() OVER (PARTITION BY loai, ten ORDER BY thoi_diem DESC, id DESC) AS rn,
          COUNT(*) OVER (PARTITION BY loai, ten) AS n,
@@ -772,7 +803,7 @@ async function tinHoiThoaiZalo(env, tc, url) {
   if ((loai !== 'nhom' && loai !== 'ca-nhan') || !ten) return loi(400, 'Thiếu hội thoại cần xem.');
   const truocLuc = url.searchParams.get('truoc_luc');
   const truocId = Number(url.searchParams.get('truoc_id')) || 0;
-  const dieuKien = `to_chuc_id = ?1 AND nguon = 'zalo' AND ${LOAI_TIN_ZALO} = ?2 AND ${TEN_TIN_ZALO} = ?3`;
+  const dieuKien = `to_chuc_id = ?1 AND nguon = 'zalo' AND spam = 0 AND ${LOAI_TIN_ZALO} = ?2 AND ${TEN_TIN_ZALO} = ?3`;
   const thamSo = [tc, loai, ten];
   let them = '';
   if (truocLuc) {

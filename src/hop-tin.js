@@ -1,6 +1,7 @@
 // Lưu tin nhắn, tệp và mốc tín hiệu của từng tổ chức. Dùng chung cho thư, Zalo và Telegram.
 
 import { cat } from './tien-ich.js';
+import { khoaChan } from './chan-tin.js';
 
 export const TEP_TOI_DA = 25 * 1024 * 1024;
 
@@ -10,21 +11,30 @@ export const KHO_TOI_DA = 9 * 1000 * 1000 * 1000;
 // Ghi một tin; tin trùng mã gốc trong cùng tổ chức thì bỏ qua. Trả id tin mới hoặc null nếu trùng.
 export async function luuTin(env, toChucId, tin) {
   const bayGio = new Date().toISOString();
+  const nguoiGui = cat(tin.nguoi_gui || '', 200) || null;
+  const nhom = cat(tin.nhom || '', 200) || null;
+  const tieuDe = cat(tin.tieu_de || '', 300) || null;
+  // Nguồn đã bị đánh dấu spam: vẫn lưu nhưng ẩn, coi như đã xem và đã tách việc.
+  const k = khoaChan({ nguon: tin.nguon, nguoi_gui: nguoiGui, nhom, tieu_de: tieuDe });
   const kq = await env.CSDL.prepare(
-    `INSERT INTO tin_nhan (to_chuc_id, nguon, ma_goc, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem, tao_luc)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+    `INSERT INTO tin_nhan (to_chuc_id, nguon, ma_goc, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem, tao_luc, spam, da_xem, da_tach)
+     SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, b, b, b
+     FROM (SELECT EXISTS (SELECT 1 FROM chan_tin WHERE to_chuc_id = ?1 AND nguon = ?2 AND loai = ?10 AND ten = ?11) AS b)
+     WHERE true
      ON CONFLICT (to_chuc_id, nguon, ma_goc) DO NOTHING
      RETURNING id`,
   ).bind(
     toChucId,
     tin.nguon,
     cat(tin.ma_goc, 300),
-    cat(tin.nguoi_gui || '', 200) || null,
-    cat(tin.nhom || '', 200) || null,
-    cat(tin.tieu_de || '', 300) || null,
+    nguoiGui,
+    nhom,
+    tieuDe,
     cat(tin.noi_dung || '', 20000),
     tin.thoi_diem || bayGio,
     bayGio,
+    k.loai,
+    k.ten,
   ).first();
   return kq ? kq.id : null;
 }

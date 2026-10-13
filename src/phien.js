@@ -54,3 +54,8 @@ async function layEmail(yeuCau, env) {
   }
   return kiemDangNhap(yeuCau, env);
 }
+
+// Quên danh sách tổ chức đã nhớ (sau khi xóa tổ chức) để lần bấm sau đọc lại từ D1.
+export function quenPhien() {
+  nho.clear();
+}

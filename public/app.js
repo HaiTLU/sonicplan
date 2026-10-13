@@ -461,7 +461,7 @@ async function veHopTin(goc, thamSo) {
   });
   thay(goc, 
     h('div', { class: 'thanh-loc' },
-      nutLoc('tat-ca', 'Tất cả'), nutLoc('chua-xem', 'Chưa xem'), nutLoc('zalo', 'Zalo'), nutLoc('gmail', 'Thư'),
+      nutLoc('tat-ca', 'Tất cả'), nutLoc('chua-xem', 'Chưa xem'), nutLoc('zalo', 'Zalo'), nutLoc('gmail', 'Thư'), nutLoc('da-chan', 'Đã chặn'),
       h('button', { class: 'chip', type: 'button', onclick: async () => { await api('/api/tin/da-xem-het', { method: 'POST' }); bao('Đã đánh dấu xem hết.'); capNhatDem(0); veHopTin(goc); } }, 'Đánh dấu xem hết'),
       h('label', { class: 'o-tim' }, icon('tim'), oTim),
     ),
@@ -469,6 +469,7 @@ async function veHopTin(goc, thamSo) {
   );
 
   async function napDs() {
+    if (t.loc === 'da-chan') return veDaChan();
     const q = new URLSearchParams();
     if (t.loc === 'chua-xem') q.set('chua_xem', '1');
     if (t.loc === 'zalo' || t.loc === 'gmail') q.set('nguon', t.loc);
@@ -504,6 +505,33 @@ async function veHopTin(goc, thamSo) {
       ))));
   }
 
+  // Danh sách nhóm, người gửi đã đánh dấu spam, mỗi dòng có nút Bỏ chặn.
+  async function veDaChan() {
+    thay(khungDoc, h('div', { class: 'trong-trai' }, icon('hop-tin'), h('h3', { text: 'Nhóm và người gửi đã chặn' }),
+      h('p', { text: 'Tin của họ vẫn được lưu nhưng không hiện ở Hộp tin, không đếm và không tách thành việc. Bỏ chặn thì tin cũ hiện lại, việc đã bị hủy được mở lại.' })));
+    try {
+      const { ds } = await api('/api/chan-tin');
+      if (!ds.length) {
+        thay(khungDs, h('div', { class: 'trong-trai' }, icon('hop-tin'), h('h3', { text: 'Chưa chặn ai' }), h('p', { text: 'Mở một tin rồi bấm Spam để ẩn nhóm hoặc người gửi đó.' })));
+        return;
+      }
+      thay(khungDs, h('ul', { class: 'ds-chan' }, ...ds.map((c) => h('li', {},
+        h('span', { class: `huy-hieu ${c.nguon}` }, icon(c.nguon === 'zalo' ? 'zalo' : 'thu')),
+        h('div', { style: 'min-width:0;flex:1' }, h('strong', { text: c.loai === 'nhom' ? tenNhom(c.ten) : c.ten }), h('p', { text: `${c.ten_loai}, ${c.so_tin} tin ẩn${c.so_viec_huy ? `, ${c.so_viec_huy} việc đã hủy` : ''}` })),
+        h('button', { class: 'nut nut-phu nut-nho', type: 'button', onclick: async (ev) => {
+          ev.target.disabled = true;
+          try {
+            const kq = await api(`/api/chan-tin/${c.id}`, { method: 'DELETE' });
+            bao(`Đã bỏ chặn: ${kq.so_tin} tin hiện lại${kq.so_viec_mo_lai ? `, mở lại ${kq.so_viec_mo_lai} việc` : ''}.`);
+            veDaChan();
+          } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
+        } }, 'Bỏ chặn'),
+      ))));
+    } catch (e) {
+      thay(khungDs, khungLoi(e, veDaChan));
+    }
+  }
+
   function trongDoc() {
     return h('div', { class: 'trong-trai' }, icon('hop-tin'), h('h3', { text: 'Chọn một tin để đọc' }), h('p', { text: 'Việc AI tách ra từ tin sẽ hiện ngay dưới nội dung.' }));
   }
@@ -520,7 +548,10 @@ async function veHopTin(goc, thamSo) {
         khungDs.querySelector(`button[data-id="${id}"]`)?.parentElement.classList.remove('chua-xem');
       }
       thay(khungDoc, 
-        h('button', { class: 'nut nut-phu nut-nho nut-quay', type: 'button', text: 'Quay lại danh sách', onclick: () => { t.chon = null; location.hash = 'hop-tin'; } }),
+        h('div', { class: 'hang-dau-doc' },
+          h('button', { class: 'nut nut-phu nut-nho nut-quay', type: 'button', text: 'Quay lại danh sách', onclick: () => { t.chon = null; location.hash = 'hop-tin'; } }),
+          nutSpam(tin, () => { t.chon = null; location.hash = 'hop-tin'; napDs(); }),
+        ),
         h('div', { class: 'nguon' }, h('span', { class: `huy-hieu ${tin.nguon}` }, icon(tin.nguon === 'zalo' ? 'zalo' : 'thu')), tin.nguon === 'zalo' ? (tin.nhom ? `Zalo, ${tenNhom(tin.nhom)}` : 'Zalo, tin riêng') : 'Thư chuyển tiếp'),
         h('h2', { text: tin.tieu_de && tin.nguon === 'gmail' ? tin.tieu_de : tin.nguoi_gui || 'Không rõ người gửi' }),
         h('p', { class: 'meta', text: `${tin.nguon === 'gmail' ? `Từ ${tin.nguoi_gui || 'không rõ'}, ` : ''}${fmt.ngayGio.format(new Date(tin.thoi_diem))}` }),
@@ -539,6 +570,33 @@ async function veHopTin(goc, thamSo) {
   }
 
   napDs();
+}
+
+// Nút Spam: ẩn cả nhóm Zalo, người gửi Zalo hoặc địa chỉ thư; tin của họ không tính vào việc cần làm.
+function nutSpam(tin, sauKhi) {
+  const thu = tin.nguon === 'gmail';
+  const ai = thu ? `người gửi ${String(tin.nguoi_gui || '').split('<').pop().replace('>', '').trim()}`
+    : tin.nhom ? `nhóm "${tenNhom(tin.nhom)}"` : `người gửi "${tin.tieu_de || tin.nguoi_gui || 'Không rõ'}"`;
+  return h('button', { class: 'nut nut-phu nut-nho nut-spam', type: 'button', title: `Ẩn ${ai}`, onclick: async (ev) => {
+    const nut = ev.currentTarget;
+    if (!confirm(`Đánh dấu spam ${ai}?\n\nTin cũ và tin mới của ${thu || !tin.nhom ? 'người này' : 'nhóm này'} sẽ không hiện ở Hộp tin, không đếm và không tách thành việc. Việc đang mở tạo từ các tin này sẽ bị hủy.\n\nBỏ chặn được ở Hộp tin, mục "Đã chặn".`)) return;
+    nut.disabled = true;
+    try {
+      const kq = await api(`/api/tin/${tin.id}/spam`, { method: 'POST' });
+      bao(`Đã ẩn ${ai}: ${kq.so_tin} tin${kq.so_viec_huy ? `, hủy ${kq.so_viec_huy} việc` : ''}.`, {
+        hanhDong: { nhan: 'Hoàn tác', lam: async () => {
+          await api(`/api/chan-tin/${kq.chan.id}`, { method: 'DELETE' }).catch((e) => bao(e.message, { loi: true }));
+          bao('Đã bỏ chặn, tin hiện lại.');
+          sauKhi();
+        } },
+      });
+      api('/api/tong-quan').then((k) => capNhatDem(k.so_lieu.tin_chua_xem, k.so_lieu.viec_mo)).catch(() => {});
+      sauKhi();
+    } catch (e) {
+      bao(e.message, { loi: true });
+      nut.disabled = false;
+    }
+  } }, icon('cam'), 'Spam');
 }
 
 // =====================================================================
@@ -1343,7 +1401,8 @@ async function veZalo(goc, thamSo) {
         h('header', { class: 'dau-zalo' },
           h('button', { class: 'nut nut-phu nut-nho nut-quay', type: 'button', 'aria-label': 'Quay lại danh sách', onclick: () => { location.hash = 'zalo'; } }, icon('mui-ten')),
           anhZalo(ten, loai),
-          h('div', {}, h('h2', { text: ten }), h('p', { text: loai === 'nhom' ? 'Nhóm Zalo' : 'Tin riêng' })),
+          h('div', { style: 'flex:1;min-width:0' }, h('h2', { text: ten }), h('p', { text: loai === 'nhom' ? 'Nhóm Zalo' : 'Tin riêng' })),
+          tin.length ? nutSpam({ ...tin[tin.length - 1], nguon: 'zalo', nhom: loai === 'nhom' ? ten : null, tieu_de: ten }, () => { location.hash = 'zalo'; napDs(); }) : null,
         ),
         luong,
         h('p', { class: 'zalo-chi-doc', text: 'Sonicplan chỉ đọc tin Zalo, không gửi tin thay bạn.' }),
@@ -1784,14 +1843,79 @@ function veDuLieu(goc) {
       h('p', { text: 'Chỉ thành viên tổ chức của bạn, sau khi đăng nhập. Mỗi tổ chức có dữ liệu riêng, hệ thống luôn lọc theo tổ chức trước khi đọc.' }),
       h('p', { text: 'Khi AI đọc tin để tách việc, nội dung tin được gửi tới dịch vụ AI chọn ở trang Kết nối (mặc định là Workers AI của Cloudflare). Khi giao việc cho Claude Code, nội dung việc được gửi tới kho GitHub bạn đã nối.' })),
     muc('Giữ bao lâu',
-      h('p', { text: 'Dữ liệu được giữ đến khi bạn xóa. Mỗi đêm hệ thống sao lưu việc, dự án, ghi nhớ, danh sách tệp, kết quả Claude và tin 90 ngày gần nhất vào kho tệp, mỗi tổ chức một thư mục riêng.' })),
+      h('p', { text: 'Dữ liệu được giữ đến khi bạn xóa. Mỗi đêm hệ thống sao lưu việc, dự án, ghi nhớ, danh sách tệp, kết quả Claude và tin 90 ngày gần nhất vào kho tệp, mỗi tổ chức một thư mục riêng.' }),
+      h('p', { text: 'Tin của nhóm hoặc người gửi bạn đánh dấu spam vẫn được lưu để bỏ chặn được, nhưng không hiện và không đưa cho AI. Nhật ký truy cập giữ 1 năm.' })),
     muc('Quyền của bạn',
       h('p', { text: 'Bạn được tải về toàn bộ dữ liệu của tổ chức ở dạng JSON để xem hoặc chuyển sang nơi khác. Khóa và mã truy cập không nằm trong tệp tải về.' }),
       laChu
         ? h('div', { class: 'hang-nut' }, h('a', { class: 'nut nut-chinh', href: '/api/du-lieu/xuat', download: '' }, icon('tai'), h('span', { text: 'Tải toàn bộ dữ liệu' })))
         : h('p', { class: 'mo-ta', text: 'Chỉ chủ tổ chức tải được toàn bộ dữ liệu.' }),
-      h('p', { class: 'mo-ta', text: 'Muốn sửa hoặc xóa dữ liệu: sửa, xóa ngay trên từng trang; muốn xóa toàn bộ tổ chức, nhắn người quản trị Sonicplan.' })),
+      h('p', { class: 'mo-ta', text: 'Muốn sửa hoặc xóa từng mục: sửa, xóa ngay trên trang đó.' })),
+    laChu ? muc('Ai đã xem, tải dữ liệu', khungTruyCap) : null,
+    laChu ? muc('Xóa toàn bộ tổ chức', khungXoa) : null,
   ));
+  if (laChu) {
+    napTruyCap();
+    veNutXoa();
+  }
+}
+
+// Nhật ký truy cập: lần đầu mở trang mỗi ngày, mỗi lần tải dữ liệu, tải tệp.
+const khungTruyCap = h('div', { class: 'truy-cap' });
+async function napTruyCap() {
+  thay(khungTruyCap, xuong(14, '60%'));
+  try {
+    const { ds } = await api('/api/du-lieu/truy-cap');
+    if (!ds.length) { thay(khungTruyCap, h('p', { class: 'mo-ta', text: 'Chưa có lượt nào.' })); return; }
+    thay(khungTruyCap,
+      h('p', { class: 'mo-ta', text: 'Ghi lần đầu mở trang mỗi ngày, mỗi lần tải toàn bộ dữ liệu và mỗi lần tải tệp. Không ghi địa chỉ IP.' }),
+      h('div', { class: 'cuon-bang' }, h('table', {},
+        h('thead', {}, h('tr', {}, h('th', { scope: 'col', text: 'Lúc' }), h('th', { scope: 'col', text: 'Ai' }), h('th', { scope: 'col', text: 'Làm gì' }))),
+        h('tbody', {}, ...ds.map((r) => h('tr', {},
+          h('td', {}, h('time', { datetime: r.luc, text: fmt.ngayGio.format(new Date(r.luc)) })),
+          h('td', { text: r.email }),
+          h('td', { text: r.chi_tiet ? `${r.ten_hanh_dong}: ${r.chi_tiet}` : r.ten_hanh_dong }),
+        ))),
+      )),
+    );
+  } catch (e) {
+    thay(khungTruyCap, khungLoi(e, napTruyCap));
+  }
+}
+
+// Xóa cả tổ chức: hỏi lần 1 bằng hộp xác nhận, lần 2 bắt gõ lại tên tổ chức. Máy chủ sao lưu trước khi xóa.
+const khungXoa = h('div', { class: 'xoa-to-chuc' });
+function veNutXoa() {
+  const ten = trang.toi?.to_chuc?.ten || '';
+  thay(khungXoa,
+    h('p', { text: 'Xóa hết việc, tin, tệp, dự án, ghi nhớ, kết nối và thành viên của tổ chức. Trước khi xóa, hệ thống tự sao lưu toàn bộ vào kho tệp; bản sao và tệp được giữ 30 ngày để khôi phục khi bấm nhầm, sau đó tự xóa hẳn.' }),
+    h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-nguy', type: 'button', onclick: () => {
+      if (!confirm(`Xóa toàn bộ tổ chức "${ten}"?\n\nMọi người trong tổ chức sẽ mất quyền vào và mọi dữ liệu bị xóa. Bản sao lưu giữ 30 ngày.`)) return;
+      const oTen = h('input', { type: 'text', autocomplete: 'off', 'aria-describedby': 'goi-y-xoa' });
+      const nutXoa = h('button', { class: 'nut nut-nguy', type: 'submit', disabled: '' }, 'Xóa vĩnh viễn');
+      oTen.addEventListener('input', () => { nutXoa.disabled = oTen.value.trim() !== ten.trim(); });
+      thay(khungXoa,
+        h('form', { class: 'form-xoa', onsubmit: async (ev) => {
+          ev.preventDefault();
+          nutXoa.disabled = true;
+          nutXoa.textContent = 'Đang sao lưu rồi xóa…';
+          try {
+            const kq = await api('/api/to-chuc/xoa', { method: 'POST', body: JSON.stringify({ ten_xac_nhan: oTen.value }) });
+            thay(khungXoa, h('p', { role: 'status', text: `Đã xóa tổ chức (${kq.so_viec} việc, ${kq.so_tin} tin, ${kq.so_tep} tệp). Bản sao lưu giữ ${kq.giu_ngay} ngày. Trang sẽ tải lại.` }));
+            setTimeout(() => location.reload(), 4000);
+          } catch (e) {
+            bao(e.message, { loi: true });
+            nutXoa.textContent = 'Xóa vĩnh viễn';
+            nutXoa.disabled = false;
+          }
+        } },
+          h('label', { class: 'truong' }, h('span', { id: 'goi-y-xoa', text: `Lần xác nhận thứ hai: gõ đúng tên tổ chức "${ten}"` }), oTen),
+          h('div', { class: 'hang-nut' }, nutXoa, h('button', { class: 'nut nut-phu', type: 'button', onclick: veNutXoa }, 'Thôi, không xóa')),
+        ),
+      );
+      oTen.focus();
+    } }, icon('xoa'), h('span', { text: 'Xóa toàn bộ tổ chức' }))),
+  );
 }
 
 const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'hieu-suat': (goc) => veHieuSuat(goc, { h, icon, api, bao, thay, khungLoi, xuong }), 'du-an': veDuAnTrang, 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy, 'du-lieu': veDuLieu };

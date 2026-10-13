@@ -1085,3 +1085,25 @@ body.dang-keo-tha, body.dang-keo-tha * { user-select: none; -webkit-user-select:
 .trang-du-lieu h2 { font-size: 18px; margin: 0 0 8px; }
 .trang-du-lieu p, .trang-du-lieu li { color: var(--chu-2); line-height: 1.6; }
 .trang-du-lieu ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+
+/* Nút Spam trong Hộp tin và đầu hội thoại Zalo; danh sách đã chặn */
+.hang-dau-doc { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.hang-dau-doc .nut-quay { margin-bottom: 0; }
+.hang-dau-doc .nut-spam { margin-left: auto; }
+.nut-spam { gap: 6px; }
+.nut-spam svg { width: 16px; height: 16px; }
+.ds-chan { list-style: none; margin: 0; padding: 0; }
+.ds-chan li { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--vach); }
+.ds-chan li p { margin: 2px 0 0; color: var(--phu); font-size: 13px; }
+.ds-chan strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Trang Dữ liệu của bạn: nhật ký truy cập, xóa tổ chức */
+.cuon-bang { overflow-x: auto; max-height: 360px; overflow-y: auto; border: 1px solid var(--vach); border-radius: 10px; }
+.cuon-bang table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cuon-bang th, .cuon-bang td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--vach); color: var(--chu-2); white-space: nowrap; }
+.cuon-bang th { position: sticky; top: 0; background: var(--mat); color: var(--chu); font-weight: 600; }
+.form-xoa { display: grid; gap: 12px; }
+.form-xoa input { max-width: 420px; }
+.ds-tin .ds-chan li > button { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 10px; font-size: 13px; border: 1px solid var(--vach-2); color: var(--chu); cursor: pointer; flex: none; }
+.ds-tin .ds-chan li > button:hover { background: var(--mat-2); }
+.ds-tin .ds-chan li > button:focus-visible { outline: 2px solid var(--nhan); outline-offset: 2px; }

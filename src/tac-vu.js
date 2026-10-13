@@ -2,6 +2,7 @@
 
 import { docLuong, dangYenLang } from './luong.js';
 import { chamViecMoi } from './hieu-suat.js';
+import { donTepDaXoa } from './xoa-to-chuc.js';
 import { banTinNgay, baoCaoTuan, cacToChuc, goiYMoi, gioDayDuVN } from './ban-tin.js';
 import { taoIssue } from './github.js';
 import { dongBoGoogle } from './google.js';
@@ -221,7 +222,7 @@ export const CAC_TAC_VU = {
     let soToChuc = 0;
     for (const tc of await cacToChuc(env)) {
       if (!(await docLuong(env, tc.id)).bat['sao-luu']) continue;
-      const [viec, tin, tep, caiDat, ghiNho, duAn, suKien, luotClaude] = await env.CSDL.batch([
+      const [viec, tin, tep, caiDat, ghiNho, duAn, suKien, luotClaude, chanTin] = await env.CSDL.batch([
         env.CSDL.prepare('SELECT * FROM viec WHERE to_chuc_id = ?1').bind(tc.id),
         env.CSDL.prepare('SELECT * FROM tin_nhan WHERE to_chuc_id = ?1 AND thoi_diem >= ?2').bind(tc.id, new Date(Date.now() - 90 * 86400000).toISOString()),
         env.CSDL.prepare('SELECT * FROM tep WHERE to_chuc_id = ?1').bind(tc.id),
@@ -231,17 +232,21 @@ export const CAC_TAC_VU = {
         env.CSDL.prepare('SELECT * FROM du_an WHERE to_chuc_id = ?1').bind(tc.id),
         env.CSDL.prepare('SELECT * FROM viec_su_kien WHERE to_chuc_id = ?1').bind(tc.id),
         env.CSDL.prepare('SELECT id, to_chuc_id, viec_id, trang_thai, dan, ket_qua, nhanh, pr, nhat_ky, danh_gia, tao_luc, cap_nhat_luc FROM luot_claude WHERE to_chuc_id = ?1').bind(tc.id),
+        env.CSDL.prepare('SELECT * FROM chan_tin WHERE to_chuc_id = ?1').bind(tc.id),
       ]);
       const banSao = {
         to_chuc: tc, luc: bayGio, viec: viec.results, tin_nhan: tin.results, tep: tep.results, cai_dat: caiDat.results, ghi_nho: ghiNho.results,
-        du_an: duAn.results, viec_su_kien: suKien.results, luot_claude: luotClaude.results,
+        du_an: duAn.results, viec_su_kien: suKien.results, luot_claude: luotClaude.results, chan_tin: chanTin.results,
       };
       await env.TEP.put(`sao-luu/${tc.id}/${ngayVN(bayGio)}.json`, JSON.stringify(banSao), {
         httpMetadata: { contentType: 'application/json' },
       });
       soToChuc++;
     }
-    return { so_muc: soToChuc, ghi_chu: cat(`Sao lưu ${soToChuc} tổ chức vào kho tệp`, 200) };
+    // Tổ chức đã xóa quá 30 ngày: xóa hẳn tệp và bản sao. Nhật ký truy cập giữ 1 năm.
+    const soDon = await donTepDaXoa(env, new Date(bayGio));
+    await env.CSDL.prepare('DELETE FROM nhat_ky_truy_cap WHERE luc < ?1').bind(new Date(Date.parse(bayGio) - 365 * 86400000).toISOString()).run();
+    return { so_muc: soToChuc, ghi_chu: cat(`Sao lưu ${soToChuc} tổ chức vào kho tệp${soDon ? `, xóa hẳn tệp của ${soDon} tổ chức đã xóa` : ''}`, 200) };
   },
 };
 
