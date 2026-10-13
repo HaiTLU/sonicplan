@@ -1,0 +1,152 @@
+// Máy chủ Node chạy nguyên Worker Sonicplan ngoài Cloudflare: D1 thành SQLite, R2 thành thư mục, ASSETS thành public/.
+// Chạy: node may-chu/chay.js   (cấu hình qua biến môi trường hoặc tệp may-chu/.env, xem may-chu/README.md)
+import { createServer } from 'node:http';
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { Readable } from 'node:stream';
+import worker from '../src/index.js';
+import { moCsdl } from './lop-d1.js';
+import { moR2 } from './lop-r2.js';
+import { moTinh } from './lop-tinh.js';
+import { moAi } from './lop-ai.js';
+import { batHenGio } from './lich.js';
+
+const GOC = resolve(fileURLToPath(import.meta.url), '../..');
+const TOI_DA_THAN = 30 * 1024 * 1024;
+
+export function docEnv(duongDan) {
+  const ra = {};
+  if (!existsSync(duongDan)) return ra;
+  for (const dong of readFileSync(duongDan, 'utf8').split('\n')) {
+    const m = dong.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
+    if (m) ra[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
+  }
+  return ra;
+}
+
+// Đọc vars trong wrangler.jsonc làm giá trị mặc định (bỏ chú thích // ngoài chuỗi).
+export function docBienWrangler(duongDan) {
+  let chu = '';
+  try {
+    chu = readFileSync(duongDan, 'utf8');
+  } catch {
+    return {};
+  }
+  let ra = '';
+  let trongChuoi = false;
+  for (let i = 0; i < chu.length; i++) {
+    const c = chu[i];
+    if (trongChuoi) {
+      ra += c;
+      if (c === '\\') ra += chu[++i];
+      else if (c === '"') trongChuoi = false;
+    } else if (c === '"') {
+      trongChuoi = true;
+      ra += c;
+    } else if (c === '/' && chu[i + 1] === '/') {
+      while (i < chu.length && chu[i] !== '\n') i++;
+      ra += '\n';
+    } else {
+      ra += c;
+    }
+  }
+  try {
+    return JSON.parse(ra.replace(/,(\s*[}\]])/g, '$1')).vars || {};
+  } catch {
+    return {};
+  }
+}
+
+const laVongLap = (a = '') => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(a);
+
+export function taoMayChu(cauHinh = {}) {
+  const cfg = { ...docBienWrangler(resolve(GOC, 'wrangler.jsonc')), ...docEnv(resolve(GOC, 'may-chu/.env')), ...process.env, ...cauHinh };
+  const congKhai = cfg.PUBLIC_ORIGIN ? new URL(cfg.PUBLIC_ORIGIN).origin : '';
+  if (cfg.EMAIL_THU && congKhai) {
+    throw new Error('EMAIL_THU (bỏ qua đăng nhập) không được đặt cùng PUBLIC_ORIGIN. Gỡ EMAIL_THU khỏi bản chạy thật.');
+  }
+
+  const thuMucDuLieu = resolve(GOC, cfg.DU_LIEU || 'du-lieu');
+  const csdl = moCsdl(cfg.DB_FILE || resolve(thuMucDuLieu, 'sonicplan.sqlite'), cfg.MIGRATIONS ? { migrations: cfg.MIGRATIONS } : {});
+  const env = {
+    CSDL: csdl,
+    TEP: moR2(cfg.TEP_DIR || resolve(thuMucDuLieu, 'tep')),
+    ASSETS: moTinh(resolve(GOC, 'public')),
+    ...Object.fromEntries(
+      ['ACCESS_TEAM_DOMAIN', 'ACCESS_AUD', 'EMAIL_DOMAIN', 'QUAN_TRI', 'AI_MODEL', 'KHOA_MA_HOA', 'EMAIL_THU', 'PHIEN_BAN']
+        .filter((k) => cfg[k] !== undefined && cfg[k] !== '')
+        .map((k) => [k, cfg[k]]),
+    ),
+  };
+  const ai = moAi({ taiKhoan: cfg.CF_ACCOUNT_ID, token: cfg.CF_AI_TOKEN });
+  if (ai) env.AI = ai;
+
+  const dangCho = new Set();
+  const ctx = {
+    waitUntil: (p) => {
+      const q = Promise.resolve(p).catch((e) => console.error('waitUntil lỗi', e)).finally(() => dangCho.delete(q));
+      dangCho.add(q);
+    },
+    passThroughOnException: () => {},
+  };
+
+  const maychu = createServer(async (req, res) => {
+    try {
+      if (cfg.EMAIL_THU && !laVongLap(req.socket.remoteAddress)) {
+        res.writeHead(403).end('Chế độ thử chỉ nhận yêu cầu từ chính máy này.');
+        return;
+      }
+      if (Number(req.headers['content-length'] || 0) > TOI_DA_THAN) {
+        res.writeHead(413).end('Tệp quá lớn.');
+        return;
+      }
+      const goc = congKhai || `http://${req.headers.host || 'localhost'}`;
+      const coThan = !['GET', 'HEAD'].includes(req.method);
+      const yeuCau = new Request(new URL(req.url, goc), {
+        method: req.method,
+        headers: Object.fromEntries(Object.entries(req.headers).filter(([k]) => k !== 'host' && k !== 'content-length' || false)),
+        body: coThan ? Readable.toWeb(req) : undefined,
+        duplex: coThan ? 'half' : undefined,
+      });
+      const ra = await worker.fetch(yeuCau, env, ctx);
+      const dau = {};
+      for (const [k, v] of ra.headers) if (k !== 'set-cookie') dau[k] = v;
+      const cookie = ra.headers.getSetCookie?.() || [];
+      if (cookie.length) dau['set-cookie'] = cookie;
+      res.writeHead(ra.status, dau);
+      if (!ra.body || req.method === 'HEAD') res.end();
+      else Readable.fromWeb(ra.body).on('error', () => res.destroy()).pipe(res);
+    } catch (e) {
+      console.error('Máy chủ lỗi', req.url, e);
+      if (!res.headersSent) res.writeHead(500).end('Lỗi máy chủ.');
+      else res.destroy();
+    }
+  });
+
+  let dungHen = () => {};
+  return {
+    maychu,
+    env,
+    ctx,
+    cfg,
+    batHenGio: () => { dungHen = batHenGio(worker, env, ctx); },
+    dong: async () => {
+      dungHen();
+      await new Promise((xong) => maychu.close(xong));
+      await Promise.allSettled([...dangCho]);
+      csdl.dong();
+    },
+  };
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const m = taoMayChu();
+  const cong = Number(m.cfg.PORT || 8787);
+  const may = m.cfg.HOST || '127.0.0.1';
+  m.maychu.listen(cong, may, () => {
+    console.log(`Sonicplan chạy ở ${may}:${cong}${m.cfg.PUBLIC_ORIGIN ? ` (địa chỉ công khai ${m.cfg.PUBLIC_ORIGIN})` : ''}${m.env.AI ? ', có AI' : ', không có AI'}`);
+    if (m.cfg.HEN_GIO !== '0') m.batHenGio();
+  });
+  for (const tin of ['SIGINT', 'SIGTERM']) process.on(tin, () => m.dong().finally(() => process.exit(0)));
+}

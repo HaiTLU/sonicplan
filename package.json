@@ -7,7 +7,8 @@
     "dev": "wrangler dev",
     "test": "node --test test/*.test.js",
     "kiem": "node --test test/*.test.js && wrangler deploy --dry-run --outdir .dung-thu",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "may-chu": "node may-chu/chay.js"
   },
   "devDependencies": {
     "wrangler": "4.141.0"
