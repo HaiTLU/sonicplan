@@ -5,3 +5,9 @@ node_modules/
 du-lieu/
 may-chu/.env
 *.sql.bak
+du-lieu.sql
+.du-lieu-may/
+wrangler-dev*.log
+may-chu.log
+cloudflared.log
+du-lieu-cuoi.sql
