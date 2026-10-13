@@ -9,7 +9,8 @@ import { docLuong, luuLuong, NGUONG } from './luong.js';
 import { dsTruyCap, ghiTruyCap, xuatDuLieu } from './du-lieu.js';
 import { xoaToChuc } from './xoa-to-chuc.js';
 import { quenPhien } from './phien.js';
-import { caiWorkflow, danhGiaLuot, dsLuot, giaoClaude } from './claude-code.js';
+import { caiWorkflow, danhGiaLuot, dsLuot, giaoClaude, hoiTruoc } from './claude-code.js';
+import { chayAi } from './ai.js';
 import { kiemCauHinhGithub, thuGithub } from './github.js';
 import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from './google.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
@@ -92,10 +93,16 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   if (p === '/api/viec/sap-xep' && m === 'POST') return sapXepViec(env, tc, await yeuCau.json().catch(() => ({})));
   if (p === '/api/viec' && m === 'POST') return taoViec(env, tc, await yeuCau.json().catch(() => ({})));
   if ((khop = p.match(/^\/api\/viec\/(\d+)\/claude$/)) && m === 'GET') return json({ luot: await dsLuot(env, tc, Number(khop[1])), da_noi: Boolean(await docTichHop(env, tc, 'github')) });
-  if ((khop = p.match(/^\/api\/viec\/(\d+)\/claude$/)) && m === 'POST') {
+  if (((khop = p.match(/^\/api\/viec\/(\d+)\/claude$/)) || p === '/api/claude/giao') && m === 'POST') {
     if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức giao việc cho Claude được.');
-    const r = await giaoClaude(env, tc, Number(khop[1]), (await yeuCau.json().catch(() => ({}))).dan, url.origin);
+    const b = await yeuCau.json().catch(() => ({}));
+    const r = await giaoClaude(env, tc, khop ? [Number(khop[1])] : b.viec_ids, { dan: b.dan, traLoi: b.tra_loi, cach: b.cach, tiepLuot: b.tiep_luot }, url.origin);
     return r.loi ? loi(r.ma, r.loi) : json(r, 201);
+  }
+  if (p === '/api/claude/hoi-truoc' && m === 'POST') {
+    const b = await yeuCau.json().catch(() => ({}));
+    const r = await hoiTruoc(env, tc, b.viec_ids, chayAi, { ngoai: await docTichHop(env, tc, 'ai'), hoSo: await docHoSo(env, tc) });
+    return r.loi ? loi(r.ma, r.loi) : json(r);
   }
   if ((khop = p.match(/^\/api\/claude\/(\d+)\/danh-gia$/)) && m === 'POST') {
     const r = await danhGiaLuot(env, tc, Number(khop[1]), (await yeuCau.json().catch(() => ({}))).danh_gia);
@@ -517,7 +524,7 @@ async function dsViec(env, tc, url) {
     `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.trang_thai, v.tin_nhan_id, v.tao_luc, v.xong_luc,
        t.nguon AS tin_nguon, t.nguoi_gui AS tin_nguoi_gui, t.nhom AS tin_nhom,
        v.du_an_id, v.nguon, v.mau, v.sao, v.do_nang, d.ten AS du_an_ten, d.mau AS du_an_mau,
-       (SELECT l.trang_thai FROM luot_claude l WHERE l.to_chuc_id = v.to_chuc_id AND l.viec_id = v.id ORDER BY l.id DESC LIMIT 1) AS claude_trang_thai
+       (SELECT CASE WHEN l.trang_thai = 'xong' AND l.cau_hoi IS NOT NULL AND l.danh_gia IS NULL THEN 'hoi' ELSE l.trang_thai END FROM luot_claude l WHERE l.to_chuc_id = v.to_chuc_id AND l.viec_id = v.id ORDER BY l.id DESC LIMIT 1) AS claude_trang_thai
      FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id LEFT JOIN du_an d ON d.id = v.du_an_id
      WHERE v.to_chuc_id = ?1 AND v.trang_thai = ?2 ORDER BY ${thuTu.replace(/\b(xong_luc|han_ngay|gio_hen|thu_tu|sao|id)\b/g, 'v.$1')} LIMIT 300`,
   ).bind(tc, trangThai).all();
