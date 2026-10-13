@@ -1101,6 +1101,28 @@ body.dang-keo-tha, body.dang-keo-tha * { user-select: none; -webkit-user-select:
 .ds-chan small { color: var(--chu-2); font-size: 12.5px; }
 .doc-tin .khoi .hang-nut, .hop-spam .hang-nut { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
 
+/* Trình đơn chuột phải trên thẻ việc */
+.trinh-don { position: fixed; z-index: 90; min-width: 210px; max-width: 280px; overflow-y: auto; padding: 6px; border-radius: 12px; background: var(--mat-2); border: 1px solid var(--vach-2); box-shadow: var(--bong-noi); display: flex; flex-direction: column; }
+.td-muc { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 34px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: var(--chu); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
+.td-muc:hover, .td-muc:focus-visible { background: var(--mat-3); outline: none; }
+.td-muc.nguy { color: var(--loi); }
+.td-muc.dang-chon::after { content: '•'; color: var(--nhan); font-weight: 700; }
+.td-muc.co-con::after { content: '›'; color: var(--phu); transition: transform .15s; }
+.td-muc.co-con[aria-expanded='true']::after { transform: rotate(90deg); }
+.td-muc:disabled { opacity: .45; cursor: default; }
+.td-tieu-de { padding: 8px 10px 4px; font-size: 11.5px; font-weight: 600; color: var(--phu); }
+.td-vach { height: 1px; margin: 6px 4px; background: var(--vach); }
+.td-con { padding: 2px 0 4px 10px; display: flex; flex-direction: column; }
+.td-con[hidden] { display: none; }
+.td-con .chon-mau { padding: 6px 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.nut-ba-cham { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 8px; background: none; color: var(--phu); cursor: pointer; opacity: 0; transition: opacity .15s; }
+.nut-ba-cham svg { width: 18px; height: 18px; fill: currentColor; stroke: none; }
+.the-viec:hover .nut-ba-cham, .nut-ba-cham:focus-visible { opacity: 1; }
+.nut-ba-cham:hover { background: var(--mat-3); color: var(--chu); }
+@media (hover: none) { .nut-ba-cham { opacity: .7; } }
+@media (prefers-reduced-motion: reduce) { .td-muc.co-con::after, .nut-ba-cham { transition: none; } }
+.the-viec > div { padding-right: 18px; }
+
 /* Trang Dữ liệu của bạn: nhật ký truy cập, xóa tổ chức */
 .cuon-bang { overflow-x: auto; max-height: 360px; overflow-y: auto; border: 1px solid var(--vach); border-radius: 10px; }
 .cuon-bang table { width: 100%; border-collapse: collapse; font-size: 13px; }
