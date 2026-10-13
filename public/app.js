@@ -1,6 +1,6 @@
 // Giao diện Sonicplan: một trang, chuyển mục theo dấu #, đọc ghi dữ liệu qua /api.
 
-import { CHU_TRANG_THAI, dungKhoiClaude, veKhoiClaude } from './claude.js';
+import { CHU_TRANG_THAI, dungKhoiClaude, moKhungGiaoClaude, veKhoiClaude } from './claude.js';
 import { veDuAn } from './du-an.js';
 import { dongHieuSuat, veHieuSuat } from './hieu-suat.js';
 import { batKeoTha } from './keo-tha.js';
@@ -484,6 +484,7 @@ async function moTrinhDonViec(v, x, y) {
   const coTin = Boolean(v.tin_nhan_id);
   const muc = [
     { nhan: 'Mở chi tiết', lam: () => moNganViec(v) },
+    ...(xong || ['cho', 'dang_lam'].includes(v.claude_trang_thai) ? [] : [{ nhan: 'Giao Claude', lam: () => giaoClaudeNhanh([v]) }]),
     xong ? { nhan: 'Mở lại việc', lam: () => doiXong(v, false) } : { nhan: 'Đánh dấu xong', lam: () => doiXong(v, true) },
     { nhan: v.sao ? 'Bỏ sao' : 'Gắn sao', lam: () => saoViec(v, !v.sao) },
   ];
@@ -875,10 +876,17 @@ function cotTheoHan(ds, hn) {
     ));
 }
 
+// Nút Claude ở đầu cột dự án: giao các việc đang mở của dự án (gộp một lượt hoặc từng việc).
+function nutClaudeCot(c) {
+  const mo = c.ds.filter((x) => x.trang_thai === 'mo' && !['cho', 'dang_lam'].includes(x.claude_trang_thai));
+  if (!c.id || !mo.length) return null;
+  return h('button', { class: 'nut-claude-cot', type: 'button', 'aria-label': `Giao Claude cả dự án ${c.ten} (${mo.length} việc)`, ...meo(`Giao Claude làm ${mo.length} việc đang mở của dự án, gộp một lượt hoặc từng việc.`), onclick: () => giaoClaudeNhanh(mo, c.ten) }, icon('ai'));
+}
+
 function cotTheoDuAn(ds, hn) {
   const cot = [...duAnDs.map((d) => ({ ma: `da-${d.id}`, id: d.id, sao: d.sao, ten: d.ten, mau: d.mau, loc: (x) => x.du_an_id === d.id })), { ma: 'da-khong', ten: 'Chưa xếp dự án', loc: (x) => !x.du_an_id }];
   return cot.map((c) => ({ ...c, ds: ds.filter(c.loc) })).filter((c) => !(trang.viec.anTrong && !c.ds.length && c.ma !== 'da-khong')).map((c) => h('section', { class: 'cot-viec', dataset: { cot: c.ma }, 'aria-label': c.ten, ...(hexMau(c.mau) ? { style: `--mau:${hexMau(c.mau)}` } : {}) },
-    h('header', {}, h('h2', { text: c.ten }), h('span', { class: 'dau-cot' }, c.id ? nutSao(Boolean(c.sao), `dự án ${c.ten}`, () => saoDuAn(c.id, !c.sao)) : null, h('span', { text: String(c.ds.length) }))),
+    h('header', {}, h('h2', { text: c.ten }), h('span', { class: 'dau-cot' }, nutClaudeCot(c), c.id ? nutSao(Boolean(c.sao), `dự án ${c.ten}`, () => saoDuAn(c.id, !c.sao)) : null, h('span', { text: String(c.ds.length) }))),
     c.ds.length ? h('ul', {}, ...c.ds.map((x) => theViec(x, hn))) : h('p', { class: 'cot-trong', text: 'Kéo việc vào đây.' }),
   ));
 }
@@ -931,6 +939,18 @@ async function saoViec(v, bat) {
   napLaiViec();
 }
 
+// Nút Claude trên thẻ: chưa giao thì mở khung giao; đã giao thì nhãn trạng thái mở chi tiết để xem kết quả hoặc trả lời câu hỏi.
+function giaoClaudeNhanh(ds, duAn = null) {
+  moKhungGiaoClaude(ds, { h, api, bao, icon, duAn, sauKhiGiao: () => napLaiViec() });
+}
+function nutClaudeThe(v) {
+  if (v.claude_trang_thai) {
+    return h('button', { class: `nhan-claude ${v.claude_trang_thai}`, type: 'button', text: CHU_TRANG_THAI[v.claude_trang_thai], 'aria-label': `${CHU_TRANG_THAI[v.claude_trang_thai]}: ${v.tieu_de}. Mở để xem`, onclick: () => moNganViec(v) });
+  }
+  if (v.trang_thai !== 'mo') return null;
+  return h('button', { class: 'nhan-claude giao', type: 'button', 'aria-label': `Giao Claude: ${v.tieu_de}`, ...meo('Giao việc này cho Claude Code làm. Claude hỏi lại nếu việc chưa rõ.'), onclick: () => giaoClaudeNhanh([v]) }, icon('ai'), 'Claude');
+}
+
 function theViec(v, hn) {
   const o = h('input', { class: 'o-xong', type: 'checkbox', checked: v.trang_thai === 'xong', 'aria-label': `${v.trang_thai === 'xong' ? 'Mở lại' : 'Đánh dấu xong'}: ${v.tieu_de}` });
   const mau = mauViec(v);
@@ -947,7 +967,7 @@ function theViec(v, hn) {
         h('span', { class: `nguon ${nhanNguon(v).ma}`, title: `Nguồn: ${v.tin_nhom || v.tin_nguoi_gui || nhanNguon(v).chu}` }, icon(nhanNguon(v).icon), nhanNguon(v).chu),
         v.du_an_ten ? h('a', { class: 'nhan-du-an', href: `#du-an/${v.du_an_id}`, title: 'Xem lịch sử dự án' }, icon('du-an'), v.du_an_ten) : h('span', { class: 'nhan-du-an chua', text: 'Chưa xếp dự án' }),
         v.xong_luc ? h('span', {}, `Xong ${luc(v.xong_luc)}`) : null,
-        v.claude_trang_thai ? h('span', { class: `nhan-claude ${v.claude_trang_thai}`, text: CHU_TRANG_THAI[v.claude_trang_thai] }) : null,
+        nutClaudeThe(v),
       ),
     ),
   );
@@ -976,7 +996,7 @@ function moNganViec(v, macDinh = {}) {
   mauDangChon = du.mau || null;
   thay(document.getElementById('mau-viec-hang'), oChonMau(h, mauDangChon, (m) => { mauDangChon = m; }, { coKhong: true, nhan: 'Màu riêng của việc' }));
   if (!duAnDs.length) api('/api/du-an').then((r) => { duAnDs = r.du_an; thay(chon, h('option', { value: '', text: 'Chưa xếp dự án' }), ...duAnDs.map((d) => h('option', { value: String(d.id), text: d.ten }))); chon.value = du.du_an_id ? String(du.du_an_id) : ''; }).catch(() => {});
-  veKhoiClaude(document.getElementById('khoi-claude'), v, { h, api, bao, luc, sauKhiDat: () => { ngan.close(); moMuc(); } });
+  veKhoiClaude(document.getElementById('khoi-claude'), v, { h, api, bao, luc, icon, sauKhiDat: () => { ngan.close(); moMuc(); } });
   ngan.showModal();
   formViec.elements.tieu_de.focus();
 }
