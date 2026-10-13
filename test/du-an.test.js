@@ -18,6 +18,13 @@ test('chọn dự án: tên AI đưa ra khớp thì dùng, không thì dò từ 
   assert.equal(chonDuAn([{ id: 9, ten: 'X', tu_khoa: '["abc"]' }], null, 'có abc ở đây'), 9);
 });
 
+test('sao: kiểm dự án và việc nhận 0/1', async () => {
+  const { kiemViec } = await import('../src/api.js');
+  assert.deepEqual(kiemDuAn({ sao: true }, { batBuoc: false }).duAn, { sao: 1 });
+  assert.deepEqual(kiemDuAn({ sao: 0 }, { batBuoc: false }).duAn, { sao: 0 });
+  assert.deepEqual(kiemViec({ sao: true }, { batBuocTieuDe: false }).viec, { sao: 1 });
+});
+
 test('kiểm dự án: tên bắt buộc, từ khóa tách theo dấu phẩy và bỏ trùng', () => {
   assert.ok(kiemDuAn({}, { batBuoc: true }).loi);
   assert.deepEqual(kiemDuAn({ ten: ' A ', tu_khoa: 'x, y,x,,' }, { batBuoc: true }).duAn, { ten: 'A', tu_khoa: ['x', 'y'] });
@@ -25,7 +32,7 @@ test('kiểm dự án: tên bắt buộc, từ khóa tách theo dấu phẩy và
 
 function csdlGia() {
   const db = new DatabaseSync(':memory:');
-  db.exec(`CREATE TABLE du_an (id INTEGER PRIMARY KEY AUTOINCREMENT, to_chuc_id TEXT, ten TEXT, tu_khoa TEXT DEFAULT '[]', thu_tu INTEGER DEFAULT 0, tao_luc TEXT, mau TEXT, UNIQUE (to_chuc_id, ten));
+  db.exec(`CREATE TABLE du_an (id INTEGER PRIMARY KEY AUTOINCREMENT, to_chuc_id TEXT, ten TEXT, tu_khoa TEXT DEFAULT '[]', thu_tu INTEGER DEFAULT 0, tao_luc TEXT, mau TEXT, sao INTEGER DEFAULT 0, UNIQUE (to_chuc_id, ten));
     CREATE TABLE viec (id INTEGER PRIMARY KEY, to_chuc_id TEXT, tieu_de TEXT, trang_thai TEXT, du_an_id INTEGER, tin_nhan_id INTEGER, nguon TEXT, mau TEXT, can_dong_bo INTEGER DEFAULT 0, lich_event_id TEXT);
     CREATE TABLE viec_su_kien (id INTEGER PRIMARY KEY AUTOINCREMENT, to_chuc_id TEXT, viec_id INTEGER, du_an_id INTEGER, loai TEXT, noi_dung TEXT, tin_nhan_id INTEGER, luc TEXT);
     CREATE TABLE tep (id INTEGER PRIMARY KEY, to_chuc_id TEXT, ten TEXT, nguon TEXT, nguoi_gui TEXT, tao_luc TEXT, tin_nhan_id INTEGER, thu_muc TEXT, du_an_id INTEGER, du_an_nguon TEXT);
