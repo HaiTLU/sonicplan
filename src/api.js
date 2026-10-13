@@ -15,7 +15,7 @@ import { kiemCauHinhGithub, thuGithub } from './github.js';
 import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from './google.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
 import { congCuKho, dongBoKho, goKetNoiKho, hoanTatDangNhapKho, layAnhNhoDrive, layTruyCapKho, taoDiaChiDangNhapKho } from './kho.js';
-import { batDriveKho, datLaiDuAn, dongBoMotDuAn, tatDriveKho } from './kho-du-an.js';
+import { batDriveKho, datLaiDuAn, dongBoMotDuAn, tatDriveKho, thuMucDuAn } from './kho-du-an.js';
 import { dsDuAnKemSo, lichSuDuAn, phanDuAnChoTep, sapXepDuAn, suaDuAn, taoDuAn, xoaDuAn, ghiSuKien } from './du-an.js';
 import { caiBot, layBot, maNoiTelegram } from './telegram.js';
 import { chuanHoaCauHinhAi, dangViecMoi, docTichHop, giaiTichHop, guiDiaChiNhan, KHOA_TICH_HOP, kiemDiaChiNhan, luuTichHop, thuAiNgoai, xoaTichHop } from './tich-hop.js';
@@ -127,8 +127,23 @@ export async function xuLyApi(yeuCau, env, phien, url) {
 
   if (p === '/api/du-an' && m === 'GET') return json({ du_an: await dsDuAnKemSo(env, tc) });
   if (p === '/api/du-an' && m === 'POST') {
-    const r = await taoDuAn(env, tc, await yeuCau.json().catch(() => ({})));
-    return r.loi ? loi(r.ma || 400, r.loi) : json({ id: r.id }, 201);
+    const than = await yeuCau.json().catch(() => ({}));
+    const r = await taoDuAn(env, tc, than);
+    if (r.loi) return loi(r.ma || 400, r.loi);
+    // "Lưu tệp ở": mặc định tự tạo thư mục trong Sonicplan kho; chọn link Drive có sẵn thì chỉ để mở (không ghi vào được).
+    const ra = { id: r.id };
+    if (than.luu_o === 'kho' && phien.to_chuc.vai_tro === 'chu') {
+      const token = await layTruyCapKho(env, tc).catch(() => null);
+      if (!token) ra.drive_loi = 'Chưa nối Drive kho nên chưa tạo thư mục. Vào Cài đặt, Kết nối, thẻ Drive kho để nối, rồi bấm "Lưu dự án vào Drive".';
+      else {
+        try { Object.assign(ra, { drive_kho_id: (await batDriveKho(env, tc, token, congCuKho(env, tc), r.id)).drive_kho_id }); } catch (e) { ra.drive_loi = `Chưa tạo được thư mục Drive: ${String(e.message).slice(0, 100)}`; }
+      }
+    }
+    return json(ra, 201);
+  }
+  if ((khop = p.match(/^\/api\/du-an\/(\d+)\/thu-muc$/)) && m === 'GET') {
+    const r = await thuMucDuAn(env, tc, Number(khop[1]));
+    return r ? json(r) : loi(404, 'Không tìm thấy dự án.');
   }
   if (p === '/api/du-an/sap-xep' && m === 'POST') {
     const r = await sapXepDuAn(env, tc, (await yeuCau.json().catch(() => ({}))).ids);

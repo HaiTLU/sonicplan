@@ -412,7 +412,17 @@ td.ghi-chu { max-width: 30rem; overflow-wrap: anywhere; color: var(--chu-2); }
 .luoi-nhap input[hidden] { display: none; }
 
 /* ---------- Việc ---------- */
-.them-nhanh { display: grid; grid-template-columns: minmax(0, 1fr) 150px 110px auto; gap: 10px; padding: 12px; margin-bottom: 18px; }
+.them-nhanh { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr) auto; gap: 10px; padding: 12px; margin-bottom: 18px; }
+.them-nhanh select { height: 42px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--vach); background: var(--mat-2); color: inherit; min-width: 0; font: inherit; }
+.them-nhanh input[name="drive_link"], .them-nhanh .ghi-chu-trang { grid-column: 1 / -1; }
+.them-nhanh .ghi-chu-trang { margin: 0; }
+.noi-luu { margin: 6px 0 0; }
+.noi-luu summary { cursor: pointer; color: var(--phu); font-size: 13px; }
+.ds-noi-luu { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.ds-noi-luu li { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--mat-2); }
+.ds-noi-luu li > div { display: grid; min-width: 0; }
+.ds-noi-luu small { color: var(--phu); font-size: 12px; }
+.ds-noi-luu code { color: var(--mo); font-size: 11.5px; overflow-wrap: anywhere; }
 .them-nhanh input { height: 42px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--vach); background: var(--mat-2); outline: none; min-width: 0; transition: border-color .2s; }
 .them-nhanh input:focus { border-color: var(--nhan); }
 .them-nhanh input::placeholder { color: var(--mo); }
@@ -631,7 +641,7 @@ dialog::backdrop { background: rgba(6, 9, 15, .6); }
   .hop-tin.dang-doc .doc-tin { display: block; }
   .nut-quay { display: inline-flex; margin-bottom: 12px; }
   .them-nhanh { grid-template-columns: 1fr 1fr; }
-  .them-nhanh input:first-child { grid-column: 1 / -1; }
+  .them-nhanh input:first-child, .them-nhanh select { grid-column: 1 / -1; }
   .them-nhanh button { grid-column: 1 / -1; }
   .cot-viec-wrap { grid-auto-flow: row; grid-auto-columns: auto; overflow: visible; }
   .ds-kn { grid-template-columns: 1fr; }
