@@ -9,6 +9,7 @@ const LOAI = {
   doi_du_an: { nhan: 'Đổi dự án', icon: 'du-an' },
 };
 
+import { anhDuAn, boAnh, chonVaTaiAnh, oChonIcon } from './anh-du-an.js';
 import { hexMau, oChonMau } from './mau.js';
 
 export async function veDuAn(goc, thamSo, t) {
@@ -79,14 +80,13 @@ async function veDanhSach(goc, t) {
     const driveLink = h('input', { value: d.drive_link || '', maxlength: '300', 'aria-label': `Link thư mục Drive của ${d.ten}`, placeholder: 'Link thư mục Drive (để bấm mở)', autocomplete: 'off' });
     const driveDuong = h('input', { value: d.drive_duong_dan || '', maxlength: '200', 'aria-label': `Đường dẫn trong Drive của ${d.ten}`, placeholder: 'Đường dẫn trong Drive, ví dụ 01_Projects/IPSOS', autocomplete: 'off' });
     let mau = d.mau || null;
-    const luu = h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => {
+    const luu = h('button', { class: 'nut nut-chinh', type: 'button', onclick: async () => {
       try { await api(`/api/du-an/${d.id}`, { method: 'PATCH', body: JSON.stringify({ ten: ten.value, tu_khoa: khoa.value, mau, drive_link: driveLink.value, drive_duong_dan: driveDuong.value }) }); bao('Đã lưu.'); veDanhSach(goc, t); } catch (err) { bao(err.message, { loi: true }); }
     } }, 'Lưu');
     const go = h('button', { class: 'nut nut-nguy', type: 'button', onclick: async () => {
       if (!confirm(`Gỡ dự án "${d.ten}"? Các việc vẫn còn, chỉ mất nhãn dự án.`)) return;
       try { await api(`/api/du-an/${d.id}`, { method: 'DELETE' }); bao('Đã gỡ dự án.'); veDanhSach(goc, t); } catch (err) { bao(err.message, { loi: true }); }
     } }, 'Gỡ');
-    const linkDrive = d.drive_link ? h('a', { class: 'nut nut-phu', href: d.drive_link, target: '_blank', rel: 'noopener noreferrer', 'aria-label': `Mở thư mục Drive của ${d.ten}` }, icon('tep'), 'Thư mục Drive') : null;
     const hangDrive = h('div', { class: 'hang-nut hang-drive' },
       d.drive_kho_id
         ? [h('span', { class: 'chip-gio', title: 'Thư, tin Zalo, tệp, kết quả Claude, lịch và lịch sử của dự án tự lưu vào thư mục Drive này', text: 'Đang lưu vào Drive' }),
@@ -94,19 +94,45 @@ async function veDanhSach(goc, t) {
           h('button', { class: 'nut nut-phu nut-nho', type: 'button', onclick: () => t.driveDuAn(d, 'tat') }, 'Tắt')]
         : h('button', { class: 'nut nut-phu nut-nho', type: 'button', title: 'Tự tạo thư mục Drive cho dự án và lưu mọi thứ của dự án vào đó', onclick: () => t.driveDuAn(d, 'bat') }, icon('tep'), 'Lưu dự án vào Drive'),
     );
-    const li = h('li', { class: 'the-du-an' },
-      h('a', { class: 'ten-du-an', href: `#du-an/${d.id}`, ...(hexMau(d.mau) ? { style: `--mau:${hexMau(d.mau)}` } : {}) }, hexMau(d.mau) ? h('i', { class: 'cham-mau lon' }) : icon('du-an'), h('b', { text: d.ten }), h('span', { text: `${d.dang_mo} đang mở, ${d.da_xong} đã xong` })),
-      linkDrive,
-      hangDrive,
-      d.drive_kho_id ? noiLuuTep(d) : null,
-      h('details', {}, h('summary', { text: 'Sửa tên, màu, từ khóa và thư mục Drive' }), h('div', { class: 'sua-du-an' }, ten, khoa, driveLink, driveDuong, oChonMau(h, mau, (m) => { mau = m; }, { nhan: `Màu của ${d.ten}` }), luu, go)),
+
+    // Ảnh đại diện: đổi biểu tượng hoặc ảnh là lưu ngay, thẻ và bản xem trước đổi theo, không đóng ngăn sửa.
+    const thePhoto = h('span', { class: 'cho-anh' });
+    const xemTruoc = h('span', { class: 'cho-anh' });
+    const veAnh = () => { thePhoto.replaceChildren(anhDuAn(h, d, 'lon')); xemTruoc.replaceChildren(anhDuAn(h, d, 'lon')); nutBoAnh.hidden = !d.anh_khoa; };
+    const doiNgay = async (than) => { try { await api(`/api/du-an/${d.id}`, { method: 'PATCH', body: JSON.stringify(than) }); Object.assign(d, than); veAnh(); } catch (err) { bao(err.message, { loi: true }); } };
+    const nutBoAnh = h('button', { class: 'nut nut-phu nut-nho', type: 'button', hidden: !d.anh_khoa, onclick: async () => { try { await boAnh(d.id); d.anh_khoa = null; veAnh(); bao('Đã gỡ ảnh.'); } catch (err) { bao(err.message, { loi: true }); } } }, 'Gỡ ảnh');
+    const nutTai = h('button', { class: 'nut nut-phu nut-nho', type: 'button', onclick: () => chonVaTaiAnh(d, { bao, xong: async () => { const r = (await api('/api/du-an')).du_an.find((x) => x.id === d.id); d.anh_khoa = r?.anh_khoa || null; veAnh(); } }) }, 'Tải ảnh lên');
+    const chonMauAnh = oChonMau(h, mau, (m) => { mau = m; d.mau = m; veAnh(); doiNgay({ mau: m }); }, { nhan: `Màu của ${d.ten}` });
+    veAnh();
+    const nganSua = h('div', { class: 'sua-du-an', hidden: true },
+      h('div', { class: 'sua-anh' }, xemTruoc, h('div', { class: 'sua-anh-nut' }, nutTai, nutBoAnh), oChonIcon(h, d.icon, (bt) => doiNgay({ icon: bt }), { nhan: `Biểu tượng của ${d.ten}` })),
+      chonMauAnh, ten, khoa, driveLink, driveDuong, hangDrive, d.drive_kho_id ? noiLuuTep(d) : null,
+      h('div', { class: 'hang-nut' }, luu, go));
+
+    const tong = d.dang_mo + d.da_xong;
+    const tiLe = tong ? Math.round((d.da_xong / tong) * 100) : 0;
+    const nutSua = h('button', { class: 'nut nut-phu nut-nho', type: 'button', 'aria-expanded': 'false', onclick: () => { nganSua.hidden = !nganSua.hidden; nutSua.setAttribute('aria-expanded', String(!nganSua.hidden)); } }, 'Sửa');
+    const li = h('li', { class: 'the-du-an', ...(hexMau(d.mau) ? { style: `--mau:${hexMau(d.mau)}` } : {}) },
+      h('a', { class: 'the-lien', href: `#du-an/${d.id}`, 'aria-label': `Mở dự án ${d.ten}` },
+        thePhoto,
+        h('span', { class: 'the-noi-dung' },
+          h('b', { class: 'the-ten', text: d.ten }),
+          h('span', { class: 'the-so' }, `${d.dang_mo} đang mở`, d.qua_han ? h('em', { class: 'qua-han', title: 'Việc đang mở đã quá hạn', text: `${d.qua_han} quá hạn` }) : null),
+          h('span', { class: 'tien-do', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(tiLe), 'aria-label': `Đã xong ${d.da_xong} trên ${tong} việc` }, h('i', { style: `width:${tiLe}%` })),
+          h('span', { class: 'the-phu', text: tong ? `${d.da_xong}/${tong} việc xong${d.xong_7_ngay ? `, ${d.xong_7_ngay} xong trong 7 ngày qua` : ''}` : 'Chưa có việc nào' }))),
+      h('div', { class: 'hang-nut the-nut' },
+        h('button', { class: 'nut nut-phu nut-nho', type: 'button', onclick: () => t.themViec(d) }, icon('cong'), 'Thêm việc'),
+        d.drive_link ? h('a', { class: 'nut nut-phu nut-nho', href: d.drive_link, target: '_blank', rel: 'noopener noreferrer', 'aria-label': `Mở thư mục Drive của ${d.ten}` }, icon('tep'), 'Drive') : null,
+        d.drive_kho_id ? h('span', { class: 'chip-gio', title: 'Mọi thứ của dự án tự lưu vào thư mục Drive riêng', text: 'Đang lưu Drive' }) : null,
+        nutSua),
+      nganSua,
     );
     li._td = () => ({ nhan: `Thao tác với dự án ${d.ten}`, muc: t.mucDuAn(d) });
     return li;
   };
   thay(goc, form,
-    ds.length ? h('ul', { class: 'ds-du-an' }, ...ds.map(the)) : h('p', { class: 'cot-trong', text: 'Chưa có dự án. Thêm dự án đầu tiên ở trên.' }),
-    h('p', { class: 'ghi-chu-trang', text: 'AI xếp việc mới vào dự án theo tên nhóm, người gửi và nội dung. Từ khóa giúp xếp đúng hơn. Bạn đổi dự án của một việc ở ngăn sửa việc.' }));
+    ds.length ? h('ul', { class: 'ds-du-an luoi-du-an' }, ...ds.map(the)) : h('p', { class: 'cot-trong', text: 'Chưa có dự án. Thêm dự án đầu tiên ở trên.' }),
+    h('p', { class: 'ghi-chu-trang', text: 'AI xếp việc mới vào dự án theo tên nhóm, người gửi và nội dung. Từ khóa giúp xếp đúng hơn. Bạn đổi dự án của một việc ở ngăn sửa việc. Bấm chuột phải vào thẻ dự án để đổi ảnh, biểu tượng, màu.' }));
 }
 
 function ngayNhom(iso) {
@@ -138,7 +164,7 @@ async function veChiTiet(goc, id, t) {
   thay(goc, h('div', { class: 'chi-tiet-du-an' },
     h('a', { class: 'nut nut-phu', href: '#du-an' }, 'Tất cả dự án'),
     h('section', { class: 'bang khoi-du-an' },
-      h('div', { class: 'bang-dau' }, h('h2', { text: r.du_an.ten }), h('span', { class: 'chip-gio', text: `${r.dang_mo} đang mở, ${r.da_xong} đã xong` })),
+      h('div', { class: 'bang-dau' }, h('h2', { class: 'tieu-da' }, anhDuAn(h, r.du_an, 'lon'), r.du_an.ten), h('span', { class: 'chip-gio', text: `${r.dang_mo} đang mở, ${r.da_xong} đã xong` })),
       r.du_an.tu_khoa.length ? h('p', { class: 'ghi-chu-trang', text: `Từ khóa: ${r.du_an.tu_khoa.join(', ')}` }) : null,
     ),
     r.tep.length ? h('section', { class: 'bang khoi-du-an' }, h('h3', { text: `Tệp liên quan (${r.tep.length})` }),
