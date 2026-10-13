@@ -178,6 +178,11 @@ const KET_QUA = { xong: 'Xong', loi: 'Lỗi', dang_chay: 'Đang chạy' };
 const ICON_TP = { 'may-chu': 'he-thong', csdl: 'kho', 'hen-gio': 'dong-ho', thu: 'thu', zalo: 'zalo', tep: 'tep', lich: 'lich', ai: 'ai', telegram: 'telegram' };
 const TEN_DEN = { xanh: 'ổn', vang: 'đang chờ', do: 'lỗi', xam: 'chưa dùng' };
 
+// Chỉ lấy hai số đếm, không tải cả Tổng quan: giữ lượt đọc cơ sở dữ liệu thấp khi để trang mở cả ngày.
+function lamMoiDem() {
+  return api('/api/dem').then((k) => capNhatDem(k.tin_chua_xem, k.viec_mo)).catch(() => {});
+}
+
 function capNhatDem(soTin, soViec) {
   const dat = (id, n) => {
     const el = document.getElementById(id);
@@ -742,7 +747,7 @@ function nutSpam({ nguon, tuyChon, gui, sauKhi }) {
     try {
       const kq = await gui(chon);
       bao(`Đã chặn ${kq.nhan}. Ẩn ${kq.an_tin} tin${kq.go_viec ? `, gỡ ${kq.go_viec} việc chưa xong` : ''}. Bỏ chặn ở mục Đã chặn.`);
-      api('/api/tong-quan').then((k) => capNhatDem(k.so_lieu.tin_chua_xem, k.so_lieu.viec_mo)).catch(() => {});
+      lamMoiDem();
       sauKhi();
     } catch (e) {
       bao(e.message, { loi: true });
@@ -896,7 +901,7 @@ async function veHopTin(goc, thamSo) {
           spam.khung,
         ),
       );
-      api('/api/tong-quan').then((kq) => capNhatDem(kq.so_lieu.tin_chua_xem, kq.so_lieu.viec_mo)).catch(() => {});
+      lamMoiDem();
     } catch (e) {
       thay(khungDoc, khungLoi(e, () => docTin(id)));
     }
@@ -1903,7 +1908,7 @@ async function veZalo(goc, thamSo) {
       if (muc?.chua_xem) {
         muc.chua_xem = 0;
         veDs();
-        api('/api/tong-quan').then((k) => capNhatDem(k.so_lieu.tin_chua_xem, k.so_lieu.viec_mo)).catch(() => {});
+        lamMoiDem();
       }
     } catch (e) {
       thay(khungDoc, khungLoi(e, () => moHoiThoai({ loai, ten })));
@@ -2540,7 +2545,7 @@ async function batDau() {
   // Làm mới số đếm mỗi 2 phút khi trang đang mở.
   setInterval(() => {
     if (document.hidden) return;
-    api('/api/tong-quan').then((kq) => capNhatDem(kq.so_lieu.tin_chua_xem, kq.so_lieu.viec_mo)).catch(() => {});
+    lamMoiDem();
   }, 120000);
 }
 

@@ -40,3 +40,16 @@ test('Tổng quan trả số theo ngày, theo dự án và lưu bố cục theo 
   assert.equal(sau.bo_cuc.thu_tu[0], 'tin-moi');
   assert.deepEqual(sau.bo_cuc.an, ['he-thong']);
 });
+
+test('số đếm nhẹ: chỉ trả tin chưa xem và việc mở, khớp với Tổng quan', async () => {
+  const db = dungCsdl();
+  const env = { CSDL: d1(db) };
+  const bay = new Date().toISOString();
+  db.prepare("INSERT INTO viec (to_chuc_id, tieu_de, trang_thai, tao_luc, cap_nhat_luc) VALUES ('tc', 'a', 'mo', ?1, ?1), ('tc', 'b', 'xong', ?1, ?1), ('khac', 'c', 'mo', ?1, ?1)").run(bay);
+  const dem = await goi(env, '/api/dem');
+  assert.deepEqual(Object.keys(dem).sort(), ['tin_chua_xem', 'viec_mo']);
+  assert.equal(dem.viec_mo, 1);
+  const tq = await goi(env, '/api/tong-quan');
+  assert.equal(dem.viec_mo, tq.so_lieu.viec_mo);
+  assert.equal(dem.tin_chua_xem, tq.so_lieu.tin_chua_xem);
+});
