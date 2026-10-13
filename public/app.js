@@ -5,6 +5,7 @@ import { veDuAn } from './du-an.js';
 import { dongHieuSuat, veHieuSuat } from './hieu-suat.js';
 import { batKeoTha } from './keo-tha.js';
 import { hexMau, mauViec, oChonMau } from './mau.js';
+import { dongTrinhDon, moTrinhDon } from './trinh-don.js';
 import { mienCuaUrl, nhanTep, phanTichTin, tachLienKet, trichTin } from './zalo-tin.js';
 
 const MUI_GIO = 'Asia/Ho_Chi_Minh';
@@ -380,8 +381,79 @@ function mucViec(v) {
     v.gio_hen ? h('span', { class: 'chip-gio', text: v.gio_hen }) : h('span'),
   );
   o.addEventListener('change', () => doiXong(v, o.checked, dong));
+  dong._viec = v;
   return dong;
 }
+
+
+// Trình đơn chuột phải trên thẻ việc (và nút ba chấm trên điện thoại): các thao tác nhanh không cần mở ngăn sửa.
+async function suaNhanh(v, thanThay, loiNhan) {
+  try {
+    await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify(thanThay) });
+    const cu = Object.fromEntries(Object.keys(thanThay).map((k) => [k, v[k] ?? null]));
+    bao(loiNhan, { hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify(cu) }); moMuc(); } } });
+  } catch (e) {
+    bao(e.message, { loi: true });
+  }
+  moMuc();
+}
+
+async function moTrinhDonViec(v, x, y) {
+  if (!duAnDs.length) { try { duAnDs = (await api('/api/du-an')).du_an || []; } catch {} }
+  const xong = v.trang_thai === 'xong';
+  const hn = homNay();
+  const han = (n) => congNgay(hn, n);
+  const hanMuc = (nhan, ngay) => ({ nhan, chon: (v.han_ngay || null) === ngay, lam: () => suaNhanh(v, { han_ngay: ngay }, ngay ? `Đã đổi hạn sang ${nhan.toLowerCase()}.` : 'Đã bỏ hạn.') });
+  const coTin = Boolean(v.tin_nhan_id);
+  const muc = [
+    { nhan: 'Mở chi tiết', lam: () => moNganViec(v) },
+    xong ? { nhan: 'Mở lại việc', lam: () => doiXong(v, false) } : { nhan: 'Đánh dấu xong', lam: () => doiXong(v, true) },
+  ];
+  if (!xong) {
+    muc.push(
+      { vach: true },
+      { tieuDe: 'Đổi hạn' },
+      hanMuc('Hôm nay', hn), hanMuc('Ngày mai', han(1)), hanMuc('Tuần sau', han(7)), hanMuc('Bỏ hạn', null),
+      { nhan: 'Chuyển dự án', con: [
+        { nhan: 'Chưa xếp dự án', chon: !v.du_an_id, lam: () => suaNhanh(v, { du_an_id: null }, 'Đã gỡ khỏi dự án.') },
+        ...duAnDs.map((d) => ({ nhan: d.ten, chon: v.du_an_id === d.id, lam: () => suaNhanh(v, { du_an_id: d.id }, `Đã chuyển sang ${d.ten}.`) })),
+      ] },
+      { nhan: 'Đổi màu', con: [{ node: oChonMau(h, v.mau, (ma) => { dongTrinhDon(); suaNhanh(v, { mau: ma || null }, 'Đã đổi màu việc.'); }, { coKhong: true, nhan: 'Màu việc' }) }] },
+    );
+  }
+  if (coTin) {
+    muc.push({ vach: true }, { nhan: 'Xem tin gốc', lam: () => { location.hash = `hop-tin/${v.tin_nhan_id}`; } });
+    if (v.tin_nguon === 'zalo' || v.tin_nguon === 'gmail') {
+      muc.push({ nhan: 'Spam nguồn này', nguy: true, lam: async () => {
+        if (!confirm('Chặn nguồn của tin này? Tin cũ của nguồn sẽ ẩn, việc chưa xong sinh từ đó sẽ gỡ, và AI không tạo việc từ nguồn này nữa. Bỏ chặn ở Hộp tin, mục Đã chặn.')) return;
+        try {
+          const kq = await api('/api/chan', { method: 'POST', body: JSON.stringify({ tin_id: v.tin_nhan_id }) });
+          bao(`Đã chặn ${kq.nhan}. Ẩn ${kq.an_tin} tin${kq.go_viec ? `, gỡ ${kq.go_viec} việc chưa xong` : ''}.`);
+        } catch (e) { bao(e.message, { loi: true }); }
+        moMuc();
+      } });
+    }
+  }
+  if (!xong) {
+    muc.push({ vach: true }, { nhan: 'Hủy việc', nguy: true, lam: async () => {
+      try {
+        await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'huy' }) });
+        bao(`Đã hủy: ${v.tieu_de}`, { hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'mo' }) }); moMuc(); } } });
+      } catch (e) { bao(e.message, { loi: true }); }
+      moMuc();
+    } });
+  }
+  moTrinhDon({ x, y, muc, nhan: `Thao tác với việc: ${v.tieu_de}` });
+}
+
+document.addEventListener('contextmenu', (e) => {
+  const the = e.target.closest?.('.the-viec, .muc-viec');
+  if (!the?._viec || document.body.classList.contains('dang-keo-tha') || e.target.closest('input[type=text], textarea, select')) return;
+  e.preventDefault();
+  let { clientX: x, clientY: y } = e;
+  if (!x && !y) { const r = the.getBoundingClientRect(); x = r.left + 24; y = r.top + 24; } // mở bằng phím Menu hoặc Shift+F10
+  moTrinhDonViec(the._viec, x, y);
+});
 
 async function doiXong(v, xong, el) {
   try {
@@ -755,6 +827,8 @@ function cotXong(ds) {
 function theViec(v, hn) {
   const o = h('input', { class: 'o-xong', type: 'checkbox', checked: v.trang_thai === 'xong', 'aria-label': `${v.trang_thai === 'xong' ? 'Mở lại' : 'Đánh dấu xong'}: ${v.tieu_de}` });
   const mau = mauViec(v);
+  const baCham = h('button', { class: 'nut-ba-cham', type: 'button', 'aria-label': `Thao tác với việc: ${v.tieu_de}`, 'aria-haspopup': 'menu', title: 'Thao tác' }, icon('ba-cham'));
+  baCham.addEventListener('click', (ev) => { ev.stopPropagation(); const r = baCham.getBoundingClientRect(); moTrinhDonViec(v, r.left, r.bottom + 4); });
   const the = h('li', { class: `the-viec${mau ? ' co-mau' : ''}`, dataset: { id: String(v.id) }, ...(mau ? { style: `--mau:${mau}` } : {}) },
     o,
     h('div', { style: 'min-width:0' },
@@ -770,6 +844,8 @@ function theViec(v, hn) {
       ),
     ),
   );
+  the.append(baCham);
+  the._viec = v;
   o.addEventListener('change', () => doiXong(v, o.checked, the));
   return the;
 }
