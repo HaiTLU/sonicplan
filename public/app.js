@@ -220,7 +220,7 @@ async function veTongQuan(goc) {
           h('span', { class: 'tp-icon', dataset: { den: p.den }, role: 'img', 'aria-label': `${p.ten}: ${TEN_DEN[p.den]}` }, icon(ICON_TP[p.ma] || 'he-thong')),
           h('div', {}, h('strong', { text: p.ten }), h('span', { text: p.mo_ta })),
         ))),
-      h('div', { class: 'bang-cuon' }, bangTacVu(kq.tinh_trang.tac_vu)),
+      h('div', { class: 'bang-cuon', tabindex: '0', role: 'region', 'aria-label': 'Bảng tác vụ' }, bangTacVu(kq.tinh_trang.tac_vu)),
     ),
   );
   thay(goc, luoi);
@@ -1823,7 +1823,7 @@ async function veNhatKy(goc) {
   const chip = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(locNhatKy === ma), onclick: () => { locNhatKy = ma; veNhatKy(goc); } }, nhan);
   thay(goc, 
     h('div', { class: 'thanh-loc' }, chip('tat-ca', 'Tất cả'), chip('loi', h('span', {}, 'Lỗi ', h('b', { text: String(soLoi) }))), ...cacTacVu.map((t) => chip(t, t))),
-    h('div', { class: 'bang' }, h('div', { class: 'bang-cuon' },
+    h('div', { class: 'bang' }, h('div', { class: 'bang-cuon', tabindex: '0', role: 'region', 'aria-label': 'Bảng nhật ký' },
       loc.length
         ? h('table', {},
           h('thead', {}, h('tr', {}, h('th', { scope: 'col', text: 'Bắt đầu' }), h('th', { scope: 'col', text: 'Tác vụ' }), h('th', { scope: 'col', text: 'Kết quả' }), h('th', { scope: 'col', class: 'so', text: 'Số mục' }), h('th', { scope: 'col', text: 'Ghi chú' }), h('th', { scope: 'col' }, h('span', { class: 'chi-doc-man-hinh', text: 'Chạy lại' })))),
@@ -1892,7 +1892,7 @@ async function napTruyCap() {
     if (!ds.length) { thay(khungTruyCap, h('p', { class: 'mo-ta', text: 'Chưa có lượt nào.' })); return; }
     thay(khungTruyCap,
       h('p', { class: 'mo-ta', text: 'Ghi lần đầu mở trang mỗi ngày, mỗi lần tải toàn bộ dữ liệu và mỗi lần tải tệp. Không ghi địa chỉ IP.' }),
-      h('div', { class: 'cuon-bang' }, h('table', {},
+      h('div', { class: 'cuon-bang', tabindex: '0', role: 'region', 'aria-label': 'Nhật ký truy cập' }, h('table', {},
         h('thead', {}, h('tr', {}, h('th', { scope: 'col', text: 'Lúc' }), h('th', { scope: 'col', text: 'Ai' }), h('th', { scope: 'col', text: 'Làm gì' }))),
         h('tbody', {}, ...ds.map((r) => h('tr', {},
           h('td', {}, h('time', { datetime: r.luc, text: fmt.ngayGio.format(new Date(r.luc)) })),

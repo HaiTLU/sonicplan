@@ -189,7 +189,7 @@ export async function veHieuSuat(goc, t) {
 
   const bangDn = h('section', { class: 'bang hs-dn' },
     h('div', { class: 'bang-dau' }, h('h2', {}, icon('he-thong'), 'Theo độ nặng'), h('span', { class: 'phu', text: 'AI chấm, học dần từ thời gian thật' })),
-    h('div', { class: 'bang-cuon' }, h('table', { class: 'hs-bang' },
+    h('div', { class: 'bang-cuon', tabindex: '0', role: 'region', 'aria-label': 'Bảng hiệu suất' }, h('table', { class: 'hs-bang' },
       h('thead', {}, h('tr', {}, ...['Độ nặng', 'Đang mở', 'Xong 90 ngày', 'Nhận đến xong', 'Làm thật'].map((c) => h('th', { text: c })))),
       h('tbody', {}, ...hs.xu_ly.theo_do_nang.map((d) => h('tr', {},
         h('td', {}, h('span', { class: `hs-nhan dn-${d.do_nang}`, text: TEN_DN[d.do_nang] })),
