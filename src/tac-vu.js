@@ -232,11 +232,11 @@ export const CAC_TAC_VU = {
         env.CSDL.prepare('SELECT * FROM du_an WHERE to_chuc_id = ?1').bind(tc.id),
         env.CSDL.prepare('SELECT * FROM viec_su_kien WHERE to_chuc_id = ?1').bind(tc.id),
         env.CSDL.prepare('SELECT id, to_chuc_id, viec_id, trang_thai, dan, ket_qua, nhanh, pr, nhat_ky, danh_gia, tao_luc, cap_nhat_luc FROM luot_claude WHERE to_chuc_id = ?1').bind(tc.id),
-        env.CSDL.prepare('SELECT * FROM chan_tin WHERE to_chuc_id = ?1').bind(tc.id),
+        env.CSDL.prepare('SELECT * FROM nguon_chan WHERE to_chuc_id = ?1').bind(tc.id),
       ]);
       const banSao = {
         to_chuc: tc, luc: bayGio, viec: viec.results, tin_nhan: tin.results, tep: tep.results, cai_dat: caiDat.results, ghi_nho: ghiNho.results,
-        du_an: duAn.results, viec_su_kien: suKien.results, luot_claude: luotClaude.results, chan_tin: chanTin.results,
+        du_an: duAn.results, viec_su_kien: suKien.results, luot_claude: luotClaude.results, nguon_chan: chanTin.results,
       };
       await env.TEP.put(`sao-luu/${tc.id}/${ngayVN(bayGio)}.json`, JSON.stringify(banSao), {
         httpMetadata: { contentType: 'application/json' },

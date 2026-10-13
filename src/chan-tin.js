@@ -1,102 +1,89 @@
-// Nút "Spam" trong Hộp tin: chặn một nhóm Zalo, một người gửi Zalo hoặc một địa chỉ thư.
-// Tin của nguồn bị chặn vẫn lưu (cột spam = 1) để bỏ chặn được, nhưng không hiện, không đếm,
-// không đưa cho AI tách việc. Việc đang mở sinh từ các tin đó bị hủy; bỏ chặn thì mở lại.
+// Chặn nguồn tin (Spam): tin thuộc nguồn bị chặn bị ẩn (tin_nhan.an = 1), không qua AI tách việc,
+// và việc chưa xong đã sinh ra từ nguồn đó được gỡ (chuyển sang 'huy').
+
 import { ghiSuKien } from './du-an.js';
+import { cat } from './tien-ich.js';
 
-// Hội thoại Zalo: nhóm theo tên nhóm; tin riêng theo tên người đối diện (tieu_de), thiếu thì người gửi.
-export const TEN_TIN_ZALO = `CASE WHEN COALESCE(nhom, '') <> '' THEN nhom ELSE COALESCE(NULLIF(tieu_de, ''), NULLIF(nguoi_gui, ''), 'Không rõ') END`;
-export const LOAI_TIN_ZALO = `CASE WHEN COALESCE(nhom, '') <> '' THEN 'nhom' ELSE 'ca-nhan' END`;
-// Địa chỉ thư trong "Tên <dia@chi>", viết thường. Phải khớp với diaChiThu() bên dưới.
-const THU_GUI = `lower(trim(CASE WHEN instr(COALESCE(nguoi_gui, ''), '<') > 0 THEN substr(nguoi_gui, instr(nguoi_gui, '<') + 1) ELSE COALESCE(nguoi_gui, '') END, ' >'))`;
+const LOAI = ['nhom', 'nguoi', 'dia_chi'];
 
-export function diaChiThu(nguoiGui) {
-  let s = String(nguoiGui || '');
-  const i = s.indexOf('<');
-  if (i >= 0) s = s.slice(i + 1);
-  return s.replace(/^[ >]+|[ >]+$/g, '').toLowerCase();
+// Điều kiện "tin này thuộc một nguồn đã chặn". Dùng trong UPDATE nên cột viết rõ tên bảng tin_nhan.
+const KHOP_CHAN = `EXISTS (SELECT 1 FROM nguon_chan c WHERE c.to_chuc_id = tin_nhan.to_chuc_id AND c.nguon = tin_nhan.nguon AND (
+  (c.loai = 'nhom' AND c.gia_tri = tin_nhan.nhom)
+  OR (c.loai = 'nguoi' AND COALESCE(tin_nhan.nhom, '') = '' AND c.gia_tri = CASE WHEN tin_nhan.nguon = 'zalo'
+        THEN COALESCE(NULLIF(tin_nhan.tieu_de, ''), NULLIF(tin_nhan.nguoi_gui, ''), 'Không rõ')
+        ELSE COALESCE(tin_nhan.nguoi_gui, '') END)
+  OR (c.loai = 'dia_chi' AND (lower(tin_nhan.nguoi_gui) = c.gia_tri OR lower(tin_nhan.nguoi_gui) LIKE '%<' || c.gia_tri || '>'))))`;
+
+export function diaChiTuNguoiGui(chu) {
+  const s = String(chu || '');
+  const trongNgoac = s.match(/<([^<>\s]+@[^<>\s]+)>/)?.[1];
+  const tran = s.match(/^[^\s<>]+@[^\s<>]+$/)?.[0];
+  return (trongNgoac || tran || '').toLowerCase() || null;
 }
 
-// Khóa chặn của một tin: { nguon, loai, ten }.
-export function khoaChan(tin) {
-  if (tin.nguon === 'gmail') return { nguon: 'gmail', loai: 'thu', ten: diaChiThu(tin.nguoi_gui) };
-  if (tin.nhom) return { nguon: 'zalo', loai: 'nhom', ten: tin.nhom };
-  return { nguon: 'zalo', loai: 'ca-nhan', ten: tin.tieu_de || tin.nguoi_gui || 'Không rõ' };
-}
-
-// Điều kiện SQL chọn mọi tin thuộc một khóa chặn. Tham số ?1 = tổ chức, ?2 = loai, ?3 = ten.
-function khopKhoa(k) {
-  return k.nguon === 'gmail'
-    ? `to_chuc_id = ?1 AND nguon = 'gmail' AND ?2 = 'thu' AND ${THU_GUI} = ?3`
-    : `to_chuc_id = ?1 AND nguon = 'zalo' AND ${LOAI_TIN_ZALO} = ?2 AND ${TEN_TIN_ZALO} = ?3`;
-}
-
-export async function laTinBiChan(env, toChucId, tin) {
-  const k = khoaChan(tin);
-  if (!k.ten) return false;
-  const r = await env.CSDL.prepare('SELECT 1 AS x FROM chan_tin WHERE to_chuc_id = ?1 AND nguon = ?2 AND loai = ?3 AND ten = ?4')
-    .bind(toChucId, k.nguon, k.loai, k.ten).first();
-  return Boolean(r);
-}
-
-const TEN_LOAI = { nhom: 'nhóm Zalo', 'ca-nhan': 'người gửi Zalo', thu: 'địa chỉ thư' };
-
-export async function danhDauSpam(env, tc, tinId) {
-  const tin = await env.CSDL.prepare('SELECT id, nguon, nguoi_gui, nhom, tieu_de FROM tin_nhan WHERE id = ?1 AND to_chuc_id = ?2').bind(tinId, tc).first();
-  if (!tin) return { loi: 'Không tìm thấy tin này.', ma: 404 };
-  const k = khoaChan(tin);
-  if (!k.ten) return { loi: 'Tin này không có người gửi để chặn.', ma: 400 };
-  const bayGio = new Date().toISOString();
-  const dk = khopKhoa(k);
-  await env.CSDL.prepare(
-    `INSERT INTO chan_tin (to_chuc_id, nguon, loai, ten, tao_luc) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT (to_chuc_id, nguon, loai, ten) DO NOTHING`,
-  ).bind(tc, k.nguon, k.loai, k.ten, bayGio).run();
-  // Tin chưa tách thì coi như đã xử lý để AI không lấy ra làm việc.
-  const { results: tinAn } = await env.CSDL.prepare(
-    `UPDATE tin_nhan SET spam = 1, da_xem = 1, da_tach = CASE WHEN da_tach IN (0, 3) THEN 1 ELSE da_tach END WHERE ${dk} RETURNING id`,
-  ).bind(tc, k.loai, k.ten).all();
-  const { results: viecHuy } = await env.CSDL.prepare(
-    `UPDATE viec SET trang_thai = 'huy', xong_luc = NULL, cap_nhat_luc = ?4
-     WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND tin_nhan_id IN (SELECT id FROM tin_nhan WHERE spam = 1 AND ${dk})
-     RETURNING id`,
-  ).bind(tc, k.loai, k.ten, bayGio).all();
-  for (const v of viecHuy) await ghiSuKien(env, tc, v.id, 'huy', `Hủy vì ${TEN_LOAI[k.loai]} "${k.ten}" bị đánh dấu spam`).catch(() => {});
-  const cu = await env.CSDL.prepare('SELECT id, viec_huy FROM chan_tin WHERE to_chuc_id = ?1 AND nguon = ?2 AND loai = ?3 AND ten = ?4')
-    .bind(tc, k.nguon, k.loai, k.ten).first();
-  const ids = [...new Set([...docDs(cu?.viec_huy), ...viecHuy.map((v) => v.id)])];
-  await env.CSDL.prepare('UPDATE chan_tin SET so_tin = (SELECT COUNT(*) FROM tin_nhan WHERE spam = 1 AND ' + dk + '), viec_huy = ?4 WHERE id = ?5')
-    .bind(tc, k.loai, k.ten, JSON.stringify(ids), cu.id).run();
-  return { chan: { id: cu.id, ...k, ten_loai: TEN_LOAI[k.loai] }, so_tin: tinAn.length, so_viec_huy: viecHuy.length };
-}
-
-export async function dsChan(env, tc) {
-  const { results } = await env.CSDL.prepare('SELECT id, nguon, loai, ten, so_tin, viec_huy, tao_luc FROM chan_tin WHERE to_chuc_id = ?1 ORDER BY id DESC').bind(tc).all();
-  return results.map((r) => ({ id: r.id, nguon: r.nguon, loai: r.loai, ten: r.ten, ten_loai: TEN_LOAI[r.loai], so_tin: r.so_tin, so_viec_huy: docDs(r.viec_huy).length, tao_luc: r.tao_luc }));
-}
-
-export async function boChan(env, tc, id) {
-  const r = await env.CSDL.prepare('SELECT * FROM chan_tin WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
-  if (!r) return { loi: 'Không tìm thấy mục chặn này.', ma: 404 };
-  const k = { nguon: r.nguon, loai: r.loai, ten: r.ten };
-  const bayGio = new Date().toISOString();
-  const { results: tin } = await env.CSDL.prepare(`UPDATE tin_nhan SET spam = 0 WHERE spam = 1 AND ${khopKhoa(k)} RETURNING id`).bind(tc, k.loai, k.ten).all();
-  // Chỉ mở lại việc do chính lần chặn này hủy và vẫn còn ở trạng thái hủy.
-  let soMoLai = 0;
-  for (const viecId of docDs(r.viec_huy)) {
-    const kq = await env.CSDL.prepare(`UPDATE viec SET trang_thai = 'mo', cap_nhat_luc = ?3 WHERE id = ?1 AND to_chuc_id = ?2 AND trang_thai = 'huy'`).bind(viecId, tc, bayGio).run();
-    if (kq.meta?.changes) {
-      soMoLai++;
-      await ghiSuKien(env, tc, viecId, 'mo_lai', `Mở lại vì bỏ chặn ${TEN_LOAI[k.loai]} "${k.ten}"`).catch(() => {});
-    }
+// Các cách chặn có thể áp cho một tin, để giao diện cho người dùng chọn.
+export function tuyChonChan(tin) {
+  if (tin.nguon === 'zalo') {
+    if (tin.nhom) return [{ loai: 'nhom', gia_tri: tin.nhom, nhan: tin.nhom }];
+    const ten = tin.tieu_de || tin.nguoi_gui || 'Không rõ';
+    return [{ loai: 'nguoi', gia_tri: ten, nhan: ten }];
   }
-  await env.CSDL.prepare('DELETE FROM chan_tin WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).run();
-  return { ok: true, so_tin: tin.length, so_viec_mo_lai: soMoLai };
+  const ra = [];
+  const diaChi = diaChiTuNguoiGui(tin.nguoi_gui);
+  const ten = String(tin.nguoi_gui || '').trim();
+  if (ten) ra.push({ loai: 'nguoi', gia_tri: ten, nhan: ten.split('<')[0].trim() || ten });
+  if (diaChi) ra.push({ loai: 'dia_chi', gia_tri: diaChi, nhan: diaChi });
+  return ra;
 }
 
-function docDs(s) {
-  try {
-    const a = JSON.parse(s || '[]');
-    return Array.isArray(a) ? a.filter(Number.isInteger) : [];
-  } catch {
-    return [];
-  }
+export function kiemChan(than) {
+  const nguon = than.nguon;
+  const loai = than.loai;
+  const giaTri = cat(String(than.gia_tri || '').trim(), 300);
+  if (nguon !== 'zalo' && nguon !== 'gmail') return { loi: 'Nguồn không hợp lệ.' };
+  if (!LOAI.includes(loai) || (loai === 'dia_chi' && nguon !== 'gmail') || (loai === 'nhom' && nguon !== 'zalo')) return { loi: 'Kiểu chặn không hợp lệ.' };
+  if (!giaTri) return { loi: 'Thiếu tên cần chặn.' };
+  const nhan = cat(String(than.nhan || giaTri).trim(), 200);
+  return { chan: { nguon, loai, gia_tri: loai === 'dia_chi' ? giaTri.toLowerCase() : giaTri, nhan } };
+}
+
+// Tin mới về mà thuộc nguồn đã chặn thì ẩn ngay và đánh dấu đã tách, để không qua AI. Trả true nếu bị ẩn.
+export async function anTinNeuBiChan(env, toChucId, tinId) {
+  if (!tinId) return false;
+  const kq = await env.CSDL.prepare(
+    `UPDATE tin_nhan SET an = 1, da_xem = 1, da_tach = 1 WHERE id = ?1 AND to_chuc_id = ?2 AND ${KHOP_CHAN}`,
+  ).bind(tinId, toChucId).run();
+  return Boolean(kq.meta.changes);
+}
+
+export async function danhSachChan(env, toChucId) {
+  const { results } = await env.CSDL.prepare(
+    'SELECT id, nguon, loai, gia_tri, nhan, tao_luc FROM nguon_chan WHERE to_chuc_id = ?1 ORDER BY id DESC',
+  ).bind(toChucId).all();
+  return results;
+}
+
+export async function chanNguon(env, toChucId, chan) {
+  const bayGio = new Date().toISOString();
+  const dong = await env.CSDL.prepare(
+    `INSERT INTO nguon_chan (to_chuc_id, nguon, loai, gia_tri, nhan, tao_luc) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     ON CONFLICT (to_chuc_id, nguon, loai, gia_tri) DO UPDATE SET nhan = excluded.nhan RETURNING id`,
+  ).bind(toChucId, chan.nguon, chan.loai, chan.gia_tri, chan.nhan, bayGio).first();
+  // Gỡ việc chưa xong sinh từ các tin sắp bị ẩn, rồi mới ẩn tin (thứ tự này giữ được danh sách tin cần ẩn).
+  const { results: viec } = await env.CSDL.prepare(
+    `UPDATE viec SET trang_thai = 'huy', xong_luc = NULL, can_dong_bo = 1, cap_nhat_luc = ?2
+     WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND tin_nhan_id IN (
+       SELECT id FROM tin_nhan WHERE to_chuc_id = ?1 AND an = 0 AND ${KHOP_CHAN})
+     RETURNING id, tieu_de`,
+  ).bind(toChucId, bayGio).all();
+  for (const v of viec) await ghiSuKien(env, toChucId, v.id, 'huy', `Gỡ vì đã chặn ${chan.nhan}`).catch(() => {});
+  const an = await env.CSDL.prepare(`UPDATE tin_nhan SET an = 1, da_xem = 1 WHERE to_chuc_id = ?1 AND an = 0 AND ${KHOP_CHAN}`).bind(toChucId).run();
+  return { id: dong.id, an_tin: an.meta.changes, go_viec: viec.length };
+}
+
+export async function boChan(env, toChucId, id) {
+  const xoa = await env.CSDL.prepare('DELETE FROM nguon_chan WHERE id = ?1 AND to_chuc_id = ?2').bind(id, toChucId).run();
+  if (!xoa.meta.changes) return null;
+  const hien = await env.CSDL.prepare(`UPDATE tin_nhan SET an = 0 WHERE to_chuc_id = ?1 AND an = 1 AND NOT ${KHOP_CHAN}`).bind(toChucId).run();
+  return { hien_tin: hien.meta.changes };
 }

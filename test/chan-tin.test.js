@@ -1,85 +1,97 @@
-// Nút Spam: ẩn nhóm, người gửi, địa chỉ thư; không tách việc; hủy và mở lại việc; tin mới tự ẩn.
-import { test } from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
-import { d1, dungCsdl } from './csdl-thu.js';
-import { boChan, danhDauSpam, diaChiThu, dsChan, khoaChan } from '../src/chan-tin.js';
-import { luuTin } from '../src/hop-tin.js';
+import { DatabaseSync } from 'node:sqlite';
+import { anTinNeuBiChan, boChan, chanNguon, danhSachChan, diaChiTuNguoiGui, kiemChan, tuyChonChan } from '../src/chan-tin.js';
 
-function moi() {
-  const db = dungCsdl();
-  const env = { CSDL: d1(db) };
-  return { db, env };
+function csdlGia() {
+  const db = new DatabaseSync(':memory:');
+  db.exec(`CREATE TABLE nguon_chan (id INTEGER PRIMARY KEY AUTOINCREMENT, to_chuc_id TEXT, nguon TEXT, loai TEXT, gia_tri TEXT, nhan TEXT, tao_luc TEXT, UNIQUE (to_chuc_id, nguon, loai, gia_tri));
+    CREATE TABLE tin_nhan (id INTEGER PRIMARY KEY, to_chuc_id TEXT, nguon TEXT, nguoi_gui TEXT, nhom TEXT, tieu_de TEXT, da_xem INTEGER DEFAULT 0, da_tach INTEGER DEFAULT 0, an INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE viec (id INTEGER PRIMARY KEY, to_chuc_id TEXT, tieu_de TEXT, trang_thai TEXT, tin_nhan_id INTEGER, can_dong_bo INTEGER DEFAULT 0, xong_luc TEXT, cap_nhat_luc TEXT);
+    CREATE TABLE viec_su_kien (id INTEGER PRIMARY KEY AUTOINCREMENT, to_chuc_id TEXT, viec_id INTEGER, du_an_id INTEGER, loai TEXT, noi_dung TEXT, tin_nhan_id INTEGER, luc TEXT);`);
+  return {
+    db,
+    CSDL: { prepare: (sql) => ({ bind: (...tham) => {
+      const th = [...sql.matchAll(/\?(\d+)/g)].map((m) => tham[m[1] - 1]);
+      const q = db.prepare(sql.replace(/\?(\d+)/g, '?'));
+      return { all: async () => ({ results: q.all(...th) }), first: async () => q.get(...th) ?? null, run: async () => ({ meta: { changes: Number(q.run(...th).changes) } }) };
+    } }) },
+  };
 }
-const them = (env, tc, t) => luuTin(env, tc, { thoi_diem: '2026-10-13T01:00:00Z', ...t });
 
-test('khóa chặn: nhóm Zalo, người gửi Zalo, địa chỉ thư viết thường', () => {
-  assert.deepEqual(khoaChan({ nguon: 'zalo', nhom: 'VIBE WORKING', nguoi_gui: 'A' }), { nguon: 'zalo', loai: 'nhom', ten: 'VIBE WORKING' });
-  assert.deepEqual(khoaChan({ nguon: 'zalo', nhom: '', tieu_de: 'Lan', nguoi_gui: 'Lan' }), { nguon: 'zalo', loai: 'ca-nhan', ten: 'Lan' });
-  assert.equal(diaChiThu('GitHub <Noreply@GitHub.com>'), 'noreply@github.com');
-  assert.equal(diaChiThu('a@b.vn'), 'a@b.vn');
+function nap(env) {
+  const them = env.db.prepare('INSERT INTO tin_nhan (id, to_chuc_id, nguon, nguoi_gui, nhom, tieu_de, da_tach) VALUES (?, ?, ?, ?, ?, ?, 1)');
+  them.run(1, 't', 'zalo', 'An', 'Nhóm Quảng cáo', null);
+  them.run(2, 't', 'zalo', 'Bình', 'Nhóm Thật', null);
+  them.run(3, 't', 'zalo', 'Tôi', null, 'Chị Hoa');
+  them.run(4, 't', 'gmail', '"codex[bot]" <notifications@github.com>', null, 'Re: PR');
+  them.run(5, 't', 'gmail', '"claude[bot]" <notifications@github.com>', null, 'Re: PR 2');
+  them.run(6, 'khac', 'zalo', 'An', 'Nhóm Quảng cáo', null);
+  const v = env.db.prepare("INSERT INTO viec (id, to_chuc_id, tieu_de, trang_thai, tin_nhan_id) VALUES (?, 't', ?, ?, ?)");
+  v.run(1, 'Đăng ký ưu đãi', 'mo', 1);
+  v.run(2, 'Việc đã xong', 'xong', 1);
+  v.run(3, 'Họp nhóm thật', 'mo', 2);
+}
+
+const an = (env, id) => env.db.prepare('SELECT an FROM tin_nhan WHERE id = ?').get(id).an;
+const tt = (env, id) => env.db.prepare('SELECT trang_thai FROM viec WHERE id = ?').get(id).trang_thai;
+
+test('chặn nhóm Zalo: ẩn tin cũ của nhóm, gỡ việc chưa xong, không đụng nhóm khác hay tổ chức khác', async () => {
+  const env = csdlGia();
+  nap(env);
+  const kq = await chanNguon(env, 't', { nguon: 'zalo', loai: 'nhom', gia_tri: 'Nhóm Quảng cáo', nhan: 'Nhóm Quảng cáo' });
+  assert.deepEqual([kq.an_tin, kq.go_viec], [1, 1]);
+  assert.deepEqual([an(env, 1), an(env, 2), an(env, 6)], [1, 0, 0]);
+  assert.deepEqual([tt(env, 1), tt(env, 2), tt(env, 3)], ['huy', 'xong', 'mo']);
+  assert.equal(env.db.prepare('SELECT can_dong_bo AS c FROM viec WHERE id = 1').get().c, 1);
+  assert.equal(env.db.prepare("SELECT COUNT(*) AS n FROM viec_su_kien WHERE loai = 'huy'").get().n, 1);
 });
 
-test('đánh dấu spam một nhóm: ẩn tin cũ, hủy việc mở, tin mới tự ẩn, nhóm khác không bị ảnh hưởng; bỏ chặn thì hiện lại', async () => {
-  const { db, env } = moi();
-  const a1 = await them(env, 'a', { nguon: 'zalo', ma_goc: '1', nhom: 'VIBE WORKING CÙNG AI AGENT', nguoi_gui: 'X', noi_dung: 'Mời tham gia' });
-  const a2 = await them(env, 'a', { nguon: 'zalo', ma_goc: '2', nhom: 'VIBE WORKING CÙNG AI AGENT', nguoi_gui: 'Y', noi_dung: 'Hội thảo thứ 7' });
-  const khac = await them(env, 'a', { nguon: 'zalo', ma_goc: '3', nhom: 'Phòng Đào tạo', nguoi_gui: 'Z', noi_dung: 'Nộp báo cáo' });
-  const toChucKhac = await them(env, 'b', { nguon: 'zalo', ma_goc: '1', nhom: 'VIBE WORKING CÙNG AI AGENT', nguoi_gui: 'X', noi_dung: 'x' });
-  db.exec(`INSERT INTO viec (id, to_chuc_id, tieu_de, trang_thai, tin_nhan_id, tao_luc, cap_nhat_luc) VALUES
-    (1, 'a', 'Đi hội thảo', 'mo', ${a2}, 't', 't'), (2, 'a', 'Đã xong từ trước', 'xong', ${a1}, 't', 't'), (3, 'a', 'Nộp báo cáo', 'mo', ${khac}, 't', 't')`);
-
-  const kq = await danhDauSpam(env, 'a', a1);
-  assert.equal(kq.so_tin, 2);
-  assert.equal(kq.so_viec_huy, 1);
-  assert.equal(db.prepare('SELECT trang_thai FROM viec WHERE id = 1').get().trang_thai, 'huy');
-  assert.equal(db.prepare('SELECT trang_thai FROM viec WHERE id = 2').get().trang_thai, 'xong');
-  assert.equal(db.prepare('SELECT trang_thai FROM viec WHERE id = 3').get().trang_thai, 'mo');
-  assert.equal(db.prepare('SELECT spam FROM tin_nhan WHERE id = ?').get(khac).spam, 0);
-  assert.equal(db.prepare('SELECT spam FROM tin_nhan WHERE id = ?').get(toChucKhac).spam, 0);
-  // Không còn tin nào của nhóm chờ AI tách việc.
-  assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM tin_nhan WHERE to_chuc_id = 'a' AND da_tach = 0 AND spam = 1`).get().n, 0);
-
-  // Tin mới của nhóm bị chặn: lưu nhưng ẩn, coi như đã xem và đã tách.
-  const a3 = await them(env, 'a', { nguon: 'zalo', ma_goc: '4', nhom: 'VIBE WORKING CÙNG AI AGENT', nguoi_gui: 'X', noi_dung: 'Tin mới' });
-  assert.deepEqual({ ...db.prepare('SELECT spam, da_xem, da_tach FROM tin_nhan WHERE id = ?').get(a3) }, { spam: 1, da_xem: 1, da_tach: 1 });
-  const k4 = await them(env, 'a', { nguon: 'zalo', ma_goc: '5', nhom: 'Phòng Đào tạo', nguoi_gui: 'Z', noi_dung: 'Tin thường' });
-  assert.deepEqual({ ...db.prepare('SELECT spam, da_xem, da_tach FROM tin_nhan WHERE id = ?').get(k4) }, { spam: 0, da_xem: 0, da_tach: 0 });
-  // Tin trùng vẫn bị bỏ như cũ.
-  assert.equal(await them(env, 'a', { nguon: 'zalo', ma_goc: '4', nhom: 'VIBE WORKING CÙNG AI AGENT', noi_dung: 'lặp' }), null);
-
-  const ds = await dsChan(env, 'a');
-  assert.equal(ds.length, 1);
-  assert.equal(ds[0].so_viec_huy, 1);
-  assert.equal((await dsChan(env, 'b')).length, 0);
-  assert.equal((await boChan(env, 'b', ds[0].id)).ma, 404, 'tổ chức khác không bỏ chặn được');
-
-  const bo = await boChan(env, 'a', ds[0].id);
-  assert.equal(bo.so_tin, 3);
-  assert.equal(bo.so_viec_mo_lai, 1);
-  assert.equal(db.prepare('SELECT trang_thai FROM viec WHERE id = 1').get().trang_thai, 'mo');
-  assert.equal((await dsChan(env, 'a')).length, 0);
+test('tin riêng Zalo chặn theo tên người đối diện; thư chặn theo người gửi hoặc cả địa chỉ', async () => {
+  const env = csdlGia();
+  nap(env);
+  await chanNguon(env, 't', { nguon: 'zalo', loai: 'nguoi', gia_tri: 'Chị Hoa', nhan: 'Chị Hoa' });
+  assert.equal(an(env, 3), 1);
+  await chanNguon(env, 't', { nguon: 'gmail', loai: 'nguoi', gia_tri: '"codex[bot]" <notifications@github.com>', nhan: 'codex[bot]' });
+  assert.deepEqual([an(env, 4), an(env, 5)], [1, 0]);
+  await chanNguon(env, 't', { nguon: 'gmail', loai: 'dia_chi', gia_tri: 'notifications@github.com', nhan: 'notifications@github.com' });
+  assert.equal(an(env, 5), 1);
 });
 
-test('đánh dấu spam một địa chỉ thư khớp mọi tên hiển thị của địa chỉ đó', async () => {
-  const { db, env } = moi();
-  const t1 = await them(env, 'a', { nguon: 'gmail', ma_goc: 'm1', nguoi_gui: 'GitHub <noreply@github.com>', tieu_de: 'PR', noi_dung: 'x' });
-  await them(env, 'a', { nguon: 'gmail', ma_goc: 'm2', nguoi_gui: 'HaiTLU via GitHub <NOREPLY@github.com>', tieu_de: 'CI', noi_dung: 'y' });
-  const giu = await them(env, 'a', { nguon: 'gmail', ma_goc: 'm3', nguoi_gui: 'Phòng Đào tạo <daotao@truong.vn>', tieu_de: 'Lịch', noi_dung: 'z' });
-  const kq = await danhDauSpam(env, 'a', t1);
-  assert.equal(kq.so_tin, 2);
-  assert.equal(kq.chan.ten, 'noreply@github.com');
-  assert.equal(db.prepare('SELECT spam FROM tin_nhan WHERE id = ?').get(giu).spam, 0);
-  const moiVe = await them(env, 'a', { nguon: 'gmail', ma_goc: 'm4', nguoi_gui: 'noreply@github.com', tieu_de: 'Mới', noi_dung: 'w' });
-  assert.equal(db.prepare('SELECT spam FROM tin_nhan WHERE id = ?').get(moiVe).spam, 1);
+test('tin mới về từ nguồn đã chặn bị ẩn và đánh dấu đã tách, tin khác thì không', async () => {
+  const env = csdlGia();
+  nap(env);
+  await chanNguon(env, 't', { nguon: 'zalo', loai: 'nhom', gia_tri: 'Nhóm Quảng cáo', nhan: 'x' });
+  env.db.prepare("INSERT INTO tin_nhan (id, to_chuc_id, nguon, nguoi_gui, nhom) VALUES (10, 't', 'zalo', 'C', 'Nhóm Quảng cáo')").run();
+  env.db.prepare("INSERT INTO tin_nhan (id, to_chuc_id, nguon, nguoi_gui, nhom) VALUES (11, 't', 'zalo', 'C', 'Nhóm Thật')").run();
+  assert.equal(await anTinNeuBiChan(env, 't', 10), true);
+  assert.equal(await anTinNeuBiChan(env, 't', 11), false);
+  assert.deepEqual({ ...env.db.prepare('SELECT an, da_tach, da_xem FROM tin_nhan WHERE id = 10').get() }, { an: 1, da_tach: 1, da_xem: 1 });
+  assert.equal(env.db.prepare('SELECT da_tach FROM tin_nhan WHERE id = 11').get().da_tach, 0);
 });
 
-test('đánh dấu spam tin riêng Zalo chỉ ẩn hội thoại với người đó', async () => {
-  const { db, env } = moi();
-  const t1 = await them(env, 'a', { nguon: 'zalo', ma_goc: 'r1', tieu_de: 'Quảng cáo ABC', nguoi_gui: 'Quảng cáo ABC', noi_dung: 'Giảm giá' });
-  const giu = await them(env, 'a', { nguon: 'zalo', ma_goc: 'r2', tieu_de: 'Chị Lan', nguoi_gui: 'Chị Lan', noi_dung: 'Họp lúc 9h' });
-  const kq = await danhDauSpam(env, 'a', t1);
-  assert.equal(kq.chan.loai, 'ca-nhan');
-  assert.equal(kq.so_tin, 1);
-  assert.equal(db.prepare('SELECT spam FROM tin_nhan WHERE id = ?').get(giu).spam, 0);
-  assert.equal((await danhDauSpam(env, 'b', t1)).ma, 404, 'tổ chức khác không chạm được tin');
+test('bỏ chặn: tin hiện lại, trừ tin vẫn thuộc nguồn khác còn chặn', async () => {
+  const env = csdlGia();
+  nap(env);
+  const a = await chanNguon(env, 't', { nguon: 'gmail', loai: 'nguoi', gia_tri: '"codex[bot]" <notifications@github.com>', nhan: 'codex' });
+  const b = await chanNguon(env, 't', { nguon: 'gmail', loai: 'dia_chi', gia_tri: 'notifications@github.com', nhan: 'địa chỉ' });
+  assert.deepEqual([an(env, 4), an(env, 5)], [1, 1]);
+  await boChan(env, 't', b.id);
+  assert.deepEqual([an(env, 4), an(env, 5)], [1, 0]); // tin 4 vẫn bị chặn theo tên người gửi
+  assert.equal((await boChan(env, 't', a.id)).hien_tin, 1);
+  assert.equal(an(env, 4), 0);
+  assert.equal(await boChan(env, 't', 999), null);
+  assert.equal((await danhSachChan(env, 't')).length, 0);
+});
+
+test('kiểm yêu cầu chặn và cách chặn gợi ý cho từng loại tin', () => {
+  assert.ok(kiemChan({ nguon: 'zalo', loai: 'dia_chi', gia_tri: 'a@b.c' }).loi);
+  assert.ok(kiemChan({ nguon: 'gmail', loai: 'nhom', gia_tri: 'x' }).loi);
+  assert.ok(kiemChan({ nguon: 'zalo', loai: 'nhom', gia_tri: ' ' }).loi);
+  assert.equal(kiemChan({ nguon: 'gmail', loai: 'dia_chi', gia_tri: 'Notifications@GitHub.com' }).chan.gia_tri, 'notifications@github.com');
+  assert.equal(diaChiTuNguoiGui('"x" <A@B.com>'), 'a@b.com');
+  assert.equal(diaChiTuNguoiGui('a@b.com'), 'a@b.com');
+  assert.deepEqual(tuyChonChan({ nguon: 'zalo', nhom: 'Nhóm A' }).map((c) => c.loai), ['nhom']);
+  assert.deepEqual(tuyChonChan({ nguon: 'zalo', tieu_de: 'Chị Hoa', nguoi_gui: 'Tôi' })[0].gia_tri, 'Chị Hoa');
+  assert.deepEqual(tuyChonChan({ nguon: 'gmail', nguoi_gui: '"x" <a@b.com>' }).map((c) => c.loai), ['nguoi', 'dia_chi']);
 });

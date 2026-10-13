@@ -62,7 +62,7 @@ export async function nhanZalo(yeuCau, env, ctx, duongDan) {
       const id = await luuTin(env, toChucId, tinMoi);
       if (!id) continue;
       moi++;
-      if (docDiaChiNgoai(tinMoi.noi_dung)) canNap.push(id);
+      if (!tinMoi.an && docDiaChiNgoai(tinMoi.noi_dung)) canNap.push(id);
     }
     // Tải ảnh và tệp về kho ngay khi tin về, trước khi đường dẫn Zalo hết hạn. Lỗi thì bỏ qua, trang tin vẫn thử lại khi mở.
     if (canNap.length) ctx.waitUntil((async () => { for (const id of canNap.slice(0, 15)) await napTepNgoai(env, toChucId, id).catch(() => {}); })());
@@ -97,15 +97,16 @@ export async function nhanZalo(yeuCau, env, ctx, duongDan) {
     const thoiDiem = form.get('thoiGian') ? new Date(String(form.get('thoiGian'))).toISOString() : new Date().toISOString();
     const nguoiGui = String(form.get('nguoiGui') || '');
     const nhom = String(form.get('nhom') || '');
-    const tinId = await luuTin(env, toChucId, {
+    const tinTep = {
       nguon: 'zalo',
       ma_goc: `tep-${thoiDiem}-${ten}`,
       nguoi_gui: nguoiGui,
       nhom: nhom || null,
       noi_dung: `Gửi tệp: ${ten}${form.get('ngucanh') ? `\n${form.get('ngucanh')}` : ''}`,
       thoi_diem: thoiDiem,
-    });
-    if (duLieu && typeof duLieu !== 'string') {
+    };
+    const tinId = await luuTin(env, toChucId, tinTep);
+    if (duLieu && typeof duLieu !== 'string' && !tinTep.an) {
       if (duLieu.size > TEP_TOI_DA) return loi(413, 'Tệp lớn quá 25 MB.');
       await luuTep(env, toChucId, {
         ten,

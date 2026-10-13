@@ -22,7 +22,7 @@ function gieo(db, tc) {
   db.exec(`INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES ('${tc}', 'tich_hop_github', 'bi-mat')`);
   db.exec(`INSERT INTO ket_noi (to_chuc_id, loai, cap_nhat_luc) VALUES ('${tc}', 'ai', 't')`);
   db.exec(`INSERT INTO khoa_truy_cap (ma_bam, to_chuc_id, loai, tao_luc) VALUES ('bam_${tc}', '${tc}', 'zalo', 't')`);
-  db.exec(`INSERT INTO chan_tin (to_chuc_id, nguon, loai, ten, tao_luc) VALUES ('${tc}', 'zalo', 'nhom', 'Q', 't')`);
+  db.exec(`INSERT INTO nguon_chan (to_chuc_id, nguon, loai, gia_tri, nhan, tao_luc) VALUES ('${tc}', 'zalo', 'nhom', 'Q', 'Q', 't')`);
 }
 
 function moi() {
@@ -65,7 +65,7 @@ test('xóa: sao lưu trước, xóa sạch mọi bảng của tổ chức, tổ 
   for (const b of bangCoToChuc(db)) if (b !== 'to_chuc') assert.equal(dem(db, b, 'a'), 0, b);
   assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM to_chuc WHERE id = 'a'`).get().n, 0);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM nhac_da_gui').get().n, 1, 'chỉ còn nhắc của tổ chức b');
-  for (const b of ['viec', 'tin_nhan', 'tep', 'thanh_vien', 'ket_noi', 'chan_tin']) assert.equal(dem(db, b, 'b'), 1, b);
+  for (const b of ['viec', 'tin_nhan', 'tep', 'thanh_vien', 'ket_noi', 'nguon_chan']) assert.equal(dem(db, b, 'b'), 1, b);
   // Tệp R2 còn giữ để khôi phục trong 30 ngày.
   assert.ok(env.TEP.kho.has('a/2026-10/a.pdf'));
   assert.ok(env.TEP.kho.has('xoa-cho/a.json'));

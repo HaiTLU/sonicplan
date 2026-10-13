@@ -5,7 +5,7 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 ## [1.3.0] - 2026-10-13
 
 ### Thêm
-- Nút "Spam" khi đọc tin và ở đầu hội thoại Zalo: ẩn cả nhóm Zalo, người gửi Zalo hoặc địa chỉ thư. Tin cũ và tin mới của họ không hiện, không đếm, không tách thành việc; việc đang mở tạo từ các tin đó bị hủy. Mục "Đã chặn" trong Hộp tin để bỏ chặn (tin hiện lại, việc mở lại).
+- Nút "Spam" ở Hộp tin (PR #61): chặn nhóm Zalo, người gửi hoặc địa chỉ thư; tin của họ không hiện, không tách thành việc; mục "Đã chặn" để bỏ chặn.
 - Nhật ký ai xem, tải dữ liệu ở trang Dữ liệu của bạn.
 - Chủ tổ chức tự xóa cả tổ chức: hỏi hai lần, sao lưu trước, giữ bản sao 30 ngày.
 - Kiểm tra trợ năng tự động bằng axe-core trong CI.
