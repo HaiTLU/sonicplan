@@ -1680,8 +1680,10 @@ function chuDau(ten) {
   const chu = tu.length > 1 ? Array.from(tu[0])[0] + Array.from(tu[tu.length - 1])[0] : Array.from(tu[0] || '?').slice(0, 2).join('');
   return chu.toUpperCase();
 }
+// Bảy màu như Telegram: cùng một tên luôn ra cùng một màu, ở ảnh đại diện và tên người gửi trong nhóm.
+const chiSoMau = (ten) => mauAnh(ten) % 7;
 function anhZalo(ten, loai) {
-  return h('span', { class: `anh-zalo${loai === 'nhom' ? ' nhom' : ''}`, style: `--h:${mauAnh(ten)}`, 'aria-hidden': 'true', text: chuDau(ten) });
+  return h('span', { class: `anh-zalo${loai === 'nhom' ? ' nhom' : ''}`, 'data-m': String(chiSoMau(ten)), style: `--h:${mauAnh(ten)}`, 'aria-hidden': 'true', text: chuDau(ten) });
 }
 function nhanNgayTin(iso) {
   const d = new Date(iso);
@@ -1756,6 +1758,11 @@ function chuCoLienKet(chu) {
   return h('span', { class: 'chu-tin' }, ...tachLienKet(chu).map((p) => (p.url ? h('a', { href: p.url, target: '_blank', rel: 'noopener noreferrer', text: p.url }) : p.chu)));
 }
 
+function cuocGoi(chu) {
+  const [dong1, ...con] = String(chu).split('\n');
+  return h('div', { class: 'cuoc-goi' }, h('span', { class: 'ic-goi' }, icon('dien-thoai')), h('div', { class: 'tt-goi' }, h('strong', { text: dong1 }), con.length ? h('small', { text: con.join(' ') }) : null));
+}
+
 function noiDungBong(m, files, tepTheoTin) {
   const k = phanTichTin(m.noi_dung);
   const ra = [];
@@ -1763,17 +1770,49 @@ function noiDungBong(m, files, tepTheoTin) {
   else if (k.kieu === 'tep-ngoai') ra.push(files[0] ? tepTrongTin(files[0]) : tepNgoaiTrongTin(m, k.ten));
   else if (k.kieu === 'tep-gui') { ra.push(...files.map(tepTrongTin)); if (k.chu) ra.push(chuCoLienKet(k.chu)); }
   else if (k.kieu === 'the-lien-ket') ra.push(h('a', { class: 'the-lien-ket', href: k.url, target: '_blank', rel: 'noopener noreferrer' }, h('strong', { text: k.tieu_de }), k.mo_ta ? h('span', { text: k.mo_ta }) : null, h('small', { text: k.mien })));
-  else if (k.kieu === 'danh-thiep') ra.push(h('div', { class: 'the-lien-ket' }, h('strong', { text: k.ten || 'Danh thiếp' }), h('span', { text: k.dien_thoai }), h('small', { text: 'Danh thiếp Zalo' })));
+  else if (k.kieu === 'danh-thiep') ra.push(h('div', { class: 'the-lien-he' }, anhZalo(k.ten || 'Danh thiếp', 'ca-nhan'), h('div', { class: 'tt-lien-he' }, h('strong', { text: k.ten || 'Danh thiếp' }), k.dien_thoai ? h('span', { text: k.dien_thoai }) : null, h('small', { text: 'Danh thiếp Zalo' }))));
   else if (k.kieu === 'thu-hoi') ra.push(h('span', { class: 'chu-tin nhat', text: 'Tin nhắn đã thu hồi' }));
   else if (k.kieu === 'nhan-dan') ra.push(h('span', { class: 'chu-tin nhat', text: 'Đã gửi một nhãn dán' }));
   else if (k.kieu === 'binh-chon') ra.push(h('span', { class: 'chu-tin nhat', text: 'Bình chọn trong nhóm' }));
   else if (k.kieu === 'video') ra.push(h('span', { class: 'chu-tin nhat', text: 'Đã gửi một video (xem trong Zalo)' }));
+  else if (/^Cuộc gọi/i.test(k.chu || '')) ra.push(cuocGoi(k.chu));
   else ra.push(chuCoLienKet(k.chu));
   if (files.length && !['tep-gui', 'anh', 'tep-ngoai'].includes(k.kieu)) ra.push(...files.map(tepTrongTin));
   return { nut: ra, coAnh: k.kieu === 'anh' || (k.kieu === 'tep-gui' && files.some((f) => kieuXemTep(f.ten) === 'anh')) };
 }
 
 const khoaHoiThoai = (loai, ten) => `${loai}~${encodeURIComponent(ten)}`;
+
+// Khung soạn tin: Sonicplan không gửi thay bạn. Bấm gửi thì chép tin và mở Zalo để bạn dán vào đúng hội thoại.
+function khungSoan(ten) {
+  const o = h('textarea', { class: 'o-soan', name: 'tin', autocomplete: 'off', rows: '1', maxlength: '4000', placeholder: 'Soạn tin…', 'aria-label': `Soạn tin cho ${ten}` });
+  const nut = h('button', { class: 'nut-gui-zalo', type: 'submit', disabled: true, 'aria-label': 'Chép tin và mở Zalo' }, icon('gui'));
+  const khop = () => { o.style.height = 'auto'; o.style.height = `${Math.min(o.scrollHeight, 160)}px`; nut.disabled = !o.value.trim(); };
+  o.addEventListener('input', khop);
+  const form = h('form', { class: 'soan-zalo' }, o, nut);
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const van = o.value.trim();
+    if (!van) return;
+    // Mở Zalo ngay trong lúc còn thao tác bấm của người dùng (Safari chặn cửa sổ mở sau lệnh chờ), rồi mới đợi kết quả chép.
+    const chep = navigator.clipboard.writeText(van);
+    window.open('https://chat.zalo.me/', '_blank', 'noopener');
+    try {
+      await chep;
+    } catch {
+      bao('Trình duyệt chặn chép. Tin vẫn còn trong ô soạn: bôi đen và chép tay, hoặc cho phép trang này chép.', { loi: true });
+      return;
+    }
+    bao(`Đã chép tin. Dán vào hội thoại "${ten}" trong Zalo rồi bấm gửi.`);
+    o.value = '';
+    khop();
+  });
+  // Enter gửi, Shift+Enter xuống dòng. Đang gõ dấu tiếng Việt (IME) thì Enter chỉ chốt chữ, không gửi.
+  o.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && ev.keyCode !== 229) { ev.preventDefault(); form.requestSubmit(); }
+  });
+  return h('div', { class: 'vung-soan' }, form, h('p', { class: 'goi-y-soan', text: 'Sonicplan không gửi thay bạn: bấm gửi sẽ chép tin và mở Zalo.' }));
+}
 
 async function veZalo(goc, thamSo) {
   const z = trang.zalo;
@@ -1861,6 +1900,13 @@ async function veZalo(goc, thamSo) {
         } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
       } }, 'Xem tin cũ hơn'));
       let truoc = null;
+      let truocEl = null;
+      // Hết một cụm tin liền nhau: đánh dấu tin cuối (có đuôi bong bóng) và đặt ảnh đại diện ở đó, như Telegram.
+      const dongCum = () => {
+        if (!truocEl) return;
+        truocEl.classList.add('cuoi');
+        if (!truocEl.classList.contains('toi')) truocEl.querySelector('.cho-anh')?.replaceWith(anhZalo(truocEl._ten, 'ca-nhan'));
+      };
       for (const m of tin) {
         const ngay = nhanNgayTin(m.thoi_diem);
         const ngayMoi = !truoc || nhanNgayTin(truoc.thoi_diem) !== ngay;
@@ -1870,16 +1916,21 @@ async function veZalo(goc, thamSo) {
         const files = theoTin.get(m.id) || [];
         const { nut, coAnh } = noiDungBong(m, files);
         const ten = m.nguoi_gui || 'Không rõ';
-        const bong = h('div', { class: `bong-chat${coAnh ? ' co-anh' : ''}` }, ...nut, h('time', { datetime: m.thoi_diem, text: fmt.gioPhut.format(new Date(m.thoi_diem)) }));
-        con.push(h('div', { class: `tin-zalo${toi ? ' toi' : ''}${lien ? ' lien' : ''}` },
-          toi ? null : lien ? h('span', { class: 'cho-anh', 'aria-hidden': 'true' }) : anhZalo(ten, 'ca-nhan'),
-          h('div', { class: 'cot-tin' },
-            !toi && loai === 'nhom' && !lien ? h('span', { class: 'ten-gui', text: ten }) : null,
-            bong,
-          ),
-        ));
+        if (!lien) dongCum();
+        const bong = h('div', { class: `bong-chat${coAnh ? ' co-anh' : ''}` },
+          !toi && loai === 'nhom' && !lien ? h('span', { class: `ten-gui m${chiSoMau(ten)}`, text: ten }) : null,
+          ...nut,
+          h('time', { datetime: m.thoi_diem, text: fmt.gioPhut.format(new Date(m.thoi_diem)) }));
+        const hang = h('div', { class: `tin-zalo${toi ? ' toi' : ''}${lien ? ' lien' : ''}` },
+          toi ? null : h('span', { class: 'cho-anh', 'aria-hidden': 'true' }),
+          h('div', { class: 'cot-tin' }, bong),
+        );
+        hang._ten = ten;
+        con.push(hang);
+        truocEl = hang;
         truoc = m;
       }
+      dongCum();
       thay(luong, con);
     };
     const spamZalo = nutSpam({
@@ -1900,7 +1951,7 @@ async function veZalo(goc, thamSo) {
         ),
         spamZalo.khung,
         luong,
-        h('p', { class: 'zalo-chi-doc', text: 'Sonicplan chỉ đọc tin Zalo, không gửi tin thay bạn.' }),
+        khungSoan(ten),
       );
       veLuong();
       luong.scrollTop = luong.scrollHeight;
