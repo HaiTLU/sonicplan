@@ -20,6 +20,7 @@ import { caiBot, layBot, maNoiTelegram } from './telegram.js';
 import { chuanHoaCauHinhAi, dangViecMoi, docTichHop, giaiTichHop, guiDiaChiNhan, KHOA_TICH_HOP, kiemDiaChiNhan, luuTichHop, thuAiNgoai, xoaTichHop } from './tich-hop.js';
 import { bam, cat, json, loi, maNgauNhien, ngayVN } from './tien-ich.js';
 import { tinhTinhTrang } from './tinh-trang.js';
+import { TAC_VU } from './lich-chay.js';
 import { chuTuDocx, loaiXem, TOI_DA_DOCX } from './xem-tep.js';
 import { themViec } from './viec.js';
 import { chuanMau } from './mau.js';
@@ -356,28 +357,33 @@ async function tongQuan(env, tc, phien) {
   const tuanTruoc = new Date(Date.now() - 7 * 86400000).toISOString();
   const haiTuan = new Date(Date.now() - 14 * 86400000).toISOString();
   const ngay8 = congNgayIso(homNay, -7);
+  // Lọc theo khoảng thời gian UTC của ngày VN để dùng được chỉ mục; hàm date(datetime(...)) buộc quét cả bảng.
+  const dauNgay = (ngay) => new Date(`${ngay}T00:00:00+07:00`).toISOString();
+  const dau = dauNgay(homNay);
+  const cuoi = dauNgay(congNgayIso(homNay, 1));
+  const dau8 = dauNgay(ngay8);
   const theoGio = (bang, cot, them = '') =>
     env.CSDL.prepare(
       `SELECT CAST(strftime('%H', datetime(${cot}, '+7 hours')) AS INTEGER) AS gio, COUNT(*) AS n FROM ${bang}
-       WHERE to_chuc_id IN ${bang === 'nhat_ky_chay' ? "('', ?1)" : '(?1)'} ${bang === 'tin_nhan' ? 'AND an = 0' : ''} AND date(datetime(${cot}, '+7 hours')) = ?2 ${them} GROUP BY gio`,
-    ).bind(tc, homNay);
+       WHERE to_chuc_id IN ${bang === 'nhat_ky_chay' ? "('', ?1)" : '(?1)'} ${bang === 'tin_nhan' ? 'AND an = 0' : ''} AND ${cot} >= ?2 AND ${cot} < ?3 ${them} GROUP BY gio`,
+    ).bind(tc, dau, cuoi);
   const theoNgay = (bang, cot, them = '') =>
     env.CSDL.prepare(
       `SELECT date(datetime(${cot}, '+7 hours')) AS ngay, COUNT(*) AS n FROM ${bang}
-       WHERE to_chuc_id = ?1 ${them} AND date(datetime(${cot}, '+7 hours')) >= ?2 GROUP BY ngay`,
-    ).bind(tc, ngay8);
+       WHERE to_chuc_id = ?1 ${them} AND ${cot} >= ?2 GROUP BY ngay`,
+    ).bind(tc, dau8);
   const [soLieu, tinGio, viecGio, chayGio, chayLoiGio, sapToi, tinMoi, tinTuan, viecNgay, xongNgay, theoDuAn, claude, boCuc] = await env.CSDL.batch([
     env.CSDL.prepare(
       `SELECT
-        (SELECT COUNT(*) FROM tin_nhan WHERE to_chuc_id = ?1 AND an = 0 AND date(datetime(thoi_diem, '+7 hours')) = ?2) AS tin_hom_nay,
+        (SELECT COUNT(*) FROM tin_nhan WHERE to_chuc_id = ?1 AND an = 0 AND thoi_diem >= ?5 AND thoi_diem < ?6) AS tin_hom_nay,
         (SELECT COUNT(*) FROM tin_nhan WHERE to_chuc_id = ?1 AND an = 0 AND da_xem = 0) AS tin_chua_xem,
         (SELECT COUNT(*) FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo') AS viec_mo,
         (SELECT COUNT(*) FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay < ?2) AS viec_qua_han,
         (SELECT COUNT(*) FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay = ?2) AS viec_hom_nay,
-        (SELECT COUNT(*) FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'xong' AND date(datetime(xong_luc, '+7 hours')) = ?2) AS xong_hom_nay,
+        (SELECT COUNT(*) FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'xong' AND xong_luc >= ?5 AND xong_luc < ?6) AS xong_hom_nay,
         (SELECT COUNT(*) FROM tep WHERE to_chuc_id = ?1 AND tao_luc >= ?3) AS tep_tuan,
         (SELECT COUNT(*) FROM tep WHERE to_chuc_id = ?1 AND tao_luc >= ?4 AND tao_luc < ?3) AS tep_tuan_truoc`,
-    ).bind(tc, homNay, tuanTruoc, haiTuan),
+    ).bind(tc, homNay, tuanTruoc, haiTuan, dau, cuoi),
     theoGio('tin_nhan', 'thoi_diem'),
     theoGio('viec', 'tao_luc'),
     theoGio('nhat_ky_chay', 'bat_dau'),
@@ -447,11 +453,12 @@ function congNgayIso(ngay, n) {
 async function layTinhTrang(env, tc) {
   const [tinHieu, lanChayCuoi, khoa, tinHieuTc] = await env.CSDL.batch([
     env.CSDL.prepare(`SELECT nguon, lan_cuoi FROM tin_hieu WHERE to_chuc_id = ''`),
+    // Mỗi (tổ chức, tác vụ) lấy một dòng mới nhất qua chỉ mục, không quét cả nhật ký.
     env.CSDL.prepare(
-      `SELECT tac_vu, bat_dau, ket_thuc, trang_thai, so_muc, ghi_chu FROM nhat_ky_chay n
-       WHERE to_chuc_id IN ('', ?1)
-         AND id = (SELECT MAX(id) FROM nhat_ky_chay m WHERE m.tac_vu = n.tac_vu AND m.to_chuc_id = n.to_chuc_id)`,
-    ).bind(tc),
+      ['', tc].flatMap((_, i) => TAC_VU.map((__, j) =>
+        `SELECT * FROM (SELECT tac_vu, bat_dau, ket_thuc, trang_thai, so_muc, ghi_chu FROM nhat_ky_chay WHERE to_chuc_id = ?${i + 1} AND tac_vu = ?${j + 3} ORDER BY id DESC LIMIT 1)`)
+      ).join(' UNION ALL '),
+    ).bind('', tc, ...TAC_VU.map((t) => t.ma)),
     env.CSDL.prepare('SELECT loai, MAX(dung_luc) AS dung_luc FROM khoa_truy_cap WHERE to_chuc_id = ?1 GROUP BY loai').bind(tc),
     env.CSDL.prepare('SELECT nguon, lan_cuoi, ghi_chu FROM tin_hieu WHERE to_chuc_id = ?1').bind(tc),
   ]);
