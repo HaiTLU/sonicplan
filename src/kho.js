@@ -8,6 +8,7 @@ import { docHoSo } from './ghi-nho.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { docTichHop, luuTichHop, xoaTichHop } from './tich-hop.js';
 import { cat, chuanHoa, ngayVN } from './tien-ich.js';
+import { dongBoDuAn } from './kho-du-an.js';
 
 const DIA_CHI_DANG_NHAP = 'https://accounts.google.com/o/oauth2/v2/auth';
 const LECH_VN_MS = 7 * 3600000;
@@ -187,6 +188,20 @@ async function thuMucKho(env, tc, token, khoa, con = []) {
   return cha;
 }
 
+// Mã thư mục gốc "Sonicplan kho", tạo nếu chưa có.
+export async function thuMucGocKho(env, tc, token) {
+  let nho = {};
+  try { nho = JSON.parse((await docCaiDat(env, tc, 'kho_drive_thu_muc')) || '{}'); } catch { nho = {}; }
+  if (!nho.goc) {
+    nho.goc = await taoThuMuc(token, TEN_THU_MUC.goc, null);
+    await ghiCaiDat(env, tc, 'kho_drive_thu_muc', JSON.stringify(nho));
+  }
+  return nho.goc;
+}
+
+// Công cụ ghi Drive dùng chung cho phần kho theo dự án (truyền vào để hai tệp không gọi vòng nhau).
+export const congCuKho = (env, tc) => ({ dauVan, taoTepDrive, ghiNhoDaLuu, vanBanTinNgay, thuMucGocKho: (token) => thuMucGocKho(env, tc, token) });
+
 async function docQuyTac(env, tc) {
   try { return kiemQuyTac(JSON.parse((await docCaiDat(env, tc, 'kho_quy_tac')) || '[]')); } catch { return []; }
 }
@@ -324,7 +339,7 @@ async function luuViec(env, tc, token) {
 export async function dongBoKho(env, tc) {
   const token = await layTruyCapKho(env, tc);
   if (!token) return null;
-  const kq = { tep: 0, tin: 0, bo_nho: 0, viec: 0, loi: [] };
+  const kq = { tep: 0, tin: 0, bo_nho: 0, viec: 0, du_an: 0, loi: [] };
   const lam = async (ten, f) => {
     try { await f(); } catch (e) {
       kq.loi.push(`${ten}: ${String(e.message).slice(0, 100)}`);
@@ -336,7 +351,8 @@ export async function dongBoKho(env, tc) {
   await lam('Tin nhắn và thư', async () => { kq.tin = await luuTin(env, tc, token); });
   await lam('Bộ nhớ AI', async () => { kq.bo_nho = await luuBoNho(env, tc, token); });
   await lam('Việc', async () => { kq.viec = await luuViec(env, tc, token); });
-  const moi = kq.tep + kq.tin + kq.bo_nho + kq.viec;
-  await ghiTinHieu(env, tc, 'kho', kq.loi.length ? `Lỗi ${kq.loi.join('; ')}` : moi ? `Đã lưu ${kq.tep} tệp, ${kq.tin} ngày tin và thư, ${kq.bo_nho} bộ nhớ, ${kq.viec} danh sách việc` : 'Đã đồng bộ, chưa có gì mới');
+  await lam('Dự án', async () => { const r = await dongBoDuAn(env, tc, token, congCuKho(env, tc)); kq.du_an = r.so; kq.loi.push(...r.loi); });
+  const moi = kq.tep + kq.tin + kq.bo_nho + kq.viec + kq.du_an;
+  await ghiTinHieu(env, tc, 'kho', kq.loi.length ? `Lỗi ${kq.loi.join('; ')}` : moi ? `Đã lưu ${kq.tep} tệp, ${kq.tin} ngày tin và thư, ${kq.bo_nho} bộ nhớ, ${kq.viec} danh sách việc${kq.du_an ? `, ${kq.du_an} mục dự án` : ''}` : 'Đã đồng bộ, chưa có gì mới');
   return kq;
 }

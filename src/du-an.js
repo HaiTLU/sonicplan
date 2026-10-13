@@ -70,7 +70,7 @@ export function docTuKhoa(v) {
 
 export async function docDuAn(env, tc) {
   const { results } = await env.CSDL.prepare(
-    'SELECT id, ten, tu_khoa, thu_tu, mau, sao, drive_link, drive_duong_dan FROM du_an WHERE to_chuc_id = ?1 ORDER BY sao DESC, thu_tu, id',
+    'SELECT id, ten, tu_khoa, thu_tu, mau, sao, drive_link, drive_duong_dan, drive_kho_id FROM du_an WHERE to_chuc_id = ?1 ORDER BY sao DESC, thu_tu, id',
   ).bind(tc).all();
   return results.map((d) => ({ ...d, tu_khoa: docTuKhoa(d.tu_khoa) }));
 }

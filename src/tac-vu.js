@@ -59,7 +59,7 @@ export const CAC_TAC_VU = {
       try {
         const kq = await dongBoKho(env, id);
         if (!kq) continue;
-        muc += kq.tep + kq.tin + kq.bo_nho + kq.viec;
+        muc += kq.tep + kq.tin + kq.bo_nho + kq.viec + kq.du_an;
         loi.push(...kq.loi);
       } catch (e) {
         await ghiTinHieu(env, id, 'kho', `Lỗi ${String(e.message).slice(0, 120)}`);
