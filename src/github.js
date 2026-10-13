@@ -21,7 +21,7 @@ export function thanIssue(viec, nhan) {
   return { title: String(viec.tieu_de).slice(0, 200), body: dong.join('\n\n').slice(0, 6000), labels: [nhan] };
 }
 
-async function goiGithub(cauHinh, duongDan, { method = 'GET', body } = {}) {
+export async function goiGithub(cauHinh, duongDan, { method = 'GET', body } = {}) {
   const ph = await goiNgoai(`https://api.github.com${duongDan}`, {
     method,
     headers: { authorization: `Bearer ${cauHinh.token}`, accept: 'application/vnd.github+json', 'user-agent': 'Sonicplan', 'x-github-api-version': '2022-11-28', ...(body ? { 'content-type': 'application/json' } : {}) },

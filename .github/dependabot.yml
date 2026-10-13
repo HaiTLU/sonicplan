@@ -1,0 +1,9 @@
+# Mỗi tuần mở PR cập nhật thư viện và action có bản mới (gồm bản vá bảo mật).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }

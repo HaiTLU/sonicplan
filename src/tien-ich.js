@@ -3,7 +3,7 @@
 export function json(duLieu, trangThai = 200) {
   return new Response(JSON.stringify(duLieu), {
     status: trangThai,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' },
   });
 }
 

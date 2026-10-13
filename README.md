@@ -17,6 +17,7 @@ Tiến độ và quyết định: `LO_TRINH.md`. Kế hoạch đầy đủ nằm
 | `src/tac-vu.js` | Báo việc mới, canh Zalo, canh việc mất, dọn cuối ngày, sao lưu |
 | `src/lich-ics.js` | Đường dẫn lịch .ics cho Google, Apple, Outlook |
 | `src/telegram.js` | Bot Telegram: báo tin, lệnh /tomtat |
+| `src/claude-code.js`, `public/claude.js` | Giao việc cho Claude Code chạy trên GitHub Actions, nhận kết quả về `/nhan/claude`, hiện trong ngăn sửa việc |
 | `src/phien.js` | Xác định người dùng và tổ chức đang làm việc |
 | `src/xac-thuc.js` | Kiểm vé đăng nhập Cloudflare Access |
 | `src/ma-hoa.js` | Mã hóa khóa của khách trước khi lưu (dùng từ giai đoạn 1) |
@@ -42,7 +43,7 @@ npx wrangler dev --test-scheduled
 ## Kiểm trước khi gộp
 
 ```bash
-npm test                                         # 17 kiểm thử phải đạt
+npm test                                         # mọi kiểm thử phải đạt (GitHub Actions cũng chạy cho mỗi PR)
 npx wrangler deploy --dry-run --outdir .dung-thu # đóng gói được
 ```
 
