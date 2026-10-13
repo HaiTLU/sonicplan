@@ -451,6 +451,16 @@ async function dsTin(env, tc, url) {
     dieuKien.push(`t.nguon = ?${thamSo.length}`);
   }
   if (url.searchParams.get('chua_xem') === '1') dieuKien.push('t.da_xem = 0');
+  // Tin hôm nay (giờ Việt Nam), có thể chỉ một giờ: dùng khi bấm số liệu hoặc cột giờ ở trang Tổng quan.
+  if (url.searchParams.get('hom_nay') === '1') {
+    thamSo.push(ngayVN());
+    dieuKien.push(`date(datetime(t.thoi_diem, '+7 hours')) = ?${thamSo.length}`);
+    const gio = Number(url.searchParams.get('gio'));
+    if (url.searchParams.has('gio') && Number.isInteger(gio) && gio >= 0 && gio < 24) {
+      thamSo.push(gio);
+      dieuKien.push(`CAST(strftime('%H', datetime(t.thoi_diem, '+7 hours')) AS INTEGER) = ?${thamSo.length}`);
+    }
+  }
   const q = (url.searchParams.get('q') || '').trim();
   if (q) {
     thamSo.push(`%${q.replace(/[%_]/g, '')}%`);

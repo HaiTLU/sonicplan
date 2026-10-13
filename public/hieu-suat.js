@@ -278,9 +278,9 @@ export function dongHieuSuat(t) {
     const tai = hs.tai;
     el.replaceChildren(
       h('span', { class: 'hs-dai-nhan' }, icon('tong-quan'), 'Hiệu suất'),
-      h('span', { class: 'hs-dai-o' }, h('b', { text: `${x.hom_nay} xong` }), soSanh(h, x.hom_nay, x.tb7.so)),
-      h('span', { class: 'hs-dai-o' }, h('b', { text: hs.dung_han.ty_le == null ? 'Đúng hạn -' : `Đúng hạn ${hs.dung_han.ty_le}%` }), h('span', { class: 'hs-ss', text: `${hs.dung_han.qua_han_mo} việc quá hạn` })),
-      h('span', { class: `hs-dai-o muc-${tai.muc}` }, h('b', { text: `Tải ${tai.ty_le ?? 0}%` }), h('span', { class: 'hs-ss', text: `${TEN_MUC[tai.muc]}, ${gioPhut(tai.phut_hom_nay)} việc hôm nay` })),
+      h('span', { class: 'hs-dai-o', 'data-meo': `Việc bấm xong hôm nay, so với trung bình ${x.tb7.so} việc mỗi ngày trong 7 ngày qua. Bấm để mở trang Hiệu suất.` }, h('b', { text: `${x.hom_nay} xong` }), soSanh(h, x.hom_nay, x.tb7.so)),
+      h('span', { class: 'hs-dai-o', 'data-meo': `Trong 30 ngày qua, ${hs.dung_han.dung} trên ${hs.dung_han.co_han} việc có hạn được làm xong trước hoặc đúng hạn. Hiện còn ${hs.dung_han.qua_han_mo} việc mở đã quá hạn.` }, h('b', { text: hs.dung_han.ty_le == null ? 'Đúng hạn -' : `Đúng hạn ${hs.dung_han.ty_le}%` }), h('span', { class: 'hs-ss', text: `${hs.dung_han.qua_han_mo} việc quá hạn` })),
+      h('span', { class: `hs-dai-o muc-${tai.muc}`, 'data-meo': `Thời gian ước tính của việc có hạn đến hôm nay (${gioPhut(tai.phut_hom_nay)}) chia cho sức làm trung bình mỗi ngày (${gioPhut(tai.suc_lam)}${tai.suc_lam_uoc ? ', đang dùng mức mặc định vì chưa đủ dữ liệu' : ''}).` }, h('b', { text: `Tải ${tai.ty_le ?? 0}%` }), h('span', { class: 'hs-ss', text: `${TEN_MUC[tai.muc]}, ${gioPhut(tai.phut_hom_nay)} việc hôm nay` })),
       icon('mui-ten'),
     );
   }).catch(() => el.remove());
