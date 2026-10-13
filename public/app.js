@@ -951,11 +951,33 @@ async function veViec(goc) {
       napViec();
     } });
 
+  // Ô cuối dãy cột dự án: nhập tên rồi lưu bằng đúng API của trang Dự án, cột mới hiện ngay.
+  function oThemDuAn() {
+    const oTen = h('input', { name: 'ten', placeholder: 'Tên dự án mới…', maxlength: '60', 'aria-label': 'Tên dự án mới', autocomplete: 'off' });
+    const nutLuu = h('button', { class: 'nut nut-chinh', type: 'submit' }, 'Thêm');
+    const form = h('form', { class: 'them-nhanh' }, oTen, nutLuu);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!oTen.value.trim()) { oTen.focus(); bao('Nhập tên dự án trước đã.', { loi: true }); return; }
+      nutLuu.disabled = true;
+      try {
+        await api('/api/du-an', { method: 'POST', body: JSON.stringify({ ten: oTen.value }) });
+        bao('Đã thêm dự án.');
+        napViec();
+      } catch (err) { bao(err.message, { loi: true }); nutLuu.disabled = false; }
+    });
+    return h('section', { class: 'cot-viec cot-them-du-an', 'aria-label': 'Thêm dự án' }, h('header', {}, h('h2', {}, icon('cong'), 'Thêm dự án')), form);
+  }
+  function chonThemDuAn() {
+    if (v.xem !== 'du-an') { v.xem = 'du-an'; try { localStorage.setItem('sp.viec.xem', 'du-an'); } catch {} v.duAn = 'tat-ca'; veViec(goc); }
+    setTimeout(() => { const o = vung.querySelector('.cot-them-du-an input'); if (o) { o.scrollIntoView({ block: 'center', behavior: 'smooth' }); o.focus(); } }, 150);
+  }
+
   function veLoc(viec) {
     const dem = (f) => viec.filter(f).length;
     const chip = (ma, nhan, so, mau) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.duAn === ma), onclick: () => { v.duAn = ma; napViec(); } }, hexMau(mau) ? h('i', { class: 'cham-mau', style: `--mau:${hexMau(mau)}` }) : null, nhan, h('b', { text: String(so) }));
     const ds = duAnDs.filter((d) => viec.some((x) => x.du_an_id === d.id) || v.duAn === d.id);
-    thay(locDuAn, chip('tat-ca', 'Tất cả dự án', viec.length), ...ds.map((d) => chip(d.id, d.ten, dem((x) => x.du_an_id === d.id), d.mau)), dem((x) => !x.du_an_id) ? chip('khong', 'Chưa xếp dự án', dem((x) => !x.du_an_id)) : null);
+    thay(locDuAn, chip('tat-ca', 'Tất cả dự án', viec.length), ...ds.map((d) => chip(d.id, d.ten, dem((x) => x.du_an_id === d.id), d.mau)), dem((x) => !x.du_an_id) ? chip('khong', 'Chưa xếp dự án', dem((x) => !x.du_an_id)) : null, v.tab === 'mo' ? h('button', { class: 'chip chip-them', type: 'button', onclick: chonThemDuAn }, icon('cong'), 'Thêm dự án') : null);
   }
 
   async function napViec() {
@@ -970,7 +992,7 @@ async function veViec(goc) {
         && (v.tab !== 'mo' || ((v.nguon === 'tat-ca' || nhanNguon(x).ma === v.nguon) && (!hanKhop || hanKhop(x)) && (v.nang === 'tat-ca' || x.do_nang === v.nang) && (!v.chiSao || x.sao))));
       cacViec = new Map(tatCa.map((x) => [x.id, x]));
       homNayCuaViec = hn;
-      thay(vung, ...(v.tab === 'mo' ? (v.xem === 'du-an' ? cotTheoDuAn(viec, hn) : cotTheoHan(viec, hn)) : [cotXong(viec)]));
+      thay(vung, ...(v.tab === 'mo' ? (v.xem === 'du-an' ? [...cotTheoDuAn(viec, hn), oThemDuAn()] : cotTheoHan(viec, hn)) : [cotXong(viec)]));
     } catch (e) {
       thay(vung, khungLoi(e, napViec));
     }
