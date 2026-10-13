@@ -1130,3 +1130,23 @@ body.dang-keo-tha, body.dang-keo-tha * { user-select: none; -webkit-user-select:
 .cuon-bang th { position: sticky; top: 0; background: var(--mat); color: var(--chu); font-weight: 600; }
 .form-xoa { display: grid; gap: 12px; }
 .form-xoa input { max-width: 420px; }
+
+/* Số liệu bấm được và khung giải thích khi rê chuột (trang Tổng quan) */
+.meo { position: fixed; z-index: 1000; max-width: min(320px, calc(100vw - 16px)); padding: 9px 12px; border-radius: 10px; background: var(--chu); color: var(--nen, #fff); font-size: 13px; line-height: 1.45; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); pointer-events: none; }
+.meo[hidden] { display: none; }
+.o-so-bam { cursor: pointer; transition: background-color .15s; }
+.o-so-bam:hover { background: var(--mat-2); }
+.o-so .so-bam { color: inherit; text-decoration: none; }
+.o-so .so-bam::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.o-so .so-bam:focus-visible { outline: none; }
+.o-so .so-bam:focus-visible::after { outline: 2px solid var(--nhan); outline-offset: -2px; }
+.o-so .ghi a, .o-so [data-meo] { position: relative; z-index: 1; }
+.o-so .ghi a { color: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 3px; }
+.vong-bam { display: block; border-radius: 50%; color: inherit; text-decoration: none; }
+.vong-bam:hover .vong { filter: brightness(1.1); }
+.vong-bam:focus-visible { outline: 2px solid var(--nhan); outline-offset: 4px; }
+.song-so a { color: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 3px; }
+.song-so a:hover { color: var(--chu); }
+.song-so .so-loi { color: var(--loi); }
+.song-ve .vung-gio { cursor: pointer; }
+.hs-dai-o[data-meo] { cursor: help; }
