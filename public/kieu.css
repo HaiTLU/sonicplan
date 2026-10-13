@@ -1352,3 +1352,8 @@ details.bang-suc-khoe[open] > summary { padding-bottom: 0; }
 .cot-viec.thu-gon { min-height: 0; }
 .nut-menu-cot { position: static; opacity: 1; width: 26px; height: 26px; }
 @media (hover: hover) { .nut-menu-cot { opacity: 0; } .cot-viec:hover .nut-menu-cot, .nut-menu-cot:focus-visible { opacity: 1; } }
+
+/* Ảnh chụp trang cũ phủ lên lúc chuyển mục, mờ đi khi trang mới đã vẽ xong. */
+.anh-cu { position: absolute; z-index: 20; pointer-events: none; background: var(--nen, var(--mat-2, Canvas)); transition: opacity .18s ease-out; box-sizing: border-box; }
+.anh-cu.mo-di { opacity: 0; }
+.giu-cu .vao > * { animation: none; }
