@@ -512,14 +512,14 @@ async function chanTin(env, tc, than) {
 
 async function dsViec(env, tc, url) {
   const trangThai = url.searchParams.get('trang_thai') === 'xong' ? 'xong' : 'mo';
-  const thuTu = trangThai === 'xong' ? 'xong_luc DESC' : 'han_ngay IS NULL, han_ngay, thu_tu IS NULL, thu_tu, gio_hen IS NULL, gio_hen, id DESC';
+  const thuTu = trangThai === 'xong' ? 'xong_luc DESC' : 'sao DESC, han_ngay IS NULL, han_ngay, thu_tu IS NULL, thu_tu, gio_hen IS NULL, gio_hen, id DESC';
   const { results } = await env.CSDL.prepare(
     `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.trang_thai, v.tin_nhan_id, v.tao_luc, v.xong_luc,
        t.nguon AS tin_nguon, t.nguoi_gui AS tin_nguoi_gui, t.nhom AS tin_nhom,
-       v.du_an_id, v.nguon, v.mau, d.ten AS du_an_ten, d.mau AS du_an_mau,
+       v.du_an_id, v.nguon, v.mau, v.sao, v.do_nang, d.ten AS du_an_ten, d.mau AS du_an_mau,
        (SELECT l.trang_thai FROM luot_claude l WHERE l.to_chuc_id = v.to_chuc_id AND l.viec_id = v.id ORDER BY l.id DESC LIMIT 1) AS claude_trang_thai
      FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id LEFT JOIN du_an d ON d.id = v.du_an_id
-     WHERE v.to_chuc_id = ?1 AND v.trang_thai = ?2 ORDER BY ${thuTu.replace(/\b(xong_luc|han_ngay|gio_hen|thu_tu|id)\b/g, 'v.$1')} LIMIT 300`,
+     WHERE v.to_chuc_id = ?1 AND v.trang_thai = ?2 ORDER BY ${thuTu.replace(/\b(xong_luc|han_ngay|gio_hen|thu_tu|sao|id)\b/g, 'v.$1')} LIMIT 300`,
   ).bind(tc, trangThai).all();
   return { viec: results, hom_nay: ngayVN() };
 }
@@ -555,6 +555,7 @@ export function kiemViec(than, { batBuocTieuDe }) {
     if (m === undefined) return { loi: 'Màu không hợp lệ.' };
     ra.mau = m;
   }
+  if ('sao' in than) ra.sao = than.sao ? 1 : 0;
   return { viec: ra };
 }
 

@@ -70,7 +70,7 @@ export function docTuKhoa(v) {
 
 export async function docDuAn(env, tc) {
   const { results } = await env.CSDL.prepare(
-    'SELECT id, ten, tu_khoa, thu_tu, mau FROM du_an WHERE to_chuc_id = ?1 ORDER BY thu_tu, id',
+    'SELECT id, ten, tu_khoa, thu_tu, mau, sao FROM du_an WHERE to_chuc_id = ?1 ORDER BY sao DESC, thu_tu, id',
   ).bind(tc).all();
   return results.map((d) => ({ ...d, tu_khoa: docTuKhoa(d.tu_khoa) }));
 }
@@ -99,6 +99,7 @@ export function kiemDuAn(than, { batBuoc }) {
     if (m === undefined) return { loi: 'Màu không hợp lệ.' };
     ra.mau = m;
   }
+  if ('sao' in than) ra.sao = than.sao ? 1 : 0;
   return { duAn: ra };
 }
 
@@ -145,6 +146,7 @@ export async function suaDuAn(env, tc, id, than) {
   if ('ten' in k.duAn) { gt.push(k.duAn.ten); gan.push(`ten = ?${gt.length + 2}`); }
   if ('tu_khoa' in k.duAn) { gt.push(JSON.stringify(k.duAn.tu_khoa)); gan.push(`tu_khoa = ?${gt.length + 2}`); }
   if ('mau' in k.duAn) { gt.push(k.duAn.mau); gan.push(`mau = ?${gt.length + 2}`); }
+  if ('sao' in k.duAn) { gt.push(k.duAn.sao); gan.push(`sao = ?${gt.length + 2}`); }
   if (!gan.length) return { loi: 'Không có gì để sửa.' };
   try {
     const kq = await env.CSDL.prepare(`UPDATE du_an SET ${gan.join(', ')} WHERE id = ?1 AND to_chuc_id = ?2`).bind(id, tc, ...gt).run();
