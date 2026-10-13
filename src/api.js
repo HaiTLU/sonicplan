@@ -15,6 +15,7 @@ import { kiemCauHinhGithub, thuGithub } from './github.js';
 import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from './google.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
 import { congCuKho, dongBoKho, goKetNoiKho, hoanTatDangNhapKho, layAnhNhoDrive, layTruyCapKho, taoDiaChiDangNhapKho } from './kho.js';
+import { datThuMucHop, goKetNoiHop, hoanTatDangNhapHop, quetHop, taoDiaChiDangNhapHop } from './ghi-am-hop.js';
 import { batDriveKho, datLaiDuAn, dongBoMotDuAn, tatDriveKho, thuMucDuAn } from './kho-du-an.js';
 import { dsDuAnKemSo, lichSuDuAn, phanDuAnChoTep, sapXepDuAn, suaDuAn, taoDuAn, xoaDuAn, ghiSuKien } from './du-an.js';
 import { caiBot, layBot, maNoiTelegram } from './telegram.js';
@@ -289,6 +290,38 @@ export async function xuLyApi(yeuCau, env, phien, url) {
     await goKetNoiKho(env, tc);
     return json({ ok: true });
   }
+  // Ghi âm và biên bản họp: tài khoản Google có thư mục (chỉ đọc), rồi dán liên kết thư mục.
+  if (p === '/api/hop/bat-dau' && m === 'GET') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức nối được thư mục họp.');
+    const client = await docTichHop(env, tc, 'google_client');
+    if (!client) return loi(400, 'Chưa khai Client ID và Secret ở thẻ Google.');
+    const state = maNgauNhien(24);
+    await ghiCaiDat(env, tc, 'google_state', `${state}.${Date.now() + 10 * 60000}.hop`);
+    return Response.redirect(taoDiaChiDangNhapHop(client.client_id, diaChiGoiLai(url.origin), state), 302);
+  }
+  if (p === '/api/ket-noi/hop' && m === 'POST') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức nối được thư mục họp.');
+    try {
+      return json(await datThuMucHop(env, tc, (await yeuCau.json().catch(() => ({}))).link));
+    } catch (e) {
+      return loi(400, e.message);
+    }
+  }
+  if (p === '/api/hop/quet-ngay' && m === 'POST') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
+    try {
+      const kq = await quetHop(env, tc);
+      if (!kq) return loi(400, 'Chưa chọn thư mục họp.');
+      return json({ ok: true, ...kq });
+    } catch (e) {
+      return loi(502, e.message);
+    }
+  }
+  if (p === '/api/ket-noi/hop' && m === 'DELETE') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
+    await goKetNoiHop(env, tc);
+    return json({ ok: true });
+  }
   if (p === '/api/google/bat-dau' && m === 'GET') {
     if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức nối được Google.');
     const client = await docTichHop(env, tc, 'google_client');
@@ -301,11 +334,13 @@ export async function xuLyApi(yeuCau, env, phien, url) {
     const [state, han, dich] = String((await docCaiDat(env, tc, 'google_state')) || '').split('.');
     await env.CSDL.prepare(`DELETE FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = 'google_state'`).bind(tc).run();
     const laKho = dich === 'kho';
-    const veTrang = (thongBao) => Response.redirect(`${url.origin}/?${laKho ? 'kho' : 'google'}=${encodeURIComponent(thongBao)}#ket-noi`, 302);
+    const laHop = dich === 'hop';
+    const veTrang = (thongBao) => Response.redirect(`${url.origin}/?${laKho ? 'kho' : laHop ? 'hop' : 'google'}=${encodeURIComponent(thongBao)}#ket-noi`, 302);
     if (url.searchParams.get('error')) return veTrang(url.searchParams.get('error') === 'access_denied' ? 'Bạn đã từ chối ở màn hình Google.' : `Google báo lỗi: ${url.searchParams.get('error')}`);
     if (!state || state !== url.searchParams.get('state') || Date.now() > Number(han)) return veTrang('Phiên đăng nhập đã hết hạn, bấm nút đăng nhập lại.');
     try {
       if (laKho) await hoanTatDangNhapKho(env, tc, url.searchParams.get('code'), diaChiGoiLai(url.origin));
+      else if (laHop) await hoanTatDangNhapHop(env, tc, url.searchParams.get('code'), diaChiGoiLai(url.origin));
       else await hoanTatDangNhap(env, tc, url.searchParams.get('code'), diaChiGoiLai(url.origin));
       return veTrang('ok');
     } catch (e) {
@@ -533,6 +568,7 @@ async function tinhKetNoi(env, tc, khoa, tinHieu) {
   if (th.github) ds.push({ loai: 'github', trang_thai: th.github.ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th.github.ghi_chu || 'Đã nối', cap_nhat_luc: th.github.lan_cuoi });
   if (th['api-vao']) ds.push({ loai: 'api-vao', trang_thai: th['api-vao'].ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th['api-vao'].ghi_chu || 'Đang nhận', cap_nhat_luc: th['api-vao'].lan_cuoi });
   if (th.google) ds.push({ loai: 'google', trang_thai: th.google.ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th.google.ghi_chu?.startsWith('Lỗi') ? th.google.ghi_chu.slice(0, 120) : `Đồng bộ ${gioTruoc(th.google.lan_cuoi)}`, cap_nhat_luc: th.google.lan_cuoi });
+  if (th.hop) ds.push({ loai: 'hop', trang_thai: th.hop.ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th.hop.ghi_chu?.startsWith('Lỗi') ? th.hop.ghi_chu.slice(0, 120) : `Quét họp ${gioTruoc(th.hop.lan_cuoi)}`, cap_nhat_luc: th.hop.lan_cuoi });
   if (th.kho) ds.push({ loai: 'kho', trang_thai: th.kho.ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th.kho.ghi_chu?.startsWith('Lỗi') ? th.kho.ghi_chu.slice(0, 120) : `Lưu ${gioTruoc(th.kho.lan_cuoi)}`, cap_nhat_luc: th.kho.lan_cuoi });
   if (env.TEP) ds.push({ loai: 'tep', trang_thai: 'dang_chay', mo_ta: 'Kho R2 sẵn sàng' });
   if (coKhoa.lich) ds.push({ loai: 'lich', trang_thai: 'dang_chay', mo_ta: coKhoa.lich.dung_luc ? `Lịch đọc ${gioTruoc(coKhoa.lich.dung_luc)}` : 'Chờ ứng dụng lịch đọc lần đầu' });
@@ -561,7 +597,7 @@ async function dsTin(env, tc, url) {
   const dieuKien = ['t.to_chuc_id = ?1', 't.an = 0'];
   const thamSo = [tc];
   const nguon = url.searchParams.get('nguon');
-  if (nguon === 'zalo' || nguon === 'gmail') {
+  if (nguon === 'zalo' || nguon === 'gmail' || nguon === 'hop') {
     thamSo.push(nguon);
     dieuKien.push(`t.nguon = ?${thamSo.length}`);
   }
@@ -820,7 +856,9 @@ async function chuTep(env, tc, id) {
 }
 
 async function taiTep(env, tc, id) {
-  const tep = await env.CSDL.prepare('SELECT ten, loai, r2_khoa FROM tep WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+  const tep = await env.CSDL.prepare('SELECT ten, loai, r2_khoa, drive_id FROM tep WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+  // Ghi âm họp chỉ nằm trên Drive (không chép vào kho): mở bản trên Drive để tải.
+  if (tep && !tep.r2_khoa && tep.drive_id) return Response.redirect(`https://drive.google.com/file/d/${encodeURIComponent(tep.drive_id)}/view`, 302);
   if (!tep?.r2_khoa) return loi(404, 'Không tìm thấy tệp này.');
   const vat = await env.TEP.get(tep.r2_khoa);
   if (!vat) return loi(404, 'Tệp không còn trong kho.');
@@ -843,7 +881,7 @@ function laQuanTri(env, phien) {
 
 async function layKetNoi(env, tc, url, phien) {
   // Mọi thứ đọc từ D1 gom vào một lượt (trước đây khoảng 12 lượt nối tiếp, mỗi lượt qua lại giữa Worker và cơ sở dữ liệu).
-  const khoaCaiDat = [...Object.values(KHOA_TICH_HOP), 'telegram_chat_id', 'gmail_xac_nhan', 'telegram_ma_noi', 'nhan_viec_bam', 'kho_drive_thu_muc'];
+  const khoaCaiDat = [...Object.values(KHOA_TICH_HOP), 'telegram_chat_id', 'gmail_xac_nhan', 'telegram_ma_noi', 'nhan_viec_bam', 'kho_drive_thu_muc', 'hop_thu_muc'];
   const [toChuc, khoa, tinHieu, caiDat] = await env.CSDL.batch([
     env.CSDL.prepare('SELECT ma_nhan FROM to_chuc WHERE id = ?1').bind(tc),
     env.CSDL.prepare('SELECT loai, tao_luc, dung_luc FROM khoa_truy_cap WHERE to_chuc_id = ?1 ORDER BY tao_luc DESC').bind(tc),
@@ -861,8 +899,8 @@ async function layKetNoi(env, tc, url, phien) {
   } catch {}
   // Đã có thư thật về sau lần xác nhận thì không cần hiện nút xác nhận nữa.
   if (xacNhan && th.thu && th.thu.lan_cuoi > xacNhan.luc) xacNhan = null;
-  const [tichAi, tichWebhook, tichClient, tichGoogle, tichGithub, tichKho, bot] = await Promise.all([
-    ...['ai', 'webhook', 'google_client', 'google', 'github', 'kho_drive'].map((loai) => giaiTichHop(env, cai[KHOA_TICH_HOP[loai]], loai)),
+  const [tichAi, tichWebhook, tichClient, tichGoogle, tichGithub, tichKho, tichHop, bot] = await Promise.all([
+    ...['ai', 'webhook', 'google_client', 'google', 'github', 'kho_drive', 'hop_drive'].map((loai) => giaiTichHop(env, cai[KHOA_TICH_HOP[loai]], loai)),
     layBot(env),
   ]);
   const maNoi = bot ? cai.telegram_ma_noi || (await maNoiTelegram(env, tc)) : null;
@@ -877,6 +915,7 @@ async function layKetNoi(env, tc, url, phien) {
     nhan_viec: { co: Boolean(cai.nhan_viec_bam), dia_chi: `${url.origin}/nhan/viec`, lan_cuoi: th['api-vao'] || null },
     google: { co_client: Boolean(tichClient), da_noi: tichGoogle ? { email: tichGoogle.email || null, co_drive: Boolean(tichGoogle.co_drive) } : null, dia_chi_goi_lai: diaChiGoiLai(url.origin), lan_cuoi: th.google || null },
     kho_drive: { da_noi: tichKho ? { email: tichKho.email || null } : null, lan_cuoi: th.kho || null, thu_muc: maThuMucKho(cai.kho_drive_thu_muc) },
+    hop: { da_noi: tichHop ? { email: tichHop.email || null } : null, thu_muc: thuMucHop(cai.hop_thu_muc), lan_cuoi: th.hop || null },
     thu: { dia_chi: env.EMAIL_DOMAIN && maNhan ? `${maNhan}@${env.EMAIL_DOMAIN}` : null, lan_cuoi: th.thu || null, xac_nhan: xacNhan },
     zalo: { khoa: khoaTheo('zalo'), lan_cuoi: th.zalo || null },
     lich: { khoa: khoaTheo('lich') },
@@ -891,6 +930,15 @@ async function layKetNoi(env, tc, url, phien) {
     ai: { co: Boolean(env.AI) },
     tep: { co: Boolean(env.TEP) },
   };
+}
+
+function thuMucHop(tho) {
+  try {
+    const o = JSON.parse(tho || 'null');
+    return o && /^[\w-]{10,80}$/.test(o.id) ? { id: o.id, ten: o.ten || '' } : null;
+  } catch {
+    return null;
+  }
 }
 
 // Mã các thư mục cấp một của kho trên Drive (chỉ để dựng liên kết mở thư mục); thư mục con bỏ qua.

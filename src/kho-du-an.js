@@ -191,7 +191,7 @@ export async function dongBoMotDuAn(env, tc, token, dc, duAn) {
   await luu({ loai: `da${duAn.id}_lich`, ma: 'lich', ten: 'Lich.md', thuMuc: cay.Lich, noiDung: vanBanLich(duAn, viec) });
 
   const tins = (await env.CSDL.prepare(
-    `SELECT nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem FROM tin_nhan WHERE an = 0 AND id IN ${SQL_TIN} ORDER BY thoi_diem, id LIMIT 600`,
+    `SELECT nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem FROM tin_nhan WHERE an = 0 AND nguon IN ('zalo', 'gmail') AND id IN ${SQL_TIN} ORDER BY thoi_diem, id LIMIT 600`,
   ).bind(tc, duAn.id).all()).results;
   for (const [k, ds] of gomTinTheoNgay(tins)) {
     const [nguon, ngay] = k.split('|');
