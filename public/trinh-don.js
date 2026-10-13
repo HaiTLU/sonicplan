@@ -23,7 +23,7 @@ function tao(ten, lop, chu) {
   return e;
 }
 
-export function moTrinhDon({ x, y, muc, nhan = 'Thao tác' }) {
+export function moTrinhDon({ x, y, muc, nhan = 'Thao tác', goc }) {
   dongTrinhDon();
   const truoc = document.activeElement;
   const el = tao('div', 'trinh-don');
@@ -60,7 +60,7 @@ export function moTrinhDon({ x, y, muc, nhan = 'Thao tác' }) {
     }
   };
   them(el, muc);
-  document.body.append(el);
+  (goc || [...document.querySelectorAll('dialog[open]')].pop() || document.body).append(el);
 
   function chinhViTri() {
     const r = el.getBoundingClientRect();
@@ -93,4 +93,81 @@ export function moTrinhDon({ x, y, muc, nhan = 'Thao tác' }) {
   window.addEventListener('resize', thoat.cuon);
   el.querySelector('button:not([disabled])')?.focus({ preventScroll: true });
   return el;
+}
+
+// ---------------------------------------------------------------------------
+// Chuột phải ở mọi nơi trên trang: không bao giờ hiện trình đơn của trình duyệt.
+// Đối tượng nào muốn có trình đơn riêng thì gắn phần tử._td = () => ({ muc, nhan }) (có thể async).
+// Nút và liên kết chưa có trình đơn riêng hiện thao tác chung của nút; chỗ trống hiện trình đơn chung (chung()).
+// Ô nhập chữ giữ trình đơn của trình duyệt để dán, chép. Điện thoại: nhấn giữ 0,6 giây.
+// ---------------------------------------------------------------------------
+const O_NHAP = 'input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=range]), textarea, select, [contenteditable=""], [contenteditable="true"]';
+const TUONG_TAC = 'a[href], button:not([disabled]), [role=tab], summary, .chip';
+
+function nhanNut(el) {
+  return (el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+}
+
+export function caiNguCanh({ chung, bo = '' }) {
+  const tim = (goc) => {
+    for (let n = goc; n && n !== document; n = n.parentElement) if (n._td) return { el: n, kieu: 'td' };
+    const nut = goc.closest?.(TUONG_TAC);
+    return nut ? { el: nut, kieu: 'nut' } : { el: null, kieu: 'chung' };
+  };
+  const mo = async (goc, x, y) => {
+    const r = tim(goc);
+    let muc = [];
+    let nhan = 'Trình đơn của trang';
+    if (r.kieu === 'td') {
+      const kq = await r.el._td();
+      if (kq?.muc) { muc = kq.muc; nhan = kq.nhan || nhan; } else if (Array.isArray(kq)) muc = kq;
+    } else if (r.kieu === 'nut') {
+      const ten = nhanNut(r.el);
+      nhan = ten ? `Thao tác: ${ten}` : 'Thao tác';
+      muc.push({ nhan: ten ? `Bấm "${ten}"` : 'Bấm nút này', lam: () => r.el.click() });
+      if (r.el.matches('a[href]')) {
+        const href = r.el.href;
+        muc.push({ nhan: 'Mở trong thẻ mới', lam: () => window.open(href, '_blank', 'noopener') });
+        muc.push({ nhan: 'Sao chép liên kết', lam: () => navigator.clipboard?.writeText(href) });
+      }
+      muc.push({ vach: true }, ...chung());
+    } else {
+      muc = chung();
+    }
+    if (!muc.length) return;
+    moTrinhDon({ x, y, muc, nhan });
+  };
+
+  document.addEventListener('contextmenu', (e) => {
+    if (e.target.closest?.('.trinh-don') || e.target.closest?.(O_NHAP)) { if (e.target.closest?.('.trinh-don')) e.preventDefault(); return; }
+    e.preventDefault();
+    if (document.body.classList.contains('dang-keo-tha')) return;
+    clearTimeout(hen);
+    let { clientX: x, clientY: y } = e;
+    if (!x && !y) { const r = e.target.getBoundingClientRect(); x = r.left + 24; y = r.top + 24; } // phím Menu, Shift+F10
+    mo(e.target, x, y);
+  });
+
+  // Nhấn giữ trên màn hình cảm ứng. Vùng bo (cột việc kéo thả) dùng nút ba chấm để khỏi vướng thao tác kéo.
+  let hen = null;
+  let diem = null;
+  let vuaGiu = false;
+  const huy = () => { clearTimeout(hen); hen = null; };
+  document.addEventListener('pointerdown', (e) => {
+    huy();
+    if (e.pointerType !== 'touch' || e.target.closest?.(`.trinh-don, ${O_NHAP}${bo ? `, ${bo}` : ''}`)) return;
+    diem = { x: e.clientX, y: e.clientY };
+    const goc = e.target;
+    hen = setTimeout(() => {
+      hen = null;
+      vuaGiu = true;
+      setTimeout(() => { vuaGiu = false; }, 900);
+      mo(goc, diem.x + 6, diem.y + 6);
+    }, 600);
+  }, { passive: true });
+  document.addEventListener('pointermove', (e) => { if (hen && diem && Math.hypot(e.clientX - diem.x, e.clientY - diem.y) > 10) huy(); }, { passive: true });
+  for (const ten of ['pointerup', 'pointercancel']) document.addEventListener(ten, huy, { passive: true });
+  window.addEventListener('scroll', huy, { passive: true, capture: true });
+  // Nhấc tay sau khi nhấn giữ không được bấm nhầm vào thứ nằm dưới.
+  document.addEventListener('click', (e) => { if (vuaGiu) { vuaGiu = false; e.preventDefault(); e.stopPropagation(); } }, true);
 }

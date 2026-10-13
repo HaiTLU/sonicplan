@@ -1336,3 +1336,9 @@ details.bang-suc-khoe[open] > summary { padding-bottom: 0; }
 .tq-du-an .bang-cuon { padding: 4px 10px 12px; }
 .tq-du-an .bang-so { font-size: 13.5px; }
 .tq-du-an .bang-so th, .tq-du-an .bang-so td { padding: 9px 8px; }
+
+/* Cột dự án thu gọn */
+.cot-viec.thu-gon > ul, .cot-viec.thu-gon > .cot-trong { display: none; }
+.cot-viec.thu-gon { min-height: 0; }
+.nut-menu-cot { position: static; opacity: 1; width: 26px; height: 26px; }
+@media (hover: hover) { .nut-menu-cot { opacity: 0; } .cot-viec:hover .nut-menu-cot, .nut-menu-cot:focus-visible { opacity: 1; } }
