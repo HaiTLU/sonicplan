@@ -108,6 +108,7 @@ test('chuyển tay tin mình gửi sang đúng người: chỉ đụng tin chưa
   assert.equal((await chuyenTinSangHoiThoai(env, 't', { ids: [2], khoa_dich: 'nhom~X' })).status, 400);
   assert.equal((await chuyenTinSangHoiThoai(env, 't', { ids: [], khoa_dich: 'ca-nhan:555' })).status, 400);
   assert.equal((await chuyenTinSangHoiThoai(env, 't', { ids: [2], khoa_dich: 'ca-nhan:000' })).status, 404);
+});
 
 test('khung tin đang mở lấy được tin mới hơn bằng sau_id, không lặp tin cũ', async () => {
   const env = csdlGia();
