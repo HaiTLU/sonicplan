@@ -248,7 +248,7 @@ export const CAC_TAC_VU = {
       ).bind(tc.id, homNay).run();
       // can_dong_bo = 1 để lượt đồng bộ sau dời luôn ngày bên Google Tasks và Lịch, không để hai nơi lệch ngày.
       const kq = await env.CSDL.prepare(
-        `UPDATE viec SET han_ngay = ?1, cap_nhat_luc = ?2, can_dong_bo = 1 WHERE to_chuc_id = ?4 AND trang_thai = 'mo' AND han_ngay IS NOT NULL AND han_ngay <= ?3`,
+        `UPDATE viec SET so_lan_doi = so_lan_doi + 1, han_ngay = ?1, cap_nhat_luc = ?2, can_dong_bo = 1 WHERE to_chuc_id = ?4 AND trang_thai = 'mo' AND han_ngay IS NOT NULL AND han_ngay <= ?3`,
       ).bind(mai, bayGio, homNay, tc.id).run();
       so += kq.meta.changes || 0;
       // Ưu tiên theo hạn: việc hạn đến hết ngày mai (gồm việc vừa dời) thành "cao". Chỉ nâng, không hạ, vì AI có thể đã

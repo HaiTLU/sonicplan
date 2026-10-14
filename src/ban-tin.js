@@ -39,6 +39,15 @@ export function dungBanTin(viec, homNay, buoiSang, luuY = '') {
   return `${buoiSang ? `Bản tin sáng ${ngayNgan(homNay)}` : 'Việc còn mở cuối ngày'}\n\n${cacKhoi.join('\n\n')}`;
 }
 
+export const SO_LAN_DOI_NHAC = 3;
+
+// Khối "Đã dời nhiều lần" trong bản tin sáng. viec: [{ tieu_de, han_goc, so_lan_doi }].
+export function khoiDoiNhieu(viec) {
+  if (!viec?.length) return '';
+  const dong = viec.map((v) => `- ${v.tieu_de} (dời ${v.so_lan_doi} lần${v.han_goc ? `, hạn gốc ${ngayNgan(v.han_goc)}` : ''})`);
+  return `Đã tự dời từ ${SO_LAN_DOI_NHAC} lần, nên xem lại (làm, đổi hạn hoặc bỏ):\n${dong.join('\n')}`;
+}
+
 export async function banTinNgay(env, bayGio, { ep = false } = {}) {
   const gio = gioVN(bayGio);
   const homNay = ngayVN(bayGio);
@@ -60,6 +69,14 @@ export async function banTinNgay(env, bayGio, { ep = false } = {}) {
       } catch { /* bỏ qua phân tích hỏng */ }
     }
     let noiDung = dungBanTin(results, homNay, sang, luuY);
+    // Việc tự dời từ 3 lần: nhắc riêng buổi sáng để người dùng quyết giữ, đổi hạn hay bỏ.
+    if (sang) {
+      const { results: doiNhieu } = await env.CSDL.prepare(
+        `SELECT tieu_de, han_goc, so_lan_doi FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND so_lan_doi >= ?2 ORDER BY so_lan_doi DESC LIMIT 8`,
+      ).bind(tc.id, SO_LAN_DOI_NHAC).all();
+      const khoiDoi = khoiDoiNhieu(doiNhieu);
+      if (khoiDoi) noiDung = noiDung ? `${noiDung}\n\n${khoiDoi}` : `Bản tin sáng ${ngayNgan(homNay)}\n\n${khoiDoi}`;
+    }
     // Kế hoạch trong ngày do AI lập; AI lỗi thì bản tin vẫn gửi như cũ.
     if (sang && noiDung) {
       try {
