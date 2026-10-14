@@ -94,7 +94,10 @@ export async function nhanZalo(yeuCau, env, ctx, duongDan) {
     // Tải ảnh và tệp về kho ngay khi tin về, trước khi đường dẫn Zalo hết hạn. Lỗi thì bỏ qua, trang tin vẫn thử lại khi mở.
     if (canNap.length) ctx.waitUntil((async () => { for (const id of canNap.slice(0, 15)) await napTepNgoai(env, toChucId, id).catch(() => {}); })());
     if (moi) await xepTinGuiDiVaoHoiThoai(env, toChucId).catch((e) => console.error('Xếp tin gửi đi lỗi', e));
-    await ghiTinHieu(env, toChucId, 'zalo', moi ? `Nhận ${moi} tin` : 'Tín hiệu còn chạy');
+    // Ghi rõ chương trình Zalo trên Mac là bản đã vá (gửi mã hội thoại) hay chưa, để anh thấy ngay ở trang Kết nối.
+    const daVa = than.messages.some((t) => t && t.thread_id);
+    const chuVa = than.messages.length ? (daVa ? ', chương trình Zalo đã vá' : ', chương trình Zalo chưa vá (chạy cai-va.sh)') : '';
+    await ghiTinHieu(env, toChucId, 'zalo', moi ? `Nhận ${moi} tin${chuVa}` : 'Tín hiệu còn chạy');
     if (moi) ctx.waitUntil(tachViecChoToChuc(env, toChucId).catch((e) => console.error('Tách việc lỗi', e)));
     return json({ ok: true, moi });
   }
