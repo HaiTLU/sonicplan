@@ -2,6 +2,12 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [1.8.2] - 2026-10-14
+
+### Đổi
+- Ưu tiên tự cập nhật theo hạn: lúc 23h, việc có hạn đến hết ngày mai được nâng lên "cao". Chỉ nâng, không hạ.
+- Chống trùng rộng hơn: so với việc đang mở trong 60 ngày (trước là 14) và việc vừa xong 3 ngày, nên tin nhắc lại việc vừa làm không tạo việc mới. Hai việc cùng một cuộc trò chuyện dùng ngưỡng giống 65% thay vì 80%.
+
 ## [1.8.1] - 2026-10-14
 
 ### Sửa

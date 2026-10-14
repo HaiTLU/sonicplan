@@ -6,7 +6,7 @@ import { d1, dungCsdl } from './csdl-thu.js';
 import { CAC_TAC_VU, dongViecMoi } from '../src/tac-vu.js';
 import { apDungNutViec } from '../src/telegram.js';
 import { macDinhLuong } from '../src/luong.js';
-import { doiHanKhiTrung, themViec } from '../src/viec.js';
+import { doiHanKhiTrung, themViec, timTrung } from '../src/viec.js';
 
 function moiTruong() {
   const db = dungCsdl();
@@ -70,4 +70,33 @@ test('giao việc sang GitHub tự động tắt sẵn, các khâu khác bật',
   assert.equal(lg.bat['giao-github'], false);
   assert.equal(lg.bat['tach-viec'], true);
   assert.equal(lg.bat['don-cuoi-ngay'], true);
+});
+
+test('dọn cuối ngày nâng ưu tiên việc hạn đến hết ngày mai, không đụng việc còn xa', async () => {
+  const { db, env } = moiTruong();
+  const gan = themDong(db, '2026-10-15');
+  const xa = themDong(db, '2026-10-20');
+  db.prepare("UPDATE viec SET uu_tien = 'thap'").run();
+  await CAC_TAC_VU['don-cuoi-ngay'](env, '2026-10-14T16:00:00.000Z');
+  assert.equal(db.prepare('SELECT uu_tien FROM viec WHERE id = ?').get(gan).uu_tien, 'cao');
+  assert.equal(db.prepare('SELECT uu_tien FROM viec WHERE id = ?').get(xa).uu_tien, 'thap');
+});
+
+test('chống trùng: cùng cuộc trò chuyện thì ngưỡng thấp hơn, khác chat vẫn 80%', () => {
+  const ds = [{ id: 1, tieu_de: 'Gửi báo giá cho chị Lan', nguon_khoa: 'Chị Lan' }];
+  assert.equal(timTrung('Gửi chị Lan bản báo giá', ds, 'Chị Lan')?.id, 1);
+  assert.equal(timTrung('Gửi chị Lan bản báo giá', ds, 'Người khác'), null);
+  assert.equal(timTrung('Gửi chị Lan bản báo giá', ds), null);
+  // Việc khác trong cùng chat vẫn tách riêng (độ giống 0,62).
+  assert.equal(timTrung('Gửi hợp đồng cho chị Lan', ds, 'Chị Lan'), null);
+});
+
+test('themViec: việc vừa xong 3 ngày không bị tạo lại, việc mở 30 ngày trước vẫn tính là trùng', async () => {
+  const { db, env } = moiTruong();
+  const cu = new Date(Date.now() - 30 * 86400000).toISOString();
+  db.prepare(`INSERT INTO viec (to_chuc_id, tieu_de, trang_thai, tao_luc, cap_nhat_luc, xong_luc) VALUES ('tc1', 'Nộp hồ sơ nghiệm thu đề tài', 'xong', ?, ?, ?)`).run(cu, cu, new Date().toISOString());
+  db.prepare(`INSERT INTO viec (to_chuc_id, tieu_de, trang_thai, tao_luc, cap_nhat_luc) VALUES ('tc1', 'Soạn tờ trình khóa Tiếng Anh giao tiếp', 'mo', ?, ?)`).run(cu, cu);
+  assert.equal((await themViec(env, 'tc1', { tieu_de: 'Nộp hồ sơ nghiệm thu đề tài' })).trung, true);
+  assert.equal((await themViec(env, 'tc1', { tieu_de: 'Soạn tờ trình khóa Tiếng Anh giao tiếp' })).trung, true);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM viec').get().n, 2);
 });

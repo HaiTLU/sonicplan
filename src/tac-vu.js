@@ -239,6 +239,7 @@ export const CAC_TAC_VU = {
     const homNay = ngayVN(bayGio);
     const mai = congNgay(homNay, 1);
     let so = 0;
+    let soNang = 0;
     for (const tc of await cacToChuc(env)) {
       if (!(await docLuong(env, tc.id)).bat['don-cuoi-ngay']) continue;
       // Hạn mới thì lời nhắc cũ hết nghĩa: xóa dấu đã nhắc để mai nhắc lại đúng giờ hẹn.
@@ -250,8 +251,15 @@ export const CAC_TAC_VU = {
         `UPDATE viec SET han_ngay = ?1, cap_nhat_luc = ?2, can_dong_bo = 1 WHERE to_chuc_id = ?4 AND trang_thai = 'mo' AND han_ngay IS NOT NULL AND han_ngay <= ?3`,
       ).bind(mai, bayGio, homNay, tc.id).run();
       so += kq.meta.changes || 0;
+      // Ưu tiên theo hạn: việc hạn đến hết ngày mai (gồm việc vừa dời) thành "cao". Chỉ nâng, không hạ, vì AI có thể đã
+      // xếp "cao" do người yêu cầu quan trọng.
+      const nang = await env.CSDL.prepare(
+        `UPDATE viec SET uu_tien = 'cao' WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay IS NOT NULL AND han_ngay <= ?2 AND COALESCE(uu_tien, '') <> 'cao'`,
+      ).bind(tc.id, mai).run();
+      soNang += nang.meta.changes || 0;
     }
-    return { so_muc: so, ghi_chu: so ? `Dời ${so} việc sang ${mai}` : 'Không có việc nào phải dời' };
+    const nangChu = soNang ? `, nâng ưu tiên ${soNang} việc sắp đến hạn` : '';
+    return { so_muc: so, ghi_chu: so ? `Dời ${so} việc sang ${mai}${nangChu}` : `Không có việc nào phải dời${nangChu}` };
   },
 
   'sao-luu': async (env, bayGio) => {
