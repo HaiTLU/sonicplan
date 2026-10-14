@@ -38,6 +38,32 @@ export function chuyenTinZalo(t) {
   };
 }
 
+// Tin mình gửi trong chat riêng mà chương trình Zalo bản cũ ghi dưới tên mình (không có mã hội thoại):
+// nhìn các tin người kia gửi quanh đó 30 phút. Chỉ khi toàn bộ chúng thuộc đúng một cuộc trò chuyện
+// thì xếp tin vào cuộc đó; có hai người trở lên thì để nguyên, không đoán bừa.
+export async function xepTinGuiDiVaoHoiThoai(env, toChucId) {
+  const { results } = await env.CSDL.prepare(
+    `SELECT id, thoi_diem, tieu_de FROM tin_nhan t
+     WHERE to_chuc_id = ?1 AND nguon = 'zalo' AND nguoi_gui = 'Tôi' AND COALESCE(nhom, '') = '' AND COALESCE(ma_hoi_thoai, '') = ''
+       AND NOT EXISTS (SELECT 1 FROM tin_nhan n WHERE n.to_chuc_id = t.to_chuc_id AND n.nguon = 'zalo' AND n.tieu_de = t.tieu_de AND n.nguoi_gui <> 'Tôi')
+     ORDER BY thoi_diem DESC LIMIT 300`,
+  ).bind(toChucId).all();
+  let xep = 0;
+  for (const tin of results) {
+    const ms = Date.parse(tin.thoi_diem);
+    if (Number.isNaN(ms)) continue;
+    const { results: gan } = await env.CSDL.prepare(
+      `SELECT DISTINCT tieu_de, COALESCE(ma_hoi_thoai, '') AS ma FROM tin_nhan
+       WHERE to_chuc_id = ?1 AND nguon = 'zalo' AND nguoi_gui <> 'Tôi' AND COALESCE(nhom, '') = '' AND COALESCE(tieu_de, '') <> '' AND thoi_diem BETWEEN ?2 AND ?3`,
+    ).bind(toChucId, new Date(ms - 30 * 60000).toISOString(), new Date(ms + 30 * 60000).toISOString()).all();
+    if (gan.length !== 1) continue;
+    await env.CSDL.prepare(`UPDATE tin_nhan SET tieu_de = ?1, ma_hoi_thoai = ?2 WHERE id = ?3 AND to_chuc_id = ?4`)
+      .bind(gan[0].tieu_de, gan[0].ma || null, tin.id, toChucId).run();
+    xep++;
+  }
+  return xep;
+}
+
 export async function nhanZalo(yeuCau, env, ctx, duongDan) {
   const toChucId = await toChucTheoKhoa(env, layKhoa(yeuCau), 'zalo');
   if (!toChucId) return loi(401, 'Mã máy gửi Zalo không đúng. Tạo mã mới ở trang Kết nối.');
@@ -67,6 +93,7 @@ export async function nhanZalo(yeuCau, env, ctx, duongDan) {
     }
     // Tải ảnh và tệp về kho ngay khi tin về, trước khi đường dẫn Zalo hết hạn. Lỗi thì bỏ qua, trang tin vẫn thử lại khi mở.
     if (canNap.length) ctx.waitUntil((async () => { for (const id of canNap.slice(0, 15)) await napTepNgoai(env, toChucId, id).catch(() => {}); })());
+    if (moi) await xepTinGuiDiVaoHoiThoai(env, toChucId).catch((e) => console.error('Xếp tin gửi đi lỗi', e));
     await ghiTinHieu(env, toChucId, 'zalo', moi ? `Nhận ${moi} tin` : 'Tín hiệu còn chạy');
     if (moi) ctx.waitUntil(tachViecChoToChuc(env, toChucId).catch((e) => console.error('Tách việc lỗi', e)));
     return json({ ok: true, moi });
