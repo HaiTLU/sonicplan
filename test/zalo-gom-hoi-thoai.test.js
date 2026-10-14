@@ -104,3 +104,14 @@ test('khung tin đang mở lấy được tin mới hơn bằng sau_id, không l
   const rong = await tinHoiThoaiZalo(env, 't', new URL('http://x/api/zalo/tin?khoa=ca-nhan:7&sau_id=3'));
   assert.equal((await rong.json()).tin.length, 0);
 });
+
+test('tin cũ chưa có mã cùng tên nhóm với một cuộc đã có mã thì nhập chung một mục', async () => {
+  const env = csdlGia();
+  them(env, { ma: 'a', gui: 'Ha', nhom: 'NCS_K5_TLU\\T', nd: 'cũ', luc: '2026-10-14T08:00:00Z' });
+  them(env, { ma: 'b', gui: 'Trang', nhom: 'NCS_K5_TLU\\T', nd: 'mới', luc: '2026-10-14T08:30:00Z', hoi: 'nhom:99' });
+  them(env, { ma: 'c', gui: 'X', nhom: 'Nhóm khác', nd: 'cũ', luc: '2026-10-14T08:00:00Z' });
+  const { ds } = await dsHoiThoaiZalo(env, 't', new URL('http://x/api/zalo/hoi-thoai'));
+  assert.equal(ds.filter((x) => x.ten === 'NCS_K5_TLU\\T').length, 1);
+  assert.equal(ds.find((x) => x.ten === 'NCS_K5_TLU\\T').n, 2);
+  assert.ok(ds.some((x) => x.ten === 'Nhóm khác'));
+});

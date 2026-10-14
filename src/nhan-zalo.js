@@ -44,6 +44,22 @@ export function chuyenTinZalo(t) {
 // nhìn các tin người kia gửi quanh đó 30 phút. Chỉ khi toàn bộ chúng thuộc đúng một cuộc trò chuyện
 // thì xếp tin vào cuộc đó; có hai người trở lên thì để nguyên, không đoán bừa.
 export async function xepTinGuiDiVaoHoiThoai(env, toChucId) {
+  // Tin cũ chưa có mã (trước bản vá) cùng tên nhóm/người với đúng một cuộc đã có mã thì nhập vào cuộc đó, khỏi hiện thành hai mục.
+  for (const [cot, loai] of [['nhom', 'nhom'], ['tieu_de', 'ca-nhan']]) {
+    const dieuKien = cot === 'nhom' ? `COALESCE(nhom, '') <> ''` : `COALESCE(nhom, '') = '' AND COALESCE(tieu_de, '') <> ''`;
+    const { results: cu } = await env.CSDL.prepare(
+      `SELECT DISTINCT ${cot} AS ten FROM tin_nhan WHERE to_chuc_id = ?1 AND nguon = 'zalo' AND ${dieuKien} AND COALESCE(ma_hoi_thoai, '') = '' LIMIT 100`,
+    ).bind(toChucId).all();
+    for (const { ten } of cu) {
+      const { results: ma } = await env.CSDL.prepare(
+        `SELECT DISTINCT ma_hoi_thoai AS ma FROM tin_nhan WHERE to_chuc_id = ?1 AND nguon = 'zalo' AND ${dieuKien} AND ${cot} = ?2 AND ma_hoi_thoai LIKE ?3`,
+      ).bind(toChucId, ten, `${loai}:%`).all();
+      if (ma.length !== 1) continue;
+      await env.CSDL.prepare(
+        `UPDATE tin_nhan SET ma_hoi_thoai = ?1 WHERE to_chuc_id = ?2 AND nguon = 'zalo' AND ${dieuKien} AND ${cot} = ?3 AND COALESCE(ma_hoi_thoai, '') = ''`,
+      ).bind(ma[0].ma, toChucId, ten).run();
+    }
+  }
   const { results } = await env.CSDL.prepare(
     `SELECT id, thoi_diem, tieu_de FROM tin_nhan t
      WHERE to_chuc_id = ?1 AND nguon = 'zalo' AND nguoi_gui = 'Tôi' AND COALESCE(nhom, '') = '' AND COALESCE(ma_hoi_thoai, '') = ''
