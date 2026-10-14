@@ -94,6 +94,22 @@ test('tin cũ mình gửi dưới tên mình: xếp vào cuộc trò chuyện du
   assert.ok(ds.some((x) => x.ten === 'Nam Hai' && x.n === 1));
 });
 
+test('chuyển tay tin mình gửi sang đúng người: chỉ đụng tin chưa có mã, không đụng nhóm hay tin đã xếp', async () => {
+  const { chuyenTinSangHoiThoai } = await import('../src/api.js');
+  const env = csdlGia();
+  them(env, { ma: '1', gui: 'Linh Doan', tieu_de: 'Linh Doan', nd: 'Chào anh', luc: '2026-10-14T02:47:00Z', hoi: 'ca-nhan:555' });
+  them(env, { ma: '2', gui: 'Tôi', tieu_de: 'Nam Hai', nd: 'gửi file', luc: '2026-10-14T05:00:00Z' });
+  them(env, { ma: '3', gui: 'Tôi', tieu_de: 'Nam Hai', nd: 'đã xếp', luc: '2026-10-14T05:01:00Z', hoi: 'ca-nhan:999' });
+  them(env, { ma: '4', gui: 'Tôi', nhom: 'Phòng A', nd: 'nhóm', luc: '2026-10-14T05:02:00Z' });
+  const r = await chuyenTinSangHoiThoai(env, 't', { ids: [2, 3, 4], khoa_dich: 'ca-nhan:555' });
+  assert.equal((await r.json()).da_chuyen, 1);
+  const { ds } = await dsHoiThoaiZalo(env, 't', new URL('http://x/'));
+  assert.equal(ds.find((x) => x.khoa === 'ca-nhan:555').n, 2);
+  assert.equal((await chuyenTinSangHoiThoai(env, 't', { ids: [2], khoa_dich: 'nhom~X' })).status, 400);
+  assert.equal((await chuyenTinSangHoiThoai(env, 't', { ids: [], khoa_dich: 'ca-nhan:555' })).status, 400);
+  assert.equal((await chuyenTinSangHoiThoai(env, 't', { ids: [2], khoa_dich: 'ca-nhan:000' })).status, 404);
+});
+
 test('khung tin đang mở lấy được tin mới hơn bằng sau_id, không lặp tin cũ', async () => {
   const env = csdlGia();
   them(env, { ma: '1', gui: 'Dũng', tieu_de: 'Dũng', nd: 'a', luc: '2026-10-14T09:00:00Z', hoi: 'ca-nhan:7' });

@@ -89,6 +89,7 @@ export async function xuLyApi(yeuCau, env, phien, url) {
 
   if (p === '/api/zalo/hoi-thoai' && m === 'GET') return json(await dsHoiThoaiZalo(env, tc, url));
   if (p === '/api/zalo/tin' && m === 'GET') return tinHoiThoaiZalo(env, tc, url);
+  if (p === '/api/zalo/chuyen-tin' && m === 'POST') return chuyenTinSangHoiThoai(env, tc, await yeuCau.json().catch(() => ({})));
 
   if (p === '/api/tin' && m === 'GET') return json(await dsTin(env, tc, url));
   if (p === '/api/tin/da-xem-het' && m === 'POST') {
@@ -1009,6 +1010,33 @@ export async function dsHoiThoaiZalo(env, tc, url) {
      FROM x WHERE rn = 1 AND ten_hien LIKE ?2 ORDER BY thoi_diem DESC LIMIT 300`,
   ).bind(tc, `%${q}%`).all();
   return { ds: results };
+}
+
+// Chuyển tay tin mình gửi mà máy chủ không đoán được gửi cho ai (chương trình Zalo chưa vá, không có mã hội thoại)
+// sang đúng cuộc trò chuyện cá nhân. Chỉ đụng tin "Tôi" chưa có mã hội thoại và không thuộc nhóm.
+export async function chuyenTinSangHoiThoai(env, tc, du) {
+  const ids = [...new Set((Array.isArray(du.ids) ? du.ids : []).map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 200);
+  const dich = String(du.khoa_dich || '').slice(0, 400);
+  if (!ids.length) return loi(400, 'Chưa chọn tin nào để chuyển.');
+  const kieu = dich.match(/^ca-nhan([~:])(.+)$/);
+  if (!kieu) return loi(400, 'Chỉ chuyển được sang một cuộc trò chuyện cá nhân.');
+  let ma = null;
+  let ten = kieu[2];
+  if (kieu[1] === ':') {
+    ma = dich;
+    const goc = await env.CSDL.prepare(
+      `SELECT tieu_de FROM tin_nhan WHERE to_chuc_id = ?1 AND nguon = 'zalo' AND ma_hoi_thoai = ?2 AND nguoi_gui <> 'Tôi' AND COALESCE(tieu_de, '') <> ''
+       ORDER BY thoi_diem DESC, id DESC LIMIT 1`,
+    ).bind(tc, ma).first();
+    if (!goc) return loi(404, 'Không thấy cuộc trò chuyện đích.');
+    ten = goc.tieu_de;
+  }
+  const kq = await env.CSDL.prepare(
+    `UPDATE tin_nhan SET tieu_de = ?1, ma_hoi_thoai = ?2
+     WHERE to_chuc_id = ?3 AND nguon = 'zalo' AND nguoi_gui = 'Tôi' AND COALESCE(nhom, '') = '' AND COALESCE(ma_hoi_thoai, '') = ''
+       AND id IN (${ids.join(',')})`,
+  ).bind(ten, ma, tc).run();
+  return json({ da_chuyen: kq.meta.changes || 0 });
 }
 
 export async function tinHoiThoaiZalo(env, tc, url) {

@@ -1993,12 +1993,36 @@ async function veZalo(goc, thamSo) {
           h('div', { class: 'cot-tin' }, bong),
         );
         hang._ten = ten;
+        if (toi && loai === 'ca-nhan' && khoa.includes('~')) hang._td = () => mucChuyenTin(m);
         con.push(hang);
         truocEl = hang;
         truoc = m;
       }
       dongCum();
       thay(luong, con);
+    };
+    // Tin mình gửi mà máy chủ chưa biết gửi cho ai: chuyển tay sang đúng người (cả cụm tin liền nhau hoặc một tin).
+    const mucChuyenTin = (m) => {
+      const i = tin.indexOf(m);
+      const lienNhau = (a, b) => a.nguoi_gui === 'Tôi' && b.nguoi_gui === 'Tôi' && Math.abs(Date.parse(a.thoi_diem) - Date.parse(b.thoi_diem)) < 5 * 60000;
+      let tu = i; let den = i;
+      while (tu > 0 && lienNhau(tin[tu - 1], tin[tu])) tu--;
+      while (den < tin.length - 1 && lienNhau(tin[den], tin[den + 1])) den++;
+      const cum = tin.slice(tu, den + 1).map((t) => t.id);
+      const dich = ds.filter((x) => x.loai === 'ca-nhan' && x.khoa.includes(':') && x.khoa !== khoa).slice(0, 8);
+      const chuyen = (ids, x) => async () => {
+        try {
+          const kq = await api('/api/zalo/chuyen-tin', { method: 'POST', body: JSON.stringify({ ids, khoa_dich: x.khoa }) });
+          bao(`Đã chuyển ${kq.da_chuyen} tin sang ${x.ten}.`);
+        } catch (e) { bao(e.message, { loi: true }); return; }
+        await napDs();
+        moHoiThoai({ khoa, loai, ten });
+      };
+      if (!dich.length) return { nhan: 'Chuyển tin', muc: [{ nhan: 'Chưa có cuộc trò chuyện nào đã vá để chuyển tới', lam: () => {} }] };
+      return { nhan: 'Chuyển tin này sang người khác', muc: [
+        ...dich.map((x) => ({ nhan: cum.length > 1 ? `Chuyển cả cụm ${cum.length} tin sang ${x.ten}` : `Chuyển tin này sang ${x.ten}`, lam: chuyen(cum, x) })),
+        ...(cum.length > 1 ? [{ vach: true }, ...dich.slice(0, 3).map((x) => ({ nhan: `Chỉ tin này sang ${x.ten}`, lam: chuyen([m.id], x) }))] : []),
+      ] };
     };
     const spamZalo = nutSpam({
       nguon: 'zalo',

@@ -2,6 +2,11 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [1.9.0] - 2026-10-14
+
+### Thêm
+- Chuyển tay tin Zalo anh gửi mà máy chủ không đoán được gửi cho ai (còn nằm ở mục "Nam Hai"): bấm giữ hoặc bấm chuột phải vào tin, chọn người nhận. Chuyển được cả cụm tin liền nhau hoặc một tin. Chỉ đụng tin anh gửi chưa có mã hội thoại, không đụng tin nhóm hay tin đã xếp.
+
 ## [1.8.4] - 2026-10-14
 
 ### Đổi
