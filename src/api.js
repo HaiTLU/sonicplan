@@ -12,6 +12,7 @@ import { quenPhien } from './phien.js';
 import { caiWorkflow, danhGiaLuot, dsLuot, giaoClaude, hoiTruoc } from './claude-code.js';
 import { chayAi } from './ai.js';
 import { kiemCauHinhGithub, thuGithub } from './github.js';
+import { xepTinGuiDiVaoHoiThoai } from './nhan-zalo.js';
 import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from './google.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
 import { congCuKho, dongBoKho, goKetNoiKho, hoanTatDangNhapKho, layAnhNhoDrive, layTruyCapKho, taoDiaChiDangNhapKho } from './kho.js';
@@ -989,6 +990,7 @@ const KHOA_TIN_ZALO = `COALESCE(NULLIF(ma_hoi_thoai, ''), ${LOAI_TIN_ZALO} || '~
 
 export async function dsHoiThoaiZalo(env, tc, url) {
   const q = (url.searchParams.get('q') || '').trim().replace(/[%_]/g, '');
+  await xepTinGuiDiVaoHoiThoai(env, tc).catch((e) => console.error('Xếp tin gửi đi lỗi', e));
   // Tên hiển thị lấy từ tin mới nhất của người kia, nên đổi tên trên Zalo là cập nhật theo.
   const { results } = await env.CSDL.prepare(
     `WITH t AS (

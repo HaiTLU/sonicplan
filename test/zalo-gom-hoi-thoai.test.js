@@ -74,3 +74,18 @@ test('Google báo Client Secret sai: thông báo tiếng Việt chỉ đúng ch�
     await assert.rejects(doiMa({ client_id: 'a', client_secret: 'b' }, { grant_type: 'refresh_token', refresh_token: 'x' }), /Nhập lại khóa Google/);
   } finally { globalThis.fetch = goc; }
 });
+
+test('tin cũ mình gửi dưới tên mình: xếp vào cuộc trò chuyện duy nhất quanh đó, mơ hồ thì để nguyên', async () => {
+  const { xepTinGuiDiVaoHoiThoai } = await import('../src/nhan-zalo.js');
+  const env = csdlGia();
+  them(env, { ma: '1', gui: 'Linh', tieu_de: 'Linh', nd: 'Chào', luc: '2026-10-14T02:00:00Z', hoi: 'ca-nhan:1' });
+  them(env, { ma: '2', gui: 'Tôi', tieu_de: 'Nam Hai', nd: 'Dạ em', luc: '2026-10-14T02:05:00Z' }); // chỉ có Linh quanh đó
+  them(env, { ma: '3', gui: 'Minh', tieu_de: 'Minh', nd: 'Anh ơi', luc: '2026-10-14T05:00:00Z' });
+  them(env, { ma: '4', gui: 'Vy', tieu_de: 'Vy', nd: 'Anh ơi', luc: '2026-10-14T05:01:00Z' });
+  them(env, { ma: '5', gui: 'Tôi', tieu_de: 'Nam Hai', nd: 'Ok', luc: '2026-10-14T05:02:00Z' }); // hai người quanh đó
+  assert.equal(await xepTinGuiDiVaoHoiThoai(env, 't'), 1);
+  const { ds } = await dsHoiThoaiZalo(env, 't', new URL('http://x/'));
+  const linh = ds.find((x) => x.ten === 'Linh');
+  assert.equal(linh.n, 2);
+  assert.ok(ds.some((x) => x.ten === 'Nam Hai' && x.n === 1));
+});
