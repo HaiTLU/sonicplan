@@ -1,6 +1,7 @@
 // Vá chương trình đọc Zalo trên máy Mac để mỗi cuộc trò chuyện chỉ là một mục trong Sonicplan:
 //  - gửi kèm mã hội thoại (thread_id), Sonicplan gom tin theo mã chứ không theo tên;
-//  - tin mình gửi đi được ghi dưới tên người nhận, không còn thành một "người" riêng mang tên mình.
+//  - tin mình gửi đi được ghi dưới tên người nhận, không còn thành một "người" riêng mang tên mình;
+//  - gửi tin về Sonicplan mỗi 30 giây khi có tin mới, thay vì chờ lô hàng giờ.
 // Chạy lại nhiều lần vẫn an toàn. Dùng: node va-hoi-thoai.mjs [thư mục chương trình]
 
 import fs from 'node:fs';
@@ -28,16 +29,36 @@ async function tenNguoiDoiDien(api, msg) {
 `;
 const GUI_CU = /(\n(\s*)thread,\n)(\s*type: key === "group")/;
 
+const GUI_LO_CU = '  setInterval(async () => { await flush({ heartbeat: true }); saveSession(api); }, FLUSH_MIN * 60_000);';
+const GUI_LO_MOI = `  // Gửi tin gần như ngay (30 giây một lần nếu có tin mới), không chờ lô hàng giờ. Cờ chặn hai lần gửi chồng nhau.
+  let dangGui = false;
+  const guiLo = async (tuyChon) => {
+    if (dangGui) return;
+    dangGui = true;
+    try { await flush(tuyChon); saveSession(api); } finally { dangGui = false; }
+  };
+  setInterval(() => guiLo({ heartbeat: true }), FLUSH_MIN * 60_000);
+  setInterval(() => { if (buffer.length) guiLo(); }, 30_000);`;
+
 // Trả { ma, doi }: ma là mã đã vá, doi là có thay đổi hay không. Ném lỗi khi không nhận ra mã gốc.
 export function vaMa(ma) {
-  if (ma.includes('tenNguoiDoiDien') && ma.includes('thread_id: msg.threadId')) return { ma, doi: false };
-  if (!ma.includes(DONG_CU) || !GUI_CU.test(ma) || !ma.includes('async function threadName(')) {
-    throw new Error('Không nhận ra mã chương trình Zalo, nên không vá để tránh làm hỏng.');
+  let moi = ma;
+  let doi = false;
+  if (!(ma.includes('tenNguoiDoiDien') && ma.includes('thread_id: msg.threadId'))) {
+    if (!ma.includes(DONG_CU) || !GUI_CU.test(ma) || !ma.includes('async function threadName(')) {
+      throw new Error('Không nhận ra mã chương trình Zalo, nên không vá để tránh làm hỏng.');
+    }
+    moi = moi.replace('async function threadName(', `${HAM_MOI}async function threadName(`);
+    moi = moi.replace(DONG_CU, DONG_MOI);
+    moi = moi.replace(GUI_CU, (_t, dau, thut, cuoi) => `${dau}${thut}thread_id: msg.threadId,\n${cuoi}`);
+    doi = true;
   }
-  let moi = ma.replace('async function threadName(', `${HAM_MOI}async function threadName(`);
-  moi = moi.replace(DONG_CU, DONG_MOI);
-  moi = moi.replace(GUI_CU, (_t, dau, thut, cuoi) => `${dau}${thut}thread_id: msg.threadId,\n${cuoi}`);
-  return { ma: moi, doi: true };
+  if (!moi.includes('guiLo')) {
+    if (!moi.includes(GUI_LO_CU)) throw new Error('Không nhận ra chỗ gửi lô tin, nên không vá để tránh làm hỏng.');
+    moi = moi.replace(GUI_LO_CU, GUI_LO_MOI);
+    doi = true;
+  }
+  return { ma: moi, doi };
 }
 
 function timTep(thuMuc) {
