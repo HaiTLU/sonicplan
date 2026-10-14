@@ -16,6 +16,15 @@ import { cat, congNgay, gioVN, ngayVN } from './tien-ich.js';
 import { tachViecChoToChuc } from './viec.js';
 
 
+// Một dòng cho việc mới trong tin Telegram: tên, hạn, và bước đầu nếu AI đã soạn gợi ý. Đây là tin báo việc mới duy nhất.
+const NHOM_NGAN = { 1: 'AI tự làm', 2: 'AI chuẩn bị, bạn quyết định', 3: 'bạn tự làm' };
+export function dongViecMoi(v) {
+  const han = v.han_ngay ? ` (hạn ${v.han_ngay.slice(8, 10)}/${v.han_ngay.slice(5, 7)}${v.gio_hen ? ` ${v.gio_hen}` : ''})` : '';
+  const nhom = /\[Gợi ý\] Nhóm ([123])/.exec(v.ghi_chu || '')?.[1];
+  const buoc = nhom && /^1\. (.+)$/m.exec(v.ghi_chu || '')?.[1];
+  return `- ${v.tieu_de}${han}${nhom ? `: ${NHOM_NGAN[nhom]}` : ''}${buoc ? `. Bước tiếp: ${cat(buoc, 120)}` : ''}`;
+}
+
 export const CAC_TAC_VU = {
   'tu-kiem': async (env, bayGio) => {
     await env.CSDL.prepare(
@@ -160,10 +169,10 @@ export const CAC_TAC_VU = {
       if (!lg.bat['bao-viec-moi'] || dangYenLang(gio, lg.nguong)) continue;
       const moc = (await docCaiDat(env, tc.id, 'bao_viec_luc')) || new Date(Date.now() - 3600000).toISOString();
       const { results } = await env.CSDL.prepare(
-        `SELECT tieu_de, han_ngay, gio_hen FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND tao_luc > ?2 ORDER BY id LIMIT 15`,
+        `SELECT tieu_de, han_ngay, gio_hen, ghi_chu FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND tao_luc > ?2 ORDER BY id LIMIT 15`,
       ).bind(tc.id, moc).all();
       if (!results.length) continue;
-      const dong = results.map((v) => `- ${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay.slice(8, 10)}/${v.han_ngay.slice(5, 7)}${v.gio_hen ? ` ${v.gio_hen}` : ''})` : ''}`);
+      const dong = results.map(dongViecMoi);
       const dau = gio === lg.nguong.yen_den ? `Trong đêm có ${results.length} việc mới từ tin nhắn:` : `${results.length} việc mới từ tin nhắn:`;
       if (await baoToChuc(env, tc.id, `${dau}\n${dong.join('\n')}`)) soBao++;
       await ghiCaiDat(env, tc.id, 'bao_viec_luc', bayGio);
@@ -232,8 +241,13 @@ export const CAC_TAC_VU = {
     let so = 0;
     for (const tc of await cacToChuc(env)) {
       if (!(await docLuong(env, tc.id)).bat['don-cuoi-ngay']) continue;
+      // Hạn mới thì lời nhắc cũ hết nghĩa: xóa dấu đã nhắc để mai nhắc lại đúng giờ hẹn.
+      await env.CSDL.prepare(
+        `DELETE FROM nhac_da_gui WHERE viec_id IN (SELECT id FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay IS NOT NULL AND han_ngay <= ?2)`,
+      ).bind(tc.id, homNay).run();
+      // can_dong_bo = 1 để lượt đồng bộ sau dời luôn ngày bên Google Tasks và Lịch, không để hai nơi lệch ngày.
       const kq = await env.CSDL.prepare(
-        `UPDATE viec SET han_ngay = ?1, cap_nhat_luc = ?2 WHERE to_chuc_id = ?4 AND trang_thai = 'mo' AND han_ngay IS NOT NULL AND han_ngay <= ?3`,
+        `UPDATE viec SET han_ngay = ?1, cap_nhat_luc = ?2, can_dong_bo = 1 WHERE to_chuc_id = ?4 AND trang_thai = 'mo' AND han_ngay IS NOT NULL AND han_ngay <= ?3`,
       ).bind(mai, bayGio, homNay, tc.id).run();
       so += kq.meta.changes || 0;
     }

@@ -15,9 +15,13 @@ export const NGUONG = {
   gio_nhac_chieu: { mac_dinh: 17, min: 12, max: 21 },
 };
 
+// Khâu tắt sẵn, người dùng tự bật ở trang Luồng. "giao-github" tự tạo issue cho mọi việc AI xếp nhóm 1 mà chưa ai duyệt
+// (từng đẩy việc như "Lam bai", "Làm tiểu luận" sang kho tài liệu); giao Claude nay đi qua nút "Giao Claude" trên thẻ việc.
+export const KHAU_TAT_SAN = ['giao-github'];
+
 export function macDinhLuong() {
   return {
-    bat: Object.fromEntries(KHAU_BAT_TAT.map((ma) => [ma, true])),
+    bat: Object.fromEntries(KHAU_BAT_TAT.map((ma) => [ma, !KHAU_TAT_SAN.includes(ma)])),
     nguong: Object.fromEntries(Object.entries(NGUONG).map(([k, v]) => [k, v.mac_dinh])),
   };
 }

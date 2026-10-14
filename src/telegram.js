@@ -114,7 +114,8 @@ export async function apDungNutViec(env, tc, { viec_id: id, hanh_dong: hanhDong 
   }
   const goc = v.han_ngay && v.han_ngay > ngayVN(bayGio) ? v.han_ngay : ngayVN(bayGio);
   const moi = congNgay(goc, hanhDong === 'mai' ? 1 : 7);
-  await env.CSDL.prepare(`UPDATE viec SET han_ngay = ?3, cap_nhat_luc = ?4 WHERE id = ?1 AND to_chuc_id = ?2`).bind(id, tc, moi, bayGio).run();
+  // can_dong_bo = 1: Google Tasks và Lịch dời theo.
+  await env.CSDL.prepare(`UPDATE viec SET han_ngay = ?3, cap_nhat_luc = ?4, can_dong_bo = 1 WHERE id = ?1 AND to_chuc_id = ?2`).bind(id, tc, moi, bayGio).run();
   // Hạn đổi thì lời nhắc cũ hết nghĩa: xóa dấu đã nhắc để nhắc lại theo hạn mới.
   await env.CSDL.prepare('DELETE FROM nhac_da_gui WHERE viec_id = ?1').bind(id).run();
   return `Đã dời sang ${moi.slice(8, 10)}/${moi.slice(5, 7)}.`;
