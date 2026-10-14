@@ -10,7 +10,7 @@ import { boSungHan, ngayChoGio } from './ngay-viet.js';
 import { cat, chuanHoa, doGiong, ngayVN } from './tien-ich.js';
 import { chonDuAn, docDuAn, ghiSuKien } from './du-an.js';
 
-// Tiêu đề giống từ 80% với một việc đang mở trong 14 ngày gần đây thì coi là trùng.
+// Tiêu đề giống từ 80% với một việc đang mở trong 60 ngày (hoặc vừa xong 3 ngày) thì coi là trùng.
 export const NGUONG_TRUNG = 0.8;
 
 // Vài tin đã xử lý cùng nhóm (Zalo) hoặc cùng người gửi, trong 3 ngày, để AI hiểu câu trả lời ngắn như "ok", "đồng ý".
@@ -73,8 +73,20 @@ export function laViecVanVat(v) {
   return v?.uu_tien !== 'cao' && !v?.du_an;
 }
 
-export function timTrung(tieuDe, cacViec) {
-  return cacViec.find((v) => doGiong(v.tieu_de, tieuDe) >= NGUONG_TRUNG) || null;
+// Cùng một cuộc trò chuyện (cùng nhóm Zalo hoặc cùng người gửi) thì hạ ngưỡng: "Gửi báo giá cho chị Lan" và
+// "Gửi chị Lan bản báo giá" (giống 0,77) là một việc; "Gửi hợp đồng cho chị Lan" (0,62) vẫn là việc khác.
+export const NGUONG_TRUNG_CUNG_NGUON = 0.65;
+
+// cacViec: [{ id, tieu_de, nguon_khoa? }]. cungNguon: khóa nguồn của tin đang xét (nhóm hoặc người gửi). Lấy việc giống nhất.
+export function timTrung(tieuDe, cacViec, cungNguon = null) {
+  let tot = null;
+  let diemTot = 0;
+  for (const v of cacViec) {
+    const diem = doGiong(v.tieu_de, tieuDe);
+    const nguong = cungNguon && v.nguon_khoa === cungNguon ? NGUONG_TRUNG_CUNG_NGUON : NGUONG_TRUNG;
+    if (diem >= nguong && diem > diemTot) { tot = v; diemTot = diem; }
+  }
+  return tot;
 }
 
 // Việc trùng mà tin mới có hạn hoặc giờ khác: trả { han_ngay, gio_hen } mới, không đổi gì thì null.
@@ -90,11 +102,17 @@ export async function themViec(env, toChucId, viec, { tinNhanId = null, boQuaTru
   // Có giờ mà chưa có ngày thì không để rơi vào "Chưa có hạn": hôm nay, hoặc mai nếu giờ đã qua.
   if (viec.gio_hen && !viec.han_ngay) viec = { ...viec, han_ngay: ngayChoGio(viec.gio_hen) };
   if (!boQuaTrung) {
-    const han = new Date(Date.now() - 14 * 86400000).toISOString();
+    // So với việc đang mở trong 60 ngày và việc vừa xong 3 ngày, để tin nhắc lại việc cũ hoặc việc vừa làm không tạo việc mới.
     const { results } = await env.CSDL.prepare(
-      `SELECT id, tieu_de, han_ngay, gio_hen FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND tao_luc >= ?2`,
-    ).bind(toChucId, han).all();
-    const trung = timTrung(viec.tieu_de, results);
+      `SELECT v.id, v.tieu_de, v.han_ngay, v.gio_hen, v.trang_thai, COALESCE(NULLIF(t.nhom, ''), NULLIF(t.tieu_de, ''), t.nguoi_gui) AS nguon_khoa
+       FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id
+       WHERE v.to_chuc_id = ?1 AND ((v.trang_thai = 'mo' AND v.tao_luc >= ?2) OR (v.trang_thai = 'xong' AND v.xong_luc >= ?3))`,
+    ).bind(toChucId, new Date(Date.now() - 60 * 86400000).toISOString(), new Date(Date.now() - 3 * 86400000).toISOString()).all();
+    const tinGoc = tinNhanId
+      ? await env.CSDL.prepare(`SELECT COALESCE(NULLIF(nhom, ''), NULLIF(tieu_de, ''), nguoi_gui) AS k FROM tin_nhan WHERE id = ?1 AND to_chuc_id = ?2`).bind(tinNhanId, toChucId).first()
+      : null;
+    const trung = timTrung(viec.tieu_de, results, tinGoc?.k || null);
+    if (trung?.trang_thai === 'xong') return { id: trung.id, trung: true };
     if (trung) {
       // Tin sau đổi hạn hoặc giờ ("dời sang thứ 6", "chuyển 15h") thì cập nhật việc cũ, không để hạn mới bị bỏ.
       const doi = doiHanKhiTrung(trung, viec);
