@@ -1399,3 +1399,6 @@ details.bang-suc-khoe[open] > summary { padding-bottom: 0; }
 .tieu-da { display: flex; align-items: center; gap: 12px; }
 @media (max-width: 640px) { .luoi-du-an { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .luoi-du-an .the-du-an, .tien-do i, .o-icon { transition: none; } }
+
+.nhap-lai-khoa { margin-top: 12px; }
+.nhap-lai-khoa > summary { cursor: pointer; font-weight: 600; padding: 6px 0; }

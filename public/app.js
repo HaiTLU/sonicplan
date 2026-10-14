@@ -2079,6 +2079,19 @@ async function veKetNoi(goc, { moi = false } = {}) {
   }
   const oIdGg = h('input', { type: 'text', placeholder: 'Client ID (….apps.googleusercontent.com)', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Client ID' });
   const oBiMatGg = h('input', { type: 'password', placeholder: 'Client Secret', autocomplete: 'off', 'aria-label': 'Client Secret' });
+  if (gg.client_id) oIdGg.value = gg.client_id;
+  // Đổi khóa Google khi Google báo Client Secret sai: giữ nguyên tài khoản đã nối, chỉ thay khóa.
+  const nhapLaiKhoaGoogle = () => h('details', { class: 'nhap-lai-khoa', open: gg.lan_cuoi?.ghi_chu?.includes('Client Secret') ? '' : null },
+    h('summary', { text: 'Nhập lại khóa Google' }),
+    h('p', { class: 'mo-ta', text: 'Dùng khi Google báo Client Secret sai. Mở console.cloud.google.com, Credentials, chọn OAuth client của Sonicplan, chép Client Secret mới dán vào đây. Tài khoản đã nối giữ nguyên, tin và thư đang chờ sẽ được lưu lại ở lượt kế tiếp.' }),
+    h('div', { class: 'luoi-nhap' }, oIdGg, oBiMatGg, h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
+      ev.target.disabled = true;
+      try {
+        await api('/api/ket-noi/google', { method: 'POST', body: JSON.stringify({ client_id: oIdGg.value, client_secret: oBiMatGg.value }) });
+        bao('Đã lưu khóa Google mới. Hệ thống sẽ thử lại ở lượt đồng bộ kế tiếp.');
+        ve();
+      } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
+    } }, 'Lưu khóa')));
   const khoiGg = [];
   if (gg.da_noi) {
     khoiGg.push(
@@ -2086,6 +2099,7 @@ async function veKetNoi(goc, { moi = false } = {}) {
       h('p', { class: 'ghi-nho-kn', text: `Thư mới vào hộp tin; việc mới sang Google Tasks, việc có ngày sang Lịch; việc bấm xong bên Tasks sẽ xong ở đây.${gg.da_noi.co_drive ? ' Tệp đính kèm lưu thêm vào thư mục Sonicplan trên Drive.' : ''}` }),
       gg.da_noi.email ? h('div', { class: 'hang-nut' }, ...[['Mở Gmail', 'https://mail.google.com/mail/'], ['Mở Lịch', 'https://calendar.google.com/calendar/r'], ['Mở Tasks', 'https://tasks.google.com/tasks/'], ['Mở Drive', 'https://drive.google.com/drive/my-drive']].map(([ten, dia]) => h('a', { class: 'chip', href: `${dia}?authuser=${encodeURIComponent(gg.da_noi.email)}`, target: '_blank', rel: 'noopener noreferrer', title: `Mở bằng tài khoản ${gg.da_noi.email}` }, ten))) : null,
       laChuGg ? khoiNhanGoogle() : null,
+      laChuGg ? nhapLaiKhoaGoogle() : null,
       gg.da_noi.co_drive ? null : h('p', { class: 'canh-bao-nho', text: 'Chưa có quyền Drive nên tệp đính kèm mới chỉ nằm ở kho của hệ thống. Bật Google Drive API trong dự án Google Cloud, rồi bấm Đăng nhập lại và tick quyền Drive.' }),
       laChuGg && !gg.da_noi.co_drive ? h('div', { class: 'hang-nut' }, h('a', { class: 'nut nut-chinh', href: '/api/google/bat-dau' }, icon('thu'), 'Đăng nhập lại để thêm Drive')) : null,
       laChuGg ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/google', { method: 'DELETE' }); bao('Đã gỡ kết nối Google.'); ve(); } }, 'Gỡ kết nối Google')) : null,
