@@ -1,0 +1,23 @@
+# Mỗi lần gộp vào main: cập nhật Sonicplan đang chạy trên Mac mini (kéo mã, áp migration, khởi động lại, kiểm tra sống).
+# Cần một runner tự host đăng ký cho kho này, nhãn "sonicplan-may" (hướng dẫn ở may-chu/README.md). Chưa có runner thì job chờ.
+name: Trien khai Mac
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: trien-khai-mac
+  cancel-in-progress: false
+jobs:
+  trien-khai:
+    runs-on: [self-hosted, sonicplan-may]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cap nhat may chu
+        env:
+          SONICPLAN_DIR: ${{ vars.SONICPLAN_DIR }}
+          SONICPLAN_LAUNCHD: ${{ vars.SONICPLAN_LAUNCHD }}
+        run: bash may-chu/cap-nhat.sh

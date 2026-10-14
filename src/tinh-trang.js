@@ -7,7 +7,6 @@ import { TAC_VU } from './lich-chay.js';
 const HEN_GIO_TRE_PHUT = 75;
 
 export const KET_NOI = [
-  { loai: 'thu', ten: 'Thư chuyển tiếp', chua_noi: 'Chưa có thư nào về, cài chuyển tiếp ở trang Kết nối' },
   { loai: 'github', ten: 'Giao việc qua GitHub', chua_noi: 'Chưa nối GitHub' },
   { loai: 'api-vao', ten: 'Nhận việc từ dịch vụ ngoài', chua_noi: 'Chưa tạo mã nhận việc' },
   { loai: 'google', ten: 'Google (Gmail, Lịch, Tasks)', chua_noi: 'Chưa đăng nhập Google' },

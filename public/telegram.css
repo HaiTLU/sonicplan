@@ -2,8 +2,8 @@
    Chế độ tối là mặc định; máy đặt chế độ sáng thì dùng bảng màu ngày của Telegram. */
 .hop-zalo {
   --tg-ds: #17212B; --tg-ria: #202B36; --tg-chon: #2B5278; --tg-nen: #0E1621; --tg-dau: #17212B;
-  --tg-nhan: #182533; --tg-toi: #2B5278; --tg-chu: #F5F5F5; --tg-phu: #8093A3; --tg-gio-toi: #7DA8D3;
-  --tg-lk: #6AB3F3; --tg-dem: #3E88C6; --tg-vach: rgba(255, 255, 255, .06); --tg-o: #242F3D; --tg-ngay: rgba(38, 54, 72, .92);
+  --tg-nhan: #182533; --tg-toi: #2B5278; --tg-chu: #F5F5F5; --tg-phu: #8093A3; --tg-gio-toi: #A9C9EA;
+  --tg-lk: #6AB3F3; --tg-dem: #2F6FA8; --tg-vach: rgba(255, 255, 255, .06); --tg-o: #242F3D; --tg-ngay: rgba(38, 54, 72, .92);
   --tg-the: rgba(255, 255, 255, .05);
   --nm0: #FF516A; --nm1: #FFA85C; --nm2: #A695E7; --nm3: #7BC862; --nm4: #6EC9CB; --nm5: #65AADD; --nm6: #EE7AAE;
   --tg-hoa-van:
@@ -20,11 +20,11 @@
 }
 @media (prefers-color-scheme: light) {
   .hop-zalo {
-    --tg-ds: #FFFFFF; --tg-ria: #F4F4F5; --tg-chon: #3390EC; --tg-nen: #9DB88F; --tg-dau: #FFFFFF;
-    --tg-nhan: #FFFFFF; --tg-toi: #EEFFDE; --tg-chu: #000000; --tg-phu: #707579; --tg-gio-toi: #3E9B3A;
-    --tg-lk: #168ACD; --tg-dem: #3390EC; --tg-vach: rgba(0, 0, 0, .08); --tg-o: #F1F1F1; --tg-ngay: rgba(0, 0, 0, .45);
+    --tg-ds: #FFFFFF; --tg-ria: #F4F4F5; --tg-chon: #2A6FB5; --tg-nen: #9DB88F; --tg-dau: #FFFFFF;
+    --tg-nhan: #FFFFFF; --tg-toi: #EEFFDE; --tg-chu: #000000; --tg-phu: #707579; --tg-gio-toi: #2E7D32;
+    --tg-lk: #0F6FB0; --tg-dem: #2A6FB5; --tg-vach: rgba(0, 0, 0, .08); --tg-o: #F1F1F1; --tg-ngay: rgba(0, 0, 0, .45);
     --tg-the: rgba(0, 0, 0, .04);
-    --nm0: #CC5049; --nm1: #D67722; --nm2: #955CDB; --nm3: #40A920; --nm4: #309EBA; --nm5: #368AD1; --nm6: #C7508B;
+    --nm0: #CC5049; --nm1: #A8560C; --nm2: #955CDB; --nm3: #2E7D1F; --nm4: #176F84; --nm5: #2A6FB5; --nm6: #C7508B;
     --tg-hoa-van:
       linear-gradient(135deg, rgba(255, 255, 255, .16), transparent 55%),
       url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><g fill='none' stroke='%23ffffff' stroke-opacity='.22' stroke-width='1.2'><circle cx='20' cy='24' r='6'/><path d='M70 18l8 8M78 18l-8 8'/><rect x='88' y='70' width='12' height='12' rx='3'/><path d='M22 86q6-10 12 0t12 0'/><path d='M60 60l5 9h-10z'/></g></svg>");
@@ -47,8 +47,9 @@
 .hop-zalo .ds-zalo .chua-xem time { color: var(--tg-lk); }
 .hop-zalo .ds-zalo .dong-2 p { margin-top: 3px; color: var(--tg-phu); font-size: 14.5px; font-weight: 400; }
 .hop-zalo .ds-zalo .chua-xem .dong-2 p { color: var(--tg-phu); font-weight: 400; }
+/* Chữ phụ trên hàng đang chọn gần trắng hẳn để đủ tương phản (cần 4,5:1) trên nền xanh ở cả hai chế độ */
 .hop-zalo .ds-zalo button[aria-current="true"] time,
-.hop-zalo .ds-zalo button[aria-current="true"] .dong-2 p { color: rgba(255, 255, 255, .78); }
+.hop-zalo .ds-zalo button[aria-current="true"] .dong-2 p { color: rgba(255, 255, 255, .96); }
 .hop-zalo .dem-zalo { min-width: 22px; height: 22px; padding: 0 7px; line-height: 22px; border-radius: 11px; background: var(--tg-dem); color: #fff; font-size: 12.5px; font-weight: 600; }
 .hop-zalo .ds-zalo button[aria-current="true"] .dem-zalo { background: #fff; color: var(--tg-chon); }
 

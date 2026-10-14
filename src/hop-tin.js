@@ -35,7 +35,7 @@ export async function luuTin(env, toChucId, tin) {
 // Lưu tệp vào R2 và ghi một dòng vào bảng tep. duLieu là ArrayBuffer, Uint8Array hoặc ReadableStream.
 // Trả id dòng mới, hoặc null khi kho đã đầy (tin nhắn chữ vẫn được lưu, chỉ bỏ tệp).
 export async function luuTep(env, toChucId, tep) {
-  const daDung = (await env.CSDL.prepare('SELECT COALESCE(SUM(kich_thuoc), 0) AS tong FROM tep').first())?.tong ?? 0;
+  const daDung = (await env.CSDL.prepare('SELECT COALESCE(SUM(kich_thuoc), 0) AS tong FROM tep WHERE r2_khoa IS NOT NULL').first())?.tong ?? 0;
   if (daDung + (tep.kich_thuoc ?? TEP_TOI_DA) > KHO_TOI_DA) {
     console.warn(`Kho tệp đã dùng ${daDung} byte, chạm mức ${KHO_TOI_DA}, bỏ tệp ${tep.ten}`);
     return null;

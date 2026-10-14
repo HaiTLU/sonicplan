@@ -1,11 +1,13 @@
 // Giao diện Sonicplan: một trang, chuyển mục theo dấu #, đọc ghi dữ liệu qua /api.
 
 import { CHU_TRANG_THAI, dungKhoiClaude, moKhungGiaoClaude, veKhoiClaude } from './claude.js';
+import { anhDuAn, boAnh, chonVaTaiAnh, oChonIcon } from './anh-du-an.js';
 import { veDuAn } from './du-an.js';
 import { dongHieuSuat, veHieuSuat } from './hieu-suat.js';
 import { batKeoTha } from './keo-tha.js';
 import { hexMau, mauViec, oChonMau } from './mau.js';
 import { caiNguCanh, dongTrinhDon, moTrinhDon } from './trinh-don.js';
+import { veTram } from './tram.js';
 import { mienCuaUrl, nhanTep, phanTichTin, tachLienKet, trichTin } from './zalo-tin.js';
 
 const MUI_GIO = 'Asia/Ho_Chi_Minh';
@@ -163,19 +165,19 @@ function docXemViec() {
   try { return localStorage.getItem('sp.viec.xem') === 'han' ? 'han' : 'du-an'; } catch { return 'du-an'; }
 }
 const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', gio: null, q: '', chon: null, ds: [] }, viec: { tab: 'mo', duAn: 'tat-ca', xem: docXemViec(), anTrong: false, nguon: 'tat-ca', han: 'tat-ca', nang: 'tat-ca', chiSao: false }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
-const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'hieu-suat': 'Hiệu suất', 'du-an': 'Dự án', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy', 'du-lieu': 'Dữ liệu của bạn', 'da-chan': 'Đã chặn' };
+const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'hieu-suat': 'Hiệu suất', 'du-an': 'Dự án', claude: 'Claude', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy', 'du-lieu': 'Dữ liệu của bạn', 'da-chan': 'Đã chặn' };
 // Bốn mục chính, mỗi mục gom vài trang con (kế hoạch chuẩn quốc tế 13/10/2026, giai đoạn 3).
 // Đường dẫn cũ (#viec, #zalo...) giữ nguyên để liên kết đã lưu vẫn mở được.
 const NHOM = [
   { ma: 'hom-nay', ten: 'Hôm nay', con: ['tong-quan', 'viec', 'hieu-suat'] },
   { ma: 'hop-tin', ten: 'Hộp tin', con: ['hop-tin', 'zalo', 'da-chan'] },
-  { ma: 'du-an', ten: 'Dự án', con: ['du-an', 'tep', 'ghi-nho'] },
+  { ma: 'du-an', ten: 'Dự án', con: ['du-an', 'claude', 'tep', 'ghi-nho'] },
   { ma: 'cai-dat', ten: 'Cài đặt', con: ['ket-noi', 'luong', 'nhat-ky', 'du-lieu'] },
 ];
 const TEN_TAB = { 'hop-tin': 'Tất cả tin', 'du-an': 'Dự án', 'nhat-ky': 'Nhật ký' };
 const nhomCua = (muc) => NHOM.find((n) => n.con.includes(muc)) || NHOM[0];
 const KET_QUA = { xong: 'Xong', loi: 'Lỗi', dang_chay: 'Đang chạy' };
-const ICON_TP = { 'may-chu': 'he-thong', csdl: 'kho', 'hen-gio': 'dong-ho', thu: 'thu', zalo: 'zalo', tep: 'tep', lich: 'lich', ai: 'ai', telegram: 'telegram' };
+const ICON_TP = { hop: 'ghi-am', 'may-chu': 'he-thong', csdl: 'kho', 'hen-gio': 'dong-ho', thu: 'thu', zalo: 'zalo', tep: 'tep', lich: 'lich', ai: 'ai', telegram: 'telegram' };
 const TEN_DEN = { xanh: 'ổn', vang: 'đang chờ', do: 'lỗi', xam: 'chưa dùng' };
 
 // Chỉ lấy hai số đếm, không tải cả Tổng quan: giữ lượt đọc cơ sở dữ liệu thấp khi để trang mở cả ngày.
@@ -213,7 +215,7 @@ let boCucTQ = null;
 const TRANG_KHOI = { 'can-lam': 'viec', 'chi-so': 'viec', 'du-an': 'du-an', 'viec-toi': 'viec', nhip: 'hop-tin', 'hieu-suat': 'hieu-suat', 'tong-hop': 'hop-tin', 'tin-moi': 'hop-tin', 'he-thong': 'ket-noi' };
 
 async function veTongQuan(goc) {
-  thay(goc,
+  if (!lamMoiEm) thay(goc,
     h('div', { class: 'luoi-tq' },
       h('div', { class: 'bang can-lam' }, ...[1, 2, 3, 4].map(() => h('div', { class: 'o-can' }, xuong(14, '50%'), h('div', { style: 'height:10px' }), xuong(36, '40%')))),
       h('div', { class: 'bang chi-so' }, xuong(150)),
@@ -256,7 +258,7 @@ async function veTongQuan(goc) {
     'tin-moi': () => bangTinMoi(kq.tin_moi.slice(0, 5)),
     'he-thong': () => khoiHeThong(tp, kq.tinh_trang.tac_vu, on, dungDuoc.length),
   };
-  const luoi = h('div', { class: 'luoi-tq vao' }, dau);
+  const luoi = h('div', { class: lamMoiEm ? 'luoi-tq' : 'luoi-tq vao' }, dau);
   const hien = boCuc.thu_tu.filter((k) => !boCuc.an.includes(k) && ve[k]);
   for (const k of hien) {
     const el = ve[k]();
@@ -652,13 +654,7 @@ async function mucTrinhDonViec(v) {
     }
   }
   if (!xong) {
-    muc.push({ vach: true }, { nhan: 'Hủy việc', nguy: true, lam: async () => {
-      try {
-        await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'huy' }) });
-        bao(`Đã hủy: ${v.tieu_de}`, { hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'mo' }) }); moMuc(); } } });
-      } catch (e) { bao(e.message, { loi: true }); }
-      moMuc();
-    } });
+    muc.push({ vach: true }, { nhan: 'Hủy việc', nguy: true, lam: () => huyViec(v) });
   }
   return muc;
 }
@@ -666,32 +662,89 @@ async function moTrinhDonViec(v, x, y) {
   moTrinhDon({ x, y, muc: await mucTrinhDonViec(v), nhan: `Thao tác với việc: ${v.tieu_de}` });
 }
 
+// Làm mới êm: vẽ lại dữ liệu ngay tại chỗ, không hiện khung xương và không chạy lại hiệu ứng vào trang.
+let lamMoiEm = false;
+async function moMucEm() {
+  lamMoiEm = true;
+  try { await moMuc(); } finally { lamMoiEm = false; }
+}
+const dangOTrangViec = () => (location.hash.slice(1) || 'tong-quan').split('/')[0] === 'viec';
+function napSauKhiDoi() { return dangOTrangViec() ? napLaiViec() : moMucEm(); }
+const itChuyenDong = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Dòng việc mờ dần rồi thu chiều cao về 0, các dòng dưới trượt lên; trả về hàm gỡ hiệu ứng nếu cần hoàn lại.
+function rutGon(el) {
+  if (!el?.isConnected || itChuyenDong()) return { xong: Promise.resolve(), hoan: () => {} };
+  const cs = getComputedStyle(el);
+  const khoang = parseFloat(getComputedStyle(el.parentElement).rowGap) || 0;
+  const cu = el.getAttribute('style');
+  el.style.boxSizing = 'border-box';
+  el.style.height = `${el.offsetHeight}px`;
+  el.style.overflow = 'hidden';
+  el.style.pointerEvents = 'none';
+  el.style.transition = 'height .3s var(--em), opacity .22s, padding .3s var(--em), margin .3s var(--em), border-width .3s';
+  void el.offsetHeight;
+  Object.assign(el.style, { height: '0px', opacity: '0', paddingTop: '0px', paddingBottom: '0px', borderTopWidth: '0px', borderBottomWidth: '0px', marginBottom: `${-khoang}px` });
+  if (cs.display === 'grid') el.style.minHeight = '0';
+  return {
+    xong: new Promise((r) => setTimeout(r, 320)),
+    hoan: () => { if (cu == null) el.removeAttribute('style'); else el.setAttribute('style', cu); },
+  };
+}
+const timDongViec = (id) => [...document.querySelectorAll('.the-viec, .muc-viec')].find((e) => e._viec?.id === id);
+
+// Cập nhật lạc quan: ô tick và dòng việc đổi ngay, API chạy ngầm, lỗi thì hoàn lại.
 async function doiXong(v, xong, el) {
+  const rut = el ? rutGon(el) : null;
+  el?.classList.add('dang-xong');
   try {
-    el?.classList.add('dang-xong');
     await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: xong ? 'xong' : 'mo' }) });
     bao(xong ? `Đã xong: ${v.tieu_de}` : 'Đã mở lại việc.', { hanhDong: xong ? { nhan: 'Hoàn tác', lam: () => doiXong(v, false) } : null });
-    setTimeout(() => moMuc(), 350);
+    await rut?.xong;
+    await napSauKhiDoi();
   } catch (e) {
+    rut?.hoan();
     el?.classList.remove('dang-xong');
+    const o = el?.querySelector('.o-xong');
+    if (o) o.checked = !xong;
     bao(e.message, { loi: true });
   }
 }
+
+// Hủy việc (xóa khỏi danh sách) cũng thu dòng mượt rồi mới làm mới.
+async function huyViec(v) {
+  const rut = rutGon(timDongViec(v.id));
+  try {
+    await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'huy' }) });
+    bao(`Đã hủy: ${v.tieu_de}`, { hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'mo' }) }); await napSauKhiDoi(); } } });
+    await rut.xong;
+  } catch (e) {
+    rut.hoan();
+    bao(e.message, { loi: true });
+  }
+  await napSauKhiDoi();
+}
+
+// Biểu tượng nguồn tin; cuộc họp (ghi âm, biên bản) đứng tên cuộc họp thay cho người gửi.
+// Các nguồn tin của Hộp tin. Thêm nguồn mới: thêm một dòng ở đây (tên, biểu tượng), màu ở .huy-hieu.<mã> trong kieu.css.
+const NGUON_TIN = { zalo: { ten: 'Zalo', icon: 'zalo' }, gmail: { ten: 'Thư', icon: 'thu' }, hop: { ten: 'Họp', icon: 'ghi-am' } };
+const iconNguon = (nguon) => icon(NGUON_TIN[nguon]?.icon || 'thu');
+const tenGuiTin = (t) => (t.nguon === 'hop' ? t.tieu_de || 'Cuộc họp' : t.nguoi_gui || 'Không rõ');
+const dongPhuTin = (t) => (t.nguon === 'hop' ? 'Cuộc họp' : t.nhom ? tenNhom(t.nhom) : t.tieu_de);
 
 function bangTinMoi(ds) {
   const goc = h('section', { class: 'bang bang-tin-moi', 'aria-labelledby': 'tq-tin' },
     h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-tin' }, icon('hop-tin'), 'Tin mới'), h('a', { class: 'lien-ket-nho', href: '#hop-tin' }, 'Mở hộp tin', icon('mui-ten'))),
   );
   if (!ds.length) {
-    goc.append(h('div', { class: 'trong-trai', style: 'min-height:220px' }, icon('hop-tin'), h('h3', { text: 'Hộp tin còn trống' }), h('p', { text: 'Nối Zalo và chuyển tiếp thư ở trang Kết nối để tin bắt đầu về.' })));
+    goc.append(h('div', { class: 'trong-trai', style: 'min-height:220px' }, icon('hop-tin'), h('h3', { text: 'Hộp tin còn trống' }), h('p', { text: 'Nối Zalo và Google ở trang Kết nối để tin bắt đầu về.' })));
     return goc;
   }
   goc.append(h('ul', { class: 'ds-tin-ngan' }, ...ds.map((t) =>
     h('li', { class: t.da_xem ? '' : 'chua-xem' },
       h('a', { href: `#hop-tin/${t.id}` },
-        h('span', { class: `huy-hieu ${t.nguon}` }, icon(t.nguon === 'zalo' ? 'zalo' : 'thu')),
+        h('span', { class: `huy-hieu ${t.nguon}` }, iconNguon(t.nguon)),
         h('div', { style: 'min-width:0' },
-          h('div', { class: 'dong-1' }, h('strong', { text: t.nguoi_gui || 'Không rõ' }), h('span', { text: t.nhom || t.tieu_de || '' })),
+          h('div', { class: 'dong-1' }, h('strong', { text: tenGuiTin(t) }), h('span', { text: t.nguon === 'hop' ? 'Cuộc họp' : t.nhom || t.tieu_de || '' })),
           h('p', { text: trichTin(t.trich) }),
         ),
         h('time', { datetime: t.thoi_diem, text: luc(t.thoi_diem) }),
@@ -791,6 +844,19 @@ async function veDaChan(goc) {
 // =====================================================================
 // Hộp tin
 // =====================================================================
+// Hai nút đầu tin cuộc họp: nghe ghi âm và mở biên bản bằng khung xem của Drive.
+function nutCuocHop(tep) {
+  const laGhiAm = (f) => /\.(m4a|mp3|wav|webm|ogg|oga|aac|opus|flac|amr|caf)$/i.test(f.ten) || /^audio\//.test(f.loai || '');
+  const ghiAm = tep.find(laGhiAm);
+  const bienBan = tep.find((f) => !laGhiAm(f));
+  if (!ghiAm && !bienBan) return null;
+  const mo = (f) => () => { const k = kieuMo(f); if (k) moXemTep(f, k); else location.href = `/api/tep/${f.id}/tai`; };
+  return h('div', { class: 'hang-nut', style: 'margin:4px 0 18px' },
+    ghiAm ? h('button', { class: 'nut nut-chinh', type: 'button', onclick: mo(ghiAm) }, icon('ghi-am'), 'Nghe ghi âm') : null,
+    bienBan ? h('button', { class: 'nut nut-phu', type: 'button', onclick: mo(bienBan) }, icon('tep'), 'Mở biên bản') : null,
+  );
+}
+
 async function veHopTin(goc, thamSo) {
   const t = trang.tin;
   if (thamSo) t.chon = Number(thamSo);
@@ -808,7 +874,7 @@ async function veHopTin(goc, thamSo) {
   });
   thay(goc, 
     h('div', { class: 'thanh-loc' },
-      nutLoc('tat-ca', 'Tất cả'), nutLoc('hom-nay', nhanHomNay), nutLoc('chua-xem', 'Chưa xem'), nutLoc('zalo', 'Zalo'), nutLoc('gmail', 'Thư'),
+      nutLoc('tat-ca', 'Tất cả'), nutLoc('hom-nay', nhanHomNay), nutLoc('chua-xem', 'Chưa xem'), ...Object.entries(NGUON_TIN).map(([ma, n]) => nutLoc(ma, n.ten)),
       h('button', { class: 'chip', type: 'button', onclick: async () => { await api('/api/tin/da-xem-het', { method: 'POST' }); bao('Đã đánh dấu xem hết.'); capNhatDem(0); veHopTin(goc); } }, 'Đánh dấu xem hết'),
       h('label', { class: 'o-tim' }, icon('tim'), oTim),
     ),
@@ -820,7 +886,7 @@ async function veHopTin(goc, thamSo) {
     if (t.loc === 'chua-xem') q.set('chua_xem', '1');
     if (t.loc === 'hom-nay') q.set('hom_nay', '1');
     if (t.loc === 'hom-nay' && t.gio != null) q.set('gio', String(t.gio));
-    if (t.loc === 'zalo' || t.loc === 'gmail') q.set('nguon', t.loc);
+    if (NGUON_TIN[t.loc]) q.set('nguon', t.loc);
     if (t.q) q.set('q', t.q);
     try {
       const { tin } = await api(`/api/tin?${q}`);
@@ -836,16 +902,16 @@ async function veHopTin(goc, thamSo) {
 
   function veDs() {
     if (!t.ds.length) {
-      thay(khungDs, h('div', { class: 'trong-trai' }, icon('hop-tin'), h('h3', { text: t.q ? 'Không tìm thấy tin nào' : 'Chưa có tin' }), h('p', { text: t.q ? 'Thử từ khóa khác.' : 'Tin Zalo và thư chuyển tiếp sẽ về đây.' })));
+      thay(khungDs, h('div', { class: 'trong-trai' }, icon('hop-tin'), h('h3', { text: t.q ? 'Không tìm thấy tin nào' : 'Chưa có tin' }), h('p', { text: t.q ? 'Thử từ khóa khác.' : 'Tin Zalo, thư Gmail và biên bản họp sẽ về đây.' })));
       return;
     }
     thay(khungDs, h('ul', {}, ...t.ds.map((x) => {
       const li = h('li', { class: x.da_xem ? '' : 'chua-xem' },
         h('button', { type: 'button', 'aria-current': String(x.id === t.chon), dataset: { id: x.id }, onclick: () => { location.hash = `hop-tin/${x.id}`; } },
-          h('span', { class: `huy-hieu ${x.nguon}` }, icon(x.nguon === 'zalo' ? 'zalo' : 'thu')),
+          h('span', { class: `huy-hieu ${x.nguon}` }, iconNguon(x.nguon)),
           h('div', { style: 'min-width:0' },
-            h('div', { class: 'dong-1' }, h('strong', { text: x.nguoi_gui || 'Không rõ' }), h('time', { datetime: x.thoi_diem, text: luc(x.thoi_diem) })),
-            (x.nhom || x.tieu_de) ? h('div', { class: 'noi', text: x.nhom ? tenNhom(x.nhom) : x.tieu_de }) : null,
+            h('div', { class: 'dong-1' }, h('strong', { text: tenGuiTin(x) }), h('time', { datetime: x.thoi_diem, text: luc(x.thoi_diem) })),
+            dongPhuTin(x) ? h('div', { class: 'noi', text: dongPhuTin(x) }) : null,
             h('p', { text: trichTin(x.trich) }),
             (x.so_tep || x.so_viec) ? h('div', { class: 'the-nho' }, x.so_tep ? h('span', { text: `${x.so_tep} tệp` }) : null, x.so_viec ? h('span', { class: 'viec', text: `${x.so_viec} việc` }) : null) : null,
           ),
@@ -886,11 +952,12 @@ async function veHopTin(goc, thamSo) {
       if (!(chan || []).length) spam.nut.hidden = true;
       thay(khungDoc, 
         h('button', { class: 'nut nut-phu nut-nho nut-quay', type: 'button', text: 'Quay lại danh sách', onclick: () => { t.chon = null; location.hash = 'hop-tin'; } }),
-        h('div', { class: 'nguon' }, h('span', { class: `huy-hieu ${tin.nguon}` }, icon(tin.nguon === 'zalo' ? 'zalo' : 'thu')), tin.nguon === 'zalo' ? (tin.nhom ? `Zalo, ${tenNhom(tin.nhom)}` : 'Zalo, tin riêng') : 'Thư chuyển tiếp'),
-        h('h2', { text: tin.tieu_de && tin.nguon === 'gmail' ? tin.tieu_de : tin.nguoi_gui || 'Không rõ người gửi' }),
+        h('div', { class: 'nguon' }, h('span', { class: `huy-hieu ${tin.nguon}` }, iconNguon(tin.nguon)), tin.nguon === 'zalo' ? (tin.nhom ? `Zalo, ${tenNhom(tin.nhom)}` : 'Zalo, tin riêng') : tin.nguon === 'hop' ? 'Cuộc họp' : 'Thư Gmail'),
+        h('h2', { text: tin.nguon === 'hop' ? tin.tieu_de || 'Cuộc họp' : tin.tieu_de && tin.nguon === 'gmail' ? tin.tieu_de : tin.nguoi_gui || 'Không rõ người gửi' }),
         h('p', { class: 'meta', text: `${tin.nguon === 'gmail' ? `Từ ${tin.nguoi_gui || 'không rõ'}, ` : ''}${fmt.ngayGio.format(new Date(tin.thoi_diem))}` }),
+        tin.nguon === 'hop' ? nutCuocHop(tep) : null,
         h('div', { class: 'than', text: tin.noi_dung || '(Không có nội dung)' }),
-        tep.length ? h('div', { class: 'khoi' }, h('h3', { text: 'Tệp đính kèm' }), ...tep.map((f) => h('a', { class: 'tep-dinh', href: `/api/tep/${f.id}/tai`, onclick: (ev) => { const k = kieuMo(f); if (k && !ev.ctrlKey && !ev.metaKey) { ev.preventDefault(); moXemTep(f, k); } } }, icon('tai'), f.ten, h('small', { text: kichThuoc(f.kich_thuoc) })))) : null,
+        tep.length ? h('div', { class: 'khoi' }, h('h3', { text: tin.nguon === 'hop' ? 'Ghi âm và biên bản' : 'Tệp đính kèm' }), ...tep.map((f) => h('a', { class: 'tep-dinh', href: `/api/tep/${f.id}/tai`, onclick: (ev) => { const k = kieuMo(f); if (k && !ev.ctrlKey && !ev.metaKey) { ev.preventDefault(); moXemTep(f, k); } } }, icon('tai'), f.ten, h('small', { text: kichThuoc(f.kich_thuoc) })))) : null,
         h('div', { class: 'khoi' },
           h('h3', { text: viec.length ? 'Việc tách từ tin này' : 'Chưa có việc nào từ tin này' }),
           ...viec.map((v) => h('div', { class: 'muc-viec' }, h('span', { class: `nhan-kq ${v.trang_thai === 'xong' ? 'xong' : 'dang_chay'}`, text: v.trang_thai === 'xong' ? 'Xong' : 'Mở' }), h('button', { class: 'ten-viec', type: 'button', text: v.tieu_de, onclick: () => moNganViec(v) }), v.han_ngay ? h('span', { class: 'chip-gio', text: `${ngayHienThi(v.han_ngay)}${v.gio_hen ? ` ${v.gio_hen}` : ''}` }) : h('span'))),
@@ -923,6 +990,7 @@ function nhanNguon(v) {
   const ai = (v.tin_nhom || v.tin_nguoi_gui || '').split('<')[0].trim();
   if (ma === 'zalo') return { ma, icon: 'zalo', chu: ai ? `Zalo · ${ai}` : 'Zalo' };
   if (ma === 'gmail') return { ma, icon: 'thu', chu: ai ? `Gmail · ${ai}` : 'Gmail' };
+  if (ma === 'hop') return { ma, icon: 'ghi-am', chu: 'Cuộc họp' };
   if (ma === 'telegram') return { ma, icon: 'telegram', chu: 'Telegram' };
   if (ma === 'api') return { ma, icon: 'ai', chu: 'Dịch vụ ngoài' };
   return { ma: 'tay', icon: 'cong', chu: 'Tự thêm' };
@@ -956,7 +1024,7 @@ async function veViec(goc) {
   const locDuAn = h('div', { class: 'thanh-loc loc-du-an', 'aria-label': 'Lọc theo dự án' });
   const chon = (khoa, nhan, ds) => h('label', { class: 'chon-loc' }, h('span', { text: nhan }), h('select', { 'aria-label': nhan, onchange: (e) => { v[khoa] = e.target.value; napViec(); } }, ...ds.map(([ma, ten]) => h('option', { value: ma, selected: v[khoa] === ma, text: ten }))));
   const locKhac = v.tab === 'mo' ? h('div', { class: 'thanh-loc loc-khac', 'aria-label': 'Bộ lọc việc' },
-    chon('nguon', 'Nguồn', [['tat-ca', 'Tất cả'], ['zalo', 'Zalo'], ['gmail', 'Gmail'], ['tay', 'Tự thêm']]),
+    chon('nguon', 'Nguồn', [['tat-ca', 'Tất cả'], ['zalo', 'Zalo'], ['gmail', 'Gmail'], ['hop', 'Cuộc họp'], ['tay', 'Tự thêm']]),
     chon('han', 'Hạn', [['tat-ca', 'Tất cả'], ['qua-han', 'Quá hạn'], ['hom-nay', 'Hôm nay'], ['tuan', 'Tuần này'], ['khong', 'Chưa có hạn']]),
     chon('nang', 'Độ nặng', [['tat-ca', 'Tất cả'], ['nhe', 'Nhẹ'], ['vua', 'Vừa'], ['nang', 'Nặng'], ['rat_nang', 'Rất nặng']]),
     h('button', { class: 'chip chip-sao', type: 'button', 'aria-pressed': String(v.chiSao), onclick: () => { v.chiSao = !v.chiSao; veViec(goc); } }, icon('sao'), 'Có sao'),
@@ -971,9 +1039,9 @@ async function veViec(goc) {
 
   function veLoc(viec) {
     const dem = (f) => viec.filter(f).length;
-    const chip = (ma, nhan, so, mau) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.duAn === ma), onclick: () => { v.duAn = ma; napViec(); } }, hexMau(mau) ? h('i', { class: 'cham-mau', style: `--mau:${hexMau(mau)}` }) : null, nhan, h('b', { text: String(so) }));
+    const chip = (ma, nhan, so, mau, da) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.duAn === ma), onclick: () => { v.duAn = ma; napViec(); } }, da && (da.icon || da.anh_khoa) ? anhDuAn(h, da, 'nho') : hexMau(mau) ? h('i', { class: 'cham-mau', style: `--mau:${hexMau(mau)}` }) : null, nhan, h('b', { text: String(so) }));
     const ds = duAnDs.filter((d) => viec.some((x) => x.du_an_id === d.id) || v.duAn === d.id);
-    thay(locDuAn, chip('tat-ca', 'Tất cả dự án', viec.length), ...ds.map((d) => chip(d.id, d.ten, dem((x) => x.du_an_id === d.id), d.mau)), dem((x) => !x.du_an_id) ? chip('khong', 'Chưa xếp dự án', dem((x) => !x.du_an_id)) : null);
+    thay(locDuAn, chip('tat-ca', 'Tất cả dự án', viec.length), ...ds.map((d) => chip(d.id, d.ten, dem((x) => x.du_an_id === d.id), d.mau, d)), dem((x) => !x.du_an_id) ? chip('khong', 'Chưa xếp dự án', dem((x) => !x.du_an_id)) : null);
   }
 
   async function napViec() {
@@ -1025,13 +1093,13 @@ function nutClaudeCot(c) {
 }
 
 function cotTheoDuAn(ds, hn) {
-  const cot = [...duAnDs.map((d) => ({ ma: `da-${d.id}`, id: d.id, sao: d.sao, drive_link: d.drive_link, drive_kho_id: d.drive_kho_id, ten: d.ten, mau: d.mau, loc: (x) => x.du_an_id === d.id })), { ma: 'da-khong', ten: 'Chưa xếp dự án', loc: (x) => !x.du_an_id }];
+  const cot = [...duAnDs.map((d) => ({ ma: `da-${d.id}`, id: d.id, sao: d.sao, drive_link: d.drive_link, drive_kho_id: d.drive_kho_id, ten: d.ten, mau: d.mau, icon: d.icon, anh_khoa: d.anh_khoa, loc: (x) => x.du_an_id === d.id })), { ma: 'da-khong', ten: 'Chưa xếp dự án', loc: (x) => !x.du_an_id }];
   return cot.map((c) => ({ ...c, ds: ds.filter(c.loc) })).filter((c) => !(trang.viec.anTrong && !c.ds.length && c.ma !== 'da-khong')).map((c) => {
     const muc = () => (c.id ? mucTrinhDonDuAn(c, { ds: c.ds, cot: true }) : [{ nhan: 'Thêm việc chưa xếp dự án', lam: () => moNganViec(null) }]);
     const baCham = h('button', { class: 'nut-ba-cham nut-menu-cot', type: 'button', 'aria-label': `Thao tác với ${c.ten}`, 'aria-haspopup': 'menu', title: 'Thao tác' }, icon('ba-cham'));
     baCham.addEventListener('click', (ev) => { ev.stopPropagation(); const r = baCham.getBoundingClientRect(); moTrinhDon({ x: r.left, y: r.bottom + 4, muc: muc(), nhan: `Thao tác với ${c.ten}` }); });
     const el = h('section', { class: `cot-viec${c.id && cotThu.has(c.id) ? ' thu-gon' : ''}`, dataset: { cot: c.ma }, 'aria-label': c.ten, ...(hexMau(c.mau) ? { style: `--mau:${hexMau(c.mau)}` } : {}) },
-      h('header', {}, h('h2', { text: c.ten }), h('span', { class: 'dau-cot' }, nutClaudeCot(c), c.id ? nutSao(Boolean(c.sao), `dự án ${c.ten}`, () => saoDuAn(c.id, !c.sao)) : null, h('span', { text: String(c.ds.length) }), baCham)),
+      h('header', {}, h('h2', {}, c.id ? anhDuAn(h, c, 'nho') : null, c.ten), h('span', { class: 'dau-cot' }, nutClaudeCot(c), c.id ? nutSao(Boolean(c.sao), `dự án ${c.ten}`, () => saoDuAn(c.id, !c.sao)) : null, h('span', { text: String(c.ds.length) }), baCham)),
       c.ds.length ? h('ul', {}, ...c.ds.map((x) => theViec(x, hn))) : h('p', { class: 'cot-trong', text: 'Kéo việc vào đây.' }),
     );
     el._td = () => ({ muc: muc(), nhan: `Thao tác với ${c.ten}` });
@@ -1146,6 +1214,9 @@ function mucTrinhDonDuAn(d, { ds = [], cot = false } = {}) {
     d.drive_kho_id ? { nhan: 'Tắt lưu vào Drive', lam: () => driveDuAn(d, 'tat') } : null,
     { vach: true },
     { nhan: 'Đổi tên', lam: () => { const ten = (prompt('Tên dự án', d.ten) || '').trim(); if (ten && ten !== d.ten) suaDuAnNhanh(d, { ten }, 'Đã đổi tên dự án.'); } },
+    { nhan: 'Đổi biểu tượng', con: [{ node: oChonIcon(h, d.icon || null, (bt) => { dongTrinhDon(); suaDuAnNhanh(d, { icon: bt }, 'Đã đổi biểu tượng dự án.'); }, { nhan: `Biểu tượng của ${d.ten}` }) }] },
+    { nhan: d.anh_khoa ? 'Đổi ảnh đại diện…' : 'Tải ảnh đại diện…', lam: () => chonVaTaiAnh(d, { bao, xong: () => moMuc() }) },
+    d.anh_khoa ? { nhan: 'Gỡ ảnh đại diện', lam: async () => { try { await boAnh(d.id); bao('Đã gỡ ảnh.'); } catch (e) { bao(e.message, { loi: true }); } moMuc(); } } : null,
     { nhan: 'Đổi màu', con: [{ node: oChonMau(h, d.mau || null, (ma) => { dongTrinhDon(); suaDuAnNhanh(d, { mau: ma || null }, 'Đã đổi màu dự án.'); }, { nhan: `Màu của ${d.ten}` }) }] },
     { vach: true },
     { nhan: 'Gỡ dự án', nguy: true, lam: async () => {
@@ -1200,7 +1271,7 @@ function theViec(v, hn) {
         v.han_ngay ? h('span', { class: hn && v.han_ngay < hn ? 'tre' : '' }, icon('lich'), ngayHienThi(v.han_ngay)) : null,
         v.gio_hen ? h('span', {}, icon('dong-ho'), v.gio_hen) : null,
         h('span', { class: `nguon ${nhanNguon(v).ma}`, title: `Nguồn: ${v.tin_nhom || v.tin_nguoi_gui || nhanNguon(v).chu}` }, icon(nhanNguon(v).icon), nhanNguon(v).chu),
-        v.du_an_ten ? h('a', { class: 'nhan-du-an', href: `#du-an/${v.du_an_id}`, title: 'Xem lịch sử dự án' }, icon('du-an'), v.du_an_ten) : h('span', { class: 'nhan-du-an chua', text: 'Chưa xếp dự án' }),
+        v.du_an_ten ? h('a', { class: 'nhan-du-an', href: `#du-an/${v.du_an_id}`, title: 'Xem lịch sử dự án' }, v.du_an_icon || v.du_an_anh ? anhDuAn(h, v, 'nho') : icon('du-an'), v.du_an_ten) : h('span', { class: 'nhan-du-an chua', text: 'Chưa xếp dự án' }),
         v.xong_luc ? h('span', {}, `Xong ${luc(v.xong_luc)}`) : null,
         nutClaudeThe(v),
       ),
@@ -1269,14 +1340,8 @@ formViec.addEventListener('submit', async (e) => {
 document.getElementById('nut-huy-viec').addEventListener('click', async () => {
   if (!viecDangSua) return;
   const v = viecDangSua;
-  try {
-    await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'huy' }) });
-    ngan.close();
-    bao(`Đã hủy: ${v.tieu_de}`, { hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'mo' }) }); moMuc(); } } });
-    moMuc();
-  } catch (err) {
-    bao(err.message, { loi: true });
-  }
+  ngan.close();
+  huyViec(v);
 });
 document.getElementById('nut-them-viec').addEventListener('click', () => moNganViec(null));
 
@@ -1302,7 +1367,7 @@ function kieuXemTep(ten) {
 }
 
 // Tệp đã nằm trên Drive thì mở thẳng bằng trình xem của Drive (Word, Excel, PowerPoint, PDF); ảnh vẫn xem bản lưu.
-const DUOI_DRIVE = ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'pdf', 'odt', 'rtf', 'csv'];
+const DUOI_DRIVE = ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'pdf', 'odt', 'rtf', 'csv', 'md', 'txt', 'm4a', 'mp3', 'wav', 'webm', 'ogg', 'oga', 'aac', 'opus', 'flac', 'amr', 'caf'];
 function kieuMo(f) {
   const duoi = (String(f.ten).match(/\.([A-Za-z0-9]{1,5})$/) || [])[1]?.toLowerCase();
   return f.drive_id && DUOI_DRIVE.includes(duoi) ? 'drive' : kieuXemTep(f.ten);
@@ -1354,7 +1419,7 @@ function loaiLocTep(f) {
 }
 function nguonTep(f) {
   if (f.nguon === 'zalo') return `Zalo: ${f.tin_nhom || (f.nguoi_gui || '').split('<')[0].trim() || 'không rõ'}`;
-  return f.nguon === 'gmail' ? 'Gmail' : 'Tải lên';
+  return f.nguon === 'gmail' ? 'Gmail' : f.nguon === 'hop' ? 'Cuộc họp' : 'Tải lên';
 }
 function thoiGianTep(f) {
   const t = Date.parse(f.tao_luc);
@@ -2087,35 +2152,73 @@ async function veKetNoi(goc, { moi = false } = {}) {
     loiKho ? h('p', { class: 'canh-bao-nho', text: kho.lan_cuoi.ghi_chu }) : null,
     ...khoiKho,
   );
+  // Ghi âm và biên bản họp: một thư mục Drive (có thể ở tài khoản khác), mỗi cuộc họp thành một tin trong Hộp tin.
+  const hop = kn.hop || { da_noi: null, thu_muc: null, lan_cuoi: null };
+  const ketQuaHop = new URLSearchParams(location.search).get('hop');
+  if (ketQuaHop) {
+    history.replaceState(null, '', `${location.pathname}#ket-noi`);
+    if (ketQuaHop === 'ok') bao('Đã đăng nhập. Dán liên kết thư mục ghi âm và biên bản họp rồi bấm Nối thư mục.');
+    else bao(ketQuaHop, { loi: true });
+  }
+  const loiHop = hop.lan_cuoi?.ghi_chu?.startsWith('Lỗi');
+  const oLinkHop = h('input', { type: 'url', placeholder: 'https://drive.google.com/drive/folders/…', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Liên kết thư mục Drive' });
+  const nutNoiHop = h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
+    ev.target.disabled = true;
+    try {
+      const r = await api('/api/ket-noi/hop', { method: 'POST', body: JSON.stringify({ link: oLinkHop.value }) });
+      bao(`Đã nối thư mục "${r.ten}": thấy ${r.ghi_am} ghi âm, ${r.bien_ban} biên bản. Cuộc họp trong 30 ngày gần đây sẽ vào Hộp tin sau ít phút.`);
+      ve();
+    } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
+  } }, 'Nối thư mục');
+  const oChonThuMuc = h('div', { class: 'luoi-nhap' }, oLinkHop, nutNoiHop);
+  const khoiHop = [];
+  if (hop.da_noi && hop.thu_muc) {
+    khoiHop.push(
+      hangTaiKhoan(hop.da_noi.email || 'Tài khoản Google', hop.lan_cuoi ? `${hop.lan_cuoi.ghi_chu}, ${luc(hop.lan_cuoi.lan_cuoi)}` : 'Chờ lượt quét đầu tiên'),
+      h('p', { class: 'ghi-nho-kn' }, 'Đang đọc thư mục ', h('a', { href: `https://drive.google.com/drive/folders/${encodeURIComponent(hop.thu_muc.id)}${hop.da_noi.email ? `?authuser=${encodeURIComponent(hop.da_noi.email)}` : ''}`, target: '_blank', rel: 'noopener noreferrer', text: hop.thu_muc.ten || 'trên Drive' }), '. Mỗi 5 phút, cuộc họp mới (ghi âm, biên bản) vào Hộp tin; AI đọc biên bản và chỉ ghi việc được giao cho bạn. Hệ thống chỉ đọc, không sửa hay xóa gì trong thư mục.'),
+      laChuGg ? h('div', { class: 'hang-nut' },
+        h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
+          ev.target.disabled = true;
+          try { const r = await api('/api/hop/quet-ngay', { method: 'POST' }); bao(r.loi.length ? r.loi.join('; ') : `Đã quét: ${r.moi} cuộc họp mới${r.bo_sung ? `, ${r.bo_sung} cuộc họp có thêm tệp` : ''}.`, r.loi.length ? { loi: true } : undefined); ve(); }
+          catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
+        } }, icon('ghi-am'), 'Quét ngay'),
+        h('button', { class: 'nut nut-phu', type: 'button', onclick: (ev) => { ev.target.closest('.hang-nut').after(oChonThuMuc); ev.target.remove(); oLinkHop.focus(); } }, 'Đổi thư mục'),
+        h('a', { class: 'nut nut-phu', href: '/api/hop/bat-dau' }, 'Đổi tài khoản'),
+        h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/hop', { method: 'DELETE' }); bao('Đã gỡ thư mục họp. Cuộc họp đã có trong Hộp tin vẫn giữ nguyên.'); ve(); } }, 'Gỡ kết nối')) : null,
+    );
+  } else if (hop.da_noi) {
+    khoiHop.push(
+      hangTaiKhoan(hop.da_noi.email || 'Tài khoản Google', 'Đã đăng nhập, chưa chọn thư mục'),
+      h('ol', { class: 'buoc' },
+        h('li', {}, 'Mở thư mục chứa ghi âm và biên bản họp trên Google Drive.'),
+        h('li', {}, 'Chép địa chỉ trên thanh trình duyệt (có chữ /folders/), dán vào ô dưới, bấm Nối thư mục.'),
+      ),
+      laChuGg ? oChonThuMuc : null,
+    );
+  } else if (!gg.co_client) {
+    khoiHop.push(h('p', { class: 'mo-ta', text: 'Khai Client ID và Secret ở thẻ Google trước. Thư mục họp dùng chung chúng, không cần tạo thêm gì ở Google Cloud.' }));
+  } else {
+    khoiHop.push(
+      h('ol', { class: 'buoc' },
+        h('li', {}, 'Bấm nút, chọn tài khoản Google có thư mục ghi âm (có thể khác tài khoản ở trên), tick quyền xem tệp Drive.'),
+        h('li', {}, 'Quay lại đây, dán liên kết thư mục, bấm Nối thư mục.'),
+      ),
+      h('p', { class: 'canh-bao-nho', text: 'Ứng dụng Google Cloud đang ở chế độ Testing thì thêm email của tài khoản đó vào Test users ở mục OAuth consent screen trước, nếu không Google sẽ chặn.' }),
+      laChuGg ? h('div', { class: 'hang-nut' }, h('a', { class: 'nut nut-chinh', href: '/api/hop/bat-dau' }, icon('ghi-am'), 'Chọn tài khoản có thư mục')) : null,
+    );
+  }
+  const theHop = h('section', { class: 'bang the-kn rong' },
+    dau('ghi-am', 'Ghi âm và biên bản họp', 'Thư mục Drive chứa các cuộc ghi âm kèm biên bản. Mỗi cuộc họp thành một tin trong Hộp tin, nghe lại và đọc biên bản ngay tại đó.',
+      hop.da_noi && hop.thu_muc ? (loiHop ? 'do' : 'xanh') : hop.da_noi ? 'vang' : 'xam',
+      hop.da_noi && hop.thu_muc ? (loiHop ? 'Đang lỗi' : 'Đã nối') : hop.da_noi ? 'Chờ chọn thư mục' : 'Chưa nối'),
+    loiHop ? h('p', { class: 'canh-bao-nho', text: hop.lan_cuoi.ghi_chu }) : null,
+    ...khoiHop,
+  );
   const theGoogle = h('section', { class: 'bang the-kn rong' },
     dau('thu', 'Google: Gmail, Lịch, Tasks, Drive', 'Đăng nhập một lần, hệ thống đọc thư, ghi việc sang Tasks và Lịch, lưu tệp đính kèm vào Drive giúp bạn.', gg.da_noi ? (lanCuoiLoiGg ? 'do' : 'xanh') : gg.co_client ? 'vang' : 'xam', gg.da_noi ? (lanCuoiLoiGg ? 'Đang lỗi' : 'Đã nối') : gg.co_client ? 'Chờ đăng nhập' : 'Chưa nối'),
     lanCuoiLoiGg ? h('p', { class: 'canh-bao-nho', text: gg.lan_cuoi.ghi_chu }) : null,
     ...khoiGg,
   );
-
-  // Thư
-  const theThu = h('section', { class: 'bang the-kn' },
-    dau('thu', 'Thư chuyển tiếp', 'Cách không cần đăng nhập: Gmail chuyển bản sao thư về đây, kèm tệp đính kèm.', kn.thu.lan_cuoi ? 'xanh' : kn.thu.dia_chi ? 'vang' : 'xam', kn.thu.lan_cuoi ? `Thư cuối ${luc(kn.thu.lan_cuoi.lan_cuoi)}` : kn.thu.xac_nhan ? 'Chờ bấm xác nhận' : kn.thu.dia_chi ? 'Chưa nối' : 'Chưa bật'),
-  );
-  if (kn.thu.xac_nhan) {
-    const xn = kn.thu.xac_nhan;
-    theThu.append(
-      h('p', { text: `Gmail ${xn.tu || ''} vừa xin chuyển thư về đây. Bấm nút để đồng ý${xn.ma ? ` (mã ${xn.ma})` : ''}, rồi làm bước 3 bên dưới.` }),
-      h('div', { class: 'hang-nut' }, xn.duong_dan ? h('a', { class: 'nut nut-chinh', href: xn.duong_dan, target: '_blank', rel: 'noopener' }, icon('thu'), 'Xác nhận chuyển thư') : oChep(xn.ma || '')),
-    );
-  }
-  if (kn.thu.dia_chi) {
-    theThu.append(oChep(kn.thu.dia_chi), h('ol', { class: 'buoc' },
-      h('li', {}, 'Bấm nút Mở cài đặt Gmail, chọn Thêm địa chỉ chuyển tiếp, dán địa chỉ trên.'),
-      h('li', {}, 'Quay lại trang này, nút Xác nhận chuyển thư sẽ hiện sau vài giây. Bấm nút đó.'),
-      h('li', {}, 'Trong cài đặt Gmail, chọn Chuyển tiếp bản sao thư đến địa chỉ trên, bấm Lưu thay đổi.'),
-    ), h('div', { class: 'hang-nut' },
-      h('a', { class: 'nut nut-phu', href: 'https://mail.google.com/mail/u/0/#settings/fwdandpop', target: '_blank', rel: 'noopener' }, icon('thu'), 'Mở cài đặt Gmail'),
-      h('button', { class: 'nut nut-phu', type: 'button', onclick: () => ve() }, icon('lap'), 'Kiểm tra lại'),
-    ));
-  } else {
-    theThu.append(h('p', { class: 'canh-bao-nho', text: 'Hệ thống đang chuẩn bị địa chỉ nhận thư.' }));
-  }
 
   // Zalo
   const oLenhZalo = h('div');
@@ -2190,11 +2293,12 @@ async function veKetNoi(goc, { moi = false } = {}) {
   const oKhoaAi = h('input', { type: 'password', placeholder: 'Dán khóa API', autocomplete: 'off', 'aria-label': 'Khóa API' });
   const oMoHinh = h('input', { type: 'text', placeholder: 'Mô hình (bỏ trống để dùng mặc định)', autocomplete: 'off', 'aria-label': 'Mô hình' });
   const oDiaChiAi = h('input', { type: 'url', placeholder: 'Địa chỉ dịch vụ, ví dụ https://api.openai.com/v1', autocomplete: 'off', 'aria-label': 'Địa chỉ dịch vụ', hidden: true });
-  oLoaiAi.addEventListener('change', () => { oDiaChiAi.hidden = oLoaiAi.value !== 'openai'; });
+  const oWorkspace = h('input', { type: 'text', placeholder: 'Workspace ID (chỉ điền khi khóa báo thiếu Workspace)', autocomplete: 'off', 'aria-label': 'Workspace ID của Anthropic' });
+  oLoaiAi.addEventListener('change', () => { oDiaChiAi.hidden = oLoaiAi.value !== 'openai'; oWorkspace.hidden = oLoaiAi.value !== 'claude'; });
   const aiNut = h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
     ev.target.disabled = true;
     try {
-      await api('/api/ket-noi/ai', { method: 'POST', body: JSON.stringify({ loai: oLoaiAi.value, khoa: oKhoaAi.value, mo_hinh: oMoHinh.value, dia_chi: oDiaChiAi.value }) });
+      await api('/api/ket-noi/ai', { method: 'POST', body: JSON.stringify({ loai: oLoaiAi.value, khoa: oKhoaAi.value, mo_hinh: oMoHinh.value, dia_chi: oDiaChiAi.value, workspace_id: oWorkspace.value }) });
       bao('Đã nối dịch vụ AI. Từ lượt tách việc sau sẽ dùng dịch vụ này.');
       ve();
     } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
@@ -2205,7 +2309,7 @@ async function veKetNoi(goc, { moi = false } = {}) {
     th.ai?.loi ? h('p', { class: 'canh-bao-nho', text: th.ai.loi.ghi_chu }) : null,
     laChu ? (th.ai
       ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/ai', { method: 'DELETE' }); bao('Đã gỡ, quay về AI có sẵn.'); ve(); } }, 'Gỡ dịch vụ này'))
-      : h('div', { class: 'luoi-nhap' }, oLoaiAi, oKhoaAi, oMoHinh, oDiaChiAi, aiNut)) : null,
+      : h('div', { class: 'luoi-nhap' }, oLoaiAi, oKhoaAi, oMoHinh, oDiaChiAi, oWorkspace, aiNut)) : null,
   );
 
   const oDiaChiNhan = h('input', { type: 'url', placeholder: 'https://… địa chỉ nhận việc mới', autocomplete: 'off', 'aria-label': 'Địa chỉ nhận việc mới' });
@@ -2290,7 +2394,7 @@ async function veKetNoi(goc, { moi = false } = {}) {
 
   const nhomThe = [
     ['Tài khoản Google', [['google', theGoogle], ['kho', theKho]]],
-    ['Tin vào', [['thu', theThu], ['zalo', theZalo], ['telegram', theTele]]],
+    ['Tin vào', [['zalo', theZalo], ['hop', theHop], ['telegram', theTele]]],
     ['Gửi ra', [['lich', theLich], ['api', theApi]]],
     ['Hệ thống', [['nen', theNen]]],
   ];
@@ -2371,7 +2475,7 @@ async function veLuongTrang(goc) {
   await veLuong(goc, { h, icon, api, bao, thay, khungLoi, xuong, luc, chayNgay });
 }
 function veDuAnTrang(goc, thamSo) {
-  return veDuAn(goc, thamSo, { h, icon, api, bao, thay, khungLoi, xuong, mucDuAn: mucTrinhDonDuAn, driveDuAn });
+  return veDuAn(goc, thamSo, { h, icon, api, bao, thay, khungLoi, xuong, mucDuAn: mucTrinhDonDuAn, driveDuAn, themViec: (d) => moNganViec(null, { du_an_id: d.id }) });
 }
 // Trang "Dữ liệu của bạn": nói rõ hệ thống lưu gì, ai xem, giữ bao lâu; nút tải toàn bộ dữ liệu.
 function veDuLieu(goc) {
@@ -2464,7 +2568,7 @@ function veNutXoa() {
   );
 }
 
-const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'hieu-suat': (goc) => veHieuSuat(goc, { h, icon, api, bao, thay, khungLoi, xuong }), 'du-an': veDuAnTrang, 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy, 'du-lieu': veDuLieu, 'da-chan': veDaChan };
+const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'hieu-suat': (goc) => veHieuSuat(goc, { h, icon, api, bao, thay, khungLoi, xuong }), 'du-an': veDuAnTrang, claude: (goc, thamSo) => veTram(goc, { h, icon, api, bao, thay, meo, oChep, kichThuoc, luc, laChu: trang.toi?.to_chuc?.vai_tro === 'chu' }, thamSo), 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy, 'du-lieu': veDuLieu, 'da-chan': veDaChan };
 let mucTruoc = null;
 
 async function moMuc() {
@@ -2485,11 +2589,49 @@ async function moMuc() {
   const goc = document.querySelector(`[data-trang="${muc}"]`);
   if (mucTruoc && mucTruoc !== muc) tieuDe.focus({ preventScroll: true });
   mucTruoc = muc;
+  // Vào lại trang đã xem: giữ ảnh chụp trang cũ phủ lên cho tới khi trang mới vẽ xong, không để khung xương nhấp nháy.
+  const kl = dungAnhCu(goc, muc);
   try {
     await VE[muc](goc, thamSo);
+    mucDaVe.add(muc);
   } catch (e) {
     thay(goc, khungLoi(e, moMuc));
   }
+  if (kl) boAnhCu(kl, goc);
+}
+
+const mucDaVe = new Set();
+let anhCuDangPhu = null;
+function boAnhCuNgay() {
+  if (!anhCuDangPhu) return;
+  anhCuDangPhu.kl.remove();
+  anhCuDangPhu.goc.classList.remove('giu-cu');
+  anhCuDangPhu = null;
+}
+function dungAnhCu(goc, muc) {
+  boAnhCuNgay();
+  if (!mucDaVe.has(muc) || !goc.firstElementChild || goc.querySelector('.xuong')) return null;
+  const cha = goc.offsetParent || goc.parentElement;
+  const kl = goc.cloneNode(true);
+  kl.removeAttribute('hidden');
+  kl.removeAttribute('data-trang');
+  kl.setAttribute('aria-hidden', 'true');
+  kl.inert = true;
+  kl.classList.add('anh-cu');
+  Object.assign(kl.style, { top: `${goc.offsetTop}px`, left: `${goc.offsetLeft}px`, width: `${goc.offsetWidth}px`, minHeight: `${goc.offsetHeight}px` });
+  cha.append(kl);
+  goc.classList.add('giu-cu');
+  anhCuDangPhu = { kl, goc };
+  return kl;
+}
+// Đợi khung xương biến mất (tối đa 1,8 giây) rồi mờ ảnh cũ đi.
+async function boAnhCu(kl, goc) {
+  const han = Date.now() + 1800;
+  while (goc.querySelector('.xuong') && Date.now() < han && anhCuDangPhu?.kl === kl) await new Promise((r) => setTimeout(r, 40));
+  if (anhCuDangPhu?.kl !== kl) return;
+  if (itChuyenDong()) { boAnhCuNgay(); return; }
+  kl.classList.add('mo-di');
+  setTimeout(() => { if (anhCuDangPhu?.kl === kl) boAnhCuNgay(); }, 200);
 }
 
 // ---------- Bảng lệnh (Ctrl K) ----------
@@ -2503,6 +2645,7 @@ const LENH = [
   { nhan: 'Việc', icon: 'viec', lam: () => (location.hash = 'viec'), goi: 'G V' },
   { nhan: 'Hiệu suất, quá tải, độ nặng việc', icon: 'tong-quan', lam: () => (location.hash = 'hieu-suat') },
   { nhan: 'Dự án và lịch sử', icon: 'du-an', lam: () => (location.hash = 'du-an') },
+  { nhan: 'Claude (giao việc, chat như Claude Code)', icon: 'ai', lam: () => (location.hash = 'claude'), goi: 'G C' },
   { nhan: 'Ghi nhớ', icon: 'ghi-nho', lam: () => (location.hash = 'ghi-nho') },
   { nhan: 'Tệp', icon: 'tep', lam: () => (location.hash = 'tep') },
   { nhan: 'Luồng (sơ đồ, chỉnh giờ)', icon: 'lap', lam: () => (location.hash = 'luong') },
@@ -2557,7 +2700,7 @@ document.addEventListener('keydown', (e) => {
   if (e.target.closest('input, textarea, select, dialog') || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (phimTruoc === 'g') {
-    const dich = { t: 'tong-quan', h: 'hop-tin', v: 'viec' }[k];
+    const dich = { t: 'tong-quan', h: 'hop-tin', v: 'viec', c: 'claude' }[k];
     if (dich) location.hash = dich;
     phimTruoc = '';
     return;

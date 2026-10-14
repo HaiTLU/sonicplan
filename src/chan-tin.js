@@ -23,6 +23,7 @@ export function diaChiTuNguoiGui(chu) {
 
 // Các cách chặn có thể áp cho một tin, để giao diện cho người dùng chọn.
 export function tuyChonChan(tin) {
+  if (tin.nguon === 'hop') return []; // cuộc họp từ thư mục của chính người dùng: không có gì để chặn
   if (tin.nguon === 'zalo') {
     if (tin.nhom) return [{ loai: 'nhom', gia_tri: tin.nhom, nhan: tin.nhom }];
     const ten = tin.tieu_de || tin.nguoi_gui || 'Không rõ';
