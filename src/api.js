@@ -1046,19 +1046,26 @@ export async function tinHoiThoaiZalo(env, tc, url) {
   const khoa = (url.searchParams.get('khoa') || '').slice(0, 400) || ((loai === 'nhom' || loai === 'ca-nhan') && ten ? `${loai}~${ten}` : '');
   if (!khoa) return loi(400, 'Thiếu hội thoại cần xem.');
   const truocLuc = url.searchParams.get('truoc_luc');
-  const truocId = Number(url.searchParams.get('truoc_id')) || 0;
+  const sauId = Number(url.searchParams.get('sau_id')) || 0;
   const dieuKien = `to_chuc_id = ?1 AND nguon = 'zalo' AND an = 0 AND ${KHOA_TIN_ZALO} = ?2`;
-  const thamSo = [tc, khoa];
-  let them = '';
-  if (truocLuc) {
-    thamSo.push(truocLuc, truocId);
-    them = ' AND (thoi_diem < ?3 OR (thoi_diem = ?3 AND id < ?4))';
+  const cot = 'SELECT id, nguoi_gui, noi_dung, thoi_diem, da_xem FROM tin_nhan WHERE';
+  let tin;
+  let conNua = false;
+  if (sauId) {
+    // Chỉ lấy tin mới hơn tin đang hiện, để khung tin tự cập nhật mà không tải lại cả hội thoại.
+    tin = (await env.CSDL.prepare(`${cot} ${dieuKien} AND id > ?3 ORDER BY id ASC LIMIT 80`).bind(tc, khoa, sauId).all()).results;
+  } else {
+    const truocId = Number(url.searchParams.get('truoc_id')) || 0;
+    const thamSo = [tc, khoa];
+    let them = '';
+    if (truocLuc) {
+      thamSo.push(truocLuc, truocId);
+      them = ' AND (thoi_diem < ?3 OR (thoi_diem = ?3 AND id < ?4))';
+    }
+    const { results } = await env.CSDL.prepare(`${cot} ${dieuKien}${them} ORDER BY thoi_diem DESC, id DESC LIMIT 81`).bind(...thamSo).all();
+    conNua = results.length > 80;
+    tin = results.slice(0, 80).reverse();
   }
-  const { results } = await env.CSDL.prepare(
-    `SELECT id, nguoi_gui, noi_dung, thoi_diem, da_xem FROM tin_nhan WHERE ${dieuKien}${them} ORDER BY thoi_diem DESC, id DESC LIMIT 81`,
-  ).bind(...thamSo).all();
-  const conNua = results.length > 80;
-  const tin = results.slice(0, 80).reverse();
   let tep = [];
   if (tin.length) {
     const ids = tin.map((t) => Number(t.id)).join(',');

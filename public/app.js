@@ -2046,6 +2046,20 @@ async function veZalo(goc, thamSo) {
       );
       veLuong();
       luong.scrollTop = luong.scrollHeight;
+      // Tin mới về thì hiện ngay trong hội thoại đang mở, không cần tải lại trang.
+      const nghe = setInterval(async () => {
+        if (!luong.isConnected) { clearInterval(nghe); return; }
+        if (document.hidden || !tin.length) return;
+        try {
+          const r = await api(`/api/zalo/tin?${new URLSearchParams({ khoa, sau_id: String(tin[tin.length - 1].id) })}`);
+          if (!r.tin.length) return;
+          const dangODay = luong.scrollHeight - luong.scrollTop - luong.clientHeight < 120;
+          tin = [...tin, ...r.tin];
+          tep = [...tep, ...r.tep];
+          veLuong();
+          if (dangODay) luong.scrollTop = luong.scrollHeight;
+        } catch { /* lần sau thử lại */ }
+      }, 10000);
       const muc = ds.find((x) => x.khoa === khoa);
       if (muc?.chua_xem) {
         muc.chua_xem = 0;
