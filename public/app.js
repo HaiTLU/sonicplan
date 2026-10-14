@@ -201,6 +201,7 @@ function capNhatDem(soTin, soViec) {
 // Các khối của Tổng quan: tên hiện trong Tinh chỉnh và độ rộng (day: cả hàng, nua: nửa hàng).
 const KHOI_TQ = {
   'can-lam': { ten: 'Cần xử lý ngay', rong: 'day' },
+  'de-xuat-claude': { ten: 'Đề xuất giao Claude', rong: 'day' },
   'chi-so': { ten: 'Chỉ số chính', rong: 'day' },
   'du-an': { ten: 'Theo dự án', rong: 'nua' },
   'viec-toi': { ten: 'Việc sắp tới', rong: 'nua' },
@@ -212,7 +213,7 @@ const KHOI_TQ = {
 };
 
 let boCucTQ = null;
-const TRANG_KHOI = { 'can-lam': 'viec', 'chi-so': 'viec', 'du-an': 'du-an', 'viec-toi': 'viec', nhip: 'hop-tin', 'hieu-suat': 'hieu-suat', 'tong-hop': 'hop-tin', 'tin-moi': 'hop-tin', 'he-thong': 'ket-noi' };
+const TRANG_KHOI = { 'can-lam': 'viec', 'de-xuat-claude': 'viec', 'chi-so': 'viec', 'du-an': 'du-an', 'viec-toi': 'viec', nhip: 'hop-tin', 'hieu-suat': 'hieu-suat', 'tong-hop': 'hop-tin', 'tin-moi': 'hop-tin', 'he-thong': 'ket-noi' };
 
 async function veTongQuan(goc) {
   if (!lamMoiEm) thay(goc,
@@ -249,6 +250,7 @@ async function veTongQuan(goc) {
 
   const ve = {
     'can-lam': () => khoiCanLam(sl, kq.claude),
+    'de-xuat-claude': () => khoiDeXuatClaude(kq.de_xuat_claude, kq.hom_nay),
     'chi-so': () => khoiChiSo(kq),
     'du-an': () => khoiDuAn(kq.du_an),
     'viec-toi': () => bangViecSapToi(kq.viec_sap_toi, kq.hom_nay),
@@ -571,6 +573,39 @@ function nhanNgay(k, hn) {
   if (k === hn) return h('span', { class: 'nhan hom-nay', text: 'Hôm nay' });
   if (k === congNgay(hn, 1)) return h('span', { class: 'nhan', text: 'Ngày mai' });
   return h('span', { class: 'nhan', text: ngayHienThi(k) });
+}
+
+// Đề xuất giao Claude: việc AI thấy Claude tự làm được. Không tự giao, bạn bấm mới giao.
+function khoiDeXuatClaude(dx, hn) {
+  const ds = dx?.viec || [];
+  const tong = dx?.tong || 0;
+  const giao = (cac) => moKhungGiaoClaude(cac, { h, api, bao, icon, sauKhiGiao: () => moMuc() });
+  const goc = h('section', { class: 'bang de-xuat-claude', 'aria-labelledby': 'tq-de-xuat' },
+    h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-de-xuat' }, icon('ai'), 'Đề xuất giao Claude'),
+      ds.length > 1
+        ? h('button', { class: 'nut nut-phu nut-nho', type: 'button', ...meo('Mở khung giao Claude cho các việc đang hiện, bạn chọn gộp một lượt hay từng việc.'), onclick: () => giao(ds) }, icon('ai'), `Giao cả ${ds.length} việc`)
+        : h('span', { class: 'mo-ta', text: ds.length ? 'Bấm Giao Claude để Claude làm' : 'Chưa có đề xuất' })),
+  );
+  if (!ds.length) {
+    goc.append(h('p', { class: 'mo-ta', style: 'padding:0 20px 18px', text: 'Khi AI tách việc từ tin nhắn và thấy Claude tự làm được (soạn nháp, tra cứu, tóm tắt), việc đó hiện ở đây. Claude chỉ làm khi bạn bấm.' }));
+    return goc;
+  }
+  const ul = h('ul', { class: 'dong-thoi-gian' });
+  for (const v of ds) {
+    const dong = h('div', { class: 'muc-viec' },
+      h('button', { class: 'ten-viec', type: 'button', text: v.tieu_de, onclick: () => moNganViec(v) }),
+      h('span', { class: 'de-xuat-nut' },
+        v.han_ngay ? nhanNgay(v.han_ngay < hn ? 'qua' : v.han_ngay, hn) : null,
+        h('button', { class: 'nut nut-phu nut-nho', type: 'button', 'aria-label': `Giao Claude: ${v.tieu_de}`, onclick: () => giao([v]) }, icon('ai'), 'Giao Claude'),
+        h('button', { class: 'nut nut-phu nut-nho', type: 'button', 'aria-label': `Để tôi tự làm: ${v.tieu_de}`, ...meo('Bỏ khỏi đề xuất, việc vẫn ở trang Việc như việc bạn tự làm.'), onclick: () => suaNhanh(v, { nhom: 'anh_tu_lam' }, `Đã bỏ khỏi đề xuất: ${v.tieu_de}`) }, 'Để tôi làm')),
+    );
+    dong._viec = v;
+    dong._td = async () => ({ muc: await mucTrinhDonViec(v), nhan: `Thao tác với việc: ${v.tieu_de}` });
+    ul.append(h('li', {}, dong));
+  }
+  goc.append(ul);
+  if (tong > ds.length) goc.append(h('p', { class: 'mo-ta', style: 'padding:0 20px 14px', text: `Còn ${tong - ds.length} việc đề xuất khác, xem ở trang Việc.` }));
+  return goc;
 }
 
 function bangViecSapToi(ds, hn) {

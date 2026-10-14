@@ -248,6 +248,9 @@ main:focus { outline: none; }
 .dong-nho .vung { fill: var(--nhan-nhat); stroke: none; }
 
 .bang-viec-toi { grid-column: span 7; }
+.de-xuat-claude .muc-viec { grid-template-columns: minmax(0, 1fr) auto; }
+.de-xuat-nut { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.de-xuat-claude .dong-thoi-gian li { list-style: none; }
 .bang-tin-moi { grid-column: span 5; }
 .bang-suc-khoe { grid-column: 1 / -1; }
 

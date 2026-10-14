@@ -53,3 +53,25 @@ test('số đếm nhẹ: chỉ trả tin chưa xem và việc mở, khớp với
   assert.equal(dem.viec_mo, tq.so_lieu.viec_mo);
   assert.equal(dem.tin_chua_xem, tq.so_lieu.tin_chua_xem);
 });
+
+test('Đề xuất giao Claude: chỉ việc mở nhóm Claude tự làm, chưa giao; "Để tôi làm" bỏ khỏi danh sách', async () => {
+  const db = dungCsdl();
+  const env = { CSDL: d1(db) };
+  const bay = new Date().toISOString();
+  const them = db.prepare("INSERT INTO viec (to_chuc_id, tieu_de, trang_thai, nhom, github_issue, tao_luc, cap_nhat_luc) VALUES ('tc', ?1, ?2, ?3, ?4, ?5, ?5)");
+  const deXuat = Number(them.run('Soạn nháp thư mời', 'mo', 'claude_tu_lam', null, bay).lastInsertRowid);
+  const daGiao = Number(them.run('Tóm tắt biên bản', 'mo', 'claude_tu_lam', null, bay).lastInsertRowid);
+  them.run('Đã đẩy GitHub', 'mo', 'claude_tu_lam', 12, bay);
+  them.run('Gọi điện', 'mo', 'anh_tu_lam', null, bay);
+  them.run('Đã xong', 'xong', 'claude_tu_lam', null, bay);
+  db.prepare("INSERT INTO luot_claude (to_chuc_id, viec_id, trang_thai, ma_bam, tao_luc, cap_nhat_luc) VALUES ('tc', ?1, 'xong', 'x', ?2, ?2)").run(daGiao, bay);
+  const kq = await goi(env, '/api/tong-quan');
+  assert.equal(kq.de_xuat_claude.tong, 1);
+  assert.deepEqual(kq.de_xuat_claude.viec.map((v) => v.id), [deXuat]);
+  assert.ok(kq.bo_cuc.thu_tu.includes('de-xuat-claude'));
+
+  const sai = await goi(env, `/api/viec/${deXuat}`, { method: 'PATCH', body: JSON.stringify({ nhom: 'la' }) });
+  assert.ok(sai.loi || sai.error);
+  await goi(env, `/api/viec/${deXuat}`, { method: 'PATCH', body: JSON.stringify({ nhom: 'anh_tu_lam' }) });
+  assert.equal((await goi(env, '/api/tong-quan')).de_xuat_claude.tong, 0);
+});
