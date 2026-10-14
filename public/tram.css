@@ -103,6 +103,12 @@ main:has([data-trang="claude"]:not([hidden])) { max-width: none; }
 .tram-cai-lenh { display: flex; flex-direction: column; gap: 10px; }
 .tram-cai-lenh:empty { display: none; }
 .tram-ghi { color: var(--phu); font-size: 12.5px; }
+.tram-hop-bn { width: min(720px, calc(100vw - 32px)); }
+.tram-bn-o { width: 100%; min-height: 280px; max-height: 55vh; resize: vertical; padding: 12px 14px; border: 1px solid var(--vach); border-radius: 12px; background: var(--mat-2); color: var(--chu); font: 400 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.tram-bn-o:focus-visible { outline: 2px solid var(--nhan, currentColor); outline-offset: 1px; }
+.tram-bn-nut { display: flex; gap: 8px; flex-wrap: wrap; }
+.tram-bn-tin:empty { display: none; }
+.tram-nut-nho { align-self: flex-end; }
 
 @media (max-width: 860px) {
   .tram { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); height: calc(100dvh - 230px); min-height: 460px; gap: 10px; }

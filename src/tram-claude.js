@@ -10,7 +10,8 @@ import { TEP_TOI_DA } from './hop-tin.js';
 export const MODEL_CLAUDE = ['opus', 'sonnet', 'haiku', 'fable'];
 export const EFFORT_CLAUDE = ['low', 'medium', 'high', 'xhigh', 'max'];
 export const CHE_DO_CLAUDE = ['acceptEdits', 'plan'];
-const LUU_LAI = new Set(['nguoi', 'chu', 'cong_cu', 'ket_qua_cong_cu', 'tep', 'xong', 'he_thong']);
+const LUU_LAI = new Set(['nguoi', 'chu', 'cong_cu', 'ket_qua_cong_cu', 'tep', 'xong', 'he_thong', 'bo_nho']);
+const TIN_BO_NHO = new Set(['bn_doc', 'bn_ghi', 'bn_gop']);
 const TOI_DA_SU_KIEN = 3000;
 const so6 = (n) => String(n).padStart(6, '0');
 
@@ -116,6 +117,7 @@ export class PhongTram {
       if (!p) return this.gui(ws, { loai: 'loi', noi_dung: 'Không thấy phiên chat này.' });
       return this.gui(ws, { loai: 'lich_su', phien: this.metaPhien(p), su_kien: await this.lichSu(p.id) });
     }
+    if (TIN_BO_NHO.has(tin.loai)) return this.chuyenBoNho(ws, tin);
     if (tin.loai === 'gui') return this.guiLuot(ws, tin);
     if (tin.loai === 'dung') return this.dungLuot(tin.phien);
     if (tin.loai === 'doi_ten') {
@@ -125,6 +127,15 @@ export class PhongTram {
       await this.luuPhien(p);
       return this.phat({ loai: 'phien', phien: this.metaPhien(p) });
     }
+  }
+
+  // Bộ nhớ dự án nằm ở máy Mac: phòng chỉ chuyển yêu cầu sang trạm, không lưu nội dung.
+  chuyenBoNho(ws, tin) {
+    const ten = String(tin.du_an?.ten || '').trim().slice(0, 120);
+    if (!ten) return this.gui(ws, { loai: 'loi', noi_dung: 'Chọn một dự án trước khi mở bộ nhớ.' });
+    const tram = this.tramDangMo();
+    if (!tram) return this.gui(ws, { loai: 'loi', noi_dung: 'Trạm Claude trên máy Mac đang tắt nên chưa đọc được bộ nhớ dự án.' });
+    this.gui(tram, { loai: tin.loai, du_an: { id: tin.du_an.id ?? null, ten }, rid: String(tin.rid || '').slice(0, 40), noi_dung: tin.loai === 'bn_ghi' ? String(tin.noi_dung || '').slice(0, 60000) : undefined });
   }
 
   async guiLuot(ws, tin) {
@@ -221,6 +232,7 @@ export class PhongTram {
       if (doi) await this.mt.kho.put(`phien:${p.id}`, p);
       return;
     }
+    if (tin.loai === 'bn') return this.phat({ ...tin, noi_dung: String(tin.noi_dung || '').slice(0, 40000) });
     if (tin.loai === 'xong') {
       const p = await this.docPhien(tin.phien);
       if (!p) return;

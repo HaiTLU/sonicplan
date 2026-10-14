@@ -2,6 +2,17 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [1.7.0] - 2026-10-14
+
+### Thêm
+- Bộ nhớ dự án cho trang Claude: chọn dự án thì trạm đọc `memory.md` trong thư mục dự án (`~/Sonicplan Claude/<dự án>/memory.md`) và đưa vào lời dặn của Claude; khung chat hiện dòng "Đã nạp bộ nhớ dự án ...".
+- Chu kỳ ghi nhớ: sau mỗi lượt thành công, một lượt Sonnet riêng ghi tối đa 3 ý vào hàng chờ (`_bo-nho/hang-cho.md`); mỗi đêm sau 23 giờ (giờ Việt Nam), hoặc khi hàng chờ đủ 30 ý, hoặc khi ý chờ quá 30 giờ, một lượt Sonnet gộp hàng chờ vào `memory.md` theo 5 mục cố định, tối đa 12.000 ký tự. Bản gộp phải qua kiểm khung; không đạt thì giữ bản cũ. Bản cũ chép vào `_bo-nho/lich-su/` trước mỗi lần sửa.
+- Nút "Bộ nhớ" cạnh ô Dự án: xem, sửa tay, lưu `memory.md`, bấm "Nhớ lại ngay" để gộp tức thì.
+- Trạm tự cập nhật khi khởi động: tải bản mới từ Sonicplan, kiểm cú pháp, thay tệp rồi để launchd chạy lại; bản mới khởi động lỗi 3 lần thì tự quay về bản cũ và không tải lại bản hỏng. Trạm lên bản 1.1.0.
+
+### Ghi chú nâng cấp
+- Trạm đang chạy bản 1.0.0 chưa biết tự cập nhật: thay `~/.sonicplan-tram/tram-claude.mjs` bằng bản 1.1.0 một lần (hoặc cài lại bằng lệnh ở trang Claude), từ đó các bản sau tự cập nhật.
+
 ## [1.6.0] - 2026-10-13
 
 ### Thêm

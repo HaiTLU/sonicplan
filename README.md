@@ -19,6 +19,7 @@ Tiến độ và quyết định: `LO_TRINH.md`. Kế hoạch đầy đủ nằm
 | `src/telegram.js` | Bot Telegram: báo tin, lệnh /tomtat |
 | `src/claude-code.js`, `public/claude.js` | Giao việc cho Claude Code chạy trên GitHub Actions, nhận kết quả về `/nhan/claude`, hiện trong ngăn sửa việc |
 | `src/tram-claude.js`, `public/tram.js`, `public/tram-claude.mjs` | Trang Claude: phòng chat (Durable Object) giữa trình duyệt và trạm Claude trên máy Mac; trạm gọi Claude Code, đưa chữ về từng đoạn |
+| `public/tram-claude.mjs` (mục Bộ nhớ dự án) | Bộ nhớ `memory.md` của từng dự án: nạp vào lời dặn, ghi nhanh sau mỗi lượt, gộp hằng đêm, tự cập nhật trạm |
 | `src/phien.js` | Xác định người dùng và tổ chức đang làm việc |
 | `src/xac-thuc.js` | Kiểm vé đăng nhập Cloudflare Access |
 | `src/ma-hoa.js` | Mã hóa khóa của khách trước khi lưu (dùng từ giai đoạn 1) |
