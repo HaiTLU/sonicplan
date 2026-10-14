@@ -1846,7 +1846,8 @@ function noiDungBong(m, files, tepTheoTin) {
   return { nut: ra, coAnh: k.kieu === 'anh' || (k.kieu === 'tep-gui' && files.some((f) => kieuXemTep(f.ten) === 'anh')) };
 }
 
-const khoaHoiThoai = (loai, ten) => `${loai}~${encodeURIComponent(ten)}`;
+// Khóa hội thoại do máy chủ trả: mã hội thoại Zalo, hoặc "loại~tên" với tin cũ chưa có mã.
+const khoaHoiThoai = (x) => encodeURIComponent(x.khoa);
 
 // Khung soạn tin: Sonicplan không gửi thay bạn. Bấm gửi thì chép tin và mở Zalo để bạn dán vào đúng hội thoại.
 function khungSoan(ten) {
@@ -1883,8 +1884,8 @@ async function veZalo(goc, thamSo) {
   const z = trang.zalo;
   let chon = null;
   if (thamSo) {
-    const [loai, ten] = thamSo.split('~');
-    if ((loai === 'nhom' || loai === 'ca-nhan') && ten) chon = { loai, ten: decodeURIComponent(ten) };
+    const khoa = decodeURIComponent(thamSo);
+    if (/^(nhom|ca-nhan)[~:]./.test(khoa)) chon = { khoa, loai: khoa.startsWith('nhom') ? 'nhom' : 'ca-nhan', ten: khoa.includes('~') ? khoa.slice(khoa.indexOf('~') + 1) : 'Hội thoại' };
   }
   const khungDs = h('div', { class: 'bang ds-tin ds-zalo', 'aria-label': 'Danh sách hội thoại Zalo' }, ...[1, 2, 3, 4, 5, 6].map(() => h('div', { style: 'padding:12px 10px' }, xuong(14, '60%'), h('div', { style: 'height:8px' }), xuong(28))));
   const khungDoc = h('div', { class: 'bang doc-zalo', 'aria-live': 'polite' });
@@ -1912,10 +1913,10 @@ async function veZalo(goc, thamSo) {
       return;
     }
     thay(khungDs, h('ul', {}, ...loc.map((x) => {
-      const dang = chon && chon.loai === x.loai && chon.ten === x.ten;
+      const dang = chon && chon.khoa === x.khoa;
       const ai = x.nguoi_cuoi === 'Tôi' ? 'Bạn: ' : x.loai === 'nhom' && x.nguoi_cuoi ? `${x.nguoi_cuoi.split(' ').slice(-1)[0]}: ` : '';
       const li = h('li', { class: x.chua_xem ? 'chua-xem' : '' },
-        h('button', { type: 'button', 'aria-current': String(Boolean(dang)), onclick: () => { location.hash = `zalo/${khoaHoiThoai(x.loai, x.ten)}`; } },
+        h('button', { type: 'button', 'aria-current': String(Boolean(dang)), onclick: () => { location.hash = `zalo/${khoaHoiThoai(x)}`; } },
           anhZalo(x.ten, x.loai),
           h('div', { style: 'min-width:0' },
             h('div', { class: 'dong-1' }, h('strong', { text: x.ten }), h('time', { datetime: x.cuoi, text: luc(x.cuoi) })),
@@ -1923,7 +1924,7 @@ async function veZalo(goc, thamSo) {
           ),
         ));
       li._td = () => ({ nhan: `Thao tác với ${x.ten}`, muc: [
-        { nhan: 'Mở hội thoại', lam: () => { location.hash = `zalo/${khoaHoiThoai(x.loai, x.ten)}`; } },
+        { nhan: 'Mở hội thoại', lam: () => { location.hash = `zalo/${khoaHoiThoai(x)}`; } },
         { nhan: 'Sao chép tên', lam: () => chepChu(x.ten) },
         { vach: true },
         { nhan: x.loai === 'nhom' ? 'Spam nhóm này' : 'Spam người này', nguy: true, lam: async () => {
@@ -1939,10 +1940,10 @@ async function veZalo(goc, thamSo) {
     })));
   }
 
-  async function moHoiThoai({ loai, ten }) {
+  async function moHoiThoai({ khoa, loai, ten }) {
     thay(khungDoc, xuong(40, '40%'), h('div', { style: 'height:16px' }), xuong(60, '55%'), h('div', { style: 'height:12px' }), xuong(40, '45%'));
     const tai = async (truoc) => {
-      const q = new URLSearchParams({ loai, ten });
+      const q = new URLSearchParams({ khoa });
       if (truoc) { q.set('truoc_luc', truoc.thoi_diem); q.set('truoc_id', truoc.id); }
       return api(`/api/zalo/tin?${q}`);
     };
@@ -2020,20 +2021,23 @@ async function veZalo(goc, thamSo) {
       );
       veLuong();
       luong.scrollTop = luong.scrollHeight;
-      const muc = ds.find((x) => x.loai === loai && x.ten === ten);
+      const muc = ds.find((x) => x.khoa === khoa);
       if (muc?.chua_xem) {
         muc.chua_xem = 0;
         veDs();
         lamMoiDem();
       }
     } catch (e) {
-      thay(khungDoc, khungLoi(e, () => moHoiThoai({ loai, ten })));
+      thay(khungDoc, khungLoi(e, () => moHoiThoai({ khoa, loai, ten })));
     }
   }
 
   await napDs();
-  if (chon) moHoiThoai(chon);
-  else if (window.matchMedia('(min-width: 861px)').matches && ds[0]) location.replace(`#zalo/${khoaHoiThoai(ds[0].loai, ds[0].ten)}`);
+  if (chon) {
+    const m = ds.find((x) => x.khoa === chon.khoa);
+    if (m) chon = { khoa: m.khoa, loai: m.loai, ten: m.ten };
+    moHoiThoai(chon);
+  } else if (window.matchMedia('(min-width: 861px)').matches && ds[0]) location.replace(`#zalo/${khoaHoiThoai(ds[0])}`);
 }
 
 // =====================================================================
