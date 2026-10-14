@@ -65,3 +65,12 @@ test('vá chương trình Zalo: thêm thread_id và tên người nhận, chạy
   assert.equal(vaMa(a.ma).doi, false);
   assert.throws(() => vaMa('console.log(1)'), /Không nhận ra/);
 });
+
+test('Google báo Client Secret sai: thông báo tiếng Việt chỉ đúng chỗ sửa', async () => {
+  const { doiMa } = await import('../src/google.js');
+  const goc = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: 'invalid_client', error_description: 'The provided client secret is invalid.' }), { status: 401 });
+  try {
+    await assert.rejects(doiMa({ client_id: 'a', client_secret: 'b' }, { grant_type: 'refresh_token', refresh_token: 'x' }), /Nhập lại khóa Google/);
+  } finally { globalThis.fetch = goc; }
+});

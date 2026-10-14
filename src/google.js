@@ -143,7 +143,11 @@ export async function doiMa(client, thamSo) {
   });
   const kq = await ph.json().catch(() => ({}));
   if (!ph.ok) {
-    const e = new Error(kq.error === 'invalid_grant' ? 'Google đã thu hồi quyền hoặc khóa hết hạn, đăng nhập lại.' : `Google từ chối (${ph.status}): ${kq.error_description || kq.error || ''}`.trim());
+    const e = new Error(
+      kq.error === 'invalid_grant' ? 'Google đã thu hồi quyền hoặc khóa hết hạn, đăng nhập lại.'
+        : kq.error === 'invalid_client' ? 'Google không nhận Client Secret đang lưu (đã đổi hoặc nhập sai). Vào Cài đặt, Kết nối, thẻ Google, bấm "Nhập lại khóa Google" rồi dán Client Secret mới.'
+          : `Google từ chối (${ph.status}): ${kq.error_description || kq.error || ''}`.trim(),
+    );
     e.maLoi = kq.error;
     throw e;
   }
