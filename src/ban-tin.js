@@ -137,7 +137,6 @@ export async function baoCaoTuan(env, bayGio, { ep = false } = {}) {
   return { so_muc: soBao, ghi_chu: `Gửi báo cáo tuần cho ${soBao} tổ chức` };
 }
 
-const NHAN_NGAN = { 1: 'AI tự làm', 2: 'AI chuẩn bị, bạn quyết định', 3: 'bạn tự làm' };
 const SO_LAN_LOI = (ghiChu) => (String(ghiChu || '').match(/\[Gợi ý: lỗi/g) || []).length;
 
 // Mỗi giờ gợi ý tối đa 5 việc mới, mỗi việc một lần. AI lỗi hai lần thì bỏ hẳn việc đó.
@@ -157,7 +156,6 @@ export async function goiYMoi(env, bayGio) {
     if (!chon.length) continue;
     const ngoai = await docTichHop(env, tc.id, 'ai');
     const hoSo = await docHoSo(env, tc.id);
-    const dong = [];
     for (const v of chon) {
       try {
         const boiCanh = results.filter((x) => x.id !== v.id).map((x) => x.tieu_de);
@@ -165,8 +163,6 @@ export async function goiYMoi(env, bayGio) {
         await env.CSDL.prepare(
           `UPDATE viec SET ghi_chu = COALESCE(ghi_chu || char(10) || char(10), '') || ?3, nhom = ?4, cap_nhat_luc = ?5 WHERE id = ?1 AND to_chuc_id = ?2`,
         ).bind(v.id, tc.id, kq.ghi_them, NHOM_THEO_SO[kq.nhom], bayGio).run();
-        const buoc = /^1\. (.+)$/m.exec(kq.ghi_them)?.[1];
-        dong.push(`- ${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay})` : ''}: ${NHAN_NGAN[kq.nhom] || 'xem trong ghi chú'}${buoc ? `. Bước tiếp: ${buoc}` : ''}`);
         soViec++;
       } catch (e) {
         console.error('Gợi ý việc lỗi', v.id, e);
@@ -176,8 +172,7 @@ export async function goiYMoi(env, bayGio) {
         ).bind(v.id, tc.id, `[Gợi ý: lỗi ${gioDayDuVN(bayGio)}]`).run();
       }
     }
-    // Một tin gộp cho cả lượt, chỉ việc thật và bước tiếp theo. Lỗi AI chỉ ghi vào Nhật ký, không nhắn.
-    if (dong.length) await baoToChuc(env, tc.id, `Việc mới (${dong.length}):\n${dong.join('\n')}`.slice(0, 3900));
+    // Không nhắn Telegram ở đây: tác vụ "Báo việc mới" đã báo cùng các việc này, nhắn thêm là trùng hai tin cho một việc.
   }
   if (!soViec && !soLoi) return { bo_qua: true };
   return { so_muc: soViec, ghi_chu: `Gợi ý ${soViec} việc${soLoi ? `, lỗi ${soLoi}` : ''}` };

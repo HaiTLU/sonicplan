@@ -2,6 +2,16 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [1.8.1] - 2026-10-14
+
+### Sửa
+- Dời hạn (dọn cuối ngày lúc 23h, nút "Dời mai", "Dời tuần sau" trên Telegram) nay dời luôn ngày bên Google Tasks và Lịch; trước đây hai bên lệch ngày.
+- Việc bị dọn cuối ngày dời sang mai được nhắc lại đúng giờ hẹn; trước đây việc đã nhắc một lần thì không bao giờ nhắc nữa.
+- Tin sau đổi hạn hoặc giờ của một việc đã có ("dời sang thứ 6", "chuyển 15h") thì việc cũ nhận hạn mới, có dòng "Đổi hạn" trong lịch sử; trước đây hạn mới bị bỏ.
+- Mỗi việc mới chỉ còn một tin Telegram (tin "Báo việc mới" mang luôn nhóm và bước tiếp); trước đây tác vụ gợi ý nhắn thêm tin "Việc mới" thứ hai.
+- Khâu "Giao việc cho Claude qua GitHub" tắt sẵn: khâu này tự tạo issue cho mọi việc AI xếp nhóm "AI tự làm" mà chưa ai duyệt. Giao Claude dùng nút "Giao Claude" trên thẻ việc; ai muốn bật lại thì bật ở trang Luồng.
+- Chưa nối AI thì báo rõ "Chưa nối AI" thay vì lỗi khó hiểu.
+
 ## [1.8.0] - 2026-10-14
 
 ### Thêm

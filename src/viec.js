@@ -77,16 +77,35 @@ export function timTrung(tieuDe, cacViec) {
   return cacViec.find((v) => doGiong(v.tieu_de, tieuDe) >= NGUONG_TRUNG) || null;
 }
 
+// Việc trùng mà tin mới có hạn hoặc giờ khác: trả { han_ngay, gio_hen } mới, không đổi gì thì null.
+// Chỉ nhận ngày không lùi về quá khứ để AI đọc nhầm ngày cũ trong tin không kéo việc về trước.
+export function doiHanKhiTrung(cu, moi, homNay = ngayVN()) {
+  const han = moi.han_ngay && moi.han_ngay >= homNay ? moi.han_ngay : cu.han_ngay || null;
+  const gio = moi.gio_hen || cu.gio_hen || null;
+  if (han === (cu.han_ngay || null) && gio === (cu.gio_hen || null)) return null;
+  return { han_ngay: han || (gio ? ngayChoGio(gio) : null), gio_hen: gio };
+}
+
 export async function themViec(env, toChucId, viec, { tinNhanId = null, boQuaTrung = false, duAnId = null, nguon = null } = {}) {
   // Có giờ mà chưa có ngày thì không để rơi vào "Chưa có hạn": hôm nay, hoặc mai nếu giờ đã qua.
   if (viec.gio_hen && !viec.han_ngay) viec = { ...viec, han_ngay: ngayChoGio(viec.gio_hen) };
   if (!boQuaTrung) {
     const han = new Date(Date.now() - 14 * 86400000).toISOString();
     const { results } = await env.CSDL.prepare(
-      `SELECT id, tieu_de FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND tao_luc >= ?2`,
+      `SELECT id, tieu_de, han_ngay, gio_hen FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND tao_luc >= ?2`,
     ).bind(toChucId, han).all();
     const trung = timTrung(viec.tieu_de, results);
-    if (trung) return { id: trung.id, trung: true };
+    if (trung) {
+      // Tin sau đổi hạn hoặc giờ ("dời sang thứ 6", "chuyển 15h") thì cập nhật việc cũ, không để hạn mới bị bỏ.
+      const doi = doiHanKhiTrung(trung, viec);
+      if (doi) {
+        await env.CSDL.prepare('UPDATE viec SET han_ngay = ?1, gio_hen = ?2, can_dong_bo = 1, cap_nhat_luc = ?3 WHERE id = ?4 AND to_chuc_id = ?5')
+          .bind(doi.han_ngay, doi.gio_hen, new Date().toISOString(), trung.id, toChucId).run();
+        await env.CSDL.prepare('DELETE FROM nhac_da_gui WHERE viec_id = ?1').bind(trung.id).run();
+        await ghiSuKien(env, toChucId, trung.id, 'doi_han', `Tin mới đổi hạn: ${doi.han_ngay}${doi.gio_hen ? ` ${doi.gio_hen}` : ''}`, tinNhanId).catch(() => {});
+      }
+      return { id: trung.id, trung: true, doi_han: Boolean(doi) };
+    }
   }
   const bayGio = new Date().toISOString();
   const dong = await env.CSDL.prepare(

@@ -81,7 +81,7 @@ export async function docDuAn(env, tc) {
   return results.map((d) => ({ ...d, tu_khoa: docTuKhoa(d.tu_khoa) }));
 }
 
-// Ghi một sự kiện vào lịch sử của việc: tao, tien_do, xong, mo_lai, doi_du_an.
+// Ghi một sự kiện vào lịch sử của việc: tao, tien_do, xong, mo_lai, doi_du_an, doi_han.
 export async function ghiSuKien(env, tc, viecId, loai, noiDung, tinNhanId = null) {
   await env.CSDL.prepare(
     'INSERT INTO viec_su_kien (to_chuc_id, viec_id, loai, noi_dung, tin_nhan_id, luc) VALUES (?1, ?2, ?3, ?4, ?5, ?6)',

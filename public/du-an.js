@@ -7,6 +7,7 @@ const LOAI = {
   mo_lai: { nhan: 'Mở lại việc', icon: 'viec' },
   huy: { nhan: 'Hủy việc', icon: 'dong' },
   doi_du_an: { nhan: 'Đổi dự án', icon: 'du-an' },
+  doi_han: { nhan: 'Đổi hạn', icon: 'viec' },
 };
 
 import { anhDuAn, boAnh, chonVaTaiAnh, oChonIcon } from './anh-du-an.js';

@@ -192,6 +192,8 @@ export async function chayAi(env, tuyChon, messages, { maxTokens, nhietDo, khuon
     }
   }
   if (tuyChon) tuyChon.duPhong = true; // đã quay về Workers AI: ghi nhớ từ lượt này có độ tin cậy thấp
+  // Máy chủ trên Mac không có Workers AI khi thiếu CF_AI_TOKEN: báo rõ thay vì lỗi "undefined".
+  if (!env.AI) throw new Error(ngoai ? 'AI của bạn lỗi và máy chủ không có AI dự phòng' : 'Chưa nối AI, vào Kết nối > AI của bạn để dán khóa');
   const phanHoi = await env.AI.run(moHinh(env), {
     messages,
     ...(khuon ? { response_format: { type: 'json_schema', json_schema: khuon } } : {}),
