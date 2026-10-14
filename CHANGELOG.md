@@ -2,6 +2,11 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [1.8.3] - 2026-10-14
+
+### Đổi
+- Dọn cuối ngày đếm số lần tự dời của mỗi việc. Thẻ việc hiện "Dời N lần" (rê chuột thấy hạn gốc), từ 3 lần thì chữ đỏ. Bản tin 8h có mục "Đã tự dời từ 3 lần, nên xem lại". Anh tự đặt hạn mới thì số đếm về 0.
+
 ## [1.8.2] - 2026-10-14
 
 ### Đổi

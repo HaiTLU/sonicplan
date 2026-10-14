@@ -685,7 +685,7 @@ async function dsViec(env, tc, url) {
   const { results } = await env.CSDL.prepare(
     `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.trang_thai, v.tin_nhan_id, v.tao_luc, v.xong_luc,
        t.nguon AS tin_nguon, t.nguoi_gui AS tin_nguoi_gui, t.nhom AS tin_nhom,
-       v.du_an_id, v.nguon, v.mau, v.sao, v.do_nang, d.ten AS du_an_ten, d.mau AS du_an_mau, d.icon AS du_an_icon, d.anh_khoa AS du_an_anh,
+       v.du_an_id, v.nguon, v.mau, v.sao, v.do_nang, v.han_goc, v.so_lan_doi, d.ten AS du_an_ten, d.mau AS du_an_mau, d.icon AS du_an_icon, d.anh_khoa AS du_an_anh,
        (SELECT CASE WHEN l.trang_thai = 'xong' AND l.cau_hoi IS NOT NULL AND l.danh_gia IS NULL THEN 'hoi' ELSE l.trang_thai END FROM luot_claude l WHERE l.to_chuc_id = v.to_chuc_id AND l.viec_id = v.id ORDER BY l.id DESC LIMIT 1) AS claude_trang_thai
      FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id LEFT JOIN du_an d ON d.id = v.du_an_id
      WHERE v.to_chuc_id = ?1 AND v.trang_thai = ?2 ORDER BY ${thuTu.replace(/\b(xong_luc|han_ngay|gio_hen|thu_tu|sao|id)\b/g, 'v.$1')} LIMIT 300`,
@@ -757,6 +757,8 @@ async function suaViec(env, tc, id, than) {
   const gan = cot.map((c, i) => `${c} = ?${i + 3}`);
   // Đổi tên, hạn hoặc giờ thì báo cho lượt đồng bộ cập nhật Google Tasks và Lịch.
   if (['tieu_de', 'han_ngay', 'gio_hen', 'ghi_chu', 'mau', 'du_an_id'].some((c) => c in k.viec)) gan.push('can_dong_bo = 1');
+  // Người dùng tự đặt hạn mới: bỏ đếm số lần tự dời.
+  if ('han_ngay' in k.viec) gan.push('so_lan_doi = 0');
   const giaTri = cot.map((c) => k.viec[c]);
   if (k.viec.trang_thai) gan.push(`xong_luc = ${k.viec.trang_thai === 'xong' ? `?${cot.length + 3}` : 'NULL'}`);
   const kq = await env.CSDL.prepare(

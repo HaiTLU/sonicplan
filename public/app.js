@@ -1270,6 +1270,7 @@ function theViec(v, hn) {
       h('div', { class: 'chan' },
         v.han_ngay ? h('span', { class: hn && v.han_ngay < hn ? 'tre' : '' }, icon('lich'), ngayHienThi(v.han_ngay)) : null,
         v.gio_hen ? h('span', {}, icon('dong-ho'), v.gio_hen) : null,
+        v.so_lan_doi ? h('span', { class: v.so_lan_doi >= 3 ? 'tre' : '', ...meo(`Việc tự dời sang ngày sau ${v.so_lan_doi} lần vì chưa xong cuối ngày. Hạn gốc ${v.han_goc ? ngayHienThi(v.han_goc) : 'không rõ'}. Sửa hạn để bỏ đếm.`) }, `Dời ${v.so_lan_doi} lần`) : null,
         h('span', { class: `nguon ${nhanNguon(v).ma}`, title: `Nguồn: ${v.tin_nhom || v.tin_nguoi_gui || nhanNguon(v).chu}` }, icon(nhanNguon(v).icon), nhanNguon(v).chu),
         v.du_an_ten ? h('a', { class: 'nhan-du-an', href: `#du-an/${v.du_an_id}`, title: 'Xem lịch sử dự án' }, v.du_an_icon || v.du_an_anh ? anhDuAn(h, v, 'nho') : icon('du-an'), v.du_an_ten) : h('span', { class: 'nhan-du-an chua', text: 'Chưa xếp dự án' }),
         v.xong_luc ? h('span', {}, `Xong ${luc(v.xong_luc)}`) : null,

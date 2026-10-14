@@ -6,6 +6,7 @@ import { d1, dungCsdl } from './csdl-thu.js';
 import { CAC_TAC_VU, dongViecMoi } from '../src/tac-vu.js';
 import { apDungNutViec } from '../src/telegram.js';
 import { macDinhLuong } from '../src/luong.js';
+import { khoiDoiNhieu } from '../src/ban-tin.js';
 import { doiHanKhiTrung, themViec, timTrung } from '../src/viec.js';
 
 function moiTruong() {
@@ -99,4 +100,16 @@ test('themViec: việc vừa xong 3 ngày không bị tạo lại, việc mở 3
   assert.equal((await themViec(env, 'tc1', { tieu_de: 'Nộp hồ sơ nghiệm thu đề tài' })).trung, true);
   assert.equal((await themViec(env, 'tc1', { tieu_de: 'Soạn tờ trình khóa Tiếng Anh giao tiếp' })).trung, true);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM viec').get().n, 2);
+});
+
+test('dọn cuối ngày đếm số lần tự dời, giữ hạn gốc; bản tin sáng nhắc việc dời từ 3 lần', async () => {
+  const { db, env } = moiTruong();
+  const id = themDong(db, '2026-10-12');
+  await CAC_TAC_VU['don-cuoi-ngay'](env, '2026-10-12T16:00:00.000Z');
+  await CAC_TAC_VU['don-cuoi-ngay'](env, '2026-10-13T16:00:00.000Z');
+  await CAC_TAC_VU['don-cuoi-ngay'](env, '2026-10-14T16:00:00.000Z');
+  const v = db.prepare('SELECT han_ngay, han_goc, so_lan_doi FROM viec WHERE id = ?').get(id);
+  assert.deepEqual({ ...v }, { han_ngay: '2026-10-15', han_goc: '2026-10-12', so_lan_doi: 3 });
+  assert.equal(khoiDoiNhieu([{ tieu_de: 'Gửi báo giá', han_goc: '2026-10-12', so_lan_doi: 3 }]), 'Đã tự dời từ 3 lần, nên xem lại (làm, đổi hạn hoặc bỏ):\n- Gửi báo giá (dời 3 lần, hạn gốc 12/10)');
+  assert.equal(khoiDoiNhieu([]), '');
 });
