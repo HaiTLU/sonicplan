@@ -1,0 +1,165 @@
+/* Khu Zalo trong Hộp tin theo dáng Telegram Desktop. Chỉ tác động bên trong .hop-zalo, phần còn lại của Sonicplan giữ nguyên.
+   Chế độ tối là mặc định; máy đặt chế độ sáng thì dùng bảng màu ngày của Telegram. */
+.hop-zalo {
+  --tg-ds: #17212B; --tg-ria: #202B36; --tg-chon: #2B5278; --tg-nen: #0E1621; --tg-dau: #17212B;
+  --tg-nhan: #182533; --tg-toi: #2B5278; --tg-chu: #F5F5F5; --tg-phu: #8093A3; --tg-gio-toi: #A9C9EA;
+  --tg-lk: #6AB3F3; --tg-dem: #2F6FA8; --tg-vach: rgba(255, 255, 255, .06); --tg-o: #242F3D; --tg-ngay: rgba(38, 54, 72, .92);
+  --tg-the: rgba(255, 255, 255, .05);
+  --nm0: #FF516A; --nm1: #FFA85C; --nm2: #A695E7; --nm3: #7BC862; --nm4: #6EC9CB; --nm5: #65AADD; --nm6: #EE7AAE;
+  --tg-hoa-van:
+    radial-gradient(circle at 18% 12%, rgba(62, 136, 198, .10), transparent 42%),
+    radial-gradient(circle at 85% 90%, rgba(106, 179, 243, .07), transparent 46%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><g fill='none' stroke='%23ffffff' stroke-opacity='.04' stroke-width='1.2'><circle cx='20' cy='24' r='6'/><path d='M70 18l8 8M78 18l-8 8'/><rect x='88' y='70' width='12' height='12' rx='3'/><path d='M22 86q6-10 12 0t12 0'/><path d='M60 60l5 9h-10z'/></g></svg>");
+  gap: 0;
+  border: 1px solid var(--tg-vach);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--tg-ds);
+  box-shadow: 0 24px 60px -30px rgba(0, 0, 0, .7);
+  scrollbar-width: thin;
+}
+@media (prefers-color-scheme: light) {
+  .hop-zalo {
+    --tg-ds: #FFFFFF; --tg-ria: #F4F4F5; --tg-chon: #2A6FB5; --tg-nen: #9DB88F; --tg-dau: #FFFFFF;
+    --tg-nhan: #FFFFFF; --tg-toi: #EEFFDE; --tg-chu: #000000; --tg-phu: #707579; --tg-gio-toi: #2E7D32;
+    --tg-lk: #0F6FB0; --tg-dem: #2A6FB5; --tg-vach: rgba(0, 0, 0, .08); --tg-o: #F1F1F1; --tg-ngay: rgba(0, 0, 0, .45);
+    --tg-the: rgba(0, 0, 0, .04);
+    --nm0: #CC5049; --nm1: #A8560C; --nm2: #955CDB; --nm3: #2E7D1F; --nm4: #176F84; --nm5: #2A6FB5; --nm6: #C7508B;
+    --tg-hoa-van:
+      linear-gradient(135deg, rgba(255, 255, 255, .16), transparent 55%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><g fill='none' stroke='%23ffffff' stroke-opacity='.22' stroke-width='1.2'><circle cx='20' cy='24' r='6'/><path d='M70 18l8 8M78 18l-8 8'/><rect x='88' y='70' width='12' height='12' rx='3'/><path d='M22 86q6-10 12 0t12 0'/><path d='M60 60l5 9h-10z'/></g></svg>");
+  }
+}
+
+/* ----- Hai khung: bỏ viền thẻ của Sonicplan ----- */
+.hop-zalo > .bang { background: var(--tg-ds); border: 0; border-radius: 0; box-shadow: none; color: var(--tg-chu); }
+.hop-zalo > .bang::after { display: none; }
+.hop-zalo > .ds-zalo { border-right: 1px solid var(--tg-vach); padding: 6px; }
+.hop-zalo .trong-trai { color: var(--tg-phu); }
+.hop-zalo .trong-trai h3 { color: var(--tg-chu); }
+
+/* ----- Danh sách hội thoại ----- */
+.hop-zalo .ds-zalo button { grid-template-columns: 54px minmax(0, 1fr); gap: 11px; padding: 9px 10px; border-radius: 10px; color: var(--tg-chu); box-shadow: none; }
+.hop-zalo .ds-zalo button:hover { background: var(--tg-ria); }
+.hop-zalo .ds-zalo button[aria-current="true"] { background: var(--tg-chon); box-shadow: none; color: #fff; }
+.hop-zalo .ds-zalo .dong-1 strong { font-size: 15.5px; font-weight: 600; color: inherit; }
+.hop-zalo .ds-zalo time { color: var(--tg-phu); font-size: 12.5px; }
+.hop-zalo .ds-zalo .chua-xem time { color: var(--tg-lk); }
+.hop-zalo .ds-zalo .dong-2 p { margin-top: 3px; color: var(--tg-phu); font-size: 14.5px; font-weight: 400; }
+.hop-zalo .ds-zalo .chua-xem .dong-2 p { color: var(--tg-phu); font-weight: 400; }
+/* Chữ phụ trên hàng đang chọn gần trắng hẳn để đủ tương phản (cần 4,5:1) trên nền xanh ở cả hai chế độ */
+.hop-zalo .ds-zalo button[aria-current="true"] time,
+.hop-zalo .ds-zalo button[aria-current="true"] .dong-2 p { color: rgba(255, 255, 255, .96); }
+.hop-zalo .dem-zalo { min-width: 22px; height: 22px; padding: 0 7px; line-height: 22px; border-radius: 11px; background: var(--tg-dem); color: #fff; font-size: 12.5px; font-weight: 600; }
+.hop-zalo .ds-zalo button[aria-current="true"] .dem-zalo { background: #fff; color: var(--tg-chon); }
+
+/* ----- Ảnh đại diện: hình tròn chuyển sắc, bảy màu như Telegram ----- */
+.hop-zalo .anh-zalo { --g1: #5CAFFA; --g2: #408ACF; width: 54px; height: 54px; border-radius: 50%; color: #fff; font-size: 19px; font-weight: 600; letter-spacing: 0; background: linear-gradient(180deg, var(--g1), var(--g2)); }
+.hop-zalo .anh-zalo.nhom { border-radius: 50%; }
+.hop-zalo .anh-zalo[data-m="0"] { --g1: #FF845E; --g2: #D45246; }
+.hop-zalo .anh-zalo[data-m="1"] { --g1: #FEBB5B; --g2: #F68136; }
+.hop-zalo .anh-zalo[data-m="2"] { --g1: #B694F9; --g2: #6C61DF; }
+.hop-zalo .anh-zalo[data-m="3"] { --g1: #9AD164; --g2: #46BA43; }
+.hop-zalo .anh-zalo[data-m="4"] { --g1: #53EDD6; --g2: #28C9B7; }
+.hop-zalo .anh-zalo[data-m="5"] { --g1: #5CAFFA; --g2: #408ACF; }
+.hop-zalo .anh-zalo[data-m="6"] { --g1: #FF8AAC; --g2: #D95574; }
+
+/* ----- Đầu khung chat ----- */
+.hop-zalo .doc-zalo { background: var(--tg-nen); }
+.hop-zalo .dau-zalo { gap: 12px; min-height: 58px; padding: 8px 16px; background: var(--tg-dau); border-bottom: 1px solid var(--tg-vach); }
+.hop-zalo .dau-zalo .anh-zalo { width: 42px; height: 42px; font-size: 15px; }
+.hop-zalo .dau-zalo h2 { font-size: 15.5px; font-weight: 600; color: var(--tg-chu); }
+.hop-zalo .dau-zalo p { margin-top: 1px; color: var(--tg-phu); font-size: 13px; }
+
+/* ----- Dòng tin: nền có họa tiết, bong bóng có đuôi ----- */
+.hop-zalo .luong-zalo { overscroll-behavior: contain; gap: 2px; padding: 12px clamp(12px, 4vw, 56px); background-color: var(--tg-nen); background-image: var(--tg-hoa-van); scrollbar-width: thin; }
+.hop-zalo .ngay-phan { margin: 12px 0 8px; position: sticky; top: 4px; z-index: 1; }
+.hop-zalo .ngay-phan span { padding: 3px 12px; border: 0; border-radius: 999px; background: var(--tg-ngay); color: #fff; font-size: 13px; font-weight: 500; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.hop-zalo .tin-zalo { max-width: min(78%, 520px); gap: 6px; margin-top: 8px; align-items: flex-end; }
+.hop-zalo .tin-zalo.lien { margin-top: 0; }
+.hop-zalo .tin-zalo > .anh-zalo, .hop-zalo .tin-zalo > .cho-anh { width: 34px; height: 34px; font-size: 12px; }
+
+.hop-zalo .bong-chat { padding: 6px 10px 7px; border: 0; border-radius: 12px; background: var(--tg-nhan); color: var(--tg-chu); box-shadow: 0 1px 1px rgba(0, 0, 0, .14); }
+.hop-zalo .tin-zalo.toi .bong-chat { background: var(--tg-toi); border: 0; }
+/* Tin giữa cụm: góc sát nhau. Tin cuối cụm: góc dưới thẳng và có đuôi. */
+.hop-zalo .tin-zalo.lien:not(.toi) .bong-chat { border-top-left-radius: 6px; }
+.hop-zalo .tin-zalo.toi.lien .bong-chat { border-top-left-radius: 12px; border-top-right-radius: 6px; }
+.hop-zalo .tin-zalo:not(.toi):not(.cuoi) .bong-chat { border-bottom-left-radius: 6px; }
+.hop-zalo .tin-zalo.toi:not(.cuoi) .bong-chat { border-bottom-right-radius: 6px; }
+.hop-zalo .tin-zalo.cuoi:not(.toi) .bong-chat { border-bottom-left-radius: 0; }
+.hop-zalo .tin-zalo.cuoi.toi .bong-chat { border-bottom-right-radius: 0; }
+.hop-zalo .tin-zalo.cuoi .bong-chat::after { content: ""; position: absolute; bottom: 0; width: 9px; height: 13px; background: inherit; }
+.hop-zalo .tin-zalo.cuoi:not(.toi) .bong-chat::after { left: -8px; clip-path: path('M9 0 V13 H0 Q7 12 9 0 Z'); }
+.hop-zalo .tin-zalo.cuoi.toi .bong-chat::after { right: -8px; clip-path: path('M0 0 V13 H9 Q2 12 0 0 Z'); }
+
+/* Tên người gửi trong nhóm nằm trong bong bóng, tô màu theo người */
+.hop-zalo .bong-chat .ten-gui { overflow-wrap: anywhere; display: block; margin: 0 0 2px; font-size: 13.5px; font-weight: 600; line-height: 1.3; color: var(--nm5); }
+.hop-zalo .bong-chat .ten-gui.m0 { color: var(--nm0); } .hop-zalo .bong-chat .ten-gui.m1 { color: var(--nm1); }
+.hop-zalo .bong-chat .ten-gui.m2 { color: var(--nm2); } .hop-zalo .bong-chat .ten-gui.m3 { color: var(--nm3); }
+.hop-zalo .bong-chat .ten-gui.m4 { color: var(--nm4); } .hop-zalo .bong-chat .ten-gui.m5 { color: var(--nm5); }
+.hop-zalo .bong-chat .ten-gui.m6 { color: var(--nm6); }
+
+/* Chữ và giờ: giờ nằm góc dưới bên phải bong bóng, khoảng chừa ở cuối dòng chữ để không đè lên chữ */
+.hop-zalo .bong-chat .chu-tin { font-size: 15px; line-height: 1.4; }
+.hop-zalo .bong-chat .chu-tin::after { content: ""; display: inline-block; width: 50px; height: 1px; }
+.hop-zalo .bong-chat time { position: absolute; right: 9px; bottom: 5px; margin: 0; font-size: 11.5px; line-height: 1; color: var(--tg-phu); }
+.hop-zalo .tin-zalo.toi .bong-chat time { color: var(--tg-gio-toi); }
+.hop-zalo .bong-chat .chu-tin a { color: var(--tg-lk); }
+.hop-zalo .bong-chat .chu-tin.nhat { color: var(--tg-phu); }
+.hop-zalo .bong-chat:has(.the-tep-zalo, .the-lien-he, .the-lien-ket, .cuoc-goi, .anh-hong) { padding-bottom: 22px; }
+
+/* Ảnh: giờ nằm trên ảnh trong viên thuốc tối */
+.hop-zalo .bong-chat.co-anh { padding: 3px; }
+.hop-zalo .bong-chat.co-anh .ten-gui { padding: 3px 8px 0; }
+.hop-zalo .bong-chat.co-anh time { right: 9px; bottom: 9px; padding: 3px 7px; border-radius: 10px; background: rgba(0, 0, 0, .45); color: #fff; }
+.hop-zalo .anh-tin, .hop-zalo .anh-tin img { border-radius: 9px; }
+
+/* Thẻ tệp: biểu tượng tròn, tên đậm, dung lượng nhạt, không viền */
+.hop-zalo .the-tep-zalo { gap: 12px; min-width: 230px; padding: 2px 0; margin: 0; border: 0; border-radius: 0; background: none; }
+.hop-zalo .the-tep-zalo:hover { border-color: transparent; }
+.hop-zalo .the-tep-zalo:hover strong { text-decoration: underline; }
+.hop-zalo .the-tep-zalo strong { font-size: 14.5px; color: var(--tg-chu); }
+.hop-zalo .the-tep-zalo small { color: var(--tg-phu); font-size: 12.5px; }
+.hop-zalo .ic-tep { width: 48px; height: 48px; border-radius: 50%; font-size: 10.5px; }
+
+/* Danh thiếp, cuộc gọi, thẻ liên kết */
+.hop-zalo .the-lien-he { display: flex; align-items: center; gap: 12px; min-width: 220px; padding: 2px 0; }
+.hop-zalo .the-lien-he .anh-zalo { width: 46px; height: 46px; font-size: 16px; }
+.hop-zalo .tt-lien-he { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.hop-zalo .tt-lien-he strong { font-size: 15px; color: var(--tg-chu); overflow-wrap: anywhere; }
+.hop-zalo .tt-lien-he span { color: var(--tg-lk); font-size: 14px; }
+.hop-zalo .tt-lien-he small { color: var(--tg-phu); font-size: 12.5px; }
+.hop-zalo .cuoc-goi { display: flex; align-items: center; gap: 12px; min-width: 170px; padding: 2px 6px 0 0; }
+.hop-zalo .ic-goi { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(180deg, #6BD07A, #3FAA55); color: #fff; }
+.hop-zalo .ic-goi svg { width: 20px; height: 20px; }
+.hop-zalo .tt-goi { display: flex; flex-direction: column; min-width: 0; }
+.hop-zalo .tt-goi strong { font-size: 14.5px; color: var(--tg-chu); }
+.hop-zalo .tt-goi small { color: var(--tg-phu); font-size: 12.5px; }
+.hop-zalo .the-lien-ket { max-width: 340px; padding: 4px 10px; gap: 2px; border: 0; border-left: 3px solid var(--tg-lk); border-radius: 4px; background: var(--tg-the); }
+.hop-zalo .the-lien-ket strong { color: var(--tg-lk); font-size: 14px; }
+.hop-zalo .the-lien-ket span { color: var(--tg-chu); font-size: 13.5px; }
+.hop-zalo .the-lien-ket small { color: var(--tg-phu); }
+
+/* ----- Khung soạn tin ----- */
+.hop-zalo .vung-soan { background: var(--tg-dau); border-top: 1px solid var(--tg-vach); }
+.hop-zalo .soan-zalo { display: flex; align-items: flex-end; gap: 8px; padding: 8px 12px 4px; }
+.hop-zalo .o-soan { flex: 1; min-width: 0; min-height: 42px; max-height: 160px; padding: 11px 16px; border: 0; border-radius: 21px; resize: none; background: var(--tg-o); color: var(--tg-chu); font: inherit; font-size: 15px; line-height: 1.3; outline: none; }
+.hop-zalo .o-soan::placeholder { color: var(--tg-phu); }
+.hop-zalo .o-soan:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--tg-lk) 55%, transparent); }
+.hop-zalo .nut-gui-zalo { touch-action: manipulation; flex: none; width: 42px; height: 42px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--tg-dem); color: #fff; cursor: pointer; }
+.hop-zalo .nut-gui-zalo svg { width: 20px; height: 20px; }
+.hop-zalo .nut-gui-zalo:disabled { background: transparent; color: var(--tg-phu); cursor: default; }
+.hop-zalo .nut-gui-zalo:focus-visible { outline: 2px solid var(--tg-lk); outline-offset: 2px; }
+.hop-zalo .goi-y-soan { margin: 0; padding: 0 16px 8px; color: var(--tg-phu); font-size: 12px; text-align: center; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .hop-zalo .ds-zalo button { transition: background-color .12s; }
+  .hop-zalo .nut-gui-zalo { transition: transform .15s, background-color .15s; }
+  .hop-zalo .nut-gui-zalo:not(:disabled):hover { transform: scale(1.07); }
+}
+@media (max-width: 860px) {
+  .hop-zalo { border-radius: 12px; }
+  .hop-zalo > .ds-zalo { border-right: 0; }
+  .hop-zalo .tin-zalo { max-width: 88%; }
+  .hop-zalo .luong-zalo { padding: 10px 10px; }
+}
