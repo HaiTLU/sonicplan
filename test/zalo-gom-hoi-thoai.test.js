@@ -57,12 +57,16 @@ test('máy Mac gửi thread_id thì lưu thành mã hội thoại có loại; th
 });
 
 test('vá chương trình Zalo: thêm thread_id và tên người nhận, chạy lại không đổi, mã lạ thì từ chối', () => {
-  const goc = `async function threadName(api, msg) {\n  if (msg.type !== ThreadType.Group) return msg.data.dName || msg.threadId;\n}\nbuffer.push({\n    id,\n    thread,\n    type: key === "group" ? "nhom" : "ca-nhan",\n  });\n`;
+  const goc = `async function threadName(api, msg) {\n  if (msg.type !== ThreadType.Group) return msg.data.dName || msg.threadId;\n}\nbuffer.push({\n    id,\n    thread,\n    type: key === "group" ? "nhom" : "ca-nhan",\n  });\n  setInterval(async () => { await flush({ heartbeat: true }); saveSession(api); }, FLUSH_MIN * 60_000);\n`;
   const a = vaMa(goc);
   assert.ok(a.doi);
   assert.match(a.ma, /thread_id: msg\.threadId,/);
   assert.match(a.ma, /return tenNguoiDoiDien\(api, msg\);/);
+  assert.match(a.ma, /setInterval\(\(\) => \{ if \(buffer\.length\) guiLo\(\); \}, 30_000\);/);
   assert.equal(vaMa(a.ma).doi, false);
+  // bản đã vá lần trước (chỉ có mã hội thoại) vẫn được vá thêm phần gửi nhanh
+  const cu = a.ma.replace(/\n  \/\/ Gửi tin gần như ngay[\s\S]*?30_000\);/, '\n  setInterval(async () => { await flush({ heartbeat: true }); saveSession(api); }, FLUSH_MIN * 60_000);');
+  assert.ok(vaMa(cu).doi);
   assert.throws(() => vaMa('console.log(1)'), /Không nhận ra/);
 });
 
@@ -88,4 +92,15 @@ test('tin cũ mình gửi dưới tên mình: xếp vào cuộc trò chuyện du
   const linh = ds.find((x) => x.ten === 'Linh');
   assert.equal(linh.n, 2);
   assert.ok(ds.some((x) => x.ten === 'Nam Hai' && x.n === 1));
+});
+
+test('khung tin đang mở lấy được tin mới hơn bằng sau_id, không lặp tin cũ', async () => {
+  const env = csdlGia();
+  them(env, { ma: '1', gui: 'Dũng', tieu_de: 'Dũng', nd: 'a', luc: '2026-10-14T09:00:00Z', hoi: 'ca-nhan:7' });
+  them(env, { ma: '2', gui: 'Tôi', tieu_de: 'Dũng', nd: 'alo', luc: '2026-10-14T09:39:00Z', hoi: 'ca-nhan:7' });
+  them(env, { ma: '3', gui: 'Dũng', tieu_de: 'Dũng', nd: 'hello', luc: '2026-10-14T09:40:00Z', hoi: 'ca-nhan:7' });
+  const r = await tinHoiThoaiZalo(env, 't', new URL('http://x/api/zalo/tin?khoa=ca-nhan:7&sau_id=1'));
+  assert.deepEqual((await r.json()).tin.map((x) => x.noi_dung), ['alo', 'hello']);
+  const rong = await tinHoiThoaiZalo(env, 't', new URL('http://x/api/zalo/tin?khoa=ca-nhan:7&sau_id=3'));
+  assert.equal((await rong.json()).tin.length, 0);
 });

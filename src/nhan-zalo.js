@@ -11,6 +11,8 @@ import { docTichHop } from './tich-hop.js';
 import { bam, json, loi } from './tien-ich.js';
 import { tachViecChoToChuc } from './viec.js';
 
+const lanTachViecCuoi = new Map();
+
 export async function toChucTheoKhoa(env, khoa, loai) {
   if (!khoa || khoa.length < 20) return null;
   const dong = await env.CSDL.prepare('SELECT to_chuc_id FROM khoa_truy_cap WHERE ma_bam = ?1 AND loai = ?2').bind(await bam(khoa), loai).first();
@@ -98,7 +100,11 @@ export async function nhanZalo(yeuCau, env, ctx, duongDan) {
     const daVa = than.messages.some((t) => t && t.thread_id);
     const chuVa = than.messages.length ? (daVa ? ', chương trình Zalo đã vá' : ', chương trình Zalo chưa vá (chạy cai-va.sh)') : '';
     await ghiTinHieu(env, toChucId, 'zalo', moi ? `Nhận ${moi} tin${chuVa}` : 'Tín hiệu còn chạy');
-    if (moi) ctx.waitUntil(tachViecChoToChuc(env, toChucId).catch((e) => console.error('Tách việc lỗi', e)));
+    // Tin về gần như tức thì (30 giây/lần) nhưng AI tách việc vẫn gom, tối đa 10 phút một lượt cho mỗi tổ chức.
+    if (moi && Date.now() - (lanTachViecCuoi.get(toChucId) || 0) > 10 * 60_000) {
+      lanTachViecCuoi.set(toChucId, Date.now());
+      ctx.waitUntil(tachViecChoToChuc(env, toChucId).catch((e) => console.error('Tách việc lỗi', e)));
+    }
     return json({ ok: true, moi });
   }
 
