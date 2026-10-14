@@ -984,37 +984,43 @@ async function taoKhoa(env, tc, loai, url) {
 // Nhóm có tên nhóm; tin riêng gom theo tên người đối diện (tieu_de), thiếu thì theo người gửi.
 const TEN_TIN_ZALO = `CASE WHEN COALESCE(nhom, '') <> '' THEN nhom ELSE COALESCE(NULLIF(tieu_de, ''), NULLIF(nguoi_gui, ''), 'Không rõ') END`;
 const LOAI_TIN_ZALO = `CASE WHEN COALESCE(nhom, '') <> '' THEN 'nhom' ELSE 'ca-nhan' END`;
+// Khóa gom hội thoại: mã hội thoại Zalo khi có (tin mình gửi đi nằm cùng tin người kia), tin cũ thì theo loại và tên.
+const KHOA_TIN_ZALO = `COALESCE(NULLIF(ma_hoi_thoai, ''), ${LOAI_TIN_ZALO} || '~' || ${TEN_TIN_ZALO})`;
 
-async function dsHoiThoaiZalo(env, tc, url) {
+export async function dsHoiThoaiZalo(env, tc, url) {
   const q = (url.searchParams.get('q') || '').trim().replace(/[%_]/g, '');
+  // Tên hiển thị lấy từ tin mới nhất của người kia, nên đổi tên trên Zalo là cập nhật theo.
   const { results } = await env.CSDL.prepare(
     `WITH t AS (
-       SELECT id, ${LOAI_TIN_ZALO} AS loai, ${TEN_TIN_ZALO} AS ten, nguoi_gui, noi_dung, thoi_diem, da_xem
+       SELECT id, ${KHOA_TIN_ZALO} AS khoa, ${LOAI_TIN_ZALO} AS loai, ${TEN_TIN_ZALO} AS ten, nguoi_gui, noi_dung, thoi_diem, da_xem
        FROM tin_nhan WHERE to_chuc_id = ?1 AND nguon = 'zalo' AND an = 0
      ), x AS (
-       SELECT *, ROW_NUMBER() OVER (PARTITION BY loai, ten ORDER BY thoi_diem DESC, id DESC) AS rn,
-         COUNT(*) OVER (PARTITION BY loai, ten) AS n,
-         SUM(CASE WHEN da_xem = 0 THEN 1 ELSE 0 END) OVER (PARTITION BY loai, ten) AS chua_xem
+       SELECT *, ROW_NUMBER() OVER (PARTITION BY khoa ORDER BY thoi_diem DESC, id DESC) AS rn,
+         FIRST_VALUE(ten) OVER (PARTITION BY khoa ORDER BY CASE WHEN nguoi_gui = 'Tôi' THEN 1 ELSE 0 END, thoi_diem DESC, id DESC) AS ten_hien,
+         COUNT(*) OVER (PARTITION BY khoa) AS n,
+         SUM(CASE WHEN da_xem = 0 THEN 1 ELSE 0 END) OVER (PARTITION BY khoa) AS chua_xem
        FROM t
      )
-     SELECT loai, ten, n, chua_xem, thoi_diem AS cuoi, nguoi_gui AS nguoi_cuoi, substr(noi_dung, 1, 120) AS trich
-     FROM x WHERE rn = 1 AND ten LIKE ?2 ORDER BY thoi_diem DESC LIMIT 300`,
+     SELECT khoa, loai, ten_hien AS ten, n, chua_xem, thoi_diem AS cuoi, nguoi_gui AS nguoi_cuoi, substr(noi_dung, 1, 120) AS trich
+     FROM x WHERE rn = 1 AND ten_hien LIKE ?2 ORDER BY thoi_diem DESC LIMIT 300`,
   ).bind(tc, `%${q}%`).all();
   return { ds: results };
 }
 
-async function tinHoiThoaiZalo(env, tc, url) {
+export async function tinHoiThoaiZalo(env, tc, url) {
   const loai = url.searchParams.get('loai');
   const ten = (url.searchParams.get('ten') || '').slice(0, 300);
-  if ((loai !== 'nhom' && loai !== 'ca-nhan') || !ten) return loi(400, 'Thiếu hội thoại cần xem.');
+  // Địa chỉ cũ (loai + ten) vẫn dùng được: đổi sang khóa của tin chưa có mã hội thoại.
+  const khoa = (url.searchParams.get('khoa') || '').slice(0, 400) || ((loai === 'nhom' || loai === 'ca-nhan') && ten ? `${loai}~${ten}` : '');
+  if (!khoa) return loi(400, 'Thiếu hội thoại cần xem.');
   const truocLuc = url.searchParams.get('truoc_luc');
   const truocId = Number(url.searchParams.get('truoc_id')) || 0;
-  const dieuKien = `to_chuc_id = ?1 AND nguon = 'zalo' AND an = 0 AND ${LOAI_TIN_ZALO} = ?2 AND ${TEN_TIN_ZALO} = ?3`;
-  const thamSo = [tc, loai, ten];
+  const dieuKien = `to_chuc_id = ?1 AND nguon = 'zalo' AND an = 0 AND ${KHOA_TIN_ZALO} = ?2`;
+  const thamSo = [tc, khoa];
   let them = '';
   if (truocLuc) {
     thamSo.push(truocLuc, truocId);
-    them = ' AND (thoi_diem < ?4 OR (thoi_diem = ?4 AND id < ?5))';
+    them = ' AND (thoi_diem < ?3 OR (thoi_diem = ?3 AND id < ?4))';
   }
   const { results } = await env.CSDL.prepare(
     `SELECT id, nguoi_gui, noi_dung, thoi_diem, da_xem FROM tin_nhan WHERE ${dieuKien}${them} ORDER BY thoi_diem DESC, id DESC LIMIT 81`,
@@ -1027,7 +1033,7 @@ async function tinHoiThoaiZalo(env, tc, url) {
     tep = (await env.CSDL.prepare(`SELECT id, tin_nhan_id, ten, loai, kich_thuoc, ${COT_DRIVE} FROM tep WHERE to_chuc_id = ?1 AND tin_nhan_id IN (${ids})`).bind(tc).all()).results;
   }
   if (!truocLuc) {
-    await env.CSDL.prepare(`UPDATE tin_nhan SET da_xem = 1 WHERE ${dieuKien} AND da_xem = 0`).bind(tc, loai, ten).run();
+    await env.CSDL.prepare(`UPDATE tin_nhan SET da_xem = 1 WHERE ${dieuKien} AND da_xem = 0`).bind(tc, khoa).run();
   }
   return json({ tin, tep, con_nua: conNua });
 }

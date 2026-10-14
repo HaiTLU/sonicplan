@@ -1,0 +1,67 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { DatabaseSync } from 'node:sqlite';
+import { dsHoiThoaiZalo, tinHoiThoaiZalo } from '../src/api.js';
+import { chuyenTinZalo } from '../src/nhan-zalo.js';
+import { vaMa } from '../may-chu/zalo-listener/va-hoi-thoai.mjs';
+
+function csdlGia() {
+  const db = new DatabaseSync(':memory:');
+  db.exec(`CREATE TABLE tin_nhan (id INTEGER PRIMARY KEY AUTOINCREMENT, to_chuc_id TEXT, nguon TEXT, ma_goc TEXT, nguoi_gui TEXT, nhom TEXT, tieu_de TEXT, noi_dung TEXT, thoi_diem TEXT, da_xem INTEGER DEFAULT 0, an INTEGER DEFAULT 0, ma_hoi_thoai TEXT);
+    CREATE TABLE tep (id INTEGER PRIMARY KEY, to_chuc_id TEXT, tin_nhan_id INTEGER, ten TEXT, loai TEXT, kich_thuoc INTEGER, drive_id TEXT);
+    CREATE TABLE kho_da_luu (to_chuc_id TEXT, loai TEXT, ma TEXT, drive_id TEXT);`);
+  const chay = (sql, tham) => ({ q: db.prepare(sql.replace(/\?(\d+)/g, '?')), th: [...sql.matchAll(/\?(\d+)/g)].map((m) => tham[m[1] - 1]) });
+  return { db, CSDL: { prepare: (sql) => ({ bind: (...tham) => {
+    const { q, th } = chay(sql, tham);
+    return { all: async () => ({ results: q.all(...th) }), first: async () => q.get(...th) ?? null, run: async () => ({ meta: { changes: Number(q.run(...th).changes) } }) };
+  } }) } };
+}
+const them = (env, t) => env.db.prepare(`INSERT INTO tin_nhan (to_chuc_id, nguon, ma_goc, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem, ma_hoi_thoai) VALUES ('t','zalo',?,?,?,?,?,?,?)`).run(t.ma, t.gui, t.nhom ?? null, t.tieu_de ?? null, t.nd, t.luc, t.hoi ?? null);
+
+test('tin mình gửi đi và tin người kia cùng mã hội thoại nằm chung một mục, theo thứ tự thời gian', async () => {
+  const env = csdlGia();
+  them(env, { ma: '1', gui: 'Linh Doan', tieu_de: 'Linh Doan', nd: 'Chào anh', luc: '2026-10-14T02:47:00Z', hoi: 'ca-nhan:555' });
+  them(env, { ma: '2', gui: 'Tôi', tieu_de: 'Nam Hai', nd: 'Chào em', luc: '2026-10-14T02:50:00Z', hoi: 'ca-nhan:555' });
+  them(env, { ma: '3', gui: 'Tôi', tieu_de: 'Linh Doan', nd: 'Gửi em tài liệu', luc: '2026-10-14T02:55:00Z', hoi: 'ca-nhan:555' });
+  const { ds } = await dsHoiThoaiZalo(env, 't', new URL('http://x/api/zalo/hoi-thoai'));
+  assert.equal(ds.length, 1);
+  assert.equal(ds[0].ten, 'Linh Doan'); // tên lấy từ tin của người kia, không phải tên mình
+  assert.equal(ds[0].n, 3);
+  assert.equal(ds[0].khoa, 'ca-nhan:555');
+  const r = await tinHoiThoaiZalo(env, 't', new URL('http://x/api/zalo/tin?khoa=ca-nhan:555'));
+  assert.deepEqual((await r.json()).tin.map((x) => x.noi_dung), ['Chào anh', 'Chào em', 'Gửi em tài liệu']);
+});
+
+test('tin cũ chưa có mã hội thoại vẫn gom theo tên và mở được bằng địa chỉ cũ', async () => {
+  const env = csdlGia();
+  them(env, { ma: '1', gui: 'Minh', tieu_de: 'Minh', nd: 'a', luc: '2026-10-14T01:00:00Z' });
+  them(env, { ma: '2', gui: 'Tôi', nhom: 'Phòng A', nd: 'b', luc: '2026-10-14T01:05:00Z' });
+  const { ds } = await dsHoiThoaiZalo(env, 't', new URL('http://x/'));
+  assert.deepEqual(ds.map((x) => x.khoa).sort(), ['ca-nhan~Minh', 'nhom~Phòng A']);
+  const r = await tinHoiThoaiZalo(env, 't', new URL('http://x/api/zalo/tin?loai=ca-nhan&ten=Minh'));
+  assert.equal((await r.json()).tin.length, 1);
+});
+
+test('tên đổi trên Zalo thì mục hiện tên mới nhất của người kia', async () => {
+  const env = csdlGia();
+  them(env, { ma: '1', gui: 'An', tieu_de: 'An', nd: 'a', luc: '2026-10-14T01:00:00Z', hoi: 'ca-nhan:9' });
+  them(env, { ma: '2', gui: 'An Nguyễn', tieu_de: 'An Nguyễn', nd: 'b', luc: '2026-10-14T02:00:00Z', hoi: 'ca-nhan:9' });
+  const { ds } = await dsHoiThoaiZalo(env, 't', new URL('http://x/'));
+  assert.equal(ds[0].ten, 'An Nguyễn');
+});
+
+test('máy Mac gửi thread_id thì lưu thành mã hội thoại có loại; thiếu thì để trống', () => {
+  assert.equal(chuyenTinZalo({ id: 1, thread: 'Minh', thread_id: '123', type: 'ca-nhan', sender: 'Tôi', time: '2026-10-14T01:00:00Z', text: 'x' }).ma_hoi_thoai, 'ca-nhan:123');
+  assert.equal(chuyenTinZalo({ id: 2, thread: 'Nhóm', thread_id: '77', type: 'nhom', sender: 'A', time: '2026-10-14T01:00:00Z', text: 'x' }).ma_hoi_thoai, 'nhom:77');
+  assert.equal(chuyenTinZalo({ id: 3, thread: 'Minh', type: 'ca-nhan', sender: 'Minh', time: '2026-10-14T01:00:00Z', text: 'x' }).ma_hoi_thoai, null);
+});
+
+test('vá chương trình Zalo: thêm thread_id và tên người nhận, chạy lại không đổi, mã lạ thì từ chối', () => {
+  const goc = `async function threadName(api, msg) {\n  if (msg.type !== ThreadType.Group) return msg.data.dName || msg.threadId;\n}\nbuffer.push({\n    id,\n    thread,\n    type: key === "group" ? "nhom" : "ca-nhan",\n  });\n`;
+  const a = vaMa(goc);
+  assert.ok(a.doi);
+  assert.match(a.ma, /thread_id: msg\.threadId,/);
+  assert.match(a.ma, /return tenNguoiDoiDien\(api, msg\);/);
+  assert.equal(vaMa(a.ma).doi, false);
+  assert.throws(() => vaMa('console.log(1)'), /Không nhận ra/);
+});
