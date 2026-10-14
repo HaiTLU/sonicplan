@@ -2242,11 +2242,12 @@ async function veKetNoi(goc, { moi = false } = {}) {
   const oKhoaAi = h('input', { type: 'password', placeholder: 'Dán khóa API', autocomplete: 'off', 'aria-label': 'Khóa API' });
   const oMoHinh = h('input', { type: 'text', placeholder: 'Mô hình (bỏ trống để dùng mặc định)', autocomplete: 'off', 'aria-label': 'Mô hình' });
   const oDiaChiAi = h('input', { type: 'url', placeholder: 'Địa chỉ dịch vụ, ví dụ https://api.openai.com/v1', autocomplete: 'off', 'aria-label': 'Địa chỉ dịch vụ', hidden: true });
-  oLoaiAi.addEventListener('change', () => { oDiaChiAi.hidden = oLoaiAi.value !== 'openai'; });
+  const oWorkspace = h('input', { type: 'text', placeholder: 'Workspace ID (chỉ điền khi khóa báo thiếu Workspace)', autocomplete: 'off', 'aria-label': 'Workspace ID của Anthropic' });
+  oLoaiAi.addEventListener('change', () => { oDiaChiAi.hidden = oLoaiAi.value !== 'openai'; oWorkspace.hidden = oLoaiAi.value !== 'claude'; });
   const aiNut = h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
     ev.target.disabled = true;
     try {
-      await api('/api/ket-noi/ai', { method: 'POST', body: JSON.stringify({ loai: oLoaiAi.value, khoa: oKhoaAi.value, mo_hinh: oMoHinh.value, dia_chi: oDiaChiAi.value }) });
+      await api('/api/ket-noi/ai', { method: 'POST', body: JSON.stringify({ loai: oLoaiAi.value, khoa: oKhoaAi.value, mo_hinh: oMoHinh.value, dia_chi: oDiaChiAi.value, workspace_id: oWorkspace.value }) });
       bao('Đã nối dịch vụ AI. Từ lượt tách việc sau sẽ dùng dịch vụ này.');
       ve();
     } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
@@ -2257,7 +2258,7 @@ async function veKetNoi(goc, { moi = false } = {}) {
     th.ai?.loi ? h('p', { class: 'canh-bao-nho', text: th.ai.loi.ghi_chu }) : null,
     laChu ? (th.ai
       ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/ai', { method: 'DELETE' }); bao('Đã gỡ, quay về AI có sẵn.'); ve(); } }, 'Gỡ dịch vụ này'))
-      : h('div', { class: 'luoi-nhap' }, oLoaiAi, oKhoaAi, oMoHinh, oDiaChiAi, aiNut)) : null,
+      : h('div', { class: 'luoi-nhap' }, oLoaiAi, oKhoaAi, oMoHinh, oDiaChiAi, oWorkspace, aiNut)) : null,
   );
 
   const oDiaChiNhan = h('input', { type: 'url', placeholder: 'https://… địa chỉ nhận việc mới', autocomplete: 'off', 'aria-label': 'Địa chỉ nhận việc mới' });
