@@ -13,7 +13,7 @@ const TEP_TOI_DA = 25 * 1024 * 1024;
 const st = {
   ws: null, noi: false, choNoi: 1000, henNoi: null, henNhip: null,
   tram: null, ds: [], chon: null, suKien: [], dangViet: '', dangLam: null,
-  duAn: [], cauHinh: docCauHinh(), dinhKem: [], goc: null, d: null, laChu: false, nhap: '',
+  duAn: [], bn: {}, capNhatBn: null, cauHinh: docCauHinh(), dinhKem: [], goc: null, d: null, laChu: false, nhap: '',
 };
 
 function docCauHinh() {
@@ -65,6 +65,11 @@ function nhan(tin) {
   if (tin.loai === 'ds') { st.ds = tin.phien || []; veDs(); veDau(); veSoan(); return; }
   if (tin.loai === 'loi') { st.d?.bao(tin.noi_dung, { loi: true }); return; }
   if (tin.loai === 'het_han') return;
+  if (tin.loai === 'bn') {
+    if (tin.du_an?.ten) st.bn[tin.du_an.ten] = tin;
+    st.capNhatBn?.(tin);
+    return;
+  }
   if (tin.loai === 'lich_su') {
     if (tin.phien.id !== st.chon) return;
     capNhatPhien(tin.phien);
@@ -187,11 +192,52 @@ function veDau() {
       h('h2', { text: p?.tieu_de || 'Phiên mới' }),
       h('button', { class: `tram-den ${den[0]}`, type: 'button', ...meo(den[2]), onclick: () => moCaiTram() }, h('span', { class: 'cham' }), den[1])),
     h('div', { class: 'tram-cau-hinh' },
-      oChon(duAn, st.cauHinh.du_an, (v) => { st.cauHinh.du_an = v; luuCauHinh(); }, 'Dự án', 'Tệp Claude tạo ra được xếp vào thư mục của dự án này trên máy Mac.'),
+      oChon(duAn, st.cauHinh.du_an, (v) => { st.cauHinh.du_an = v; luuCauHinh(); veDau(); }, 'Dự án', 'Tệp Claude tạo ra được xếp vào thư mục của dự án này trên máy Mac. Chọn dự án thì Claude đọc memory.md của dự án để hiểu ngữ cảnh.'),
+      st.cauHinh.du_an ? h('button', { class: 'nut nut-phu nut-nho tram-nut-nho', type: 'button', ...meo('Xem và sửa bộ nhớ (memory.md) của dự án đang chọn. AI tự ghi thêm sau mỗi lượt và gộp lại mỗi đêm.'), onclick: moBoNho }, 'Bộ nhớ') : null,
       oChon(MODEL, st.cauHinh.model, (v) => { st.cauHinh.model = v; luuCauHinh(); }, 'Model', GIAI_MODEL),
       oChon(EFFORT, st.cauHinh.effort, (v) => { st.cauHinh.effort = v; luuCauHinh(); }, 'Effort', GIAI_EFFORT),
       oChon(CHE_DO, st.cauHinh.che_do, (v) => { st.cauHinh.che_do = v; luuCauHinh(); }, 'Chế độ', GIAI_CHE_DO)),
   );
+}
+
+// Bộ nhớ dự án: xem, sửa tay memory.md, bấm gộp ngay. File nằm trên máy Mac, trạm đọc ghi hộ.
+function moBoNho() {
+  const { h, icon, bao, luc } = st.d;
+  const x = st.duAn.find((d) => String(d.id) === st.cauHinh.du_an);
+  if (!x) return;
+  const da = { id: x.id, ten: x.ten };
+  let sua = false;
+  const ghi = h('p', { class: 'tram-ghi' });
+  const tin = h('p', { class: 'tram-ghi tram-bn-tin', role: 'status' });
+  const o = h('textarea', { class: 'tram-bn-o', rows: '16', spellcheck: 'false', 'aria-label': `Nội dung memory.md của dự án ${da.ten}`, placeholder: 'Dự án này chưa có bộ nhớ. Gõ vào đây hoặc để AI tự ghi sau vài lượt chat.' });
+  o.addEventListener('input', () => { sua = true; tin.textContent = 'Chưa lưu.'; });
+  const nutLuu = h('button', { class: 'nut nut-chinh', type: 'button', onclick: () => { if (!gui({ loai: 'bn_ghi', du_an: da, noi_dung: o.value })) bao('Chưa nối được với Sonicplan.', { loi: true }); } }, 'Lưu');
+  const nutGop = h('button', { class: 'nut nut-phu', type: 'button', onclick: () => { tin.textContent = 'Đang gộp, có thể mất vài chục giây...'; gui({ loai: 'bn_gop', du_an: da }); } }, 'Nhớ lại ngay');
+  const ve = (b) => {
+    b = b || st.bn[da.ten];
+    if (!b) { ghi.textContent = 'Đang đọc memory.md trên máy Mac...'; return; }
+    if (!sua || b.da_luu) { o.value = b.noi_dung || ''; sua = false; }
+    ghi.textContent = `${b.so_dong} dòng · ${b.cap_nhat ? `cập nhật ${luc(b.cap_nhat)}` : 'chưa có tệp'} · ${b.hang_cho} ý chờ gộp${b.gop_luc ? ` · gộp lần cuối ${luc(b.gop_luc)}` : ''}`;
+    nutGop.disabled = Boolean(b.dang_gop);
+    nutGop.textContent = b.dang_gop ? 'Đang gộp...' : 'Nhớ lại ngay';
+    if (b.da_luu) tin.textContent = 'Đã lưu. Bản cũ được giữ trong _bo-nho/lich-su.';
+    else if (b.loi_luu) tin.textContent = b.loi_luu;
+    else if (b.ket_qua) tin.textContent = b.ket_qua;
+    else if (b.loi && !b.dang_gop) tin.textContent = `Lần gộp gần nhất lỗi: ${b.loi}`;
+  };
+  const hop = h('dialog', { class: 'tram-hop-cai tram-hop-bn', 'aria-labelledby': 'tram-bn-td', onclose: () => { st.capNhatBn = null; hop.remove(); } },
+    h('div', { class: 'kc-dau' }, h('h2', { id: 'tram-bn-td', text: `Bộ nhớ dự án ${da.ten}` }),
+      h('button', { class: 'nut-icon', type: 'button', 'aria-label': 'Đóng', onclick: () => hop.close() }, icon('dong'))),
+    h('div', { class: 'tram-hop-than' },
+      h('p', { text: 'Đây là memory.md của dự án. Mỗi lượt chat có chọn dự án này, Claude đọc tệp trước khi trả lời. Sau mỗi lượt AI ghi nhanh vài ý vào hàng chờ, mỗi đêm gộp vào tệp. Bạn có thể sửa tay hoặc xóa ý ghi sai.' }),
+      o, ghi, tin,
+      h('div', { class: 'tram-bn-nut' }, nutLuu, nutGop)),
+  );
+  st.capNhatBn = (b) => { if (b.du_an?.ten === da.ten) ve(b); };
+  document.body.append(hop);
+  hop.showModal();
+  ve();
+  if (!gui({ loai: 'bn_doc', du_an: da })) ghi.textContent = 'Chưa nối được với Sonicplan.';
 }
 
 // Bảng cài trạm: chủ tổ chức bấm tạo lệnh, chép lệnh, dán vào Terminal trên máy Mac.
@@ -376,6 +422,7 @@ function veSuKien(sk, ketQua) {
   }
   if (sk.loai === 'tep') return theTep(sk);
   if (sk.loai === 'he_thong') return h('p', { class: 'tram-he-thong', text: sk.noi_dung });
+  if (sk.loai === 'bo_nho') return h('p', { class: 'tram-he-thong tram-bo-nho', text: sk.noi_dung });
   if (sk.loai === 'xong') {
     const phan = [];
     if (sk.thoi_gian_ms) phan.push(h('span', { text: `chạy ${thoiGian(sk.thoi_gian_ms)}` }));
