@@ -89,6 +89,7 @@ export async function xuLyApi(yeuCau, env, phien, url) {
 
   if (p === '/api/zalo/hoi-thoai' && m === 'GET') return json(await dsHoiThoaiZalo(env, tc, url));
   if (p === '/api/zalo/tin' && m === 'GET') return tinHoiThoaiZalo(env, tc, url);
+  if (p === '/api/zalo/chuyen-tin' && m === 'POST') return chuyenTinSangHoiThoai(env, tc, await yeuCau.json().catch(() => ({})));
 
   if (p === '/api/tin' && m === 'GET') return json(await dsTin(env, tc, url));
   if (p === '/api/tin/da-xem-het' && m === 'POST') {
@@ -1023,6 +1024,33 @@ export async function dsHoiThoaiZalo(env, tc, url) {
   return { ds: results };
 }
 
+// Chuyển tay tin mình gửi mà máy chủ không đoán được gửi cho ai (chương trình Zalo chưa vá, không có mã hội thoại)
+// sang đúng cuộc trò chuyện cá nhân. Chỉ đụng tin "Tôi" chưa có mã hội thoại và không thuộc nhóm.
+export async function chuyenTinSangHoiThoai(env, tc, du) {
+  const ids = [...new Set((Array.isArray(du.ids) ? du.ids : []).map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 200);
+  const dich = String(du.khoa_dich || '').slice(0, 400);
+  if (!ids.length) return loi(400, 'Chưa chọn tin nào để chuyển.');
+  const kieu = dich.match(/^ca-nhan([~:])(.+)$/);
+  if (!kieu) return loi(400, 'Chỉ chuyển được sang một cuộc trò chuyện cá nhân.');
+  let ma = null;
+  let ten = kieu[2];
+  if (kieu[1] === ':') {
+    ma = dich;
+    const goc = await env.CSDL.prepare(
+      `SELECT tieu_de FROM tin_nhan WHERE to_chuc_id = ?1 AND nguon = 'zalo' AND ma_hoi_thoai = ?2 AND nguoi_gui <> 'Tôi' AND COALESCE(tieu_de, '') <> ''
+       ORDER BY thoi_diem DESC, id DESC LIMIT 1`,
+    ).bind(tc, ma).first();
+    if (!goc) return loi(404, 'Không thấy cuộc trò chuyện đích.');
+    ten = goc.tieu_de;
+  }
+  const kq = await env.CSDL.prepare(
+    `UPDATE tin_nhan SET tieu_de = ?1, ma_hoi_thoai = ?2
+     WHERE to_chuc_id = ?3 AND nguon = 'zalo' AND nguoi_gui = 'Tôi' AND COALESCE(nhom, '') = '' AND COALESCE(ma_hoi_thoai, '') = ''
+       AND id IN (${ids.join(',')})`,
+  ).bind(ten, ma, tc).run();
+  return json({ da_chuyen: kq.meta.changes || 0 });
+}
+
 export async function tinHoiThoaiZalo(env, tc, url) {
   const loai = url.searchParams.get('loai');
   const ten = (url.searchParams.get('ten') || '').slice(0, 300);
@@ -1030,19 +1058,26 @@ export async function tinHoiThoaiZalo(env, tc, url) {
   const khoa = (url.searchParams.get('khoa') || '').slice(0, 400) || ((loai === 'nhom' || loai === 'ca-nhan') && ten ? `${loai}~${ten}` : '');
   if (!khoa) return loi(400, 'Thiếu hội thoại cần xem.');
   const truocLuc = url.searchParams.get('truoc_luc');
-  const truocId = Number(url.searchParams.get('truoc_id')) || 0;
+  const sauId = Number(url.searchParams.get('sau_id')) || 0;
   const dieuKien = `to_chuc_id = ?1 AND nguon = 'zalo' AND an = 0 AND ${KHOA_TIN_ZALO} = ?2`;
-  const thamSo = [tc, khoa];
-  let them = '';
-  if (truocLuc) {
-    thamSo.push(truocLuc, truocId);
-    them = ' AND (thoi_diem < ?3 OR (thoi_diem = ?3 AND id < ?4))';
+  const cot = 'SELECT id, nguoi_gui, noi_dung, thoi_diem, da_xem FROM tin_nhan WHERE';
+  let tin;
+  let conNua = false;
+  if (sauId) {
+    // Chỉ lấy tin mới hơn tin đang hiện, để khung tin tự cập nhật mà không tải lại cả hội thoại.
+    tin = (await env.CSDL.prepare(`${cot} ${dieuKien} AND id > ?3 ORDER BY id ASC LIMIT 80`).bind(tc, khoa, sauId).all()).results;
+  } else {
+    const truocId = Number(url.searchParams.get('truoc_id')) || 0;
+    const thamSo = [tc, khoa];
+    let them = '';
+    if (truocLuc) {
+      thamSo.push(truocLuc, truocId);
+      them = ' AND (thoi_diem < ?3 OR (thoi_diem = ?3 AND id < ?4))';
+    }
+    const { results } = await env.CSDL.prepare(`${cot} ${dieuKien}${them} ORDER BY thoi_diem DESC, id DESC LIMIT 81`).bind(...thamSo).all();
+    conNua = results.length > 80;
+    tin = results.slice(0, 80).reverse();
   }
-  const { results } = await env.CSDL.prepare(
-    `SELECT id, nguoi_gui, noi_dung, thoi_diem, da_xem FROM tin_nhan WHERE ${dieuKien}${them} ORDER BY thoi_diem DESC, id DESC LIMIT 81`,
-  ).bind(...thamSo).all();
-  const conNua = results.length > 80;
-  const tin = results.slice(0, 80).reverse();
   let tep = [];
   if (tin.length) {
     const ids = tin.map((t) => Number(t.id)).join(',');

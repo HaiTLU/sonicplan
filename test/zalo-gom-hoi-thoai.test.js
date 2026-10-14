@@ -57,12 +57,16 @@ test('máy Mac gửi thread_id thì lưu thành mã hội thoại có loại; th
 });
 
 test('vá chương trình Zalo: thêm thread_id và tên người nhận, chạy lại không đổi, mã lạ thì từ chối', () => {
-  const goc = `async function threadName(api, msg) {\n  if (msg.type !== ThreadType.Group) return msg.data.dName || msg.threadId;\n}\nbuffer.push({\n    id,\n    thread,\n    type: key === "group" ? "nhom" : "ca-nhan",\n  });\n`;
+  const goc = `async function threadName(api, msg) {\n  if (msg.type !== ThreadType.Group) return msg.data.dName || msg.threadId;\n}\nbuffer.push({\n    id,\n    thread,\n    type: key === "group" ? "nhom" : "ca-nhan",\n  });\n  setInterval(async () => { await flush({ heartbeat: true }); saveSession(api); }, FLUSH_MIN * 60_000);\n`;
   const a = vaMa(goc);
   assert.ok(a.doi);
   assert.match(a.ma, /thread_id: msg\.threadId,/);
   assert.match(a.ma, /return tenNguoiDoiDien\(api, msg\);/);
+  assert.match(a.ma, /setInterval\(\(\) => \{ if \(buffer\.length\) guiLo\(\); \}, 30_000\);/);
   assert.equal(vaMa(a.ma).doi, false);
+  // bản đã vá lần trước (chỉ có mã hội thoại) vẫn được vá thêm phần gửi nhanh
+  const cu = a.ma.replace(/\n  \/\/ Gửi tin gần như ngay[\s\S]*?30_000\);/, '\n  setInterval(async () => { await flush({ heartbeat: true }); saveSession(api); }, FLUSH_MIN * 60_000);');
+  assert.ok(vaMa(cu).doi);
   assert.throws(() => vaMa('console.log(1)'), /Không nhận ra/);
 });
 
@@ -88,4 +92,42 @@ test('tin cũ mình gửi dưới tên mình: xếp vào cuộc trò chuyện du
   const linh = ds.find((x) => x.ten === 'Linh');
   assert.equal(linh.n, 2);
   assert.ok(ds.some((x) => x.ten === 'Nam Hai' && x.n === 1));
+});
+
+test('chuyển tay tin mình gửi sang đúng người: chỉ đụng tin chưa có mã, không đụng nhóm hay tin đã xếp', async () => {
+  const { chuyenTinSangHoiThoai } = await import('../src/api.js');
+  const env = csdlGia();
+  them(env, { ma: '1', gui: 'Linh Doan', tieu_de: 'Linh Doan', nd: 'Chào anh', luc: '2026-10-14T02:47:00Z', hoi: 'ca-nhan:555' });
+  them(env, { ma: '2', gui: 'Tôi', tieu_de: 'Nam Hai', nd: 'gửi file', luc: '2026-10-14T05:00:00Z' });
+  them(env, { ma: '3', gui: 'Tôi', tieu_de: 'Nam Hai', nd: 'đã xếp', luc: '2026-10-14T05:01:00Z', hoi: 'ca-nhan:999' });
+  them(env, { ma: '4', gui: 'Tôi', nhom: 'Phòng A', nd: 'nhóm', luc: '2026-10-14T05:02:00Z' });
+  const r = await chuyenTinSangHoiThoai(env, 't', { ids: [2, 3, 4], khoa_dich: 'ca-nhan:555' });
+  assert.equal((await r.json()).da_chuyen, 1);
+  const { ds } = await dsHoiThoaiZalo(env, 't', new URL('http://x/'));
+  assert.equal(ds.find((x) => x.khoa === 'ca-nhan:555').n, 2);
+  assert.equal((await chuyenTinSangHoiThoai(env, 't', { ids: [2], khoa_dich: 'nhom~X' })).status, 400);
+  assert.equal((await chuyenTinSangHoiThoai(env, 't', { ids: [], khoa_dich: 'ca-nhan:555' })).status, 400);
+  assert.equal((await chuyenTinSangHoiThoai(env, 't', { ids: [2], khoa_dich: 'ca-nhan:000' })).status, 404);
+});
+
+test('khung tin đang mở lấy được tin mới hơn bằng sau_id, không lặp tin cũ', async () => {
+  const env = csdlGia();
+  them(env, { ma: '1', gui: 'Dũng', tieu_de: 'Dũng', nd: 'a', luc: '2026-10-14T09:00:00Z', hoi: 'ca-nhan:7' });
+  them(env, { ma: '2', gui: 'Tôi', tieu_de: 'Dũng', nd: 'alo', luc: '2026-10-14T09:39:00Z', hoi: 'ca-nhan:7' });
+  them(env, { ma: '3', gui: 'Dũng', tieu_de: 'Dũng', nd: 'hello', luc: '2026-10-14T09:40:00Z', hoi: 'ca-nhan:7' });
+  const r = await tinHoiThoaiZalo(env, 't', new URL('http://x/api/zalo/tin?khoa=ca-nhan:7&sau_id=1'));
+  assert.deepEqual((await r.json()).tin.map((x) => x.noi_dung), ['alo', 'hello']);
+  const rong = await tinHoiThoaiZalo(env, 't', new URL('http://x/api/zalo/tin?khoa=ca-nhan:7&sau_id=3'));
+  assert.equal((await rong.json()).tin.length, 0);
+});
+
+test('tin cũ chưa có mã cùng tên nhóm với một cuộc đã có mã thì nhập chung một mục', async () => {
+  const env = csdlGia();
+  them(env, { ma: 'a', gui: 'Ha', nhom: 'NCS_K5_TLU\\T', nd: 'cũ', luc: '2026-10-14T08:00:00Z' });
+  them(env, { ma: 'b', gui: 'Trang', nhom: 'NCS_K5_TLU\\T', nd: 'mới', luc: '2026-10-14T08:30:00Z', hoi: 'nhom:99' });
+  them(env, { ma: 'c', gui: 'X', nhom: 'Nhóm khác', nd: 'cũ', luc: '2026-10-14T08:00:00Z' });
+  const { ds } = await dsHoiThoaiZalo(env, 't', new URL('http://x/api/zalo/hoi-thoai'));
+  assert.equal(ds.filter((x) => x.ten === 'NCS_K5_TLU\\T').length, 1);
+  assert.equal(ds.find((x) => x.ten === 'NCS_K5_TLU\\T').n, 2);
+  assert.ok(ds.some((x) => x.ten === 'Nhóm khác'));
 });
