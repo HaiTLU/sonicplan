@@ -2,3 +2,12 @@ node_modules/
 .wrangler/
 .dung-thu/
 .dev.vars
+du-lieu/
+may-chu/.env
+*.sql.bak
+du-lieu.sql
+.du-lieu-may/
+wrangler-dev*.log
+may-chu.log
+cloudflared.log
+du-lieu-cuoi.sql

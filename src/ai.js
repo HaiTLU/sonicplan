@@ -4,6 +4,7 @@
 
 import { chuanHoaGhiNho } from './ghi-nho.js';
 import { chayAiNgoai } from './tich-hop.js';
+import { trichBienBan } from './ghi-am-hop.js';
 
 const MO_HINH_MAC_DINH = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 
@@ -72,6 +73,7 @@ export function loiNhacTachViec(tin, homNay, tenNguoiDung, daCo = [], ghiNho = [
     '9) Hạn: "sáng mai", "mai" là ngày kế tiếp so với giờ gửi của tin; không nêu hạn thì để null. Đã có gio_hen thì BẮT BUỘC có han_ngay (không nêu ngày thì lấy ngày gửi tin); tin ghi "13/10" nghĩa là ngày 13 tháng 10. Nếu lời nhờ có mục đích đi kèm thì ghi vào ghi_chu.',
     '10) Thư (Gmail) cũng theo đúng các nguyên tắc trên: thư nhờ, giao, hẹn thì thành việc. Thư là câu trả lời hoặc là thứ người dùng đang chờ (bên kia gửi tài liệu, báo giá, hồ sơ mà một việc đang mở xin) thì KHÔNG tạo việc trùng: ghi vào mảng lien_ket (cùng cấp với viec), mỗi phần tử dạng {"viec":"V52","tin_so":1,"tien_do":"một câu nêu thư đã gửi gì","xong":true}: viec là mã "V<số>" trong danh sách "Việc đang mở", tin_so là số thứ tự của thư, xong là true nếu thư đã đủ những gì việc cần. Khi đó mảng viec để rỗng cho thư này. Thư còn kéo theo hành động mới cho người dùng (ví dụ xem lại báo giá, làm tờ trình) thì vẫn tạo việc mới, tiêu đề nêu rõ.',
     '11) KHÔNG tạo việc vụn vặt, dù tin có động từ: đặt hoặc mua đồ ăn thức uống cho người khác, rủ đi ăn, cà phê, quà tặng, chuyện phiếm trong nhóm lớp hoặc bạn bè, thông báo chung gửi cả nhóm (@All, "mn ơi", "13h30 vào lớp nhé mn"), nhờ vặt mất dưới 10 phút không có hạn và không thuộc dự án nào, trò chuyện xã giao. Chỉ tạo việc khi là việc chuyên môn hoặc công việc (tài liệu, hồ sơ, họp, báo giá, liên hệ đối tác, hạn nộp), việc có hạn cụ thể, hoặc cam kết người dùng tự hứa với người khác. Phân vân giữa việc thật và chuyện vặt thì bỏ.',
+    '12) Tin nguồn "Biên bản họp" là biên bản một cuộc họp người dùng đã dự: chỉ tạo việc được giao rõ cho người dùng (gọi đúng tên họ, "anh", "Tôi", hoặc đơn vị do họ phụ trách) hoặc việc họ tự nhận trong buổi họp, ưu tiên phần kết luận và phân công. Việc giao cho người hay đơn vị khác, ý kiến thảo luận, kết luận chung không có người làm thì bỏ. Ghi_chu nêu tên cuộc họp (tiêu đề tin). Phân vân thì bỏ.',
     'du_an: tên dự án của việc, chọn ĐÚNG MỘT tên trong phần "Danh sách dự án" nếu việc thuộc dự án đó (dựa vào tên nhóm Zalo, người gửi, nội dung); không chắc hoặc không có danh sách thì null. Không tự đặt tên mới.',
     'Thư gửi nhiều người thì chỉ lấy phần giao cho người dùng hoặc cho tất cả người nhận. Bỏ qua việc của người khác, chào hỏi, cảm ơn, quảng cáo, bản tin, thông báo tự động, hóa đơn, trừ khi có hạn người dùng phải làm. Chỉ dùng thông tin có trong tin, không suy diễn.',
     `Hôm nay là ${homNay} (giờ Việt Nam). Hiểu "mai", "thứ Sáu", "tuần sau" theo giờ gửi của tin đó, đổi sang ngày cụ thể dạng YYYY-MM-DD.`,
@@ -92,10 +94,10 @@ export function loiNhacTachViec(tin, homNay, tenNguoiDung, daCo = [], ghiNho = [
   ].join('\n');
   const noiDung = tin
     .map((t) => {
-      const dau = [`[${t.so}]`, ({ zalo: 'Zalo', telegram: 'Telegram', api: 'Dịch vụ ngoài' })[t.nguon] || 'Thư', t.thoi_diem, t.nhom ? `nhóm "${t.nhom}"` : '', `từ ${t.nguoi_gui || 'không rõ'}`]
+      const dau = [`[${t.so}]`, ({ zalo: 'Zalo', telegram: 'Telegram', api: 'Dịch vụ ngoài', hop: 'Biên bản họp' })[t.nguon] || 'Thư', t.thoi_diem, t.nhom ? `nhóm "${t.nhom}"` : '', t.nguon === 'hop' ? '' : `từ ${t.nguoi_gui || 'không rõ'}`]
         .filter(Boolean)
         .join(' ');
-      return `${dau}\n${t.tieu_de ? `Tiêu đề: ${t.tieu_de}\n` : ''}${String(t.noi_dung || '').slice(0, 3000)}`;
+      return `${dau}\n${t.tieu_de ? `Tiêu đề: ${t.tieu_de}\n` : ''}${t.nguon === 'hop' ? trichBienBan(t.noi_dung) : String(t.noi_dung || '').slice(0, 3000)}`;
     })
     .join('\n\n---\n\n');
   const nho = ghiNho.length ? `\n\nĐã nhớ:\n${ghiNho.slice(0, 30).join('\n')}` : '';

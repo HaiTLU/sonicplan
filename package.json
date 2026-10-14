@@ -1,15 +1,16 @@
 {
   "name": "sonicplan",
-  "version": "1.3.0",
+  "version": "1.8.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "test": "node --test test/*.test.js",
     "kiem": "node --test test/*.test.js && wrangler deploy --dry-run --outdir .dung-thu",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "may-chu": "node may-chu/chay.js"
   },
   "devDependencies": {
-    "wrangler": "4.141.0"
+    "wrangler": "4.149.0"
   }
 }

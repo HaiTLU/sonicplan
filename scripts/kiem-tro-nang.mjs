@@ -14,7 +14,7 @@ import { xuLyApi } from '../src/api.js';
 import { luuTin } from '../src/hop-tin.js';
 
 const GOC = path.resolve('public');
-const TRANG = ['tong-quan', 'viec', 'hieu-suat', 'hop-tin', 'hop-tin/1', 'zalo', 'du-an', 'tep', 'ghi-nho', 'ket-noi', 'luong', 'nhat-ky', 'du-lieu'];
+const TRANG = ['tong-quan', 'viec', 'hieu-suat', 'hop-tin', 'hop-tin/1', 'zalo', 'du-an', 'claude', 'tep', 'ghi-nho', 'ket-noi', 'luong', 'nhat-ky', 'du-lieu'];
 const THE_WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const MUC_CHAN = new Set(['serious', 'critical']);
 const loiApi = new Set();

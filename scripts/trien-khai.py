@@ -93,6 +93,22 @@ def tai_trang_tinh(ten, cau_hinh):
     return ve
 
 
+def buoc_migration(ten, ds):
+    """Các bước Durable Object chưa áp: so thẻ migration hiện có của Worker với danh sách trong wrangler.jsonc."""
+    if not ds:
+        return None
+    try:
+        hien = (goi('GET', f'/accounts/{TK}/workers/services/{ten}') or {}).get('default_environment', {}).get('script', {}).get('migration_tag')
+    except SystemExit:
+        hien = None  # Worker chưa có: áp từ đầu
+    the = [m['tag'] for m in ds]
+    con = ds[the.index(hien) + 1:] if hien in the else ds
+    if not con:
+        return None
+    buoc = [{k: v for k, v in m.items() if k != 'tag'} for m in con]
+    return {'old_tag': hien, 'new_tag': con[-1]['tag'], 'steps': buoc} if hien else {'new_tag': con[-1]['tag'], 'steps': buoc}
+
+
 def main():
     ch = json.loads(bo_chu_thich((GOC / 'wrangler.jsonc').read_text()))
     ten = ch['name']
@@ -102,6 +118,8 @@ def main():
     rang_buoc += [{'type': 'r2_bucket', 'name': b['binding'], 'bucket_name': b['bucket_name']} for b in ch.get('r2_buckets', [])]
     if 'ai' in ch:
         rang_buoc.append({'type': 'ai', 'name': ch['ai']['binding']})
+    rang_buoc += [{'type': 'durable_object_namespace', 'name': b['name'], 'class_name': b['class_name']}
+                  for b in ch.get('durable_objects', {}).get('bindings', [])]
     # Mã phiên bản giao diện: trang đang mở so mã này để biết có bản mới mà tự tải lại.
     bam = hashlib.sha1()
     for f in sorted((GOC / ch['assets']['directory']).rglob('*')):
@@ -118,6 +136,9 @@ def main():
         'observability': ch.get('observability', {'enabled': False}),
         'keep_bindings': ['secret_text'],  # giữ khóa bí mật đã đặt bằng wrangler secret put
     }
+    buoc_do = buoc_migration(ten, ch.get('migrations', []))
+    if buoc_do:
+        meta['migrations'] = buoc_do
     if 'placement' in ch:
         meta['placement'] = ch['placement']
     if 'assets' in ch:

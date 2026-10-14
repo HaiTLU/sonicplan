@@ -6,11 +6,16 @@ import { nhanViecNgoai } from './nhan-ngoai.js';
 import { taoIcs } from './lich-ics.js';
 import { TAC_VU, tacVuTheoLich } from './lich-chay.js';
 import { nhanThu } from './nhan-thu.js';
+import { nhanThuQuaHttp } from './nhan-thu-http.js';
 import { lenhCaiZalo, nhanZalo, toChucTheoKhoa } from './nhan-zalo.js';
 import { xacDinhPhien } from './phien.js';
 import { baoLoiTacVu, CAC_TAC_VU } from './tac-vu.js';
 import { nhanWebhook } from './telegram.js';
 import { bam, json, loi } from './tien-ich.js';
+import { nhanTram, xuLyApiTram } from './tram-claude.js';
+
+// Durable Object giữ phòng chat của trang Claude (mỗi tổ chức một phòng).
+export { TramClaude } from './tram-claude.js';
 
 export default {
   async fetch(yeuCau, env, ctx) {
@@ -23,7 +28,9 @@ export default {
       if (cai && yeuCau.method === 'GET') return lenhCaiZalo(env, cai[1], url);
       if (url.pathname.startsWith('/nhan/zalo-')) return nhanZalo(yeuCau, env, ctx, url.pathname);
       if (url.pathname === '/nhan/viec') return nhanViecNgoai(yeuCau, env, ctx);
+      if (url.pathname === '/nhan/thu') return nhanThuQuaHttp(yeuCau, env, ctx);
       if (url.pathname === '/nhan/claude') return nhanKetQuaClaude(yeuCau, env);
+      if (url.pathname.startsWith('/nhan/tram/')) return nhanTram(yeuCau, env, url);
       if (url.pathname === '/nhan/telegram' && yeuCau.method === 'POST') return nhanWebhook(yeuCau, env, ctx);
       const lich = url.pathname.match(/^\/lich\/([a-z0-9]{20,64})\.ics$/);
       if (lich && yeuCau.method === 'GET') return docLich(env, lich[1], url);
@@ -48,6 +55,7 @@ export default {
         if (!tv) return json({ loi: 'Không có tác vụ này.' }, 400);
         return json(await chayTacVu(env, tv, new Date().toISOString(), { ep: true }));
       }
+      if (url.pathname.startsWith('/api/tram/')) return xuLyApiTram(yeuCau, env, phien, url);
       if (url.pathname.startsWith('/api/')) return xuLyApi(yeuCau, env, phien, url);
       // Trang, mã và kiểu dáng luôn hỏi lại máy chủ trước khi dùng bản lưu, để bản mới lên ngay.
       const tinh = await env.ASSETS.fetch(yeuCau);

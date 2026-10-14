@@ -32,6 +32,7 @@ export function chuyenTinZalo(t) {
     nguoi_gui: t.sender,
     nhom: t.type === 'nhom' ? t.thread : null,
     tieu_de: t.type === 'nhom' ? null : t.thread,
+    ma_hoi_thoai: t.thread_id ? `${t.type === 'nhom' ? 'nhom' : 'ca-nhan'}:${String(t.thread_id).slice(0, 100)}` : null,
     noi_dung: t.text,
     thoi_diem: Number.isNaN(Date.parse(t.time)) ? new Date().toISOString() : new Date(t.time).toISOString(),
   };

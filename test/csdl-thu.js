@@ -19,7 +19,7 @@ export function d1(db) {
     run: async () => {
       if (/\bRETURNING\b/i.test(cau)) return { meta: { changes: db.prepare(cau).all(...ts).length } };
       const kq = db.prepare(cau).run(...ts);
-      return { meta: { changes: Number(kq.changes) } };
+      return { meta: { changes: Number(kq.changes), last_row_id: Number(kq.lastInsertRowid) } };
     },
   });
   return {

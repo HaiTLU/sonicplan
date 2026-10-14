@@ -13,8 +13,8 @@ export const KHO_TOI_DA = 9 * 1000 * 1000 * 1000;
 export async function luuTin(env, toChucId, tin) {
   const bayGio = new Date().toISOString();
   const kq = await env.CSDL.prepare(
-    `INSERT INTO tin_nhan (to_chuc_id, nguon, ma_goc, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem, tao_luc)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+    `INSERT INTO tin_nhan (to_chuc_id, nguon, ma_goc, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem, tao_luc, ma_hoi_thoai)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
      ON CONFLICT (to_chuc_id, nguon, ma_goc) DO NOTHING
      RETURNING id`,
   ).bind(
@@ -27,6 +27,7 @@ export async function luuTin(env, toChucId, tin) {
     cat(tin.noi_dung || '', 20000),
     tin.thoi_diem || bayGio,
     bayGio,
+    cat(tin.ma_hoi_thoai || '', 120) || null,
   ).first();
   if (kq) tin.an = await anTinNeuBiChan(env, toChucId, kq.id);
   return kq ? kq.id : null;
@@ -35,7 +36,7 @@ export async function luuTin(env, toChucId, tin) {
 // Lưu tệp vào R2 và ghi một dòng vào bảng tep. duLieu là ArrayBuffer, Uint8Array hoặc ReadableStream.
 // Trả id dòng mới, hoặc null khi kho đã đầy (tin nhắn chữ vẫn được lưu, chỉ bỏ tệp).
 export async function luuTep(env, toChucId, tep) {
-  const daDung = (await env.CSDL.prepare('SELECT COALESCE(SUM(kich_thuoc), 0) AS tong FROM tep').first())?.tong ?? 0;
+  const daDung = (await env.CSDL.prepare('SELECT COALESCE(SUM(kich_thuoc), 0) AS tong FROM tep WHERE r2_khoa IS NOT NULL').first())?.tong ?? 0;
   if (daDung + (tep.kich_thuoc ?? TEP_TOI_DA) > KHO_TOI_DA) {
     console.warn(`Kho tệp đã dùng ${daDung} byte, chạm mức ${KHO_TOI_DA}, bỏ tệp ${tep.ten}`);
     return null;

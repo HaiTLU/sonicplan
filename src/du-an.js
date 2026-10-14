@@ -1,9 +1,15 @@
 import { chuanMau, MAU_HOP_LE } from './mau.js';
 // Dự án: nhãn gom việc theo mảng, và lịch sử (dòng thời gian) của từng dự án.
 
-import { chuanHoa } from './tien-ich.js';
+import { chuanHoa, ngayVN } from './tien-ich.js';
 
 export const DU_AN_TOI_DA = 30;
+
+// Biểu tượng chọn sẵn cho dự án (ảnh đại diện nhanh khi chưa có ảnh riêng).
+export const ICON_DU_AN = ['📁', '📣', '🎓', '🤖', '📊', '💼', '🧪', '🏗️', '🌐', '📝', '🎯', '💡', '🛒', '✈️', '🎬', '⚙️', '📚', '🤝', '🏢', '❤️'];
+export const ANH_TOI_DA = 300 * 1024;
+export const LOAI_ANH_DU_AN = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+export const khoaAnhDuAn = (tc, id) => `anh-du-an/${tc}/${id}`;
 
 // Việc thuộc dự án nào: ưu tiên tên AI đưa ra (khớp tên dự án), nếu không thì dò từ khóa trong chữ cho trước.
 // duAn: [{ id, ten, tu_khoa: string[] | json }]. Trả id hoặc null.
@@ -70,7 +76,7 @@ export function docTuKhoa(v) {
 
 export async function docDuAn(env, tc) {
   const { results } = await env.CSDL.prepare(
-    'SELECT id, ten, tu_khoa, thu_tu, mau FROM du_an WHERE to_chuc_id = ?1 ORDER BY thu_tu, id',
+    'SELECT id, ten, tu_khoa, thu_tu, mau, sao, icon, anh_khoa, drive_link, drive_duong_dan, drive_kho_id FROM du_an WHERE to_chuc_id = ?1 ORDER BY sao DESC, thu_tu, id',
   ).bind(tc).all();
   return results.map((d) => ({ ...d, tu_khoa: docTuKhoa(d.tu_khoa) }));
 }
@@ -99,7 +105,40 @@ export function kiemDuAn(than, { batBuoc }) {
     if (m === undefined) return { loi: 'Màu không hợp lệ.' };
     ra.mau = m;
   }
+  if ('sao' in than) ra.sao = than.sao ? 1 : 0;
+  if ('icon' in than) {
+    if (than.icon === null || than.icon === '') ra.icon = null;
+    else if (ICON_DU_AN.includes(than.icon)) ra.icon = than.icon;
+    else return { loi: 'Biểu tượng không có trong danh sách.' };
+  }
+  if ('drive_link' in than) {
+    const l = chuanLinkDrive(than.drive_link);
+    if (l === undefined) return { loi: 'Link thư mục Drive phải bắt đầu bằng https://drive.google.com/ hoặc https://docs.google.com/.' };
+    ra.drive_link = l;
+  }
+  if ('drive_duong_dan' in than) {
+    const d = chuanDuongDanDrive(than.drive_duong_dan);
+    if (d === undefined) return { loi: 'Đường dẫn trong Drive không hợp lệ: dùng dạng 01_Projects/IPSOS, không bắt đầu bằng dấu /, không có "..".' };
+    ra.drive_duong_dan = d;
+  }
   return { duAn: ra };
+}
+
+// Trả null nếu để trống, undefined nếu sai, chuỗi nếu đúng.
+export function chuanLinkDrive(v) {
+  const s = String(v ?? '').trim();
+  if (!s) return null;
+  if (s.length > 300 || !/^https:\/\/(drive|docs)\.google\.com\/[^\s]+$/.test(s)) return undefined;
+  return s;
+}
+
+// Đường dẫn tương đối, các đoạn cách nhau dấu /, không đoạn nào là "." hoặc "..", không ký tự điều khiển hay dấu \.
+export function chuanDuongDanDrive(v) {
+  const s = String(v ?? '').trim().replace(/^\/+|\/+$/g, '');
+  if (!s) return null;
+  if (s.length > 200 || /[\\\u0000-\u001f]/.test(s)) return undefined;
+  if (s.split('/').some((d) => !d.trim() || d === '.' || d === '..')) return undefined;
+  return s;
 }
 
 export async function dsDuAnKemSo(env, tc) {
@@ -107,8 +146,18 @@ export async function dsDuAnKemSo(env, tc) {
   const { results } = await env.CSDL.prepare(
     `SELECT du_an_id, trang_thai, COUNT(*) AS so FROM viec WHERE to_chuc_id = ?1 AND du_an_id IS NOT NULL GROUP BY du_an_id, trang_thai`,
   ).bind(tc).all();
+  const homNay = ngayVN();
+  const bayNgay = new Date(Date.now() - 7 * 864e5).toISOString();
+  const { results: so2 } = await env.CSDL.prepare(
+    `SELECT du_an_id,
+       SUM(CASE WHEN trang_thai = 'mo' AND han_ngay IS NOT NULL AND han_ngay < ?2 THEN 1 ELSE 0 END) AS qua_han,
+       SUM(CASE WHEN trang_thai = 'xong' AND xong_luc >= ?3 THEN 1 ELSE 0 END) AS xong_7_ngay
+     FROM viec WHERE to_chuc_id = ?1 AND du_an_id IS NOT NULL GROUP BY du_an_id`,
+  ).bind(tc, homNay, bayNgay).all();
   return ds.map((d) => ({
     ...d,
+    qua_han: so2.find((r) => r.du_an_id === d.id)?.qua_han || 0,
+    xong_7_ngay: so2.find((r) => r.du_an_id === d.id)?.xong_7_ngay || 0,
     dang_mo: results.filter((r) => r.du_an_id === d.id && r.trang_thai === 'mo').reduce((a, r) => a + r.so, 0),
     da_xong: results.filter((r) => r.du_an_id === d.id && r.trang_thai === 'xong').reduce((a, r) => a + r.so, 0),
   }));
@@ -128,8 +177,8 @@ export async function taoDuAn(env, tc, than) {
   }
   try {
     const d = await env.CSDL.prepare(
-      'INSERT INTO du_an (to_chuc_id, ten, tu_khoa, thu_tu, tao_luc, mau) VALUES (?1, ?2, ?3, ?4, ?5, ?6) RETURNING id',
-    ).bind(tc, k.duAn.ten, JSON.stringify(k.duAn.tu_khoa || []), dem.cuoi + 1, new Date().toISOString(), mau).first();
+      'INSERT INTO du_an (to_chuc_id, ten, tu_khoa, thu_tu, tao_luc, mau, drive_link, drive_duong_dan) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) RETURNING id',
+    ).bind(tc, k.duAn.ten, JSON.stringify(k.duAn.tu_khoa || []), dem.cuoi + 1, new Date().toISOString(), mau, k.duAn.drive_link ?? null, k.duAn.drive_duong_dan ?? null).first();
     return { id: d.id };
   } catch (e) {
     if (/UNIQUE/i.test(String(e.message))) return { loi: 'Đã có dự án tên này.' };
@@ -145,6 +194,10 @@ export async function suaDuAn(env, tc, id, than) {
   if ('ten' in k.duAn) { gt.push(k.duAn.ten); gan.push(`ten = ?${gt.length + 2}`); }
   if ('tu_khoa' in k.duAn) { gt.push(JSON.stringify(k.duAn.tu_khoa)); gan.push(`tu_khoa = ?${gt.length + 2}`); }
   if ('mau' in k.duAn) { gt.push(k.duAn.mau); gan.push(`mau = ?${gt.length + 2}`); }
+  if ('sao' in k.duAn) { gt.push(k.duAn.sao); gan.push(`sao = ?${gt.length + 2}`); }
+  if ('icon' in k.duAn) { gt.push(k.duAn.icon); gan.push(`icon = ?${gt.length + 2}`); }
+  if ('drive_link' in k.duAn) { gt.push(k.duAn.drive_link); gan.push(`drive_link = ?${gt.length + 2}`); }
+  if ('drive_duong_dan' in k.duAn) { gt.push(k.duAn.drive_duong_dan); gan.push(`drive_duong_dan = ?${gt.length + 2}`); }
   if (!gan.length) return { loi: 'Không có gì để sửa.' };
   try {
     const kq = await env.CSDL.prepare(`UPDATE du_an SET ${gan.join(', ')} WHERE id = ?1 AND to_chuc_id = ?2`).bind(id, tc, ...gt).run();
@@ -161,12 +214,13 @@ export async function suaDuAn(env, tc, id, than) {
 export async function xoaDuAn(env, tc, id) {
   await env.CSDL.prepare('UPDATE viec SET du_an_id = NULL WHERE to_chuc_id = ?1 AND du_an_id = ?2').bind(tc, id).run();
   const kq = await env.CSDL.prepare('DELETE FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).run();
+  if (kq.meta.changes && env.TEP) await env.TEP.delete(khoaAnhDuAn(tc, id)).catch(() => {});
   return kq.meta.changes ? {} : { loi: 'Không tìm thấy dự án.', ma: 404 };
 }
 
 // Dòng thời gian của dự án: sự kiện của mọi việc đang thuộc dự án, cùng các tệp đi kèm tin của những việc đó.
 export async function lichSuDuAn(env, tc, id) {
-  const d = await env.CSDL.prepare('SELECT id, ten, tu_khoa, mau FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+  const d = await env.CSDL.prepare('SELECT id, ten, tu_khoa, mau, icon, anh_khoa, drive_link, drive_duong_dan FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
   if (!d) return null;
   const [sk, tep, viec] = await Promise.all([
     env.CSDL.prepare(
@@ -195,4 +249,32 @@ export async function sapXepDuAn(env, tc, ids) {
   if (env.CSDL.batch) await env.CSDL.batch(cau);
   else for (const c of cau) await c.run();
   return {};
+}
+
+// Ảnh đại diện tải lên: đã thu nhỏ ở trình duyệt, ở đây chỉ kiểm loại và cỡ rồi lưu vào kho tệp.
+export async function datAnhDuAn(env, tc, id, loai, byte) {
+  if (!LOAI_ANH_DU_AN[loai]) return { loi: 'Chỉ nhận ảnh JPG, PNG hoặc WebP.', ma: 415 };
+  if (!byte.byteLength) return { loi: 'Ảnh trống.' };
+  if (byte.byteLength > ANH_TOI_DA) return { loi: 'Ảnh lớn quá (tối đa 300 KB), hãy chọn ảnh nhỏ hơn.', ma: 413 };
+  const d = await env.CSDL.prepare('SELECT id FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+  if (!d) return { loi: 'Không tìm thấy dự án.', ma: 404 };
+  if (!env.TEP) return { loi: 'Chưa có kho tệp để lưu ảnh.', ma: 503 };
+  await env.TEP.put(khoaAnhDuAn(tc, id), byte, { httpMetadata: { contentType: loai } });
+  // Khóa kèm thời điểm để trình duyệt tải lại ảnh mới.
+  const khoa = String(Date.now());
+  await env.CSDL.prepare('UPDATE du_an SET anh_khoa = ?1 WHERE id = ?2 AND to_chuc_id = ?3').bind(khoa, id, tc).run();
+  return { anh_khoa: khoa };
+}
+
+export async function xoaAnhDuAn(env, tc, id) {
+  const kq = await env.CSDL.prepare('UPDATE du_an SET anh_khoa = NULL WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).run();
+  if (!kq.meta.changes) return { loi: 'Không tìm thấy dự án.', ma: 404 };
+  if (env.TEP) await env.TEP.delete(khoaAnhDuAn(tc, id)).catch(() => {});
+  return {};
+}
+
+export async function docAnhDuAn(env, tc, id) {
+  const d = await env.CSDL.prepare('SELECT anh_khoa FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+  if (!d?.anh_khoa || !env.TEP) return null;
+  return env.TEP.get(khoaAnhDuAn(tc, id));
 }

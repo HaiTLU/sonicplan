@@ -1,10 +1,13 @@
 // Giao diện Sonicplan: một trang, chuyển mục theo dấu #, đọc ghi dữ liệu qua /api.
 
-import { CHU_TRANG_THAI, dungKhoiClaude, veKhoiClaude } from './claude.js';
+import { CHU_TRANG_THAI, dungKhoiClaude, moKhungGiaoClaude, veKhoiClaude } from './claude.js';
+import { anhDuAn, boAnh, chonVaTaiAnh, oChonIcon } from './anh-du-an.js';
 import { veDuAn } from './du-an.js';
 import { dongHieuSuat, veHieuSuat } from './hieu-suat.js';
 import { batKeoTha } from './keo-tha.js';
 import { hexMau, mauViec, oChonMau } from './mau.js';
+import { caiNguCanh, dongTrinhDon, moTrinhDon } from './trinh-don.js';
+import { veTram } from './tram.js';
 import { mienCuaUrl, nhanTep, phanTichTin, tachLienKet, trichTin } from './zalo-tin.js';
 
 const MUI_GIO = 'Asia/Ho_Chi_Minh';
@@ -89,6 +92,46 @@ function khungLoi(e, thuLai) {
   return h('div', { class: 'bao-loi-trang', role: 'alert' }, h('span', { text: e.message }), h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: 'Thử lại', onclick: thuLai }));
 }
 
+// ---------- Khung giải thích khi rê chuột ----------
+// Phần tử có data-meo hiện khung giải thích khi rê chuột, chạm hoặc dùng phím Tab tới. Một khung dùng chung cho cả trang.
+const khungMeo = h('div', { class: 'meo', role: 'tooltip', id: 'meo', hidden: true });
+document.body.append(khungMeo);
+let meoDangChi = null;
+function hienMeo(el) {
+  if (meoDangChi === el) return;
+  meoDangChi = el;
+  khungMeo.textContent = el.dataset.meo;
+  khungMeo.hidden = false;
+  const r = el.getBoundingClientRect();
+  const k = khungMeo.getBoundingClientRect();
+  const trai = Math.min(Math.max(8, r.left + r.width / 2 - k.width / 2), window.innerWidth - k.width - 8);
+  const duoi = r.bottom + 8 + k.height < window.innerHeight;
+  khungMeo.style.left = `${trai}px`;
+  khungMeo.style.top = `${duoi ? r.bottom + 8 : Math.max(8, r.top - k.height - 8)}px`;
+}
+function anMeo() {
+  meoDangChi = null;
+  khungMeo.hidden = true;
+}
+document.addEventListener('pointerover', (e) => { const el = e.target.closest?.('[data-meo]'); if (el) hienMeo(el); else if (meoDangChi) anMeo(); });
+document.addEventListener('focusin', (e) => { const el = e.target.closest?.('[data-meo]'); if (el) hienMeo(el); else if (meoDangChi) anMeo(); });
+document.addEventListener('focusout', anMeo);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && meoDangChi) anMeo(); });
+window.addEventListener('scroll', anMeo, { passive: true, capture: true });
+window.addEventListener('hashchange', anMeo);
+const meo = (chu) => ({ 'data-meo': chu, 'aria-describedby': 'meo' });
+
+// Liên kết sang một trang kèm bộ lọc: đặt trạng thái lọc rồi đổi địa chỉ; đang ở đúng trang thì vẽ lại.
+function denMuc(hash, dat) {
+  return (e) => {
+    dat?.();
+    if (location.hash === `#${hash}`) { e.preventDefault(); moMuc(); }
+  };
+}
+const lienKet = (hash, dat, them = {}, ...con) => h('a', { href: `#${hash}`, onclick: denMuc(hash, dat), ...them }, ...con);
+const locTin = (loc, gio = null) => () => { trang.tin.loc = loc; trang.tin.gio = gio; trang.tin.chon = null; };
+const locViec = (tab) => () => { trang.viec.tab = tab; trang.viec.xem = 'han'; trang.viec.duAn = 'tat-ca'; };
+
 function xuong(cao, rong = '100%') {
   return h('div', { class: 'xuong', style: `height:${cao}px;width:${rong}` });
 }
@@ -118,21 +161,29 @@ function tenNhom(ten) {
   return /^nh[oó]m\s/i.test(ten) ? ten : `Nhóm ${ten}`;
 }
 
-const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', q: '', chon: null, ds: [] }, viec: { tab: 'mo', duAn: 'tat-ca', xem: 'han', anTrong: false }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
-const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'hieu-suat': 'Hiệu suất', 'du-an': 'Dự án', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy', 'du-lieu': 'Dữ liệu của bạn', 'da-chan': 'Đã chặn' };
+function docXemViec() {
+  try { return localStorage.getItem('sp.viec.xem') === 'han' ? 'han' : 'du-an'; } catch { return 'du-an'; }
+}
+const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', gio: null, q: '', chon: null, ds: [] }, viec: { tab: 'mo', duAn: 'tat-ca', xem: docXemViec(), anTrong: false, nguon: 'tat-ca', han: 'tat-ca', nang: 'tat-ca', chiSao: false }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
+const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'hieu-suat': 'Hiệu suất', 'du-an': 'Dự án', claude: 'Claude', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy', 'du-lieu': 'Dữ liệu của bạn', 'da-chan': 'Đã chặn' };
 // Bốn mục chính, mỗi mục gom vài trang con (kế hoạch chuẩn quốc tế 13/10/2026, giai đoạn 3).
 // Đường dẫn cũ (#viec, #zalo...) giữ nguyên để liên kết đã lưu vẫn mở được.
 const NHOM = [
   { ma: 'hom-nay', ten: 'Hôm nay', con: ['tong-quan', 'viec', 'hieu-suat'] },
   { ma: 'hop-tin', ten: 'Hộp tin', con: ['hop-tin', 'zalo', 'da-chan'] },
-  { ma: 'du-an', ten: 'Dự án', con: ['du-an', 'tep', 'ghi-nho'] },
+  { ma: 'du-an', ten: 'Dự án', con: ['du-an', 'claude', 'tep', 'ghi-nho'] },
   { ma: 'cai-dat', ten: 'Cài đặt', con: ['ket-noi', 'luong', 'nhat-ky', 'du-lieu'] },
 ];
 const TEN_TAB = { 'hop-tin': 'Tất cả tin', 'du-an': 'Dự án', 'nhat-ky': 'Nhật ký' };
 const nhomCua = (muc) => NHOM.find((n) => n.con.includes(muc)) || NHOM[0];
 const KET_QUA = { xong: 'Xong', loi: 'Lỗi', dang_chay: 'Đang chạy' };
-const ICON_TP = { 'may-chu': 'he-thong', csdl: 'kho', 'hen-gio': 'dong-ho', thu: 'thu', zalo: 'zalo', tep: 'tep', lich: 'lich', ai: 'ai', telegram: 'telegram' };
+const ICON_TP = { hop: 'ghi-am', 'may-chu': 'he-thong', csdl: 'kho', 'hen-gio': 'dong-ho', thu: 'thu', zalo: 'zalo', tep: 'tep', lich: 'lich', ai: 'ai', telegram: 'telegram' };
 const TEN_DEN = { xanh: 'ổn', vang: 'đang chờ', do: 'lỗi', xam: 'chưa dùng' };
+
+// Chỉ lấy hai số đếm, không tải cả Tổng quan: giữ lượt đọc cơ sở dữ liệu thấp khi để trang mở cả ngày.
+function lamMoiDem() {
+  return api('/api/dem').then((k) => capNhatDem(k.tin_chua_xem, k.viec_mo)).catch(() => {});
+}
 
 function capNhatDem(soTin, soViec) {
   const dat = (id, n) => {
@@ -147,11 +198,27 @@ function capNhatDem(soTin, soViec) {
 // =====================================================================
 // Tổng quan
 // =====================================================================
+// Các khối của Tổng quan: tên hiện trong Tinh chỉnh và độ rộng (day: cả hàng, nua: nửa hàng).
+const KHOI_TQ = {
+  'can-lam': { ten: 'Cần xử lý ngay', rong: 'day' },
+  'chi-so': { ten: 'Chỉ số chính', rong: 'day' },
+  'du-an': { ten: 'Theo dự án', rong: 'nua' },
+  'viec-toi': { ten: 'Việc sắp tới', rong: 'nua' },
+  nhip: { ten: 'Nhịp hôm nay', rong: 'day' },
+  'hieu-suat': { ten: 'Hiệu suất', rong: 'day' },
+  'tong-hop': { ten: 'Tổng hợp của AI', rong: 'nua' },
+  'tin-moi': { ten: 'Tin mới', rong: 'nua' },
+  'he-thong': { ten: 'Các bộ phận', rong: 'day' },
+};
+
+let boCucTQ = null;
+const TRANG_KHOI = { 'can-lam': 'viec', 'chi-so': 'viec', 'du-an': 'du-an', 'viec-toi': 'viec', nhip: 'hop-tin', 'hieu-suat': 'hieu-suat', 'tong-hop': 'hop-tin', 'tin-moi': 'hop-tin', 'he-thong': 'ket-noi' };
+
 async function veTongQuan(goc) {
-  thay(goc, 
+  if (!lamMoiEm) thay(goc,
     h('div', { class: 'luoi-tq' },
-      h('div', { class: 'bang anh-hung' }, xuong(22, '30%'), h('div', { style: 'height:10px' }), xuong(56, '60%'), h('div', { style: 'height:26px' }), xuong(150)),
-      h('div', { class: 'bang dai-so' }, ...[1, 2, 3, 4].map(() => h('div', { class: 'o-so' }, xuong(14, '50%'), h('div', { style: 'height:10px' }), xuong(36, '40%')))),
+      h('div', { class: 'bang can-lam' }, ...[1, 2, 3, 4].map(() => h('div', { class: 'o-can' }, xuong(14, '50%'), h('div', { style: 'height:10px' }), xuong(36, '40%')))),
+      h('div', { class: 'bang chi-so' }, xuong(150)),
     ),
   );
   const kq = await api('/api/tong-quan');
@@ -159,72 +226,230 @@ async function veTongQuan(goc) {
   capNhatDem(sl.tin_chua_xem, sl.viec_mo);
   const tp = kq.tinh_trang.thanh_phan;
   const tt = tomTat(tp, sl);
+  const boCuc = kq.bo_cuc;
+  boCucTQ = boCuc;
 
-  const luoi = h('div', { class: 'luoi-tq vao' });
-  // Phần đầu: lời chào, câu tóm tắt, vòng sức khỏe, sóng 24 giờ.
+  // Dòng đầu: lời chào, tình trạng hệ thống gọn trong một nút nhỏ, nút Tinh chỉnh.
   const gio = Number(fmt.gioSo.format(new Date()));
   const loiChao = gio < 11 ? 'Chào buổi sáng' : gio < 14 ? 'Chào buổi trưa' : gio < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
   const dungDuoc = tp.filter((p) => p.den !== 'xam');
   const on = dungDuoc.filter((p) => p.den === 'xanh').length;
-  const vong = vongSucKhoe(on, dungDuoc.length, tt.den);
-  luoi.append(
-    h('section', { class: 'bang anh-hung', 'aria-labelledby': 'tq-tom-tat' },
-      h('div', { class: 'anh-hung-tren' },
-        h('div', {},
-          h('p', { class: 'chao', text: `${loiChao}, ${trang.toi?.nguoi_dung?.ten?.split(' ').slice(-2).join(' ') || 'bạn'}.` }),
-          h('h2', { class: 'tom-tat', id: 'tq-tom-tat', dataset: { den: tt.den }, text: tt.cau }),
-          h('p', { class: 'tom-tat-phu', text: tt.phu }),
-        ),
-        vong,
-      ),
-      veSong(kq.nhip),
-    ),
+  const chuaOn = dungDuoc.filter((p) => p.den !== 'xanh');
+  const chuaCai = tp.filter((p) => p.den === 'xam');
+  const denHt = tp.some((p) => p.den === 'do') ? 'do' : chuaOn.length ? 'vang' : 'xanh';
+  const meoHt = `${on} trên ${dungDuoc.length} bộ phận đã cài đang chạy ổn.${chuaOn.length ? ` Chưa ổn: ${chuaOn.map((p) => `${p.ten} (${p.mo_ta})`).join('; ')}.` : ''}${chuaCai.length ? ` Chưa cài: ${chuaCai.map((p) => p.ten).join(', ')}.` : ''} Bấm để mở trang Kết nối.`;
+  const dau = h('div', { class: 'tq-dau' },
+    h('div', { class: 'tq-chao' },
+      h('p', { class: 'chao', text: `${loiChao}, ${trang.toi?.nguoi_dung?.ten?.split(' ').slice(-2).join(' ') || 'bạn'}.` }),
+      h('p', { class: 'tom-tat', dataset: { den: tt.den }, text: tt.cau })),
+    h('div', { class: 'tq-dau-nut' },
+      lienKet('ket-noi', null, { class: 'chip-he-thong', dataset: { den: denHt }, ...meo(meoHt) }, h('i', { 'aria-hidden': 'true' }), `${on}/${dungDuoc.length} bộ phận ổn`),
+      h('button', { class: 'nut nut-phu', type: 'button', onclick: () => moTinhChinh(boCuc) }, icon('sua'), h('span', { text: 'Tinh chỉnh' }))),
   );
 
-  // Dải số liệu: một bảng chia vạch, không phải bốn thẻ giống nhau.
-  const tin7 = Array.from({ length: 7 }, (_, i) => {
-    const ngay = congNgay(kq.hom_nay, i - 6);
-    return kq.tin_7_ngay.find((r) => r.ngay === ngay)?.n || 0;
-  });
-  luoi.append(
-    h('dl', { class: 'bang dai-so' },
-      oSo('hop-tin', 'Tin hôm nay', sl.tin_hom_nay, sl.tin_chua_xem ? h('span', { class: 'ghi' }, h('b', { text: `${sl.tin_chua_xem} chưa xem` })) : h('span', { class: 'ghi', text: 'Đã xem hết' }), dongNho(tin7)),
-      oSo('viec', 'Việc đang mở', sl.viec_mo, h('span', { class: 'ghi' }, sl.viec_qua_han ? h('b', { text: `${sl.viec_qua_han} quá hạn` }) : h('b', { class: 'tot', text: 'Không việc nào trễ' }))),
-      oSo('dong-ho', 'Hạn hôm nay', sl.viec_hom_nay, h('span', { class: 'ghi', text: `${sl.xong_hom_nay} việc đã xong hôm nay` })),
-      oSo('tep', 'Tệp tuần này', sl.tep_tuan, h('span', { class: 'ghi', text: 'Lưu trong kho tệp' })),
-    ),
-  );
-
-  luoi.append(dongHieuSuat({ h, icon, api }));
-
-  // Tổng hợp một lần: AI đọc hồ sơ, ghi nhớ, việc, tin 48 giờ rồi viết bản tổng hợp
-  const khungTH = h('div', { class: 'tong-hop-noi-dung', 'aria-live': 'polite' });
-  const nutTH = h('button', { class: 'nut nut-chinh', type: 'button' }, icon('ai'), 'Tổng hợp ngay');
-  const veTH = (cuoi) => thay(khungTH, cuoi ? h('div', {}, h('p', { class: 'mo-ta', text: `Tổng hợp lúc ${luc(cuoi.luc)}` }), h('pre', { class: 'van-ban-tong-hop', text: cuoi.noi_dung })) : h('p', { class: 'mo-ta', text: 'Bấm nút để AI đọc toàn bộ việc, tin 48 giờ qua, hồ sơ và ghi nhớ rồi viết một bản: làm gì trước, rủi ro, ai đang chờ, việc nên giao trợ lý.' }));
-  nutTH.addEventListener('click', async () => {
-    nutTH.disabled = true;
-    thay(khungTH, xuong(14, '70%'), xuong(14, '90%'), xuong(14, '60%'));
-    try { veTH((await api('/api/tong-hop', { method: 'POST' })).cuoi); } catch (e) { bao(e.message, { loi: true }); veTH(null); }
-    nutTH.disabled = false;
-  });
-  api('/api/tong-hop').then((r) => veTH(r.cuoi)).catch(() => veTH(null));
-  luoi.append(h('section', { class: 'bang tong-hop' }, h('div', { class: 'bang-dau' }, h('h2', {}, icon('ai'), 'Tổng hợp'), nutTH), khungTH));
-
-  luoi.append(bangViecSapToi(kq.viec_sap_toi, kq.hom_nay), bangTinMoi(kq.tin_moi));
-
-  luoi.append(
-    h('section', { class: 'bang bang-suc-khoe', 'aria-labelledby': 'tq-sk' },
-      h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-sk' }, icon('he-thong'), 'Các bộ phận'), h('a', { class: 'lien-ket-nho', href: '#ket-noi' }, 'Cài kết nối', icon('mui-ten'))),
-      h('div', { class: 'luoi-tp' }, ...tp.map((p) =>
-        h('div', { class: 'tp' },
-          h('span', { class: 'tp-icon', dataset: { den: p.den }, role: 'img', 'aria-label': `${p.ten}: ${TEN_DEN[p.den]}` }, icon(ICON_TP[p.ma] || 'he-thong')),
-          h('div', {}, h('strong', { text: p.ten }), h('span', { text: p.mo_ta })),
-        ))),
-      h('div', { class: 'bang-cuon', tabindex: '0', role: 'region', 'aria-label': 'Bảng tác vụ' }, bangTacVu(kq.tinh_trang.tac_vu)),
-    ),
-  );
+  const ve = {
+    'can-lam': () => khoiCanLam(sl, kq.claude),
+    'chi-so': () => khoiChiSo(kq),
+    'du-an': () => khoiDuAn(kq.du_an),
+    'viec-toi': () => bangViecSapToi(kq.viec_sap_toi, kq.hom_nay),
+    nhip: () => h('section', { class: 'bang khoi-nhip' }, veSong(kq.nhip)),
+    'hieu-suat': () => dongHieuSuat({ h, icon, api }),
+    'tong-hop': () => khoiTongHop(),
+    'tin-moi': () => bangTinMoi(kq.tin_moi.slice(0, 5)),
+    'he-thong': () => khoiHeThong(tp, kq.tinh_trang.tac_vu, on, dungDuoc.length),
+  };
+  const luoi = h('div', { class: lamMoiEm ? 'luoi-tq' : 'luoi-tq vao' }, dau);
+  const hien = boCuc.thu_tu.filter((k) => !boCuc.an.includes(k) && ve[k]);
+  for (const k of hien) {
+    const el = ve[k]();
+    el.classList.add('khoi-tq', `rong-${KHOI_TQ[k].rong}`);
+    el.dataset.khoi = k;
+    el._td = () => ({ nhan: `Khối ${KHOI_TQ[k].ten}`, muc: [
+      { nhan: `Mở trang ${TEN_MUC[TRANG_KHOI[k]]}`, lam: () => { location.hash = TRANG_KHOI[k]; } },
+      { nhan: 'Tinh chỉnh Tổng quan', lam: () => moTinhChinh(boCuc) },
+      { nhan: 'Tải lại dữ liệu', lam: () => moMuc() },
+    ] });
+    luoi.append(el);
+  }
+  if (!hien.length) luoi.append(h('div', { class: 'bang trong-trai rong-day' }, h('h3', { text: 'Bạn đã ẩn hết các khối' }), h('p', { text: 'Bấm Tinh chỉnh để hiện lại.' })));
   thay(goc, luoi);
-  requestAnimationFrame(() => vong.querySelector('.day-vong')?.style.setProperty('stroke-dashoffset', vong.dataset.dich));
+}
+
+// Bốn ô "Cần xử lý ngay": số lớn, bấm vào mở đúng danh sách.
+function khoiCanLam(sl, cl) {
+  const o = (nhan, so, mau, hash, dat, giai, phu) => lienKet(hash, dat, { class: `o-can${so ? ` co ${mau}` : ''}`, 'aria-label': `${nhan}: ${so}`, ...meo(giai) },
+    h('span', { class: 'o-can-nhan', text: nhan }),
+    h('b', { class: 'o-can-so', text: fmt.so.format(so || 0) }),
+    h('small', { text: phu }));
+  const tong = (sl.viec_qua_han || 0) + (sl.viec_hom_nay || 0) + (cl?.cho_ban || 0) + (sl.tin_chua_xem || 0);
+  return h('section', { class: 'bang can-lam', 'aria-labelledby': 'tq-can-lam' },
+    h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-can-lam' }, 'Cần xử lý ngay'),
+      h('span', { class: 'mo-ta', text: tong ? 'Bấm vào ô để mở danh sách' : 'Không có gì cần xử lý ngay' })),
+    h('div', { class: 'luoi-can' },
+      o('Quá hạn', sl.viec_qua_han, 'do', 'viec', locViec('mo'), 'Việc còn mở có hạn trước hôm nay. Bấm để xem, các việc này nằm ở cột Quá hạn.', 'việc trễ hạn'),
+      o('Tới hạn hôm nay', sl.viec_hom_nay, 'cam', 'viec', locViec('mo'), 'Việc còn mở có hạn đúng hôm nay. Bấm để xem ở cột Hôm nay.', `${sl.xong_hom_nay} việc đã xong hôm nay`),
+      o('Claude chờ bạn', cl?.cho_ban, 'tim', 'viec', locViec('mo'), 'Việc Claude đã làm xong hoặc đang hỏi lại, chờ bạn xem và bấm "Đạt, đóng việc" hoặc trả lời. Bấm để mở trang Việc.', cl?.dang_chay ? `${cl.dang_chay} lượt đang chạy` : 'kết quả chờ duyệt'),
+      o('Tin chưa xem', sl.tin_chua_xem, 'xanh', 'hop-tin', locTin('chua-xem'), 'Tin Zalo và thư chưa mở đọc. Bấm để xem riêng các tin này.', `${sl.tin_hom_nay} tin đến hôm nay`),
+    ),
+  );
+}
+
+// So sánh với kỳ trước, viết thành chữ: "+3 so với hôm qua".
+function soSanhKy(nay, truoc, ky) {
+  const d = (nay || 0) - (truoc || 0);
+  return h('span', { class: `ss-ky${d > 0 ? ' tang' : d < 0 ? ' giam' : ''}`, text: d ? `${d > 0 ? '+' : ''}${fmt.so.format(d)} so với ${ky}` : `bằng ${ky}` });
+}
+
+// Lưới 6 chỉ số: số, so với kỳ trước, đường 8 ngày.
+function khoiChiSo(kq) {
+  const sl = kq.so_lieu;
+  const nd = kq.theo_ngay;
+  const cl = kq.claude || {};
+  const ngay8 = Array.from({ length: 8 }, (_, i) => ngayHienThi(congNgay(kq.hom_nay, i - 7)));
+  const chuoi = (ten, ds) => `${ten} 8 ngày qua: ${ds.map((v, i) => `${ngay8[i]}: ${v}`).join(', ')}.`;
+  const o = ({ ten, nhan, so, ss, ds, hash, dat, giai, ghi }) => h('div', { class: 'o-cs' },
+    h('dt', {}, icon(ten), nhan),
+    h('dd', {},
+      h('div', { class: 'o-cs-tren' },
+        lienKet(hash, dat, { class: 'so-lon so-bam', 'aria-label': `${nhan}: ${fmt.so.format(so || 0)}`, ...meo(giai) }, fmt.so.format(so || 0)),
+        ds ? h('span', meo(chuoi(nhan, ds)), dongNho(ds, chuoi(nhan, ds))) : null),
+      ss, ghi ? h('span', { class: 'ghi', text: ghi }) : null));
+  return h('section', { class: 'bang chi-so', 'aria-labelledby': 'tq-chi-so' },
+    h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-chi-so' }, 'Chỉ số chính'), h('span', { class: 'mo-ta', text: 'Đường nhỏ là 8 ngày gần nhất' })),
+    h('dl', { class: 'luoi-cs' },
+      o({ ten: 'hop-tin', nhan: 'Tin đến hôm nay', so: nd.tin[7], ss: soSanhKy(nd.tin[7], nd.tin[6], 'hôm qua'), ds: nd.tin, hash: 'hop-tin', dat: locTin('hom-nay'),
+        giai: 'Tin Zalo và thư nhận từ 0 giờ hôm nay (giờ Việt Nam), không tính nguồn đã chặn. Bấm để xem.' }),
+      o({ ten: 'cong', nhan: 'Việc mới hôm nay', so: nd.viec[7], ss: soSanhKy(nd.viec[7], nd.viec[6], 'hôm qua'), ds: nd.viec, hash: 'viec', dat: locViec('mo'),
+        giai: 'Việc tạo trong hôm nay, do AI tách từ tin hoặc bạn tự thêm. Bấm để mở trang Việc.' }),
+      o({ ten: 'xong', nhan: 'Việc xong hôm nay', so: nd.xong[7], ss: soSanhKy(nd.xong[7], nd.xong[6], 'hôm qua'), ds: nd.xong, hash: 'viec', dat: locViec('xong'),
+        giai: 'Việc bấm xong trong hôm nay. Bấm để xem danh sách đã xong.' }),
+      o({ ten: 'viec', nhan: 'Việc đang mở', so: sl.viec_mo, ss: h('span', { class: 'ss-ky', text: `hôm nay thêm ${nd.viec[7]}, xong ${nd.xong[7]}` }), hash: 'viec', dat: locViec('mo'),
+        giai: 'Việc chưa xong và chưa hủy, gồm cả việc chưa có hạn. Bấm để xem theo hạn.',
+        ghi: sl.viec_qua_han ? `${sl.viec_qua_han} quá hạn` : 'không việc nào trễ' }),
+      o({ ten: 'ai', nhan: 'Claude 7 ngày', so: cl.luot_7, ss: h('span', { class: 'ss-ky', text: `${cl.xong_7 || 0} xong, ${cl.loi_7 || 0} lỗi` }), hash: 'viec', dat: locViec('mo'),
+        giai: 'Số lượt giao Claude trong 7 ngày qua (một lượt gộp nhiều việc tính là một). Kết quả hiện trong từng việc.' }),
+      o({ ten: 'tep', nhan: 'Tệp 7 ngày', so: sl.tep_tuan, ss: soSanhKy(sl.tep_tuan, sl.tep_tuan_truoc, '7 ngày trước'), hash: 'tep', dat: () => { trang.tep.q = ''; },
+        giai: 'Tệp đính kèm từ tin Zalo và thư được lưu vào kho trong 7 ngày qua, so với 7 ngày trước đó. Bấm để mở trang Tệp.' }),
+    ),
+  );
+}
+
+// Bảng theo dự án: chỉ các dự án có việc, quá hạn tô đỏ, bấm tên mở dự án.
+function khoiDuAn(ds) {
+  const co = (ds || []).filter((d) => d.mo || d.qua_han || d.sap_han || d.xong_7);
+  const goc = h('section', { class: 'bang tq-du-an', 'aria-labelledby': 'tq-du-an' },
+    h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-du-an' }, icon('du-an'), 'Theo dự án'), h('a', { class: 'lien-ket-nho', href: '#du-an' }, 'Tất cả dự án', icon('mui-ten'))));
+  if (!co.length) {
+    goc.append(h('p', { class: 'mo-ta dem-trong', text: 'Chưa dự án nào có việc. Xếp việc vào dự án ở trang Việc để theo dõi ở đây.' }));
+    return goc;
+  }
+  const so = (n, lop) => h('td', { class: `so${n && lop ? ` ${lop}` : ''}`, text: n ? fmt.so.format(n) : '-' });
+  goc.append(h('div', { class: 'bang-cuon', tabindex: '0', role: 'region', 'aria-label': 'Bảng việc theo dự án' },
+    h('table', { class: 'bang-so' },
+      h('thead', {}, h('tr', {},
+        h('th', { scope: 'col', text: 'Dự án' }),
+        h('th', { scope: 'col', class: 'so', ...meo('Việc chưa xong trong dự án.') }, 'Đang mở'),
+        h('th', { scope: 'col', class: 'so', ...meo('Việc còn mở có hạn trước hôm nay.') }, 'Quá hạn'),
+        h('th', { scope: 'col', class: 'so', ...meo('Việc còn mở có hạn từ hôm nay đến 7 ngày tới.') }, 'Hạn 7 ngày'),
+        h('th', { scope: 'col', class: 'so', ...meo('Việc bấm xong trong 7 ngày qua.') }, 'Xong 7 ngày'))),
+      h('tbody', {}, ...co.slice(0, 8).map((d) => h('tr', {},
+        h('th', { scope: 'row' }, h('a', { href: `#du-an/${d.id}` }, h('i', { class: 'cham-mau', style: d.mau ? `background:${d.mau}` : '' }), h('span', { text: d.ten }))),
+        so(d.mo), so(d.qua_han, 'do'), so(d.sap_han, 'cam'), so(d.xong_7, 'tot'))))),
+  ));
+  return goc;
+}
+
+// Tổng hợp của AI: hiện vài dòng đầu, bấm "Xem đầy đủ" để mở hết.
+function khoiTongHop() {
+  const khung = h('div', { class: 'tong-hop-noi-dung', 'aria-live': 'polite' });
+  const nut = h('button', { class: 'nut nut-phu', type: 'button' }, icon('ai'), h('span', { text: 'Tổng hợp lại' }));
+  const ve = (cuoi) => {
+    if (!cuoi) return thay(khung, h('p', { class: 'mo-ta', text: 'Bấm "Tổng hợp lại" để AI đọc việc, tin 48 giờ qua, hồ sơ và ghi nhớ rồi viết: làm gì trước, rủi ro, ai đang chờ.' }));
+    const vb = h('pre', { class: 'van-ban-tong-hop thu-gon', id: 'tq-th-vb', text: cuoi.noi_dung });
+    const mo = h('button', { class: 'lien-ket-nho nut-mo-rong', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'tq-th-vb', text: 'Xem đầy đủ' });
+    mo.addEventListener('click', () => {
+      const dong = vb.classList.toggle('thu-gon');
+      mo.textContent = dong ? 'Xem đầy đủ' : 'Thu gọn';
+      mo.setAttribute('aria-expanded', String(!dong));
+    });
+    thay(khung, h('p', { class: 'mo-ta', text: `Viết lúc ${luc(cuoi.luc)}` }), vb, mo);
+  };
+  nut.addEventListener('click', async () => {
+    nut.disabled = true;
+    thay(khung, xuong(14, '70%'), xuong(14, '90%'), xuong(14, '60%'));
+    try { ve((await api('/api/tong-hop', { method: 'POST' })).cuoi); } catch (e) { bao(e.message, { loi: true }); ve(null); }
+    nut.disabled = false;
+  });
+  thay(khung, xuong(14, '70%'), xuong(14, '90%'));
+  api('/api/tong-hop').then((r) => ve(r.cuoi)).catch(() => ve(null));
+  return h('section', { class: 'bang tong-hop', 'aria-labelledby': 'tq-th' }, h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-th' }, icon('ai'), 'Tổng hợp của AI'), nut), khung);
+}
+
+// Các bộ phận: thu gọn thành một dòng, tự mở khi có bộ phận lỗi.
+function khoiHeThong(tp, tacVu, on, tong) {
+  const loi = tp.some((p) => p.den === 'do');
+  return h('details', { class: 'bang bang-suc-khoe', ...(loi ? { open: '' } : {}) },
+    h('summary', { class: 'bang-dau' }, h('h2', {}, icon('he-thong'), 'Các bộ phận'), h('span', { class: 'mo-ta', text: `${on}/${tong} ổn${loi ? ', có bộ phận lỗi' : ''}. Bấm để ${loi ? 'thu gọn' : 'xem chi tiết'}` })),
+    h('div', { class: 'luoi-tp' }, ...tp.map((p) =>
+      h('div', { class: 'tp' },
+        h('span', { class: 'tp-icon', dataset: { den: p.den }, role: 'img', 'aria-label': `${p.ten}: ${TEN_DEN[p.den]}` }, icon(ICON_TP[p.ma] || 'he-thong')),
+        h('div', {}, h('strong', { text: p.ten }), h('span', { text: p.mo_ta })),
+      ))),
+    h('div', { class: 'bang-cuon', tabindex: '0', role: 'region', 'aria-label': 'Bảng tác vụ' }, bangTacVu(tacVu)),
+    h('p', { class: 'tp-chan' }, h('a', { class: 'lien-ket-nho', href: '#ket-noi' }, 'Cài kết nối', icon('mui-ten'))),
+  );
+}
+
+// Tinh chỉnh: bật tắt từng khối và đổi thứ tự, lưu theo người dùng.
+function moTinhChinh(boCuc) {
+  const thuTu = [...boCuc.thu_tu];
+  const an = new Set(boCuc.an);
+  const hop = h('dialog', { class: 'khung-claude khung-tinh-chinh', 'aria-labelledby': 'tc-tieu-de' });
+  const dong = () => hop.close();
+  hop.addEventListener('close', () => hop.remove());
+  hop.addEventListener('click', (e) => { if (e.target === hop) dong(); });
+  const ds = h('ol', { class: 'ds-tinh-chinh' });
+  const veDs = (giuNut) => {
+    thay(ds, thuTu.map((k, i) => h('li', {},
+      h('label', {},
+        h('input', { type: 'checkbox', ...(an.has(k) ? {} : { checked: '' }), onchange: (e) => { if (e.target.checked) an.delete(k); else an.add(k); } }),
+        h('span', { text: KHOI_TQ[k].ten })),
+      h('button', { class: 'nut-doi', type: 'button', 'aria-label': `Đưa ${KHOI_TQ[k].ten} lên`, disabled: i === 0 ? '' : null, dataset: { k, huong: 'len' }, onclick: () => doi(i, -1, 'len') }, '↑'),
+      h('button', { class: 'nut-doi', type: 'button', 'aria-label': `Đưa ${KHOI_TQ[k].ten} xuống`, disabled: i === thuTu.length - 1 ? '' : null, dataset: { k, huong: 'xuong' }, onclick: () => doi(i, 1, 'xuong') }, '↓'),
+    )));
+    if (giuNut) ds.querySelector(`[data-k="${giuNut.k}"][data-huong="${giuNut.huong}"]:not([disabled])`)?.focus();
+  };
+  const doi = (i, d, huong) => {
+    const j = i + d;
+    if (j < 0 || j >= thuTu.length) return;
+    [thuTu[i], thuTu[j]] = [thuTu[j], thuTu[i]];
+    veDs({ k: thuTu[j], huong });
+  };
+  const luu = async (bc) => {
+    try {
+      await api('/api/tong-quan/bo-cuc', { method: 'PUT', body: JSON.stringify(bc) });
+      bao('Đã lưu cách sắp xếp Tổng quan.');
+      dong();
+      moMuc();
+    } catch (e) { bao(e.message, { loi: true }); }
+  };
+  const form = h('form', { method: 'dialog' },
+    h('header', { class: 'kc-dau' },
+      h('h2', { id: 'tc-tieu-de' }, icon('sua'), h('span', { text: 'Tinh chỉnh Tổng quan' })),
+      h('button', { class: 'nut-dong', type: 'button', 'aria-label': 'Đóng', onclick: dong }, '×')),
+    h('div', { class: 'kc-than' },
+      h('p', { class: 'kc-ghi', text: 'Bỏ chọn để ẩn khối. Dùng mũi tên để đổi thứ tự. Chỉ áp dụng cho tài khoản của bạn.' }),
+      ds),
+    h('footer', { class: 'kc-chan' },
+      h('button', { class: 'nut nut-phu', type: 'button', style: 'margin-right:auto', onclick: () => luu({}) }, 'Khôi phục mặc định'),
+      h('button', { class: 'nut nut-phu', type: 'button', onclick: dong }, 'Hủy'),
+      h('button', { class: 'nut nut-chinh', type: 'submit' }, 'Lưu')),
+  );
+  form.addEventListener('submit', (e) => { e.preventDefault(); luu({ thu_tu: thuTu, an: [...an] }); });
+  hop.append(form);
+  document.body.append(hop);
+  veDs();
+  hop.showModal();
 }
 
 function tomTat(tp, sl) {
@@ -238,33 +463,13 @@ function tomTat(tp, sl) {
   return { den: 'xanh', cau: sl.viec_hom_nay ? `Hôm nay có ${sl.viec_hom_nay} việc tới hạn.` : 'Mọi thứ đang chạy êm.', phu: `${phuViec}${chuaNoi ? ` ${chuaNoi} kết nối chưa cài.` : ''}` };
 }
 
-function vongSucKhoe(on, tong, den) {
-  const r = 52;
-  const chuVi = 2 * Math.PI * r;
-  const dich = tong ? chuVi * (1 - on / tong) : chuVi;
-  const el = h('div', { class: 'vong', dataset: { den, dich: String(dich) }, role: 'img', 'aria-label': `${on} trên ${tong} bộ phận đang ổn` });
-  const ve = s('svg', { viewBox: '0 0 132 132' },
-    s('circle', { class: 'ray-vong', cx: 66, cy: 66, r }),
-    s('circle', { class: 'day-vong', cx: 66, cy: 66, r, 'stroke-dasharray': chuVi, 'stroke-dashoffset': chuVi }),
-  );
-  el.append(ve, h('div', { class: 'vong-chu', 'aria-hidden': 'true' }, h('b', { text: `${on}/${tong}` }), h('small', { text: 'bộ phận ổn' })));
-  return el;
-}
-
-function oSo(ten, nhan, so, ghi, phu) {
-  return h('div', { class: 'o-so' },
-    h('dt', {}, icon(ten), nhan),
-    h('dd', {}, h('div', {}, h('span', { class: 'so-lon', text: fmt.so.format(so || 0) }), ghi), phu || null),
-  );
-}
-
-function dongNho(ds) {
+function dongNho(ds, nhan = `Số tin 7 ngày qua: ${ds.join(', ')}`) {
   const max = Math.max(1, ...ds);
   const W = 92;
   const H = 34;
   const diem = ds.map((v, i) => [(i / (ds.length - 1)) * (W - 4) + 2, H - 3 - (v / max) * (H - 8)]);
   const d = diem.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
-  return s('svg', { class: 'dong-nho', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Số tin 7 ngày qua: ${ds.join(', ')}` },
+  return s('svg', { class: 'dong-nho', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': nhan },
     s('path', { class: 'vung', d: `${d} L${W - 2} ${H} L2 ${H} Z` }),
     s('path', { d }),
     s('circle', { cx: diem.at(-1)[0], cy: diem.at(-1)[1], r: 2.6, fill: 'currentColor', stroke: 'none', style: 'color:var(--nhan)' }),
@@ -306,7 +511,7 @@ function veSong(nhip) {
   ve.append(s('line', { class: 'kim', x1: xKim, x2: xKim, y1: 4, y2: H - 4, 'vector-effect': 'non-scaling-stroke' }));
 
   const goiY = h('div', { class: 'goi-y-song', 'aria-hidden': 'true' });
-  const khung = h('div', { class: 'song-ve', role: 'img', 'aria-label': `Hôm nay: ${tongTin} tin đến, ${tongViec} việc mới, ${tongChay} lượt chạy tự động, ${tongLoi} lượt lỗi.` }, ve, goiY);
+  const khung = h('div', { class: 'song-ve', role: 'img', 'aria-label': `Hôm nay: ${tongTin} tin đến, ${tongViec} việc mới, ${tongChay} lượt chạy tự động, ${tongLoi} lượt lỗi. Bấm vào một cột giờ để xem tin của giờ đó.` }, ve, goiY);
   ve.addEventListener('pointermove', (e) => {
     const vung = e.target.closest('.vung-gio');
     if (!vung) return;
@@ -327,9 +532,21 @@ function veSong(nhip) {
     goiY.classList.add('hien');
   });
   ve.addEventListener('pointerleave', () => goiY.classList.remove('hien'));
+  // Bấm vào một cột giờ: mở Hộp tin, chỉ các tin đến trong giờ đó.
+  ve.addEventListener('click', (e) => {
+    const vung = e.target.closest('.vung-gio');
+    if (!vung || Number(vung.dataset.gio) > gioNay) return;
+    locTin('hom-nay', Number(vung.dataset.gio))();
+    if (location.hash === '#hop-tin') moMuc(); else location.hash = 'hop-tin';
+  });
 
   return h('div', { class: 'song' },
-    h('div', { class: 'song-dau' }, h('h2', { text: 'Nhịp hôm nay' }), h('p', { text: `${tongTin} tin đến, ${tongViec} việc mới, ${tongChay} lượt chạy${tongLoi ? `, ${tongLoi} lỗi` : ''}` })),
+    h('div', { class: 'song-dau' }, h('h2', { text: 'Nhịp hôm nay' }), h('p', { class: 'song-so' },
+      lienKet('hop-tin', locTin('hom-nay'), meo('Tin Zalo và thư nhận từ 0 giờ hôm nay. Bấm để xem.'), `${tongTin} tin đến`), ', ',
+      lienKet('viec', locViec('mo'), meo('Việc tạo trong hôm nay, do AI tách từ tin hoặc bạn tự thêm. Bấm để mở trang Việc.'), `${tongViec} việc mới`), ', ',
+      lienKet('nhat-ky', () => { locNhatKy = 'tat-ca'; }, meo('Số lần các tác vụ tự động chạy hôm nay: nhận thư, tách việc, đồng bộ Google, lưu kho, nhắc việc. Bấm để xem Nhật ký chạy.'), `${tongChay} lượt chạy`),
+      tongLoi ? ', ' : null,
+      tongLoi ? lienKet('nhat-ky', () => { locNhatKy = 'loi'; }, { class: 'so-loi', ...meo('Lượt chạy bị lỗi hôm nay. Bấm để xem lỗi và chạy lại.') }, `${tongLoi} lỗi`) : null)),
     khung,
     h('div', { class: 'thuoc-gio', 'aria-hidden': 'true' }, ...Array.from({ length: 24 }, (_, g) => h('span', { text: `${g}h` }))),
     h('ul', { class: 'chu-thich', 'aria-hidden': 'true' },
@@ -380,35 +597,154 @@ function mucViec(v) {
     v.gio_hen ? h('span', { class: 'chip-gio', text: v.gio_hen }) : h('span'),
   );
   o.addEventListener('change', () => doiXong(v, o.checked, dong));
+  dong._viec = v;
+  dong._td = async () => ({ muc: await mucTrinhDonViec(v), nhan: `Thao tác với việc: ${v.tieu_de}` });
   return dong;
 }
 
-async function doiXong(v, xong, el) {
+
+// Trình đơn chuột phải trên thẻ việc (và nút ba chấm trên điện thoại): các thao tác nhanh không cần mở ngăn sửa.
+async function suaNhanh(v, thanThay, loiNhan) {
   try {
-    el?.classList.add('dang-xong');
+    await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify(thanThay) });
+    const cu = Object.fromEntries(Object.keys(thanThay).map((k) => [k, v[k] ?? null]));
+    bao(loiNhan, { hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify(cu) }); moMuc(); } } });
+  } catch (e) {
+    bao(e.message, { loi: true });
+  }
+  moMuc();
+}
+
+async function mucTrinhDonViec(v) {
+  if (!duAnDs.length) { try { duAnDs = (await api('/api/du-an')).du_an || []; } catch {} }
+  const xong = v.trang_thai === 'xong';
+  const hn = homNay();
+  const han = (n) => congNgay(hn, n);
+  const hanMuc = (nhan, ngay) => ({ nhan, chon: (v.han_ngay || null) === ngay, lam: () => suaNhanh(v, { han_ngay: ngay }, ngay ? `Đã đổi hạn sang ${nhan.toLowerCase()}.` : 'Đã bỏ hạn.') });
+  const coTin = Boolean(v.tin_nhan_id);
+  const muc = [
+    { nhan: 'Mở chi tiết', lam: () => moNganViec(v) },
+    ...(xong || ['cho', 'dang_lam'].includes(v.claude_trang_thai) ? [] : [{ nhan: 'Giao Claude', lam: () => giaoClaudeNhanh([v]) }]),
+    xong ? { nhan: 'Mở lại việc', lam: () => doiXong(v, false) } : { nhan: 'Đánh dấu xong', lam: () => doiXong(v, true) },
+    { nhan: v.sao ? 'Bỏ sao' : 'Gắn sao', lam: () => saoViec(v, !v.sao) },
+  ];
+  if (!xong) {
+    muc.push(
+      { vach: true },
+      { tieuDe: 'Đổi hạn' },
+      hanMuc('Hôm nay', hn), hanMuc('Ngày mai', han(1)), hanMuc('Tuần sau', han(7)), hanMuc('Bỏ hạn', null),
+      { nhan: 'Chuyển dự án', con: [
+        { nhan: 'Chưa xếp dự án', chon: !v.du_an_id, lam: () => suaNhanh(v, { du_an_id: null }, 'Đã gỡ khỏi dự án.') },
+        ...duAnDs.map((d) => ({ nhan: d.ten, chon: v.du_an_id === d.id, lam: () => suaNhanh(v, { du_an_id: d.id }, `Đã chuyển sang ${d.ten}.`) })),
+      ] },
+      { nhan: 'Đổi màu', con: [{ node: oChonMau(h, v.mau, (ma) => { dongTrinhDon(); suaNhanh(v, { mau: ma || null }, 'Đã đổi màu việc.'); }, { coKhong: true, nhan: 'Màu việc' }) }] },
+    );
+  }
+  if (coTin) {
+    muc.push({ vach: true }, { nhan: 'Xem tin gốc', lam: () => { location.hash = `hop-tin/${v.tin_nhan_id}`; } });
+    if (v.tin_nguon === 'zalo' || v.tin_nguon === 'gmail') {
+      muc.push({ nhan: 'Spam nguồn này', nguy: true, lam: async () => {
+        if (!confirm('Chặn nguồn của tin này? Tin cũ của nguồn sẽ ẩn, việc chưa xong sinh từ đó sẽ gỡ, và AI không tạo việc từ nguồn này nữa. Bỏ chặn ở Hộp tin, mục Đã chặn.')) return;
+        try {
+          const kq = await api('/api/chan', { method: 'POST', body: JSON.stringify({ tin_id: v.tin_nhan_id }) });
+          bao(`Đã chặn ${kq.nhan}. Ẩn ${kq.an_tin} tin${kq.go_viec ? `, gỡ ${kq.go_viec} việc chưa xong` : ''}.`);
+        } catch (e) { bao(e.message, { loi: true }); }
+        moMuc();
+      } });
+    }
+  }
+  if (!xong) {
+    muc.push({ vach: true }, { nhan: 'Hủy việc', nguy: true, lam: () => huyViec(v) });
+  }
+  return muc;
+}
+async function moTrinhDonViec(v, x, y) {
+  moTrinhDon({ x, y, muc: await mucTrinhDonViec(v), nhan: `Thao tác với việc: ${v.tieu_de}` });
+}
+
+// Làm mới êm: vẽ lại dữ liệu ngay tại chỗ, không hiện khung xương và không chạy lại hiệu ứng vào trang.
+let lamMoiEm = false;
+async function moMucEm() {
+  lamMoiEm = true;
+  try { await moMuc(); } finally { lamMoiEm = false; }
+}
+const dangOTrangViec = () => (location.hash.slice(1) || 'tong-quan').split('/')[0] === 'viec';
+function napSauKhiDoi() { return dangOTrangViec() ? napLaiViec() : moMucEm(); }
+const itChuyenDong = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Dòng việc mờ dần rồi thu chiều cao về 0, các dòng dưới trượt lên; trả về hàm gỡ hiệu ứng nếu cần hoàn lại.
+function rutGon(el) {
+  if (!el?.isConnected || itChuyenDong()) return { xong: Promise.resolve(), hoan: () => {} };
+  const cs = getComputedStyle(el);
+  const khoang = parseFloat(getComputedStyle(el.parentElement).rowGap) || 0;
+  const cu = el.getAttribute('style');
+  el.style.boxSizing = 'border-box';
+  el.style.height = `${el.offsetHeight}px`;
+  el.style.overflow = 'hidden';
+  el.style.pointerEvents = 'none';
+  el.style.transition = 'height .3s var(--em), opacity .22s, padding .3s var(--em), margin .3s var(--em), border-width .3s';
+  void el.offsetHeight;
+  Object.assign(el.style, { height: '0px', opacity: '0', paddingTop: '0px', paddingBottom: '0px', borderTopWidth: '0px', borderBottomWidth: '0px', marginBottom: `${-khoang}px` });
+  if (cs.display === 'grid') el.style.minHeight = '0';
+  return {
+    xong: new Promise((r) => setTimeout(r, 320)),
+    hoan: () => { if (cu == null) el.removeAttribute('style'); else el.setAttribute('style', cu); },
+  };
+}
+const timDongViec = (id) => [...document.querySelectorAll('.the-viec, .muc-viec')].find((e) => e._viec?.id === id);
+
+// Cập nhật lạc quan: ô tick và dòng việc đổi ngay, API chạy ngầm, lỗi thì hoàn lại.
+async function doiXong(v, xong, el) {
+  const rut = el ? rutGon(el) : null;
+  el?.classList.add('dang-xong');
+  try {
     await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: xong ? 'xong' : 'mo' }) });
     bao(xong ? `Đã xong: ${v.tieu_de}` : 'Đã mở lại việc.', { hanhDong: xong ? { nhan: 'Hoàn tác', lam: () => doiXong(v, false) } : null });
-    setTimeout(() => moMuc(), 350);
+    await rut?.xong;
+    await napSauKhiDoi();
   } catch (e) {
+    rut?.hoan();
     el?.classList.remove('dang-xong');
+    const o = el?.querySelector('.o-xong');
+    if (o) o.checked = !xong;
     bao(e.message, { loi: true });
   }
 }
+
+// Hủy việc (xóa khỏi danh sách) cũng thu dòng mượt rồi mới làm mới.
+async function huyViec(v) {
+  const rut = rutGon(timDongViec(v.id));
+  try {
+    await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'huy' }) });
+    bao(`Đã hủy: ${v.tieu_de}`, { hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'mo' }) }); await napSauKhiDoi(); } } });
+    await rut.xong;
+  } catch (e) {
+    rut.hoan();
+    bao(e.message, { loi: true });
+  }
+  await napSauKhiDoi();
+}
+
+// Biểu tượng nguồn tin; cuộc họp (ghi âm, biên bản) đứng tên cuộc họp thay cho người gửi.
+// Các nguồn tin của Hộp tin. Thêm nguồn mới: thêm một dòng ở đây (tên, biểu tượng), màu ở .huy-hieu.<mã> trong kieu.css.
+const NGUON_TIN = { zalo: { ten: 'Zalo', icon: 'zalo' }, gmail: { ten: 'Thư', icon: 'thu' }, hop: { ten: 'Họp', icon: 'ghi-am' } };
+const iconNguon = (nguon) => icon(NGUON_TIN[nguon]?.icon || 'thu');
+const tenGuiTin = (t) => (t.nguon === 'hop' ? t.tieu_de || 'Cuộc họp' : t.nguoi_gui || 'Không rõ');
+const dongPhuTin = (t) => (t.nguon === 'hop' ? 'Cuộc họp' : t.nhom ? tenNhom(t.nhom) : t.tieu_de);
 
 function bangTinMoi(ds) {
   const goc = h('section', { class: 'bang bang-tin-moi', 'aria-labelledby': 'tq-tin' },
     h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-tin' }, icon('hop-tin'), 'Tin mới'), h('a', { class: 'lien-ket-nho', href: '#hop-tin' }, 'Mở hộp tin', icon('mui-ten'))),
   );
   if (!ds.length) {
-    goc.append(h('div', { class: 'trong-trai', style: 'min-height:220px' }, icon('hop-tin'), h('h3', { text: 'Hộp tin còn trống' }), h('p', { text: 'Nối Zalo và chuyển tiếp thư ở trang Kết nối để tin bắt đầu về.' })));
+    goc.append(h('div', { class: 'trong-trai', style: 'min-height:220px' }, icon('hop-tin'), h('h3', { text: 'Hộp tin còn trống' }), h('p', { text: 'Nối Zalo và Google ở trang Kết nối để tin bắt đầu về.' })));
     return goc;
   }
   goc.append(h('ul', { class: 'ds-tin-ngan' }, ...ds.map((t) =>
     h('li', { class: t.da_xem ? '' : 'chua-xem' },
       h('a', { href: `#hop-tin/${t.id}` },
-        h('span', { class: `huy-hieu ${t.nguon}` }, icon(t.nguon === 'zalo' ? 'zalo' : 'thu')),
+        h('span', { class: `huy-hieu ${t.nguon}` }, iconNguon(t.nguon)),
         h('div', { style: 'min-width:0' },
-          h('div', { class: 'dong-1' }, h('strong', { text: t.nguoi_gui || 'Không rõ' }), h('span', { text: t.nhom || t.tieu_de || '' })),
+          h('div', { class: 'dong-1' }, h('strong', { text: tenGuiTin(t) }), h('span', { text: t.nguon === 'hop' ? 'Cuộc họp' : t.nhom || t.tieu_de || '' })),
           h('p', { text: trichTin(t.trich) }),
         ),
         h('time', { datetime: t.thoi_diem, text: luc(t.thoi_diem) }),
@@ -464,7 +800,7 @@ function nutSpam({ nguon, tuyChon, gui, sauKhi }) {
     try {
       const kq = await gui(chon);
       bao(`Đã chặn ${kq.nhan}. Ẩn ${kq.an_tin} tin${kq.go_viec ? `, gỡ ${kq.go_viec} việc chưa xong` : ''}. Bỏ chặn ở mục Đã chặn.`);
-      api('/api/tong-quan').then((k) => capNhatDem(k.so_lieu.tin_chua_xem, k.so_lieu.viec_mo)).catch(() => {});
+      lamMoiDem();
       sauKhi();
     } catch (e) {
       bao(e.message, { loi: true });
@@ -508,6 +844,19 @@ async function veDaChan(goc) {
 // =====================================================================
 // Hộp tin
 // =====================================================================
+// Hai nút đầu tin cuộc họp: nghe ghi âm và mở biên bản bằng khung xem của Drive.
+function nutCuocHop(tep) {
+  const laGhiAm = (f) => /\.(m4a|mp3|wav|webm|ogg|oga|aac|opus|flac|amr|caf)$/i.test(f.ten) || /^audio\//.test(f.loai || '');
+  const ghiAm = tep.find(laGhiAm);
+  const bienBan = tep.find((f) => !laGhiAm(f));
+  if (!ghiAm && !bienBan) return null;
+  const mo = (f) => () => { const k = kieuMo(f); if (k) moXemTep(f, k); else location.href = `/api/tep/${f.id}/tai`; };
+  return h('div', { class: 'hang-nut', style: 'margin:4px 0 18px' },
+    ghiAm ? h('button', { class: 'nut nut-chinh', type: 'button', onclick: mo(ghiAm) }, icon('ghi-am'), 'Nghe ghi âm') : null,
+    bienBan ? h('button', { class: 'nut nut-phu', type: 'button', onclick: mo(bienBan) }, icon('tep'), 'Mở biên bản') : null,
+  );
+}
+
 async function veHopTin(goc, thamSo) {
   const t = trang.tin;
   if (thamSo) t.chon = Number(thamSo);
@@ -515,7 +864,8 @@ async function veHopTin(goc, thamSo) {
   const khungDoc = h('div', { class: 'bang doc-tin', 'aria-live': 'polite' });
   const hop = h('div', { class: `hop-tin${t.chon && thamSo ? ' dang-doc' : ''}` }, khungDs, khungDoc);
 
-  const nutLoc = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(t.loc === ma), onclick: () => { t.loc = ma; veHopTin(goc); } }, nhan);
+  const nutLoc = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(t.loc === ma), onclick: () => { t.loc = ma; t.gio = null; veHopTin(goc); } }, nhan);
+  const nhanHomNay = t.loc === 'hom-nay' && t.gio != null ? `Hôm nay, ${t.gio}h - ${t.gio + 1}h` : 'Hôm nay';
   const oTim = h('input', { type: 'search', placeholder: 'Tìm người gửi, nhóm, nội dung…', value: t.q, 'aria-label': 'Tìm tin' });
   let hen;
   oTim.addEventListener('input', () => {
@@ -524,7 +874,7 @@ async function veHopTin(goc, thamSo) {
   });
   thay(goc, 
     h('div', { class: 'thanh-loc' },
-      nutLoc('tat-ca', 'Tất cả'), nutLoc('chua-xem', 'Chưa xem'), nutLoc('zalo', 'Zalo'), nutLoc('gmail', 'Thư'),
+      nutLoc('tat-ca', 'Tất cả'), nutLoc('hom-nay', nhanHomNay), nutLoc('chua-xem', 'Chưa xem'), ...Object.entries(NGUON_TIN).map(([ma, n]) => nutLoc(ma, n.ten)),
       h('button', { class: 'chip', type: 'button', onclick: async () => { await api('/api/tin/da-xem-het', { method: 'POST' }); bao('Đã đánh dấu xem hết.'); capNhatDem(0); veHopTin(goc); } }, 'Đánh dấu xem hết'),
       h('label', { class: 'o-tim' }, icon('tim'), oTim),
     ),
@@ -534,7 +884,9 @@ async function veHopTin(goc, thamSo) {
   async function napDs() {
     const q = new URLSearchParams();
     if (t.loc === 'chua-xem') q.set('chua_xem', '1');
-    if (t.loc === 'zalo' || t.loc === 'gmail') q.set('nguon', t.loc);
+    if (t.loc === 'hom-nay') q.set('hom_nay', '1');
+    if (t.loc === 'hom-nay' && t.gio != null) q.set('gio', String(t.gio));
+    if (NGUON_TIN[t.loc]) q.set('nguon', t.loc);
     if (t.q) q.set('q', t.q);
     try {
       const { tin } = await api(`/api/tin?${q}`);
@@ -550,21 +902,30 @@ async function veHopTin(goc, thamSo) {
 
   function veDs() {
     if (!t.ds.length) {
-      thay(khungDs, h('div', { class: 'trong-trai' }, icon('hop-tin'), h('h3', { text: t.q ? 'Không tìm thấy tin nào' : 'Chưa có tin' }), h('p', { text: t.q ? 'Thử từ khóa khác.' : 'Tin Zalo và thư chuyển tiếp sẽ về đây.' })));
+      thay(khungDs, h('div', { class: 'trong-trai' }, icon('hop-tin'), h('h3', { text: t.q ? 'Không tìm thấy tin nào' : 'Chưa có tin' }), h('p', { text: t.q ? 'Thử từ khóa khác.' : 'Tin Zalo, thư Gmail và biên bản họp sẽ về đây.' })));
       return;
     }
-    thay(khungDs, h('ul', {}, ...t.ds.map((x) =>
-      h('li', { class: x.da_xem ? '' : 'chua-xem' },
+    thay(khungDs, h('ul', {}, ...t.ds.map((x) => {
+      const li = h('li', { class: x.da_xem ? '' : 'chua-xem' },
         h('button', { type: 'button', 'aria-current': String(x.id === t.chon), dataset: { id: x.id }, onclick: () => { location.hash = `hop-tin/${x.id}`; } },
-          h('span', { class: `huy-hieu ${x.nguon}` }, icon(x.nguon === 'zalo' ? 'zalo' : 'thu')),
+          h('span', { class: `huy-hieu ${x.nguon}` }, iconNguon(x.nguon)),
           h('div', { style: 'min-width:0' },
-            h('div', { class: 'dong-1' }, h('strong', { text: x.nguoi_gui || 'Không rõ' }), h('time', { datetime: x.thoi_diem, text: luc(x.thoi_diem) })),
-            (x.nhom || x.tieu_de) ? h('div', { class: 'noi', text: x.nhom ? tenNhom(x.nhom) : x.tieu_de }) : null,
+            h('div', { class: 'dong-1' }, h('strong', { text: tenGuiTin(x) }), h('time', { datetime: x.thoi_diem, text: luc(x.thoi_diem) })),
+            dongPhuTin(x) ? h('div', { class: 'noi', text: dongPhuTin(x) }) : null,
             h('p', { text: trichTin(x.trich) }),
             (x.so_tep || x.so_viec) ? h('div', { class: 'the-nho' }, x.so_tep ? h('span', { text: `${x.so_tep} tệp` }) : null, x.so_viec ? h('span', { class: 'viec', text: `${x.so_viec} việc` }) : null) : null,
           ),
         ),
-      ))));
+      );
+      li._td = () => ({ nhan: `Thao tác với tin của ${x.nguoi_gui || 'người gửi'}`, muc: [
+        { nhan: 'Mở tin', lam: () => { location.hash = `hop-tin/${x.id}`; } },
+        { nhan: 'Tạo việc từ tin này', lam: () => moNganViec(null, { tieu_de: '', ghi_chu: `Từ ${x.nguoi_gui || ''}: ${trichTin(x.trich)}` }) },
+        { nhan: 'Sao chép đoạn trích', lam: () => chepChu(trichTin(x.trich)) },
+        { vach: true },
+        { nhan: 'Spam nguồn này', nguy: true, lam: () => chanTuTin(x) },
+      ] });
+      return li;
+    })));
   }
 
   function trongDoc() {
@@ -591,11 +952,12 @@ async function veHopTin(goc, thamSo) {
       if (!(chan || []).length) spam.nut.hidden = true;
       thay(khungDoc, 
         h('button', { class: 'nut nut-phu nut-nho nut-quay', type: 'button', text: 'Quay lại danh sách', onclick: () => { t.chon = null; location.hash = 'hop-tin'; } }),
-        h('div', { class: 'nguon' }, h('span', { class: `huy-hieu ${tin.nguon}` }, icon(tin.nguon === 'zalo' ? 'zalo' : 'thu')), tin.nguon === 'zalo' ? (tin.nhom ? `Zalo, ${tenNhom(tin.nhom)}` : 'Zalo, tin riêng') : 'Thư chuyển tiếp'),
-        h('h2', { text: tin.tieu_de && tin.nguon === 'gmail' ? tin.tieu_de : tin.nguoi_gui || 'Không rõ người gửi' }),
+        h('div', { class: 'nguon' }, h('span', { class: `huy-hieu ${tin.nguon}` }, iconNguon(tin.nguon)), tin.nguon === 'zalo' ? (tin.nhom ? `Zalo, ${tenNhom(tin.nhom)}` : 'Zalo, tin riêng') : tin.nguon === 'hop' ? 'Cuộc họp' : 'Thư Gmail'),
+        h('h2', { text: tin.nguon === 'hop' ? tin.tieu_de || 'Cuộc họp' : tin.tieu_de && tin.nguon === 'gmail' ? tin.tieu_de : tin.nguoi_gui || 'Không rõ người gửi' }),
         h('p', { class: 'meta', text: `${tin.nguon === 'gmail' ? `Từ ${tin.nguoi_gui || 'không rõ'}, ` : ''}${fmt.ngayGio.format(new Date(tin.thoi_diem))}` }),
+        tin.nguon === 'hop' ? nutCuocHop(tep) : null,
         h('div', { class: 'than', text: tin.noi_dung || '(Không có nội dung)' }),
-        tep.length ? h('div', { class: 'khoi' }, h('h3', { text: 'Tệp đính kèm' }), ...tep.map((f) => h('a', { class: 'tep-dinh', href: `/api/tep/${f.id}/tai`, onclick: (ev) => { const k = kieuMo(f); if (k && !ev.ctrlKey && !ev.metaKey) { ev.preventDefault(); moXemTep(f, k); } } }, icon('tai'), f.ten, h('small', { text: kichThuoc(f.kich_thuoc) })))) : null,
+        tep.length ? h('div', { class: 'khoi' }, h('h3', { text: tin.nguon === 'hop' ? 'Ghi âm và biên bản' : 'Tệp đính kèm' }), ...tep.map((f) => h('a', { class: 'tep-dinh', href: `/api/tep/${f.id}/tai`, onclick: (ev) => { const k = kieuMo(f); if (k && !ev.ctrlKey && !ev.metaKey) { ev.preventDefault(); moXemTep(f, k); } } }, icon('tai'), f.ten, h('small', { text: kichThuoc(f.kich_thuoc) })))) : null,
         h('div', { class: 'khoi' },
           h('h3', { text: viec.length ? 'Việc tách từ tin này' : 'Chưa có việc nào từ tin này' }),
           ...viec.map((v) => h('div', { class: 'muc-viec' }, h('span', { class: `nhan-kq ${v.trang_thai === 'xong' ? 'xong' : 'dang_chay'}`, text: v.trang_thai === 'xong' ? 'Xong' : 'Mở' }), h('button', { class: 'ten-viec', type: 'button', text: v.tieu_de, onclick: () => moNganViec(v) }), v.han_ngay ? h('span', { class: 'chip-gio', text: `${ngayHienThi(v.han_ngay)}${v.gio_hen ? ` ${v.gio_hen}` : ''}` }) : h('span'))),
@@ -606,7 +968,7 @@ async function veHopTin(goc, thamSo) {
           spam.khung,
         ),
       );
-      api('/api/tong-quan').then((kq) => capNhatDem(kq.so_lieu.tin_chua_xem, kq.so_lieu.viec_mo)).catch(() => {});
+      lamMoiDem();
     } catch (e) {
       thay(khungDoc, khungLoi(e, () => docTin(id)));
     }
@@ -628,6 +990,7 @@ function nhanNguon(v) {
   const ai = (v.tin_nhom || v.tin_nguoi_gui || '').split('<')[0].trim();
   if (ma === 'zalo') return { ma, icon: 'zalo', chu: ai ? `Zalo · ${ai}` : 'Zalo' };
   if (ma === 'gmail') return { ma, icon: 'thu', chu: ai ? `Gmail · ${ai}` : 'Gmail' };
+  if (ma === 'hop') return { ma, icon: 'ghi-am', chu: 'Cuộc họp' };
   if (ma === 'telegram') return { ma, icon: 'telegram', chu: 'Telegram' };
   if (ma === 'api') return { ma, icon: 'ai', chu: 'Dịch vụ ngoài' };
   return { ma: 'tay', icon: 'cong', chu: 'Tự thêm' };
@@ -659,8 +1022,15 @@ async function veViec(goc) {
   const tab = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.tab === ma), onclick: () => { v.tab = ma; veViec(goc); } }, nhan);
   const vung = h('div', { class: 'cot-viec-wrap' }, ...[1, 2, 3].map(() => h('div', { class: 'cot-viec', style: 'padding:16px' }, xuong(16, '40%'), h('div', { style: 'height:14px' }), xuong(70), h('div', { style: 'height:8px' }), xuong(70))));
   const locDuAn = h('div', { class: 'thanh-loc loc-du-an', 'aria-label': 'Lọc theo dự án' });
-  const xem = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.xem === ma), onclick: () => { v.xem = ma; veViec(goc); } }, nhan);
-  thay(goc, form, h('div', { class: 'thanh-loc' }, tab('mo', 'Đang mở'), tab('xong', 'Đã xong'), v.tab === 'mo' ? h('span', { class: 'gian' }) : null, v.tab === 'mo' ? xem('han', 'Theo hạn') : null, v.tab === 'mo' ? xem('du-an', 'Theo dự án') : null, v.tab === 'mo' && v.xem === 'du-an' ? h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.anTrong), title: 'Ẩn các cột dự án chưa có việc', onclick: () => { v.anTrong = !v.anTrong; napViec(); } }, 'Ẩn cột trống') : null), locDuAn, vung);
+  const chon = (khoa, nhan, ds) => h('label', { class: 'chon-loc' }, h('span', { text: nhan }), h('select', { 'aria-label': nhan, onchange: (e) => { v[khoa] = e.target.value; napViec(); } }, ...ds.map(([ma, ten]) => h('option', { value: ma, selected: v[khoa] === ma, text: ten }))));
+  const locKhac = v.tab === 'mo' ? h('div', { class: 'thanh-loc loc-khac', 'aria-label': 'Bộ lọc việc' },
+    chon('nguon', 'Nguồn', [['tat-ca', 'Tất cả'], ['zalo', 'Zalo'], ['gmail', 'Gmail'], ['hop', 'Cuộc họp'], ['tay', 'Tự thêm']]),
+    chon('han', 'Hạn', [['tat-ca', 'Tất cả'], ['qua-han', 'Quá hạn'], ['hom-nay', 'Hôm nay'], ['tuan', 'Tuần này'], ['khong', 'Chưa có hạn']]),
+    chon('nang', 'Độ nặng', [['tat-ca', 'Tất cả'], ['nhe', 'Nhẹ'], ['vua', 'Vừa'], ['nang', 'Nặng'], ['rat_nang', 'Rất nặng']]),
+    h('button', { class: 'chip chip-sao', type: 'button', 'aria-pressed': String(v.chiSao), onclick: () => { v.chiSao = !v.chiSao; veViec(goc); } }, icon('sao'), 'Có sao'),
+  ) : null;
+  const xem = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.xem === ma), onclick: () => { v.xem = ma; try { localStorage.setItem('sp.viec.xem', ma); } catch {} veViec(goc); } }, nhan);
+  thay(goc, form, h('div', { class: 'thanh-loc' }, tab('mo', 'Đang mở'), tab('xong', 'Đã xong'), v.tab === 'mo' ? h('span', { class: 'gian' }) : null, v.tab === 'mo' ? xem('han', 'Theo hạn') : null, v.tab === 'mo' ? xem('du-an', 'Theo dự án') : null, v.tab === 'mo' && v.xem === 'du-an' ? h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.anTrong), title: 'Ẩn các cột dự án chưa có việc', onclick: () => { v.anTrong = !v.anTrong; napViec(); } }, 'Ẩn cột trống') : null), locDuAn, locKhac, vung);
   batKeoTha(vung, { khiTha: (d) => khiThaViec(d, v, napViec), nhanDuoc: (ma) => ma !== 'qua-han' && v.tab === 'mo',
     khiThaCot: async (ids) => {
       try { await api('/api/du-an/sap-xep', { method: 'POST', body: JSON.stringify({ ids }) }); bao('Đã lưu thứ tự dự án.'); } catch (err) { bao(err.message, { loi: true }); }
@@ -669,9 +1039,9 @@ async function veViec(goc) {
 
   function veLoc(viec) {
     const dem = (f) => viec.filter(f).length;
-    const chip = (ma, nhan, so, mau) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.duAn === ma), onclick: () => { v.duAn = ma; napViec(); } }, hexMau(mau) ? h('i', { class: 'cham-mau', style: `--mau:${hexMau(mau)}` }) : null, nhan, h('b', { text: String(so) }));
+    const chip = (ma, nhan, so, mau, da) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.duAn === ma), onclick: () => { v.duAn = ma; napViec(); } }, da && (da.icon || da.anh_khoa) ? anhDuAn(h, da, 'nho') : hexMau(mau) ? h('i', { class: 'cham-mau', style: `--mau:${hexMau(mau)}` }) : null, nhan, h('b', { text: String(so) }));
     const ds = duAnDs.filter((d) => viec.some((x) => x.du_an_id === d.id) || v.duAn === d.id);
-    thay(locDuAn, chip('tat-ca', 'Tất cả dự án', viec.length), ...ds.map((d) => chip(d.id, d.ten, dem((x) => x.du_an_id === d.id), d.mau)), dem((x) => !x.du_an_id) ? chip('khong', 'Chưa xếp dự án', dem((x) => !x.du_an_id)) : null);
+    thay(locDuAn, chip('tat-ca', 'Tất cả dự án', viec.length), ...ds.map((d) => chip(d.id, d.ten, dem((x) => x.du_an_id === d.id), d.mau, d)), dem((x) => !x.du_an_id) ? chip('khong', 'Chưa xếp dự án', dem((x) => !x.du_an_id)) : null);
   }
 
   async function napViec() {
@@ -680,7 +1050,10 @@ async function veViec(goc) {
       duAnDs = dsDa.du_an;
       if (v.tab === 'mo') capNhatDem(null, tatCa.length);
       veLoc(tatCa);
-      const viec = v.duAn === 'tat-ca' ? tatCa : tatCa.filter((x) => (v.duAn === 'khong' ? !x.du_an_id : x.du_an_id === v.duAn));
+      const hn2 = hn;
+      const hanKhop = { 'qua-han': (x) => x.han_ngay && x.han_ngay < hn2, 'hom-nay': (x) => x.han_ngay === hn2, tuan: (x) => x.han_ngay && x.han_ngay >= hn2 && x.han_ngay <= congNgay(hn2, 7), khong: (x) => !x.han_ngay }[v.han];
+      const viec = tatCa.filter((x) => (v.duAn === 'tat-ca' || (v.duAn === 'khong' ? !x.du_an_id : x.du_an_id === v.duAn))
+        && (v.tab !== 'mo' || ((v.nguon === 'tat-ca' || nhanNguon(x).ma === v.nguon) && (!hanKhop || hanKhop(x)) && (v.nang === 'tat-ca' || x.do_nang === v.nang) && (!v.chiSao || x.sao))));
       cacViec = new Map(tatCa.map((x) => [x.id, x]));
       homNayCuaViec = hn;
       thay(vung, ...(v.tab === 'mo' ? (v.xem === 'du-an' ? cotTheoDuAn(viec, hn) : cotTheoHan(viec, hn)) : [cotXong(viec)]));
@@ -688,6 +1061,7 @@ async function veViec(goc) {
       thay(vung, khungLoi(e, napViec));
     }
   }
+  napLaiViec = napViec;
   napViec();
 }
 
@@ -711,12 +1085,26 @@ function cotTheoHan(ds, hn) {
     ));
 }
 
+// Nút Claude ở đầu cột dự án: giao các việc đang mở của dự án (gộp một lượt hoặc từng việc).
+function nutClaudeCot(c) {
+  const mo = c.ds.filter((x) => x.trang_thai === 'mo' && !['cho', 'dang_lam'].includes(x.claude_trang_thai));
+  if (!c.id || !mo.length) return null;
+  return h('button', { class: 'nut-claude-cot', type: 'button', 'aria-label': `Giao Claude cả dự án ${c.ten} (${mo.length} việc)`, ...meo(`Giao Claude làm ${mo.length} việc đang mở của dự án, gộp một lượt hoặc từng việc.`), onclick: () => giaoClaudeNhanh(mo, c.ten) }, icon('ai'));
+}
+
 function cotTheoDuAn(ds, hn) {
-  const cot = [...duAnDs.map((d) => ({ ma: `da-${d.id}`, ten: d.ten, mau: d.mau, loc: (x) => x.du_an_id === d.id })), { ma: 'da-khong', ten: 'Chưa xếp dự án', loc: (x) => !x.du_an_id }];
-  return cot.map((c) => ({ ...c, ds: ds.filter(c.loc) })).filter((c) => !(trang.viec.anTrong && !c.ds.length && c.ma !== 'da-khong')).map((c) => h('section', { class: 'cot-viec', dataset: { cot: c.ma }, 'aria-label': c.ten, ...(hexMau(c.mau) ? { style: `--mau:${hexMau(c.mau)}` } : {}) },
-    h('header', {}, h('h2', { text: c.ten }), h('span', { text: String(c.ds.length) })),
-    c.ds.length ? h('ul', {}, ...c.ds.map((x) => theViec(x, hn))) : h('p', { class: 'cot-trong', text: 'Kéo việc vào đây.' }),
-  ));
+  const cot = [...duAnDs.map((d) => ({ ma: `da-${d.id}`, id: d.id, sao: d.sao, drive_link: d.drive_link, drive_kho_id: d.drive_kho_id, ten: d.ten, mau: d.mau, icon: d.icon, anh_khoa: d.anh_khoa, loc: (x) => x.du_an_id === d.id })), { ma: 'da-khong', ten: 'Chưa xếp dự án', loc: (x) => !x.du_an_id }];
+  return cot.map((c) => ({ ...c, ds: ds.filter(c.loc) })).filter((c) => !(trang.viec.anTrong && !c.ds.length && c.ma !== 'da-khong')).map((c) => {
+    const muc = () => (c.id ? mucTrinhDonDuAn(c, { ds: c.ds, cot: true }) : [{ nhan: 'Thêm việc chưa xếp dự án', lam: () => moNganViec(null) }]);
+    const baCham = h('button', { class: 'nut-ba-cham nut-menu-cot', type: 'button', 'aria-label': `Thao tác với ${c.ten}`, 'aria-haspopup': 'menu', title: 'Thao tác' }, icon('ba-cham'));
+    baCham.addEventListener('click', (ev) => { ev.stopPropagation(); const r = baCham.getBoundingClientRect(); moTrinhDon({ x: r.left, y: r.bottom + 4, muc: muc(), nhan: `Thao tác với ${c.ten}` }); });
+    const el = h('section', { class: `cot-viec${c.id && cotThu.has(c.id) ? ' thu-gon' : ''}`, dataset: { cot: c.ma }, 'aria-label': c.ten, ...(hexMau(c.mau) ? { style: `--mau:${hexMau(c.mau)}` } : {}) },
+      h('header', {}, h('h2', {}, c.id ? anhDuAn(h, c, 'nho') : null, c.ten), h('span', { class: 'dau-cot' }, nutClaudeCot(c), c.id ? nutSao(Boolean(c.sao), `dự án ${c.ten}`, () => saoDuAn(c.id, !c.sao)) : null, h('span', { text: String(c.ds.length) }), baCham)),
+      c.ds.length ? h('ul', {}, ...c.ds.map((x) => theViec(x, hn))) : h('p', { class: 'cot-trong', text: 'Kéo việc vào đây.' }),
+    );
+    el._td = () => ({ muc: muc(), nhan: `Thao tác với ${c.ten}` });
+    return el;
+  });
 }
 
 // Thả thẻ vào cột: đổi hạn (xem theo hạn) hoặc đổi dự án (xem theo dự án), rồi lưu thứ tự cột đích.
@@ -752,10 +1140,129 @@ function cotXong(ds) {
   );
 }
 
+let napLaiViec = () => {};
+function nutSao(bat, ten, khiBam) {
+  const n = h('button', { class: `nut-sao${bat ? ' co-sao' : ''}`, type: 'button', 'aria-pressed': String(bat), 'aria-label': `${bat ? 'Bỏ sao' : 'Gắn sao'} ${ten}`, title: bat ? 'Bỏ sao' : 'Gắn sao' }, icon('sao'));
+  n.addEventListener('click', (ev) => { ev.stopPropagation(); khiBam(); });
+  return n;
+}
+async function saoDuAn(id, bat) {
+  try { await api(`/api/du-an/${id}`, { method: 'PATCH', body: JSON.stringify({ sao: bat }) }); } catch (e) { bao(e.message, { loi: true }); }
+  napLaiViec();
+}
+async function saoViec(v, bat) {
+  try { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ sao: bat }) }); } catch (e) { bao(e.message, { loi: true }); }
+  napLaiViec();
+}
+
+// Nút Claude trên thẻ: chưa giao thì mở khung giao; đã giao thì nhãn trạng thái mở chi tiết để xem kết quả hoặc trả lời câu hỏi.
+// ---------- Trình đơn chuột phải cho mọi đối tượng ----------
+const chepChu = (van, loiNhan = 'Đã chép.') => navigator.clipboard?.writeText(van).then(() => bao(loiNhan), () => bao('Trình duyệt chặn chép.', { loi: true }));
+let cotThu = new Set();
+try { cotThu = new Set(JSON.parse(localStorage.getItem('sp.cot.thu') || '[]')); } catch {}
+function datThuGon(id, bat) {
+  if (bat) cotThu.add(id); else cotThu.delete(id);
+  try { localStorage.setItem('sp.cot.thu', JSON.stringify([...cotThu])); } catch {}
+  napLaiViec();
+}
+async function suaDuAnNhanh(d, thanThay, loiNhan) {
+  try {
+    await api(`/api/du-an/${d.id}`, { method: 'PATCH', body: JSON.stringify(thanThay) });
+    if (loiNhan) bao(loiNhan);
+  } catch (e) { bao(e.message, { loi: true }); }
+  moMuc();
+}
+// Lưu mọi thứ của dự án vào thư mục Drive riêng: bật (tự tạo thư mục), lưu lại toàn bộ, tắt.
+async function driveDuAn(d, kieu) {
+  try {
+    if (kieu === 'bat') {
+      bao('Đang tạo thư mục Drive cho dự án…');
+      const r = await api(`/api/du-an/${d.id}/drive-kho`, { method: 'POST' });
+      bao('Đã bật lưu dự án vào Drive. Thư, tin Zalo, tệp, kết quả Claude, lịch và lịch sử sẽ về thư mục trong vài phút.', { hanhDong: { nhan: 'Mở thư mục', lam: () => window.open(r.link, '_blank', 'noopener') } });
+    } else if (kieu === 'dong-bo') {
+      bao('Đang lưu lại toàn bộ vào Drive…');
+      const r = await api(`/api/du-an/${d.id}/drive-kho/dong-bo`, { method: 'POST' });
+      bao(r.so ? `Đã lưu ${r.so} mục vào Drive. Nếu dự án còn nhiều tệp, phần còn lại tự về trong các lượt sau.` : 'Đã kiểm, Drive đã đủ.');
+    } else if (kieu === 'tat') {
+      if (!confirm(`Tắt lưu "${d.ten}" vào Drive? Thư mục và tệp đã lưu vẫn còn nguyên trên Drive.`)) return;
+      await api(`/api/du-an/${d.id}/drive-kho`, { method: 'DELETE' });
+      bao('Đã tắt lưu vào Drive.');
+    } else if (kieu === 'link') {
+      const link = prompt('Dán link thư mục Drive có sẵn (chỉ để bấm mở; Sonicplan không ghi vào thư mục này)', d.drive_link || '');
+      if (link === null) return;
+      await api(`/api/du-an/${d.id}`, { method: 'PATCH', body: JSON.stringify({ drive_link: link }) });
+      bao('Đã lưu link thư mục.');
+    }
+  } catch (e) { bao(e.message, { loi: true }); }
+  moMuc();
+}
+function mucTrinhDonDuAn(d, { ds = [], cot = false } = {}) {
+  const moDs = ds.filter((x) => x.trang_thai === 'mo' && !['cho', 'dang_lam'].includes(x.claude_trang_thai));
+  const thu = cotThu.has(d.id);
+  return [
+    { nhan: 'Thêm việc vào dự án', lam: () => moNganViec(null, { du_an_id: d.id }) },
+    { nhan: 'Xem lịch sử dự án', lam: () => { location.hash = `du-an/${d.id}`; } },
+    cot && moDs.length ? { nhan: `Giao Claude cả dự án (${moDs.length} việc)`, lam: () => giaoClaudeNhanh(moDs, d.ten) } : null,
+    { nhan: d.sao ? 'Bỏ sao' : 'Gắn sao', lam: () => (cot ? saoDuAn(d.id, !d.sao) : suaDuAnNhanh(d, { sao: !d.sao }, d.sao ? 'Đã bỏ sao.' : 'Đã gắn sao.')) },
+    cot ? { nhan: thu ? 'Mở rộng cột' : 'Thu gọn cột', lam: () => datThuGon(d.id, !thu) } : null,
+    { vach: true },
+    d.drive_link ? { nhan: 'Mở thư mục Drive', lam: () => window.open(d.drive_link, '_blank', 'noopener') } : null,
+    d.drive_kho_id
+      ? { nhan: 'Đồng bộ lại toàn bộ vào Drive', lam: () => driveDuAn(d, 'dong-bo') }
+      : { nhan: 'Lưu dự án vào Drive (tự tạo thư mục)', lam: () => driveDuAn(d, 'bat') },
+    { nhan: d.drive_link ? 'Đổi link thư mục Drive' : 'Dán link thư mục Drive có sẵn', lam: () => driveDuAn(d, 'link') },
+    d.drive_kho_id ? { nhan: 'Tắt lưu vào Drive', lam: () => driveDuAn(d, 'tat') } : null,
+    { vach: true },
+    { nhan: 'Đổi tên', lam: () => { const ten = (prompt('Tên dự án', d.ten) || '').trim(); if (ten && ten !== d.ten) suaDuAnNhanh(d, { ten }, 'Đã đổi tên dự án.'); } },
+    { nhan: 'Đổi biểu tượng', con: [{ node: oChonIcon(h, d.icon || null, (bt) => { dongTrinhDon(); suaDuAnNhanh(d, { icon: bt }, 'Đã đổi biểu tượng dự án.'); }, { nhan: `Biểu tượng của ${d.ten}` }) }] },
+    { nhan: d.anh_khoa ? 'Đổi ảnh đại diện…' : 'Tải ảnh đại diện…', lam: () => chonVaTaiAnh(d, { bao, xong: () => moMuc() }) },
+    d.anh_khoa ? { nhan: 'Gỡ ảnh đại diện', lam: async () => { try { await boAnh(d.id); bao('Đã gỡ ảnh.'); } catch (e) { bao(e.message, { loi: true }); } moMuc(); } } : null,
+    { nhan: 'Đổi màu', con: [{ node: oChonMau(h, d.mau || null, (ma) => { dongTrinhDon(); suaDuAnNhanh(d, { mau: ma || null }, 'Đã đổi màu dự án.'); }, { nhan: `Màu của ${d.ten}` }) }] },
+    { vach: true },
+    { nhan: 'Gỡ dự án', nguy: true, lam: async () => {
+      if (!confirm(`Gỡ dự án "${d.ten}"? Các việc vẫn còn, chỉ mất nhãn dự án.`)) return;
+      try { await api(`/api/du-an/${d.id}`, { method: 'DELETE' }); bao('Đã gỡ dự án.'); } catch (e) { bao(e.message, { loi: true }); }
+      moMuc();
+    } },
+  ];
+}
+async function chanTuTin(tin) {
+  if (!confirm('Chặn nguồn của tin này? Tin cũ của nguồn sẽ ẩn, việc chưa xong sinh từ đó sẽ gỡ, và AI không tạo việc từ nguồn này nữa. Bỏ chặn ở Hộp tin, mục Đã chặn.')) return;
+  try {
+    const kq = await api('/api/chan', { method: 'POST', body: JSON.stringify({ tin_id: tin.id }) });
+    bao(`Đã chặn ${kq.nhan}. Ẩn ${kq.an_tin} tin${kq.go_viec ? `, gỡ ${kq.go_viec} việc chưa xong` : ''}.`);
+  } catch (e) { bao(e.message, { loi: true }); }
+  moMuc();
+}
+function mucChung() {
+  const o = [
+    { nhan: 'Thêm việc', lam: () => moNganViec(null) },
+    { nhan: 'Mở bảng lệnh (Ctrl K)', lam: () => moBangLenh() },
+    { nhan: 'Tải lại dữ liệu trang', lam: () => { moMuc(); bao('Đã tải lại.'); } },
+    { vach: true },
+    { nhan: 'Đi tới', con: NHOM.map((n) => ({ nhan: n.ten, lam: () => { location.hash = n.con[0]; } })) },
+  ];
+  if ((location.hash.slice(1) || 'tong-quan').split('/')[0] === 'tong-quan' && boCucTQ) o.push({ nhan: 'Tinh chỉnh Tổng quan', lam: () => moTinhChinh(boCucTQ) });
+  return o;
+}
+
+function giaoClaudeNhanh(ds, duAn = null) {
+  moKhungGiaoClaude(ds, { h, api, bao, icon, duAn, sauKhiGiao: () => napLaiViec() });
+}
+function nutClaudeThe(v) {
+  if (v.claude_trang_thai) {
+    return h('button', { class: `nhan-claude ${v.claude_trang_thai}`, type: 'button', text: CHU_TRANG_THAI[v.claude_trang_thai], 'aria-label': `${CHU_TRANG_THAI[v.claude_trang_thai]}: ${v.tieu_de}. Mở để xem`, onclick: () => moNganViec(v) });
+  }
+  if (v.trang_thai !== 'mo') return null;
+  return h('button', { class: 'nhan-claude giao', type: 'button', 'aria-label': `Giao Claude: ${v.tieu_de}`, ...meo('Giao việc này cho Claude Code làm. Claude hỏi lại nếu việc chưa rõ.'), onclick: () => giaoClaudeNhanh([v]) }, icon('ai'), 'Claude');
+}
+
 function theViec(v, hn) {
   const o = h('input', { class: 'o-xong', type: 'checkbox', checked: v.trang_thai === 'xong', 'aria-label': `${v.trang_thai === 'xong' ? 'Mở lại' : 'Đánh dấu xong'}: ${v.tieu_de}` });
   const mau = mauViec(v);
-  const the = h('li', { class: `the-viec${mau ? ' co-mau' : ''}`, dataset: { id: String(v.id) }, ...(mau ? { style: `--mau:${mau}` } : {}) },
+  const baCham = h('button', { class: 'nut-ba-cham', type: 'button', 'aria-label': `Thao tác với việc: ${v.tieu_de}`, 'aria-haspopup': 'menu', title: 'Thao tác' }, icon('ba-cham'));
+  baCham.addEventListener('click', (ev) => { ev.stopPropagation(); const r = baCham.getBoundingClientRect(); moTrinhDonViec(v, r.left, r.bottom + 4); });
+  const the = h('li', { class: `the-viec${mau ? ' co-mau' : ''}${v.sao ? ' co-sao' : ''}`, dataset: { id: String(v.id) }, ...(mau ? { style: `--mau:${mau}` } : {}) },
     o,
     h('div', { style: 'min-width:0' },
       h('button', { class: 'ten-viec', type: 'button', text: v.tieu_de, onclick: () => moNganViec(v) }),
@@ -764,12 +1271,15 @@ function theViec(v, hn) {
         v.han_ngay ? h('span', { class: hn && v.han_ngay < hn ? 'tre' : '' }, icon('lich'), ngayHienThi(v.han_ngay)) : null,
         v.gio_hen ? h('span', {}, icon('dong-ho'), v.gio_hen) : null,
         h('span', { class: `nguon ${nhanNguon(v).ma}`, title: `Nguồn: ${v.tin_nhom || v.tin_nguoi_gui || nhanNguon(v).chu}` }, icon(nhanNguon(v).icon), nhanNguon(v).chu),
-        v.du_an_ten ? h('a', { class: 'nhan-du-an', href: `#du-an/${v.du_an_id}`, title: 'Xem lịch sử dự án' }, icon('du-an'), v.du_an_ten) : h('span', { class: 'nhan-du-an chua', text: 'Chưa xếp dự án' }),
+        v.du_an_ten ? h('a', { class: 'nhan-du-an', href: `#du-an/${v.du_an_id}`, title: 'Xem lịch sử dự án' }, v.du_an_icon || v.du_an_anh ? anhDuAn(h, v, 'nho') : icon('du-an'), v.du_an_ten) : h('span', { class: 'nhan-du-an chua', text: 'Chưa xếp dự án' }),
         v.xong_luc ? h('span', {}, `Xong ${luc(v.xong_luc)}`) : null,
-        v.claude_trang_thai ? h('span', { class: `nhan-claude ${v.claude_trang_thai}`, text: CHU_TRANG_THAI[v.claude_trang_thai] }) : null,
+        nutClaudeThe(v),
       ),
     ),
   );
+  the.append(nutSao(Boolean(v.sao), `việc ${v.tieu_de}`, () => saoViec(v, !v.sao)), baCham);
+  the._viec = v;
+  the._td = async () => ({ muc: await mucTrinhDonViec(v), nhan: `Thao tác với việc: ${v.tieu_de}` });
   o.addEventListener('change', () => doiXong(v, o.checked, the));
   return the;
 }
@@ -793,7 +1303,7 @@ function moNganViec(v, macDinh = {}) {
   mauDangChon = du.mau || null;
   thay(document.getElementById('mau-viec-hang'), oChonMau(h, mauDangChon, (m) => { mauDangChon = m; }, { coKhong: true, nhan: 'Màu riêng của việc' }));
   if (!duAnDs.length) api('/api/du-an').then((r) => { duAnDs = r.du_an; thay(chon, h('option', { value: '', text: 'Chưa xếp dự án' }), ...duAnDs.map((d) => h('option', { value: String(d.id), text: d.ten }))); chon.value = du.du_an_id ? String(du.du_an_id) : ''; }).catch(() => {});
-  veKhoiClaude(document.getElementById('khoi-claude'), v, { h, api, bao, luc, sauKhiDat: () => { ngan.close(); moMuc(); } });
+  veKhoiClaude(document.getElementById('khoi-claude'), v, { h, api, bao, luc, icon, sauKhiDat: () => { ngan.close(); moMuc(); } });
   ngan.showModal();
   formViec.elements.tieu_de.focus();
 }
@@ -830,14 +1340,8 @@ formViec.addEventListener('submit', async (e) => {
 document.getElementById('nut-huy-viec').addEventListener('click', async () => {
   if (!viecDangSua) return;
   const v = viecDangSua;
-  try {
-    await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'huy' }) });
-    ngan.close();
-    bao(`Đã hủy: ${v.tieu_de}`, { hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'mo' }) }); moMuc(); } } });
-    moMuc();
-  } catch (err) {
-    bao(err.message, { loi: true });
-  }
+  ngan.close();
+  huyViec(v);
 });
 document.getElementById('nut-them-viec').addEventListener('click', () => moNganViec(null));
 
@@ -863,7 +1367,7 @@ function kieuXemTep(ten) {
 }
 
 // Tệp đã nằm trên Drive thì mở thẳng bằng trình xem của Drive (Word, Excel, PowerPoint, PDF); ảnh vẫn xem bản lưu.
-const DUOI_DRIVE = ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'pdf', 'odt', 'rtf', 'csv'];
+const DUOI_DRIVE = ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'pdf', 'odt', 'rtf', 'csv', 'md', 'txt', 'm4a', 'mp3', 'wav', 'webm', 'ogg', 'oga', 'aac', 'opus', 'flac', 'amr', 'caf'];
 function kieuMo(f) {
   const duoi = (String(f.ten).match(/\.([A-Za-z0-9]{1,5})$/) || [])[1]?.toLowerCase();
   return f.drive_id && DUOI_DRIVE.includes(duoi) ? 'drive' : kieuXemTep(f.ten);
@@ -915,7 +1419,7 @@ function loaiLocTep(f) {
 }
 function nguonTep(f) {
   if (f.nguon === 'zalo') return `Zalo: ${f.tin_nhom || (f.nguoi_gui || '').split('<')[0].trim() || 'không rõ'}`;
-  return f.nguon === 'gmail' ? 'Gmail' : 'Tải lên';
+  return f.nguon === 'gmail' ? 'Gmail' : f.nguon === 'hop' ? 'Cuộc họp' : 'Tải lên';
 }
 function thoiGianTep(f) {
   const t = Date.parse(f.tao_luc);
@@ -1063,12 +1567,20 @@ async function veTep(goc) {
     });
     const d = duAn.find((x) => x.id === f.du_an_id);
     if (hexMau(d?.mau)) chon.style.setProperty('--mau', hexMau(d.mau));
-    return h('div', { class: 'bang the-tep' },
+    const theT = h('div', { class: 'bang the-tep' },
       khung,
       h('div', { class: 'than-tep' },
         h('button', { class: 'ten-tep', type: 'button', text: f.ten, title: f.ten, onclick: mo }),
         h('div', { class: 'meta' }, h('span', { text: kichThuoc(f.kich_thuoc) }), h('span', { text: nguonTep(f) }), f.nguoi_gui && f.nguon !== 'zalo' ? h('span', { text: f.nguoi_gui.split('<')[0].trim() }) : null, h('span', { text: luc(f.tao_luc) })),
         chon));
+    theT._td = () => ({ nhan: `Thao tác với tệp ${f.ten}`, muc: [
+      { nhan: 'Mở xem', lam: mo },
+      { nhan: 'Tải xuống', lam: () => { location.href = `/api/tep/${f.id}/tai`; } },
+      { nhan: 'Sao chép tên tệp', lam: () => chepChu(f.ten) },
+      f.tin_nhan_id ? { vach: true } : null,
+      f.tin_nhan_id ? { nhan: 'Xem tin gốc', lam: () => { location.hash = `hop-tin/${f.tin_nhan_id}`; } } : null,
+    ] });
+    return theT;
   }
 
   function ve() {
@@ -1178,6 +1690,17 @@ async function veGhiNho(goc) {
       }, true),
     );
     const el = h('article', { class: `bang the-nho${g.ghim ? ' ghim' : ''}` }, h('div', { class: 'hang-nho' }, tren, hang), h('h3', { text: g.tieu_de }), noi);
+    el._td = () => ({ nhan: `Thao tác với ghi nhớ ${g.tieu_de}`, muc: [
+      g.nguon === 'ai' && !g.da_duyet ? { nhan: 'Đúng, giữ lại', lam: () => hanhDong(g.id, { da_duyet: true }) } : null,
+      { nhan: g.ghim ? 'Bỏ ghim' : 'Ghim', lam: () => hanhDong(g.id, { ghim: !g.ghim }) },
+      { nhan: 'Sửa nội dung', lam: () => sua() },
+      { nhan: 'Sao chép nội dung', lam: () => chepChu(g.noi_dung) },
+      { vach: true },
+      { nhan: 'Xóa', nguy: true, lam: async () => {
+        if (!confirm(`Xóa ghi nhớ "${g.tieu_de}"?`)) return;
+        try { await api(`/api/ghi-nho/${g.id}`, { method: 'DELETE' }); bao('Đã xóa.'); nap(); } catch (err) { bao(err.message, { loi: true }); }
+      } },
+    ] });
     function sua() {
       const o = h('textarea', { rows: '3', maxlength: '600', 'aria-label': 'Sửa nội dung' });
       o.value = g.noi_dung;
@@ -1222,8 +1745,10 @@ function chuDau(ten) {
   const chu = tu.length > 1 ? Array.from(tu[0])[0] + Array.from(tu[tu.length - 1])[0] : Array.from(tu[0] || '?').slice(0, 2).join('');
   return chu.toUpperCase();
 }
+// Bảy màu như Telegram: cùng một tên luôn ra cùng một màu, ở ảnh đại diện và tên người gửi trong nhóm.
+const chiSoMau = (ten) => mauAnh(ten) % 7;
 function anhZalo(ten, loai) {
-  return h('span', { class: `anh-zalo${loai === 'nhom' ? ' nhom' : ''}`, style: `--h:${mauAnh(ten)}`, 'aria-hidden': 'true', text: chuDau(ten) });
+  return h('span', { class: `anh-zalo${loai === 'nhom' ? ' nhom' : ''}`, 'data-m': String(chiSoMau(ten)), style: `--h:${mauAnh(ten)}`, 'aria-hidden': 'true', text: chuDau(ten) });
 }
 function nhanNgayTin(iso) {
   const d = new Date(iso);
@@ -1298,6 +1823,11 @@ function chuCoLienKet(chu) {
   return h('span', { class: 'chu-tin' }, ...tachLienKet(chu).map((p) => (p.url ? h('a', { href: p.url, target: '_blank', rel: 'noopener noreferrer', text: p.url }) : p.chu)));
 }
 
+function cuocGoi(chu) {
+  const [dong1, ...con] = String(chu).split('\n');
+  return h('div', { class: 'cuoc-goi' }, h('span', { class: 'ic-goi' }, icon('dien-thoai')), h('div', { class: 'tt-goi' }, h('strong', { text: dong1 }), con.length ? h('small', { text: con.join(' ') }) : null));
+}
+
 function noiDungBong(m, files, tepTheoTin) {
   const k = phanTichTin(m.noi_dung);
   const ra = [];
@@ -1305,24 +1835,57 @@ function noiDungBong(m, files, tepTheoTin) {
   else if (k.kieu === 'tep-ngoai') ra.push(files[0] ? tepTrongTin(files[0]) : tepNgoaiTrongTin(m, k.ten));
   else if (k.kieu === 'tep-gui') { ra.push(...files.map(tepTrongTin)); if (k.chu) ra.push(chuCoLienKet(k.chu)); }
   else if (k.kieu === 'the-lien-ket') ra.push(h('a', { class: 'the-lien-ket', href: k.url, target: '_blank', rel: 'noopener noreferrer' }, h('strong', { text: k.tieu_de }), k.mo_ta ? h('span', { text: k.mo_ta }) : null, h('small', { text: k.mien })));
-  else if (k.kieu === 'danh-thiep') ra.push(h('div', { class: 'the-lien-ket' }, h('strong', { text: k.ten || 'Danh thiếp' }), h('span', { text: k.dien_thoai }), h('small', { text: 'Danh thiếp Zalo' })));
+  else if (k.kieu === 'danh-thiep') ra.push(h('div', { class: 'the-lien-he' }, anhZalo(k.ten || 'Danh thiếp', 'ca-nhan'), h('div', { class: 'tt-lien-he' }, h('strong', { text: k.ten || 'Danh thiếp' }), k.dien_thoai ? h('span', { text: k.dien_thoai }) : null, h('small', { text: 'Danh thiếp Zalo' }))));
   else if (k.kieu === 'thu-hoi') ra.push(h('span', { class: 'chu-tin nhat', text: 'Tin nhắn đã thu hồi' }));
   else if (k.kieu === 'nhan-dan') ra.push(h('span', { class: 'chu-tin nhat', text: 'Đã gửi một nhãn dán' }));
   else if (k.kieu === 'binh-chon') ra.push(h('span', { class: 'chu-tin nhat', text: 'Bình chọn trong nhóm' }));
   else if (k.kieu === 'video') ra.push(h('span', { class: 'chu-tin nhat', text: 'Đã gửi một video (xem trong Zalo)' }));
+  else if (/^Cuộc gọi/i.test(k.chu || '')) ra.push(cuocGoi(k.chu));
   else ra.push(chuCoLienKet(k.chu));
   if (files.length && !['tep-gui', 'anh', 'tep-ngoai'].includes(k.kieu)) ra.push(...files.map(tepTrongTin));
   return { nut: ra, coAnh: k.kieu === 'anh' || (k.kieu === 'tep-gui' && files.some((f) => kieuXemTep(f.ten) === 'anh')) };
 }
 
-const khoaHoiThoai = (loai, ten) => `${loai}~${encodeURIComponent(ten)}`;
+// Khóa hội thoại do máy chủ trả: mã hội thoại Zalo, hoặc "loại~tên" với tin cũ chưa có mã.
+const khoaHoiThoai = (x) => encodeURIComponent(x.khoa);
+
+// Khung soạn tin: Sonicplan không gửi thay bạn. Bấm gửi thì chép tin và mở Zalo để bạn dán vào đúng hội thoại.
+function khungSoan(ten) {
+  const o = h('textarea', { class: 'o-soan', name: 'tin', autocomplete: 'off', rows: '1', maxlength: '4000', placeholder: 'Soạn tin…', 'aria-label': `Soạn tin cho ${ten}` });
+  const nut = h('button', { class: 'nut-gui-zalo', type: 'submit', disabled: true, 'aria-label': 'Chép tin và mở Zalo' }, icon('gui'));
+  const khop = () => { o.style.height = 'auto'; o.style.height = `${Math.min(o.scrollHeight, 160)}px`; nut.disabled = !o.value.trim(); };
+  o.addEventListener('input', khop);
+  const form = h('form', { class: 'soan-zalo' }, o, nut);
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const van = o.value.trim();
+    if (!van) return;
+    // Mở Zalo ngay trong lúc còn thao tác bấm của người dùng (Safari chặn cửa sổ mở sau lệnh chờ), rồi mới đợi kết quả chép.
+    const chep = navigator.clipboard.writeText(van);
+    window.open('https://chat.zalo.me/', '_blank', 'noopener');
+    try {
+      await chep;
+    } catch {
+      bao('Trình duyệt chặn chép. Tin vẫn còn trong ô soạn: bôi đen và chép tay, hoặc cho phép trang này chép.', { loi: true });
+      return;
+    }
+    bao(`Đã chép tin. Dán vào hội thoại "${ten}" trong Zalo rồi bấm gửi.`);
+    o.value = '';
+    khop();
+  });
+  // Enter gửi, Shift+Enter xuống dòng. Đang gõ dấu tiếng Việt (IME) thì Enter chỉ chốt chữ, không gửi.
+  o.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && ev.keyCode !== 229) { ev.preventDefault(); form.requestSubmit(); }
+  });
+  return h('div', { class: 'vung-soan' }, form, h('p', { class: 'goi-y-soan', text: 'Sonicplan không gửi thay bạn: bấm gửi sẽ chép tin và mở Zalo.' }));
+}
 
 async function veZalo(goc, thamSo) {
   const z = trang.zalo;
   let chon = null;
   if (thamSo) {
-    const [loai, ten] = thamSo.split('~');
-    if ((loai === 'nhom' || loai === 'ca-nhan') && ten) chon = { loai, ten: decodeURIComponent(ten) };
+    const khoa = decodeURIComponent(thamSo);
+    if (/^(nhom|ca-nhan)[~:]./.test(khoa)) chon = { khoa, loai: khoa.startsWith('nhom') ? 'nhom' : 'ca-nhan', ten: khoa.includes('~') ? khoa.slice(khoa.indexOf('~') + 1) : 'Hội thoại' };
   }
   const khungDs = h('div', { class: 'bang ds-tin ds-zalo', 'aria-label': 'Danh sách hội thoại Zalo' }, ...[1, 2, 3, 4, 5, 6].map(() => h('div', { style: 'padding:12px 10px' }, xuong(14, '60%'), h('div', { style: 'height:8px' }), xuong(28))));
   const khungDoc = h('div', { class: 'bang doc-zalo', 'aria-live': 'polite' });
@@ -1350,23 +1913,37 @@ async function veZalo(goc, thamSo) {
       return;
     }
     thay(khungDs, h('ul', {}, ...loc.map((x) => {
-      const dang = chon && chon.loai === x.loai && chon.ten === x.ten;
+      const dang = chon && chon.khoa === x.khoa;
       const ai = x.nguoi_cuoi === 'Tôi' ? 'Bạn: ' : x.loai === 'nhom' && x.nguoi_cuoi ? `${x.nguoi_cuoi.split(' ').slice(-1)[0]}: ` : '';
-      return h('li', { class: x.chua_xem ? 'chua-xem' : '' },
-        h('button', { type: 'button', 'aria-current': String(Boolean(dang)), onclick: () => { location.hash = `zalo/${khoaHoiThoai(x.loai, x.ten)}`; } },
+      const li = h('li', { class: x.chua_xem ? 'chua-xem' : '' },
+        h('button', { type: 'button', 'aria-current': String(Boolean(dang)), onclick: () => { location.hash = `zalo/${khoaHoiThoai(x)}`; } },
           anhZalo(x.ten, x.loai),
           h('div', { style: 'min-width:0' },
             h('div', { class: 'dong-1' }, h('strong', { text: x.ten }), h('time', { datetime: x.cuoi, text: luc(x.cuoi) })),
             h('div', { class: 'dong-2' }, h('p', { text: `${ai}${trichTin(x.trich)}` }), x.chua_xem ? h('b', { class: 'dem-zalo', text: x.chua_xem > 99 ? '99+' : String(x.chua_xem), 'aria-label': `${x.chua_xem} tin chưa xem` }) : null),
           ),
         ));
+      li._td = () => ({ nhan: `Thao tác với ${x.ten}`, muc: [
+        { nhan: 'Mở hội thoại', lam: () => { location.hash = `zalo/${khoaHoiThoai(x)}`; } },
+        { nhan: 'Sao chép tên', lam: () => chepChu(x.ten) },
+        { vach: true },
+        { nhan: x.loai === 'nhom' ? 'Spam nhóm này' : 'Spam người này', nguy: true, lam: async () => {
+          if (!confirm(`Chặn "${x.ten}"? Tin cũ sẽ ẩn, việc chưa xong sinh từ đó sẽ gỡ, và AI không tạo việc từ đây nữa. Bỏ chặn ở Hộp tin, mục Đã chặn.`)) return;
+          try {
+            const kq = await api('/api/chan', { method: 'POST', body: JSON.stringify({ nguon: 'zalo', loai: x.loai === 'nhom' ? 'nhom' : 'nguoi', gia_tri: x.ten, nhan: x.ten }) });
+            bao(`Đã chặn ${kq.nhan}. Ẩn ${kq.an_tin} tin${kq.go_viec ? `, gỡ ${kq.go_viec} việc chưa xong` : ''}.`);
+          } catch (e) { bao(e.message, { loi: true }); }
+          moMuc();
+        } },
+      ] });
+      return li;
     })));
   }
 
-  async function moHoiThoai({ loai, ten }) {
+  async function moHoiThoai({ khoa, loai, ten }) {
     thay(khungDoc, xuong(40, '40%'), h('div', { style: 'height:16px' }), xuong(60, '55%'), h('div', { style: 'height:12px' }), xuong(40, '45%'));
     const tai = async (truoc) => {
-      const q = new URLSearchParams({ loai, ten });
+      const q = new URLSearchParams({ khoa });
       if (truoc) { q.set('truoc_luc', truoc.thoi_diem); q.set('truoc_id', truoc.id); }
       return api(`/api/zalo/tin?${q}`);
     };
@@ -1389,6 +1966,13 @@ async function veZalo(goc, thamSo) {
         } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
       } }, 'Xem tin cũ hơn'));
       let truoc = null;
+      let truocEl = null;
+      // Hết một cụm tin liền nhau: đánh dấu tin cuối (có đuôi bong bóng) và đặt ảnh đại diện ở đó, như Telegram.
+      const dongCum = () => {
+        if (!truocEl) return;
+        truocEl.classList.add('cuoi');
+        if (!truocEl.classList.contains('toi')) truocEl.querySelector('.cho-anh')?.replaceWith(anhZalo(truocEl._ten, 'ca-nhan'));
+      };
       for (const m of tin) {
         const ngay = nhanNgayTin(m.thoi_diem);
         const ngayMoi = !truoc || nhanNgayTin(truoc.thoi_diem) !== ngay;
@@ -1398,16 +1982,21 @@ async function veZalo(goc, thamSo) {
         const files = theoTin.get(m.id) || [];
         const { nut, coAnh } = noiDungBong(m, files);
         const ten = m.nguoi_gui || 'Không rõ';
-        const bong = h('div', { class: `bong-chat${coAnh ? ' co-anh' : ''}` }, ...nut, h('time', { datetime: m.thoi_diem, text: fmt.gioPhut.format(new Date(m.thoi_diem)) }));
-        con.push(h('div', { class: `tin-zalo${toi ? ' toi' : ''}${lien ? ' lien' : ''}` },
-          toi ? null : lien ? h('span', { class: 'cho-anh', 'aria-hidden': 'true' }) : anhZalo(ten, 'ca-nhan'),
-          h('div', { class: 'cot-tin' },
-            !toi && loai === 'nhom' && !lien ? h('span', { class: 'ten-gui', text: ten }) : null,
-            bong,
-          ),
-        ));
+        if (!lien) dongCum();
+        const bong = h('div', { class: `bong-chat${coAnh ? ' co-anh' : ''}` },
+          !toi && loai === 'nhom' && !lien ? h('span', { class: `ten-gui m${chiSoMau(ten)}`, text: ten }) : null,
+          ...nut,
+          h('time', { datetime: m.thoi_diem, text: fmt.gioPhut.format(new Date(m.thoi_diem)) }));
+        const hang = h('div', { class: `tin-zalo${toi ? ' toi' : ''}${lien ? ' lien' : ''}` },
+          toi ? null : h('span', { class: 'cho-anh', 'aria-hidden': 'true' }),
+          h('div', { class: 'cot-tin' }, bong),
+        );
+        hang._ten = ten;
+        con.push(hang);
+        truocEl = hang;
         truoc = m;
       }
+      dongCum();
       thay(luong, con);
     };
     const spamZalo = nutSpam({
@@ -1428,24 +2017,27 @@ async function veZalo(goc, thamSo) {
         ),
         spamZalo.khung,
         luong,
-        h('p', { class: 'zalo-chi-doc', text: 'Sonicplan chỉ đọc tin Zalo, không gửi tin thay bạn.' }),
+        khungSoan(ten),
       );
       veLuong();
       luong.scrollTop = luong.scrollHeight;
-      const muc = ds.find((x) => x.loai === loai && x.ten === ten);
+      const muc = ds.find((x) => x.khoa === khoa);
       if (muc?.chua_xem) {
         muc.chua_xem = 0;
         veDs();
-        api('/api/tong-quan').then((k) => capNhatDem(k.so_lieu.tin_chua_xem, k.so_lieu.viec_mo)).catch(() => {});
+        lamMoiDem();
       }
     } catch (e) {
-      thay(khungDoc, khungLoi(e, () => moHoiThoai({ loai, ten })));
+      thay(khungDoc, khungLoi(e, () => moHoiThoai({ khoa, loai, ten })));
     }
   }
 
   await napDs();
-  if (chon) moHoiThoai(chon);
-  else if (window.matchMedia('(min-width: 861px)').matches && ds[0]) location.replace(`#zalo/${khoaHoiThoai(ds[0].loai, ds[0].ten)}`);
+  if (chon) {
+    const m = ds.find((x) => x.khoa === chon.khoa);
+    if (m) chon = { khoa: m.khoa, loai: m.loai, ten: m.ten };
+    moHoiThoai(chon);
+  } else if (window.matchMedia('(min-width: 861px)').matches && ds[0]) location.replace(`#zalo/${khoaHoiThoai(ds[0])}`);
 }
 
 // =====================================================================
@@ -1564,35 +2156,73 @@ async function veKetNoi(goc, { moi = false } = {}) {
     loiKho ? h('p', { class: 'canh-bao-nho', text: kho.lan_cuoi.ghi_chu }) : null,
     ...khoiKho,
   );
+  // Ghi âm và biên bản họp: một thư mục Drive (có thể ở tài khoản khác), mỗi cuộc họp thành một tin trong Hộp tin.
+  const hop = kn.hop || { da_noi: null, thu_muc: null, lan_cuoi: null };
+  const ketQuaHop = new URLSearchParams(location.search).get('hop');
+  if (ketQuaHop) {
+    history.replaceState(null, '', `${location.pathname}#ket-noi`);
+    if (ketQuaHop === 'ok') bao('Đã đăng nhập. Dán liên kết thư mục ghi âm và biên bản họp rồi bấm Nối thư mục.');
+    else bao(ketQuaHop, { loi: true });
+  }
+  const loiHop = hop.lan_cuoi?.ghi_chu?.startsWith('Lỗi');
+  const oLinkHop = h('input', { type: 'url', placeholder: 'https://drive.google.com/drive/folders/…', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Liên kết thư mục Drive' });
+  const nutNoiHop = h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
+    ev.target.disabled = true;
+    try {
+      const r = await api('/api/ket-noi/hop', { method: 'POST', body: JSON.stringify({ link: oLinkHop.value }) });
+      bao(`Đã nối thư mục "${r.ten}": thấy ${r.ghi_am} ghi âm, ${r.bien_ban} biên bản. Cuộc họp trong 30 ngày gần đây sẽ vào Hộp tin sau ít phút.`);
+      ve();
+    } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
+  } }, 'Nối thư mục');
+  const oChonThuMuc = h('div', { class: 'luoi-nhap' }, oLinkHop, nutNoiHop);
+  const khoiHop = [];
+  if (hop.da_noi && hop.thu_muc) {
+    khoiHop.push(
+      hangTaiKhoan(hop.da_noi.email || 'Tài khoản Google', hop.lan_cuoi ? `${hop.lan_cuoi.ghi_chu}, ${luc(hop.lan_cuoi.lan_cuoi)}` : 'Chờ lượt quét đầu tiên'),
+      h('p', { class: 'ghi-nho-kn' }, 'Đang đọc thư mục ', h('a', { href: `https://drive.google.com/drive/folders/${encodeURIComponent(hop.thu_muc.id)}${hop.da_noi.email ? `?authuser=${encodeURIComponent(hop.da_noi.email)}` : ''}`, target: '_blank', rel: 'noopener noreferrer', text: hop.thu_muc.ten || 'trên Drive' }), '. Mỗi 5 phút, cuộc họp mới (ghi âm, biên bản) vào Hộp tin; AI đọc biên bản và chỉ ghi việc được giao cho bạn. Hệ thống chỉ đọc, không sửa hay xóa gì trong thư mục.'),
+      laChuGg ? h('div', { class: 'hang-nut' },
+        h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
+          ev.target.disabled = true;
+          try { const r = await api('/api/hop/quet-ngay', { method: 'POST' }); bao(r.loi.length ? r.loi.join('; ') : `Đã quét: ${r.moi} cuộc họp mới${r.bo_sung ? `, ${r.bo_sung} cuộc họp có thêm tệp` : ''}.`, r.loi.length ? { loi: true } : undefined); ve(); }
+          catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
+        } }, icon('ghi-am'), 'Quét ngay'),
+        h('button', { class: 'nut nut-phu', type: 'button', onclick: (ev) => { ev.target.closest('.hang-nut').after(oChonThuMuc); ev.target.remove(); oLinkHop.focus(); } }, 'Đổi thư mục'),
+        h('a', { class: 'nut nut-phu', href: '/api/hop/bat-dau' }, 'Đổi tài khoản'),
+        h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/hop', { method: 'DELETE' }); bao('Đã gỡ thư mục họp. Cuộc họp đã có trong Hộp tin vẫn giữ nguyên.'); ve(); } }, 'Gỡ kết nối')) : null,
+    );
+  } else if (hop.da_noi) {
+    khoiHop.push(
+      hangTaiKhoan(hop.da_noi.email || 'Tài khoản Google', 'Đã đăng nhập, chưa chọn thư mục'),
+      h('ol', { class: 'buoc' },
+        h('li', {}, 'Mở thư mục chứa ghi âm và biên bản họp trên Google Drive.'),
+        h('li', {}, 'Chép địa chỉ trên thanh trình duyệt (có chữ /folders/), dán vào ô dưới, bấm Nối thư mục.'),
+      ),
+      laChuGg ? oChonThuMuc : null,
+    );
+  } else if (!gg.co_client) {
+    khoiHop.push(h('p', { class: 'mo-ta', text: 'Khai Client ID và Secret ở thẻ Google trước. Thư mục họp dùng chung chúng, không cần tạo thêm gì ở Google Cloud.' }));
+  } else {
+    khoiHop.push(
+      h('ol', { class: 'buoc' },
+        h('li', {}, 'Bấm nút, chọn tài khoản Google có thư mục ghi âm (có thể khác tài khoản ở trên), tick quyền xem tệp Drive.'),
+        h('li', {}, 'Quay lại đây, dán liên kết thư mục, bấm Nối thư mục.'),
+      ),
+      h('p', { class: 'canh-bao-nho', text: 'Ứng dụng Google Cloud đang ở chế độ Testing thì thêm email của tài khoản đó vào Test users ở mục OAuth consent screen trước, nếu không Google sẽ chặn.' }),
+      laChuGg ? h('div', { class: 'hang-nut' }, h('a', { class: 'nut nut-chinh', href: '/api/hop/bat-dau' }, icon('ghi-am'), 'Chọn tài khoản có thư mục')) : null,
+    );
+  }
+  const theHop = h('section', { class: 'bang the-kn rong' },
+    dau('ghi-am', 'Ghi âm và biên bản họp', 'Thư mục Drive chứa các cuộc ghi âm kèm biên bản. Mỗi cuộc họp thành một tin trong Hộp tin, nghe lại và đọc biên bản ngay tại đó.',
+      hop.da_noi && hop.thu_muc ? (loiHop ? 'do' : 'xanh') : hop.da_noi ? 'vang' : 'xam',
+      hop.da_noi && hop.thu_muc ? (loiHop ? 'Đang lỗi' : 'Đã nối') : hop.da_noi ? 'Chờ chọn thư mục' : 'Chưa nối'),
+    loiHop ? h('p', { class: 'canh-bao-nho', text: hop.lan_cuoi.ghi_chu }) : null,
+    ...khoiHop,
+  );
   const theGoogle = h('section', { class: 'bang the-kn rong' },
     dau('thu', 'Google: Gmail, Lịch, Tasks, Drive', 'Đăng nhập một lần, hệ thống đọc thư, ghi việc sang Tasks và Lịch, lưu tệp đính kèm vào Drive giúp bạn.', gg.da_noi ? (lanCuoiLoiGg ? 'do' : 'xanh') : gg.co_client ? 'vang' : 'xam', gg.da_noi ? (lanCuoiLoiGg ? 'Đang lỗi' : 'Đã nối') : gg.co_client ? 'Chờ đăng nhập' : 'Chưa nối'),
     lanCuoiLoiGg ? h('p', { class: 'canh-bao-nho', text: gg.lan_cuoi.ghi_chu }) : null,
     ...khoiGg,
   );
-
-  // Thư
-  const theThu = h('section', { class: 'bang the-kn' },
-    dau('thu', 'Thư chuyển tiếp', 'Cách không cần đăng nhập: Gmail chuyển bản sao thư về đây, kèm tệp đính kèm.', kn.thu.lan_cuoi ? 'xanh' : kn.thu.dia_chi ? 'vang' : 'xam', kn.thu.lan_cuoi ? `Thư cuối ${luc(kn.thu.lan_cuoi.lan_cuoi)}` : kn.thu.xac_nhan ? 'Chờ bấm xác nhận' : kn.thu.dia_chi ? 'Chưa nối' : 'Chưa bật'),
-  );
-  if (kn.thu.xac_nhan) {
-    const xn = kn.thu.xac_nhan;
-    theThu.append(
-      h('p', { text: `Gmail ${xn.tu || ''} vừa xin chuyển thư về đây. Bấm nút để đồng ý${xn.ma ? ` (mã ${xn.ma})` : ''}, rồi làm bước 3 bên dưới.` }),
-      h('div', { class: 'hang-nut' }, xn.duong_dan ? h('a', { class: 'nut nut-chinh', href: xn.duong_dan, target: '_blank', rel: 'noopener' }, icon('thu'), 'Xác nhận chuyển thư') : oChep(xn.ma || '')),
-    );
-  }
-  if (kn.thu.dia_chi) {
-    theThu.append(oChep(kn.thu.dia_chi), h('ol', { class: 'buoc' },
-      h('li', {}, 'Bấm nút Mở cài đặt Gmail, chọn Thêm địa chỉ chuyển tiếp, dán địa chỉ trên.'),
-      h('li', {}, 'Quay lại trang này, nút Xác nhận chuyển thư sẽ hiện sau vài giây. Bấm nút đó.'),
-      h('li', {}, 'Trong cài đặt Gmail, chọn Chuyển tiếp bản sao thư đến địa chỉ trên, bấm Lưu thay đổi.'),
-    ), h('div', { class: 'hang-nut' },
-      h('a', { class: 'nut nut-phu', href: 'https://mail.google.com/mail/u/0/#settings/fwdandpop', target: '_blank', rel: 'noopener' }, icon('thu'), 'Mở cài đặt Gmail'),
-      h('button', { class: 'nut nut-phu', type: 'button', onclick: () => ve() }, icon('lap'), 'Kiểm tra lại'),
-    ));
-  } else {
-    theThu.append(h('p', { class: 'canh-bao-nho', text: 'Hệ thống đang chuẩn bị địa chỉ nhận thư.' }));
-  }
 
   // Zalo
   const oLenhZalo = h('div');
@@ -1667,11 +2297,12 @@ async function veKetNoi(goc, { moi = false } = {}) {
   const oKhoaAi = h('input', { type: 'password', placeholder: 'Dán khóa API', autocomplete: 'off', 'aria-label': 'Khóa API' });
   const oMoHinh = h('input', { type: 'text', placeholder: 'Mô hình (bỏ trống để dùng mặc định)', autocomplete: 'off', 'aria-label': 'Mô hình' });
   const oDiaChiAi = h('input', { type: 'url', placeholder: 'Địa chỉ dịch vụ, ví dụ https://api.openai.com/v1', autocomplete: 'off', 'aria-label': 'Địa chỉ dịch vụ', hidden: true });
-  oLoaiAi.addEventListener('change', () => { oDiaChiAi.hidden = oLoaiAi.value !== 'openai'; });
+  const oWorkspace = h('input', { type: 'text', placeholder: 'Workspace ID (chỉ điền khi khóa báo thiếu Workspace)', autocomplete: 'off', 'aria-label': 'Workspace ID của Anthropic' });
+  oLoaiAi.addEventListener('change', () => { oDiaChiAi.hidden = oLoaiAi.value !== 'openai'; oWorkspace.hidden = oLoaiAi.value !== 'claude'; });
   const aiNut = h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
     ev.target.disabled = true;
     try {
-      await api('/api/ket-noi/ai', { method: 'POST', body: JSON.stringify({ loai: oLoaiAi.value, khoa: oKhoaAi.value, mo_hinh: oMoHinh.value, dia_chi: oDiaChiAi.value }) });
+      await api('/api/ket-noi/ai', { method: 'POST', body: JSON.stringify({ loai: oLoaiAi.value, khoa: oKhoaAi.value, mo_hinh: oMoHinh.value, dia_chi: oDiaChiAi.value, workspace_id: oWorkspace.value }) });
       bao('Đã nối dịch vụ AI. Từ lượt tách việc sau sẽ dùng dịch vụ này.');
       ve();
     } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
@@ -1682,7 +2313,7 @@ async function veKetNoi(goc, { moi = false } = {}) {
     th.ai?.loi ? h('p', { class: 'canh-bao-nho', text: th.ai.loi.ghi_chu }) : null,
     laChu ? (th.ai
       ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/ai', { method: 'DELETE' }); bao('Đã gỡ, quay về AI có sẵn.'); ve(); } }, 'Gỡ dịch vụ này'))
-      : h('div', { class: 'luoi-nhap' }, oLoaiAi, oKhoaAi, oMoHinh, oDiaChiAi, aiNut)) : null,
+      : h('div', { class: 'luoi-nhap' }, oLoaiAi, oKhoaAi, oMoHinh, oDiaChiAi, oWorkspace, aiNut)) : null,
   );
 
   const oDiaChiNhan = h('input', { type: 'url', placeholder: 'https://… địa chỉ nhận việc mới', autocomplete: 'off', 'aria-label': 'Địa chỉ nhận việc mới' });
@@ -1767,7 +2398,7 @@ async function veKetNoi(goc, { moi = false } = {}) {
 
   const nhomThe = [
     ['Tài khoản Google', [['google', theGoogle], ['kho', theKho]]],
-    ['Tin vào', [['thu', theThu], ['zalo', theZalo], ['telegram', theTele]]],
+    ['Tin vào', [['zalo', theZalo], ['hop', theHop], ['telegram', theTele]]],
     ['Gửi ra', [['lich', theLich], ['api', theApi]]],
     ['Hệ thống', [['nen', theNen]]],
   ];
@@ -1848,7 +2479,7 @@ async function veLuongTrang(goc) {
   await veLuong(goc, { h, icon, api, bao, thay, khungLoi, xuong, luc, chayNgay });
 }
 function veDuAnTrang(goc, thamSo) {
-  return veDuAn(goc, thamSo, { h, icon, api, bao, thay, khungLoi, xuong });
+  return veDuAn(goc, thamSo, { h, icon, api, bao, thay, khungLoi, xuong, mucDuAn: mucTrinhDonDuAn, driveDuAn, themViec: (d) => moNganViec(null, { du_an_id: d.id }) });
 }
 // Trang "Dữ liệu của bạn": nói rõ hệ thống lưu gì, ai xem, giữ bao lâu; nút tải toàn bộ dữ liệu.
 function veDuLieu(goc) {
@@ -1941,7 +2572,7 @@ function veNutXoa() {
   );
 }
 
-const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'hieu-suat': (goc) => veHieuSuat(goc, { h, icon, api, bao, thay, khungLoi, xuong }), 'du-an': veDuAnTrang, 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy, 'du-lieu': veDuLieu, 'da-chan': veDaChan };
+const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'hieu-suat': (goc) => veHieuSuat(goc, { h, icon, api, bao, thay, khungLoi, xuong }), 'du-an': veDuAnTrang, claude: (goc, thamSo) => veTram(goc, { h, icon, api, bao, thay, meo, oChep, kichThuoc, luc, laChu: trang.toi?.to_chuc?.vai_tro === 'chu' }, thamSo), 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy, 'du-lieu': veDuLieu, 'da-chan': veDaChan };
 let mucTruoc = null;
 
 async function moMuc() {
@@ -1962,11 +2593,49 @@ async function moMuc() {
   const goc = document.querySelector(`[data-trang="${muc}"]`);
   if (mucTruoc && mucTruoc !== muc) tieuDe.focus({ preventScroll: true });
   mucTruoc = muc;
+  // Vào lại trang đã xem: giữ ảnh chụp trang cũ phủ lên cho tới khi trang mới vẽ xong, không để khung xương nhấp nháy.
+  const kl = dungAnhCu(goc, muc);
   try {
     await VE[muc](goc, thamSo);
+    mucDaVe.add(muc);
   } catch (e) {
     thay(goc, khungLoi(e, moMuc));
   }
+  if (kl) boAnhCu(kl, goc);
+}
+
+const mucDaVe = new Set();
+let anhCuDangPhu = null;
+function boAnhCuNgay() {
+  if (!anhCuDangPhu) return;
+  anhCuDangPhu.kl.remove();
+  anhCuDangPhu.goc.classList.remove('giu-cu');
+  anhCuDangPhu = null;
+}
+function dungAnhCu(goc, muc) {
+  boAnhCuNgay();
+  if (!mucDaVe.has(muc) || !goc.firstElementChild || goc.querySelector('.xuong')) return null;
+  const cha = goc.offsetParent || goc.parentElement;
+  const kl = goc.cloneNode(true);
+  kl.removeAttribute('hidden');
+  kl.removeAttribute('data-trang');
+  kl.setAttribute('aria-hidden', 'true');
+  kl.inert = true;
+  kl.classList.add('anh-cu');
+  Object.assign(kl.style, { top: `${goc.offsetTop}px`, left: `${goc.offsetLeft}px`, width: `${goc.offsetWidth}px`, minHeight: `${goc.offsetHeight}px` });
+  cha.append(kl);
+  goc.classList.add('giu-cu');
+  anhCuDangPhu = { kl, goc };
+  return kl;
+}
+// Đợi khung xương biến mất (tối đa 1,8 giây) rồi mờ ảnh cũ đi.
+async function boAnhCu(kl, goc) {
+  const han = Date.now() + 1800;
+  while (goc.querySelector('.xuong') && Date.now() < han && anhCuDangPhu?.kl === kl) await new Promise((r) => setTimeout(r, 40));
+  if (anhCuDangPhu?.kl !== kl) return;
+  if (itChuyenDong()) { boAnhCuNgay(); return; }
+  kl.classList.add('mo-di');
+  setTimeout(() => { if (anhCuDangPhu?.kl === kl) boAnhCuNgay(); }, 200);
 }
 
 // ---------- Bảng lệnh (Ctrl K) ----------
@@ -1980,6 +2649,7 @@ const LENH = [
   { nhan: 'Việc', icon: 'viec', lam: () => (location.hash = 'viec'), goi: 'G V' },
   { nhan: 'Hiệu suất, quá tải, độ nặng việc', icon: 'tong-quan', lam: () => (location.hash = 'hieu-suat') },
   { nhan: 'Dự án và lịch sử', icon: 'du-an', lam: () => (location.hash = 'du-an') },
+  { nhan: 'Claude (giao việc, chat như Claude Code)', icon: 'ai', lam: () => (location.hash = 'claude'), goi: 'G C' },
   { nhan: 'Ghi nhớ', icon: 'ghi-nho', lam: () => (location.hash = 'ghi-nho') },
   { nhan: 'Tệp', icon: 'tep', lam: () => (location.hash = 'tep') },
   { nhan: 'Luồng (sơ đồ, chỉnh giờ)', icon: 'lap', lam: () => (location.hash = 'luong') },
@@ -2034,7 +2704,7 @@ document.addEventListener('keydown', (e) => {
   if (e.target.closest('input, textarea, select, dialog') || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (phimTruoc === 'g') {
-    const dich = { t: 'tong-quan', h: 'hop-tin', v: 'viec' }[k];
+    const dich = { t: 'tong-quan', h: 'hop-tin', v: 'viec', c: 'claude' }[k];
     if (dich) location.hash = dich;
     phimTruoc = '';
     return;
@@ -2053,6 +2723,8 @@ document.addEventListener('pointermove', (e) => {
 }, { passive: true });
 
 // ---------- Khởi động ----------
+caiNguCanh({ chung: mucChung, bo: '.cot-viec' });
+
 async function batDau() {
   const ngay = fmt.ngayDai.format(new Date());
   document.getElementById('ngay-hom-nay').textContent = ngay.charAt(0).toUpperCase() + ngay.slice(1);
@@ -2071,7 +2743,7 @@ async function batDau() {
   // Làm mới số đếm mỗi 2 phút khi trang đang mở.
   setInterval(() => {
     if (document.hidden) return;
-    api('/api/tong-quan').then((kq) => capNhatDem(kq.so_lieu.tin_chua_xem, kq.so_lieu.viec_mo)).catch(() => {});
+    lamMoiDem();
   }, 120000);
 }
 

@@ -5,7 +5,7 @@ import { goiNgoai } from './goi-ngoai.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { giaiMa, maHoa } from './ma-hoa.js';
 
-const KHOA_CAI_DAT = { ai: 'tich_hop_ai', webhook: 'tich_hop_webhook', google_client: 'tich_hop_google_client', google: 'tich_hop_google', github: 'tich_hop_github', kho_drive: 'tich_hop_kho_drive' };
+const KHOA_CAI_DAT = { ai: 'tich_hop_ai', webhook: 'tich_hop_webhook', google_client: 'tich_hop_google_client', google: 'tich_hop_google', github: 'tich_hop_github', kho_drive: 'tich_hop_kho_drive', hop_drive: 'tich_hop_hop_drive' };
 export const CLAUDE_MAC_DINH = 'claude-sonnet-5-5';
 const OPENAI_MAC_DINH = { dia_chi: 'https://api.openai.com/v1', mo_hinh: 'gpt-4o-mini' };
 
@@ -37,10 +37,14 @@ export function xoaTichHop(env, toChucId, loai) {
 
 // ---- AI ngoài ----
 
-export function chuanHoaCauHinhAi({ loai, khoa, mo_hinh: moHinh, dia_chi: diaChi }) {
+export function chuanHoaCauHinhAi({ loai, khoa, mo_hinh: moHinh, dia_chi: diaChi, workspace_id: workspaceId }) {
   const k = String(khoa || '').trim();
   if (k.length < 20) throw new Error('Khóa API không đúng, chép nguyên chuỗi nhà cung cấp đưa.');
-  if (loai === 'claude') return { loai, khoa: k, mo_hinh: String(moHinh || '').trim() || CLAUDE_MAC_DINH };
+  if (loai === 'claude') {
+    const ws = String(workspaceId || '').trim();
+    if (ws && !/^[A-Za-z0-9_-]{3,100}$/.test(ws)) throw new Error('Workspace ID không đúng, chép nguyên mã trong console.anthropic.com (mục Workspaces).');
+    return { loai, khoa: k, mo_hinh: String(moHinh || '').trim() || CLAUDE_MAC_DINH, ...(ws ? { workspace_id: ws } : {}) };
+  }
   if (loai === 'openai') {
     const dc = String(diaChi || '').trim().replace(/\/+$/, '') || OPENAI_MAC_DINH.dia_chi;
     if (!/^https:\/\/[^\s]+$/.test(dc)) throw new Error('Địa chỉ dịch vụ phải bắt đầu bằng https://');
@@ -49,7 +53,10 @@ export function chuanHoaCauHinhAi({ loai, khoa, mo_hinh: moHinh, dia_chi: diaChi
   throw new Error('Chọn Claude hoặc loại tương thích OpenAI.');
 }
 
-function loiAi(ten, ma, chiTiet) {
+export function loiAi(ten, ma, chiTiet) {
+  if (ma === 400 && /workspace/i.test(chiTiet || '')) {
+    return `${ten} từ chối (400). Khóa này chưa gắn với Workspace nào. Cách 1: vào console.anthropic.com, tạo khóa mới trong một Workspace rồi dán lại. Cách 2: giữ khóa này và dán mã Workspace (Workspace ID) vào ô "Workspace ID" bên dưới.`;
+  }
   const goiY = ma === 401 ? 'Khóa sai hoặc đã bị thu hồi.' : ma === 403 ? 'Khóa không được phép dùng hoặc nhà cung cấp chặn vùng máy chủ.' : ma === 429 ? 'Hết hạn mức, thử lại sau.' : '';
   return `${ten} từ chối (${ma}). ${goiY} ${chiTiet || ''}`.replace(/\s+/g, ' ').trim();
 }
@@ -61,7 +68,7 @@ export async function chayAiNgoai(cauHinh, messages, { maxTokens = 1500, nhietDo
   if (cauHinh.loai === 'claude') {
     const ph = await goiNgoai('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': cauHinh.khoa, 'anthropic-version': '2023-06-01' },
+      headers: { 'content-type': 'application/json', 'x-api-key': cauHinh.khoa, 'anthropic-version': '2023-06-01', ...(cauHinh.workspace_id ? { 'anthropic-workspace-id': cauHinh.workspace_id } : {}) },
       body: JSON.stringify({ model: cauHinh.mo_hinh, max_tokens: maxTokens, system: he || undefined, messages: hoi }),
     }, { hetGioMs: 60000 });
     const kq = await ph.json().catch(() => ({}));

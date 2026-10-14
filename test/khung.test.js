@@ -16,7 +16,7 @@ test('lịch hẹn giờ trong wrangler.jsonc khớp danh sách tác vụ', () =
 
 test('chỉ tác vụ đã bật mới chạy', () => {
   assert.deepEqual(tacVuTheoLich('0 * * * *').map((t) => t.ma), ['tu-kiem', 'giao-github', 'bao-viec-moi', 'canh-zalo', 'ban-tin', 'goi-y', 'bao-cao-tuan', 'canh-viec']);
-  assert.deepEqual(tacVuTheoLich('*/5 * * * *').map((t) => t.ma), ['dong-bo-google', 'luu-kho', 'tach-viec', 'nhac-viec', 'cham-viec']);
+  assert.deepEqual(tacVuTheoLich('*/5 * * * *').map((t) => t.ma), ['dong-bo-google', 'luu-kho', 'quet-hop', 'tach-viec', 'nhac-viec', 'cham-viec']);
   assert.deepEqual(tacVuTheoLich('0 16 * * *').map((t) => t.ma), ['don-cuoi-ngay', 'sao-luu']);
 });
 
@@ -92,13 +92,13 @@ test('vé Access sai thì từ chối', async () => {
 test('đèn tình trạng: hẹn giờ trễ thì đỏ, kết nối chưa nối thì xám', () => {
   const kq = tinhTinhTrang({
     tinHieuHeThong: [{ nguon: 'hen-gio', lan_cuoi: '2026-10-11T01:00:00Z' }],
-    ketNoi: [{ loai: 'thu', trang_thai: 'loi', cap_nhat_luc: '2026-10-11T02:00:00Z' }],
+    ketNoi: [{ loai: 'github', trang_thai: 'loi', cap_nhat_luc: '2026-10-11T02:00:00Z' }],
     lanChayCuoi: [],
     bayGio,
   });
   const den = Object.fromEntries(kq.thanh_phan.map((p) => [p.ma, p.den]));
   assert.equal(den['hen-gio'], 'do');
-  assert.equal(den.thu, 'do');
+  assert.equal(den.github, 'do');
   assert.equal(den.zalo, 'xam');
   const kq2 = tinhTinhTrang({ tinHieuHeThong: [{ nguon: 'hen-gio', lan_cuoi: '2026-10-11T02:30:00Z' }], ketNoi: [], lanChayCuoi: [], bayGio });
   assert.equal(kq2.thanh_phan.find((p) => p.ma === 'hen-gio').den, 'xanh');
