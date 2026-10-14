@@ -2,6 +2,11 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [1.8.4] - 2026-10-14
+
+### Đổi
+- AI tách việc đọc từng cuộc trò chuyện riêng (mỗi lượt tối đa 6 cuộc, mỗi cuộc 20 tin), không trộn 20 tin của nhiều người vào một lượt nữa, nên không còn lẫn "anh" của người này với người kia. Phần "tin trước đó" lấy đúng cuộc trò chuyện đó, gồm cả tin anh gửi.
+
 ## [1.8.3] - 2026-10-14
 
 ### Đổi

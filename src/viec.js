@@ -13,20 +13,20 @@ import { chonDuAn, docDuAn, ghiSuKien } from './du-an.js';
 // Tiêu đề giống từ 80% với một việc đang mở trong 60 ngày (hoặc vừa xong 3 ngày) thì coi là trùng.
 export const NGUONG_TRUNG = 0.8;
 
-// Vài tin đã xử lý cùng nhóm (Zalo) hoặc cùng người gửi, trong 3 ngày, để AI hiểu câu trả lời ngắn như "ok", "đồng ý".
-export async function tinTruocChoLo(env, toChucId, tin) {
+// Khóa cuộc trò chuyện của một tin: Zalo theo mã hội thoại (tin cũ theo nhóm hoặc tên chat, giống Hộp tin),
+// thư và nguồn khác theo người gửi. Mỗi lượt AI chỉ đọc tin của một cuộc trò chuyện để không lẫn "anh" của người này với người kia.
+export const KHOA_HOI_THOAI = `CASE WHEN nguon = 'zalo' THEN COALESCE(NULLIF(ma_hoi_thoai, ''),
+    CASE WHEN COALESCE(nhom, '') <> '' THEN 'nhom~' || nhom ELSE 'ca-nhan~' || COALESCE(NULLIF(tieu_de, ''), NULLIF(nguoi_gui, ''), '') END)
+  ELSE nguon || '~' || COALESCE(NULLIF(nguoi_gui, ''), CAST(id AS TEXT)) END`;
+
+// Vài tin đã xử lý của cùng cuộc trò chuyện (gồm cả tin mình gửi), trong 3 ngày, để AI hiểu câu trả lời ngắn như "ok", "đồng ý".
+export async function tinTruocChoLo(env, toChucId, tin, khoa) {
   const ids = tin.map((t) => t.id).filter(Boolean);
-  const nhom = [...new Set(tin.map((t) => t.nhom).filter(Boolean))].slice(0, 5);
-  const nguoi = [...new Set(tin.filter((t) => !t.nhom && t.nguoi_gui).map((t) => t.nguoi_gui))].slice(0, 5);
-  if (!ids.length || (!nhom.length && !nguoi.length)) return [];
-  const tham = [toChucId, Math.min(...ids), new Date(Date.now() - 3 * 86400000).toISOString(), ...nhom, ...nguoi];
-  const dk = [];
-  if (nhom.length) dk.push(`nhom IN (${nhom.map((_, i) => `?${4 + i}`).join(',')})`);
-  if (nguoi.length) dk.push(`(nhom IS NULL AND nguoi_gui IN (${nguoi.map((_, i) => `?${4 + nhom.length + i}`).join(',')}))`);
+  if (!ids.length || !khoa) return [];
   const { results } = await env.CSDL.prepare(
     `SELECT nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem FROM tin_nhan
-     WHERE to_chuc_id = ?1 AND da_tach = 1 AND an = 0 AND id < ?2 AND tao_luc >= ?3 AND (${dk.join(' OR ')}) ORDER BY id DESC LIMIT 8`,
-  ).bind(...tham).all();
+     WHERE to_chuc_id = ?1 AND da_tach = 1 AND an = 0 AND id < ?2 AND tao_luc >= ?3 AND (${KHOA_HOI_THOAI}) = ?4 ORDER BY id DESC LIMIT 8`,
+  ).bind(toChucId, Math.min(...ids), new Date(Date.now() - 3 * 86400000).toISOString(), khoa).all();
   return results.reverse().map((t) => `[${t.thoi_diem?.slice(0, 16) || ''}${t.nhom ? ` nhóm "${t.nhom}"` : ''} từ ${t.nguoi_gui || 'không rõ'}] ${t.tieu_de ? `${t.tieu_de}: ` : ''}${String(t.noi_dung || '').replace(/\s+/g, ' ').slice(0, 300)}`);
 }
 
@@ -159,7 +159,7 @@ export async function ghiLienKet(env, toChucId, lienKet, tin, viecMoIds) {
 
 // Lõi xử lý một lô tin: AI đọc cùng ghi nhớ, tạo việc, lưu ghi nhớ. Dùng cho tin trong hộp tin và cho tin nhắn trực tiếp.
 // tin: [{ id (hoặc null), nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem }]. Trả { soViec, viec: [{ id, tieu_de, han_ngay, gio_hen, trung }] }.
-async function chayLoTin(env, toChucId, tin, bayGio) {
+async function chayLoTin(env, toChucId, tin, bayGio, khoa = null) {
   const ten = await env.CSDL.prepare(
     `SELECT n.ten FROM thanh_vien v JOIN nguoi_dung n ON n.id = v.nguoi_dung_id WHERE v.to_chuc_id = ?1 AND v.vai_tro = 'chu' LIMIT 1`,
   ).bind(toChucId).first();
@@ -184,7 +184,7 @@ async function chayLoTin(env, toChucId, tin, bayGio) {
     const ngoai = await docTichHop(env, toChucId, 'ai');
     tuyChon.ngoai = ngoai;
     tuyChon.hoSo = await docHoSo(env, toChucId);
-    tuyChon.tinTruoc = await tinTruocChoLo(env, toChucId, tin).catch(() => []);
+    tuyChon.tinTruoc = await tinTruocChoLo(env, toChucId, tin, khoa).catch(() => []);
     ketQua = await tachViec(env, tin.map((t, i) => ({ ...t, so: i + 1 })), ngayVN(), ten?.ten, Object.assign(tuyChon, {
       daCo,
       viecMo,
@@ -234,23 +234,40 @@ async function chayLoTin(env, toChucId, tin, bayGio) {
   return { soViec, soLienKet, viec: viecRa, soAi: ketQua.viec.length, duPhong: Boolean(tuyChon.duPhong) };
 }
 
-// Lấy tối đa 20 tin chưa tách của một tổ chức, đánh dấu "đang xử lý" để hai lượt chạy không làm trùng.
+// Mỗi lượt xử lý tối đa SO_HOI_THOAI_MOI_LUOT cuộc trò chuyện, mỗi cuộc tối đa 20 tin chưa tách, cũ nhất trước.
+// Tin được đánh dấu "đang xử lý" để hai lượt chạy cùng lúc không làm trùng; lượt kia lấy cuộc kế tiếp.
+export const SO_HOI_THOAI_MOI_LUOT = 6;
+
 export async function tachViecChoToChuc(env, toChucId) {
   if (!(await docLuong(env, toChucId)).bat['tach-viec']) return { so_tin: 0, so_viec: 0 };
-  const bayGio = new Date().toISOString();
-  const { results: tin } = await env.CSDL.prepare(
-    `UPDATE tin_nhan SET da_tach = 2, tach_luc = ?2
-     WHERE id IN (SELECT id FROM tin_nhan WHERE to_chuc_id = ?1 AND da_tach = 0 ORDER BY id LIMIT 20)
-     RETURNING id, nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem`,
-  ).bind(toChucId, bayGio).all();
-  if (!tin.length) return { so_tin: 0, so_viec: 0 };
-  tin.sort((a, b) => a.id - b.id);
+  const tong = { so_tin: 0, so_viec: 0, so_ai: 0, so_lien_ket: 0, so_trung: 0, du_phong: false, so_hoi_thoai: 0 };
+  for (let i = 0; i < SO_HOI_THOAI_MOI_LUOT; i++) {
+    const dau = await env.CSDL.prepare(
+      `SELECT ${KHOA_HOI_THOAI} AS khoa FROM tin_nhan WHERE to_chuc_id = ?1 AND da_tach = 0 ORDER BY id LIMIT 1`,
+    ).bind(toChucId).first();
+    if (!dau) break;
+    const bayGio = new Date().toISOString();
+    const { results: tin } = await env.CSDL.prepare(
+      `UPDATE tin_nhan SET da_tach = 2, tach_luc = ?2
+       WHERE id IN (SELECT id FROM tin_nhan WHERE to_chuc_id = ?1 AND da_tach = 0 AND (${KHOA_HOI_THOAI}) = ?3 ORDER BY id LIMIT 20)
+       RETURNING id, nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem`,
+    ).bind(toChucId, bayGio, dau.khoa).all();
+    if (!tin.length) continue; // lượt chạy song song vừa nhận cuộc này
+    tin.sort((a, b) => a.id - b.id);
 
-  const { soViec, soLienKet, viec, soAi, duPhong } = await chayLoTin(env, toChucId, tin, bayGio);
-  await env.CSDL.prepare(
-    `UPDATE tin_nhan SET da_tach = 1 WHERE to_chuc_id = ?1 AND da_tach = 2 AND id IN (${tin.map((_, i) => `?${i + 2}`).join(',')})`,
-  ).bind(toChucId, ...tin.map((t) => t.id)).run();
-  return { so_tin: tin.length, so_viec: soViec, so_ai: soAi, so_lien_ket: soLienKet, so_trung: viec.filter((v) => v.trung).length, du_phong: duPhong };
+    const { soViec, soLienKet, viec, soAi, duPhong } = await chayLoTin(env, toChucId, tin, bayGio, dau.khoa);
+    await env.CSDL.prepare(
+      `UPDATE tin_nhan SET da_tach = 1 WHERE to_chuc_id = ?1 AND da_tach = 2 AND id IN (${tin.map((_, j) => `?${j + 2}`).join(',')})`,
+    ).bind(toChucId, ...tin.map((t) => t.id)).run();
+    tong.so_tin += tin.length;
+    tong.so_viec += soViec;
+    tong.so_ai += soAi;
+    tong.so_lien_ket += soLienKet;
+    tong.so_trung += viec.filter((v) => v.trung).length;
+    tong.du_phong ||= duPhong;
+    tong.so_hoi_thoai++;
+  }
+  return tong;
 }
 
 // Tin nhắn trực tiếp (Telegram, dịch vụ ngoài): đi qua cùng lõi AI như tin Zalo nhưng không nằm trong hộp tin.
