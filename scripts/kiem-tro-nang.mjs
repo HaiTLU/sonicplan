@@ -35,6 +35,7 @@ async function dungDuLieu() {
     ('tc_thu', 'Gửi báo cáo tuần', date('now'), 'mo', 1, 2, '${luc(50)}', '${luc(50)}'),
     ('tc_thu', 'Chuẩn bị họp thứ Năm', date('now', '+2 days'), 'mo', NULL, 1, '${luc(20)}', '${luc(20)}'),
     ('tc_thu', 'Gọi lại cho Minh', NULL, 'xong', NULL, 3, '${luc(80)}', '${luc(10)}')`);
+  db.exec(`INSERT INTO viec (to_chuc_id, tieu_de, han_ngay, trang_thai, nhom, tao_luc, cap_nhat_luc) VALUES ('tc_thu', 'Soạn nháp thư mời họp', date('now', '+1 day'), 'mo', 'claude_tu_lam', '${luc(40)}', '${luc(40)}')`);
   return env;
 }
 

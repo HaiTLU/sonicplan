@@ -444,7 +444,7 @@ export async function xuLyApi(yeuCau, env, phien, url) {
 // ---- Tổng quan ----
 
 // Các khối của trang Tổng quan, người dùng ẩn hiện và đổi thứ tự được (lưu theo từng người).
-export const KHOI_TONG_QUAN = ['can-lam', 'chi-so', 'du-an', 'viec-toi', 'nhip', 'hieu-suat', 'tong-hop', 'tin-moi', 'he-thong'];
+export const KHOI_TONG_QUAN = ['can-lam', 'de-xuat-claude', 'chi-so', 'du-an', 'viec-toi', 'nhip', 'hieu-suat', 'tong-hop', 'tin-moi', 'he-thong'];
 
 export function chuanBoCuc(x) {
   const hop = (ds) => [...new Set((Array.isArray(ds) ? ds : []).filter((k) => KHOI_TONG_QUAN.includes(k)))];
@@ -472,7 +472,7 @@ async function tongQuan(env, tc, phien) {
       `SELECT date(datetime(${cot}, '+7 hours')) AS ngay, COUNT(*) AS n FROM ${bang}
        WHERE to_chuc_id = ?1 ${them} AND ${cot} >= ?2 GROUP BY ngay`,
     ).bind(tc, dau8);
-  const [soLieu, tinGio, viecGio, chayGio, chayLoiGio, sapToi, tinMoi, tinTuan, viecNgay, xongNgay, theoDuAn, claude, boCuc] = await env.CSDL.batch([
+  const [soLieu, tinGio, viecGio, chayGio, chayLoiGio, sapToi, tinMoi, tinTuan, viecNgay, xongNgay, theoDuAn, claude, boCuc, deXuat] = await env.CSDL.batch([
     env.CSDL.prepare(
       `SELECT
         (SELECT COUNT(*) FROM tin_nhan WHERE to_chuc_id = ?1 AND an = 0 AND thoi_diem >= ?5 AND thoi_diem < ?6) AS tin_hom_nay,
@@ -520,6 +520,13 @@ async function tongQuan(env, tc, phien) {
            WHERE v.to_chuc_id = ?1 AND v.trang_thai = 'mo' AND l.trang_thai = 'xong' AND l.danh_gia IS NULL) AS cho_ban`,
     ).bind(tc, tuanTruoc),
     env.CSDL.prepare('SELECT gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = ?2').bind(tc, `tq_bo_cuc:${phien?.nguoi_dung?.id || ''}`),
+    // Đề xuất giao Claude: việc AI xếp "Claude tự làm" được, chưa giao lượt nào. Bạn bấm mới giao.
+    env.CSDL.prepare(
+      `SELECT v.id, v.tieu_de, v.han_ngay, v.gio_hen, v.ghi_chu, COUNT(*) OVER () AS tong FROM viec v
+       WHERE v.to_chuc_id = ?1 AND v.trang_thai = 'mo' AND v.nhom = 'claude_tu_lam' AND v.github_issue IS NULL
+         AND NOT EXISTS (SELECT 1 FROM luot_claude l WHERE l.to_chuc_id = v.to_chuc_id AND l.viec_id = v.id)
+       ORDER BY v.han_ngay IS NULL, v.han_ngay, v.id DESC LIMIT 6`,
+    ).bind(tc),
   ]);
   const mang8 = (kq) => Array.from({ length: 8 }, (_, i) => kq.results.find((r) => r.ngay === congNgayIso(homNay, i - 7))?.n || 0);
   let bc = null;
@@ -539,6 +546,7 @@ async function tongQuan(env, tc, phien) {
     claude: claude.results[0],
     bo_cuc: chuanBoCuc(bc),
     viec_sap_toi: sapToi.results,
+    de_xuat_claude: { tong: deXuat.results[0]?.tong || 0, viec: deXuat.results.map(({ tong, ...v }) => v) },
     tin_moi: tinMoi.results,
     tinh_trang: await layTinhTrang(env, tc),
   };
@@ -725,6 +733,10 @@ export function kiemViec(than, { batBuocTieuDe }) {
     ra.mau = m;
   }
   if ('sao' in than) ra.sao = than.sao ? 1 : 0;
+  if ('nhom' in than) {
+    if (than.nhom !== null && !['claude_tu_lam', 'claude_chuan_bi', 'anh_tu_lam'].includes(than.nhom)) return { loi: 'Nhóm việc không hợp lệ.' };
+    ra.nhom = than.nhom;
+  }
   return { viec: ra };
 }
 
