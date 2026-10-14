@@ -10,7 +10,7 @@ import { TEP_TOI_DA } from './hop-tin.js';
 export const MODEL_CLAUDE = ['opus', 'sonnet', 'haiku', 'fable'];
 export const EFFORT_CLAUDE = ['low', 'medium', 'high', 'xhigh', 'max'];
 export const CHE_DO_CLAUDE = ['acceptEdits', 'plan'];
-const LUU_LAI = new Set(['nguoi', 'chu', 'cong_cu', 'ket_qua_cong_cu', 'tep', 'xong', 'he_thong', 'bo_nho']);
+const LUU_LAI = new Set(['nguoi', 'chu', 'cong_cu', 'ket_qua_cong_cu', 'tep', 'xong', 'he_thong', 'bo_nho', 'hoi', 'xin_phep', 'da_tra_loi']);
 const TIN_BO_NHO = new Set(['bn_doc', 'bn_ghi', 'bn_gop']);
 const TOI_DA_SU_KIEN = 3000;
 const so6 = (n) => String(n).padStart(6, '0');
@@ -86,7 +86,7 @@ export class PhongTram {
   }
 
   metaPhien(p) {
-    return { id: p.id, tieu_de: p.tieu_de, du_an: p.du_an || null, tao_luc: p.tao_luc, cap_nhat: p.cap_nhat, dang_chay: Boolean(p.dang_chay), cho_tram: Boolean(p.cho_tram), model: p.model || null, effort: p.effort || null };
+    return { id: p.id, tieu_de: p.tieu_de, du_an: p.du_an || null, tao_luc: p.tao_luc, cap_nhat: p.cap_nhat, dang_chay: Boolean(p.dang_chay), cho_tram: Boolean(p.cho_tram), model: p.model || null, effort: p.effort || null, cho_ban: Boolean(p.cho_ban?.length) };
   }
 
   async dsPhien() {
@@ -120,6 +120,7 @@ export class PhongTram {
     if (TIN_BO_NHO.has(tin.loai)) return this.chuyenBoNho(ws, tin);
     if (tin.loai === 'gui') return this.guiLuot(ws, tin);
     if (tin.loai === 'dung') return this.dungLuot(tin.phien);
+    if (tin.loai === 'tra_loi') return this.traLoi(ws, tin);
     if (tin.loai === 'doi_ten') {
       const p = await this.docPhien(tin.phien);
       if (!p) return;
@@ -179,6 +180,18 @@ export class PhongTram {
     this.phat({ loai: 'phien', phien: this.metaPhien(p) });
   }
 
+  // Người dùng bấm nút trả lời câu hỏi hoặc Cho phép / Không: chuyển cho trạm đang chạy lượt đó.
+  async traLoi(ws, tin) {
+    const p = await this.docPhien(tin.phien);
+    const id = String(tin.id || '').slice(0, 100);
+    if (!p?.dang_chay || !p.cho_ban?.includes(id)) return this.gui(ws, { loai: 'loi', phien: tin.phien, noi_dung: 'Câu hỏi này đã hết hạn hoặc đã được trả lời.' });
+    const tram = this.tramDangMo();
+    if (!tram) return this.gui(ws, { loai: 'loi', phien: p.id, noi_dung: 'Trạm Claude trên máy Mac đang tắt nên chưa gửi được câu trả lời.' });
+    const traLoi = {};
+    if (tin.tra_loi && typeof tin.tra_loi === 'object') for (const [k, v] of Object.entries(tin.tra_loi).slice(0, 4)) traLoi[String(k).slice(0, 500)] = String(v).slice(0, 2000);
+    this.gui(tram, { loai: 'tra_loi', phien: p.id, luot: p.dang_chay, id, cho_phep: tin.cho_phep === true ? true : tin.cho_phep === false ? false : null, tra_loi: traLoi });
+  }
+
   async dungLuot(id) {
     const p = await this.docPhien(id);
     if (!p?.dang_chay) return;
@@ -186,7 +199,7 @@ export class PhongTram {
     if (tram && !p.cho_tram) return this.gui(tram, { loai: 'dung', phien: p.id, luot: p.dang_chay });
     // Lượt chưa tới trạm: hủy luôn tại phòng.
     const sk = await this.ghiSuKien(p, { loai: 'xong', luot: p.dang_chay, thanh_cong: false, da_dung: true, loi: 'Đã dừng trước khi trạm nhận việc.' });
-    Object.assign(p, { dang_chay: null, cho: null, cho_tram: false });
+    Object.assign(p, { dang_chay: null, cho: null, cho_tram: false, cho_ban: [] });
     await this.luuPhien(p);
     this.phat({ loai: 'su_kien', phien: p.id, su_kien: sk });
     this.phat({ loai: 'phien', phien: this.metaPhien(p) });
@@ -218,11 +231,15 @@ export class PhongTram {
       const p = await this.docPhien(tin.phien);
       if (!p) return;
       let doi = false;
+      let doiMeta = false;
       for (const s of (Array.isArray(tin.ds) ? tin.ds : []).slice(0, 200)) {
         if (!s || typeof s.loai !== 'string') continue;
         const sk = { ...s, luot: tin.luot };
         if (LUU_LAI.has(s.loai)) {
           if (s.loai === 'xong') continue; // xong đi đường riêng
+          // Ghi nhớ câu hỏi, xin phép còn chờ để danh sách phiên hiện nhãn "chờ bạn".
+          if ((s.loai === 'hoi' || s.loai === 'xin_phep') && s.id) { p.cho_ban = [...(p.cho_ban || []), String(s.id)].slice(-20); doiMeta = true; }
+          if (s.loai === 'da_tra_loi') { p.cho_ban = (p.cho_ban || []).filter((x) => x !== String(s.id)); doiMeta = true; }
           this.phat({ loai: 'su_kien', phien: p.id, su_kien: await this.ghiSuKien(p, sk) });
           doi = true;
         } else {
@@ -230,6 +247,7 @@ export class PhongTram {
         }
       }
       if (doi) await this.mt.kho.put(`phien:${p.id}`, p);
+      if (doiMeta) this.phat({ loai: 'phien', phien: this.metaPhien(p) });
       return;
     }
     if (tin.loai === 'bn') return this.phat({ ...tin, noi_dung: String(tin.noi_dung || '').slice(0, 40000) });
@@ -252,7 +270,7 @@ export class PhongTram {
       chi_phi: Number(tin.chi_phi) || null,
       thu_muc: tin.thu_muc ? String(tin.thu_muc).slice(0, 400) : null,
     });
-    Object.assign(p, { dang_chay: null, cho: null, cho_tram: false });
+    Object.assign(p, { dang_chay: null, cho: null, cho_tram: false, cho_ban: [] });
     await this.luuPhien(p);
     this.phat({ loai: 'su_kien', phien: p.id, su_kien: sk });
     this.phat({ loai: 'phien', phien: this.metaPhien(p) });

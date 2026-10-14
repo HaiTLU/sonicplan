@@ -124,3 +124,30 @@ main:has([data-trang="claude"]:not([hidden])) { max-width: none; }
 @media (prefers-reduced-motion: reduce) {
   .cham-chay, .tram-dang-nhan .quay, .tram-claude.dang-viet .tram-md > :last-child::after { animation: none; }
 }
+
+/* Câu hỏi của Claude và thẻ xin phép */
+.tram-nhan-cho { padding: 1px 7px; border-radius: 999px; background: var(--nhan-nhat); color: var(--nhan); font-weight: 700; font-size: 11px; }
+.tram-hoi, .tram-xin { max-width: min(100%, 680px); display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--nhan) 45%, transparent); background: color-mix(in srgb, var(--nhan) 7%, var(--mat)); }
+.tram-hoi.xong, .tram-xin.xong { border-color: var(--vach); background: var(--mat); gap: 4px; padding: 10px 14px; }
+.tram-hoi p, .tram-xin p { margin: 0; }
+.tram-hoi-nhan { color: var(--nhan); font-size: 12px; font-weight: 700; text-transform: none; }
+.tram-hoi.xong .tram-hoi-nhan, .tram-xin.xong .tram-hoi-nhan { color: var(--phu); }
+.tram-hoi.xong p:not(.tram-hoi-nhan) { color: var(--chu-2); font-size: 13.5px; }
+.tram-hoi-cau { display: flex; flex-direction: column; gap: 8px; }
+.tram-hoi-dau { align-self: flex-start; padding: 2px 8px; border-radius: 7px; background: var(--mat-3); color: var(--chu-2); font-size: 11.5px; font-weight: 600; }
+.tram-hoi-q { font-weight: 600; font-size: 14.5px; line-height: 1.5; }
+.tram-hoi-chon { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.tram-hoi-nut { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 9px 12px; border-radius: 11px; border: 1px solid var(--vach-2); background: var(--mat); color: var(--chu); text-align: left; cursor: pointer; font: inherit; }
+.tram-hoi-nut:hover { border-color: var(--nhan); }
+.tram-hoi-nut[aria-pressed="true"] { border-color: var(--nhan); background: var(--nhan-nhat); box-shadow: 0 0 0 1px var(--nhan) inset; }
+.tram-hoi-nut b { font-size: 13.5px; }
+.tram-hoi-nut small { color: var(--phu); font-size: 12px; line-height: 1.4; }
+.tram-hoi-khac { height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--vach-2); background: var(--mat); color: var(--chu); font: 400 13.5px var(--phong); outline: none; }
+.tram-hoi-khac:focus { border-color: var(--nhan); }
+.tram-hoi-nuts { display: flex; flex-wrap: wrap; gap: 8px; }
+.tram-xin-ten { font-weight: 600; font-size: 14px; }
+.tram-xin pre { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--nen-2); border: 1px solid var(--vach); white-space: pre-wrap; overflow-wrap: anywhere; font: 500 12.5px/1.5 ui-monospace, "SF Mono", Menlo, monospace; color: var(--chu-2); max-height: 280px; overflow: auto; }
+.tram-xin-ke-hoach { max-height: 360px; overflow: auto; padding: 10px 12px; border-radius: 10px; background: var(--mat); border: 1px solid var(--vach); font-size: 14px; line-height: 1.6; }
+.tram-xin-kq { color: var(--on); font-size: 13px; font-weight: 600; }
+.tram-xin.tu-choi .tram-xin-kq { color: var(--loi); }
+@media (max-width: 860px) { .tram-hoi-chon { grid-template-columns: 1fr; } }

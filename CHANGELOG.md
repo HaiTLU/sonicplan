@@ -2,6 +2,14 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [1.8.0] - 2026-10-14
+
+### Thêm
+- Trang Claude: khi Claude cần hỏi lại, câu hỏi hiện thành thẻ có nút lựa chọn để bấm (một câu một lựa chọn thì bấm là gửi ngay), có ô gõ câu trả lời khác và nút "Bỏ qua, để Claude tự quyết". Phiên đang chờ có nhãn "chờ bạn" ở cột trái.
+- Lệnh máy (Bash) và công cụ ngoài danh sách tự cho phép: trang hiện thẻ "Claude xin phép" kèm nguyên lệnh, bấm "Cho phép" hoặc "Không". Chế độ lập kế hoạch: kế hoạch hiện nguyên văn với nút "Duyệt, làm theo" hoặc "Chưa, sửa lại". Lệnh chỉ đọc (như `ls`, `date`) Claude Code tự chạy, không hỏi.
+- Không ai trả lời sau 30 phút thì trạm báo Claude "không được phép" để lượt không treo; bấm Dừng cũng hủy mọi câu đang chờ. Câu hỏi và câu trả lời lưu trong lịch sử phiên.
+- Trạm lên bản 1.2.0 (tự cập nhật khi khởi động lại).
+
 ## [1.7.0] - 2026-10-14
 
 ### Thêm

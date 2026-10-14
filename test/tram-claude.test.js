@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PhongTram, kichBanCai, tenTepAnToan } from '../src/tram-claude.js';
 import { taoMayChu } from '../may-chu/chay.js';
+import { cauTraLoiQuyen, chiTietXin } from '../public/tram-claude.mjs';
 
 function khoNho() {
   const du = new Map();
@@ -184,4 +185,55 @@ test('Máy chủ Node: trình duyệt và trạm nối WebSocket, lượt đi t�
   } finally {
     await m.dong();
   }
+});
+
+test('Phòng: Claude hỏi thì phiên hiện "chờ bạn", trả lời đi tới trạm, câu đã trả lời không nhận lần hai', async () => {
+  const { phong, moi } = dungPhong();
+  const { khoa } = await phong.xuLy('tao-khoa');
+  const tram = moi('tram');
+  await phong.nhanTin(tram, JSON.stringify({ loai: 'chao', khoa }));
+  const nguoi = moi('nguoi');
+  await phong.nhanTin(nguoi, JSON.stringify({ loai: 'gui', noi_dung: 'Soạn kế hoạch' }));
+  const luot = tin(tram, 'luot')[0];
+
+  // Trả lời khi chưa có câu hỏi thì bị từ chối.
+  await phong.nhanTin(nguoi, JSON.stringify({ loai: 'tra_loi', phien: luot.phien, id: 'q1', tra_loi: { 'Hạn?': 'Tuần sau' } }));
+  assert.match(tin(nguoi, 'loi').at(-1).noi_dung, /hết hạn/);
+
+  await phong.nhanTin(tram, JSON.stringify({ loai: 'su_kien', phien: luot.phien, luot: luot.luot, ds: [{ loai: 'hoi', id: 'q1', cau_hoi: [{ question: 'Hạn?', options: [{ label: 'Tuần sau' }] }] }] }));
+  assert.equal(tin(nguoi, 'phien').at(-1).phien.cho_ban, true);
+
+  await phong.nhanTin(nguoi, JSON.stringify({ loai: 'tra_loi', phien: luot.phien, id: 'q1', tra_loi: { 'Hạn?': 'Tuần sau', a: 1, b: 2, c: 3, d: 4 } }));
+  const di = tin(tram, 'tra_loi')[0];
+  assert.equal(di.id, 'q1');
+  assert.equal(di.luot, luot.luot);
+  assert.equal(di.tra_loi['Hạn?'], 'Tuần sau');
+  assert.ok(Object.keys(di.tra_loi).length <= 4);
+
+  await phong.nhanTin(tram, JSON.stringify({ loai: 'su_kien', phien: luot.phien, luot: luot.luot, ds: [{ loai: 'da_tra_loi', id: 'q1', cho_phep: true }] }));
+  assert.equal(tin(nguoi, 'phien').at(-1).phien.cho_ban, false);
+  await phong.nhanTin(nguoi, JSON.stringify({ loai: 'tra_loi', phien: luot.phien, id: 'q1', cho_phep: true }));
+  assert.equal(tin(tram, 'tra_loi').length, 1);
+
+  // Câu hỏi và câu trả lời được lưu để mở lại phiên vẫn thấy.
+  await phong.nhanTin(tram, JSON.stringify({ loai: 'xong', phien: luot.phien, luot: luot.luot, thanh_cong: true }));
+  const doc = moi('nguoi');
+  await phong.nhanTin(doc, JSON.stringify({ loai: 'mo', phien: luot.phien }));
+  assert.deepEqual(tin(doc, 'lich_su')[0].su_kien.map((s) => s.loai), ['nguoi', 'hoi', 'da_tra_loi', 'xong']);
+});
+
+test('Trạm: câu trả lời gửi Claude Code đúng dạng cho câu hỏi và lần xin phép', () => {
+  const hoi = { ten: 'AskUserQuestion', input: { questions: [{ question: 'Hạn?' }, { question: 'Người nhận?' }] } };
+  assert.deepEqual(cauTraLoiQuyen(hoi, { tra_loi: { 'Hạn?': 'Tuần sau', 'Lạ?': 'x' } }), { behavior: 'allow', updatedInput: { ...hoi.input, answers: { 'Hạn?': 'Tuần sau' } } });
+  assert.equal(cauTraLoiQuyen(hoi, { tra_loi: {} }).behavior, 'deny');
+  assert.equal(cauTraLoiQuyen(hoi, { cho_phep: false, tra_loi: { 'Hạn?': 'a' } }).behavior, 'deny');
+
+  const bash = { ten: 'Bash', input: { command: 'ls' } };
+  assert.deepEqual(cauTraLoiQuyen(bash, { cho_phep: true }), { behavior: 'allow', updatedInput: { command: 'ls' } });
+  assert.equal(cauTraLoiQuyen(bash, {}).behavior, 'deny');
+  assert.equal(cauTraLoiQuyen(bash, { cho_phep: 'true' }).behavior, 'deny');
+
+  assert.equal(chiTietXin('Bash', { command: 'npm test' }), 'npm test');
+  assert.equal(chiTietXin('ExitPlanMode', { plan: '# Kế hoạch' }), '# Kế hoạch');
+  assert.match(chiTietXin('mcp__x', { a: 1 }), /"a": 1/);
 });

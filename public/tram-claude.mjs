@@ -10,7 +10,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { homedir, hostname } from 'node:os';
 import { basename, dirname, extname, join, relative, sep } from 'node:path';
 
-const PHIEN_BAN = '1.1.0';
+const PHIEN_BAN = '1.2.0';
 const TEP_TRAM = fileURLToPath(import.meta.url);
 
 // Việc đầu tiên khi chạy: nếu bản này vừa được tự cập nhật mà khởi động mãi không nhận được tin nào từ máy chủ
@@ -36,13 +36,14 @@ const THU_MUC_CAI = join(homedir(), '.sonicplan-tram');
 const TEP_PHIEN = join(THU_MUC_CAI, 'phien.json');
 const TEP_TOI_DA = 25 * 1024 * 1024;
 const TOI_DA_TEP_MOI = 30;
-// Bước này Claude chỉ đọc, viết, sửa tệp và tìm trên web. Lệnh máy (Bash) chưa bật, vì chưa có nút xin phép trên trang.
+// Công cụ Claude dùng không cần hỏi. Công cụ khác (lệnh máy Bash, công cụ MCP...) hiện nút "Cho phép" / "Không" trên trang.
 const CONG_CU = ['Read', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'TodoWrite', 'Task', 'Skill'];
 const LOI_DAN = [
   'Bạn đang làm việc qua trang Claude của Sonicplan. Thư mục hiện tại là thư mục riêng của phiên chat này.',
   'Lưu mọi tệp tạo ra trong thư mục hiện tại để người dùng tải về được. Tệp người dùng đính kèm nằm trong dinh-kem/.',
-  'Trả lời bằng tiếng Việt, ngắn gọn, dễ hiểu. Không ai trả lời được câu hỏi giữa chừng:',
-  'nếu thiếu thông tin quan trọng thì làm phần làm được và ghi rõ câu hỏi ở cuối câu trả lời.',
+  'Trả lời bằng tiếng Việt, ngắn gọn, dễ hiểu.',
+  'Khi thiếu thông tin quan trọng hoặc cần người dùng chọn giữa vài cách làm, dùng công cụ AskUserQuestion: câu hỏi hiện thành nút trên trang và người dùng trả lời ngay.',
+  'Lệnh máy (Bash) và công cụ ngoài danh sách cho sẵn phải chờ người dùng bấm Cho phép; bị từ chối thì đổi cách khác, không thử lại cùng lệnh.',
 ].join(' ');
 
 const ghiLog = (...a) => console.log(new Date().toISOString(), ...a);
@@ -60,6 +61,8 @@ const hopGui = [];
 const hang = [];
 const dangChay = new Map();
 let banDoPhien = {};
+// Câu hỏi và xin phép chưa ai trả lời quá lâu thì tự trả "không", để Claude không treo mãi.
+const CHO_TRA_LOI_MS = 30 * 60 * 1000;
 
 function gui(tin) {
   if (ws && ws.readyState === 1 && daNhan) ws.send(JSON.stringify(tin));
@@ -91,6 +94,8 @@ function noi() {
       chayHang();
     } else if (tin.loai === 'dung') {
       dung(tin.phien, tin.luot);
+    } else if (tin.loai === 'tra_loi') {
+      traLoi(tin);
     } else if (tin.loai === 'het_han') {
       ghiLog('Sonicplan báo:', tin.ly_do);
       choMo = 10 * 60 * 1000;
@@ -116,6 +121,7 @@ function dung(phien, luot) {
   const d = dangChay.get(phien);
   if (!d || (luot && d.luot !== luot)) return;
   d.daDung = true;
+  for (const id of [...(d.cho?.keys() || [])]) traLoi({ phien, id, cho_phep: false, ly_do: 'Người dùng đã bấm Dừng.' });
   try { d.con.kill('SIGINT'); } catch {}
   setTimeout(() => { try { d.con.kill('SIGKILL'); } catch {} }, 4000);
 }
@@ -195,19 +201,55 @@ function moTaCongCu(ten, vao = {}) {
     case 'TodoWrite': return 'Lập danh sách việc cần làm';
     case 'Task': case 'Agent': return `Giao trợ lý con: ${String(vao.description || '').slice(0, 80)}`;
     case 'Skill': return `Dùng kỹ năng ${vao.skill || vao.name || ''}`;
+    case 'AskUserQuestion': return 'Hỏi bạn';
+    case 'ExitPlanMode': return 'Trình kế hoạch, chờ bạn duyệt';
     default: return ten;
   }
 }
 
+// Phần hiện trên thẻ xin phép: lệnh máy hiện nguyên lệnh, kế hoạch hiện nguyên văn, còn lại hiện dữ liệu vào.
+export function chiTietXin(ten, vao = {}) {
+  if (ten === 'Bash') return String(vao.command || '').slice(0, 3000);
+  if (ten === 'ExitPlanMode') return String(vao.plan || '').slice(0, 6000);
+  return JSON.stringify(vao || {}, null, 1).slice(0, 3000);
+}
+
+// Câu trả lời của người dùng cho một câu hỏi (AskUserQuestion) hoặc một lần xin phép: gửi lại cho Claude Code qua stdin.
+export function cauTraLoiQuyen(cho, tin) {
+  if (cho.ten === 'AskUserQuestion') {
+    const traLoi = tin.tra_loi && typeof tin.tra_loi === 'object' ? tin.tra_loi : {};
+    const answers = {};
+    for (const q of cho.input?.questions || []) if (traLoi[q.question] != null && String(traLoi[q.question]).trim()) answers[q.question] = String(traLoi[q.question]).slice(0, 2000);
+    if (tin.cho_phep === false || !Object.keys(answers).length) return { behavior: 'deny', message: tin.ly_do || 'Người dùng không trả lời câu hỏi. Làm tiếp với giả định hợp lý nhất và ghi rõ giả định.' };
+    return { behavior: 'allow', updatedInput: { ...cho.input, answers } };
+  }
+  if (tin.cho_phep === true) return { behavior: 'allow', updatedInput: cho.input };
+  return { behavior: 'deny', message: tin.ly_do || 'Người dùng không cho phép việc này. Đổi cách khác hoặc hỏi lại.' };
+}
+
+function traLoi(tin) {
+  const d = dangChay.get(tin.phien);
+  const cho = d?.cho?.get(tin.id);
+  if (!cho) return;
+  d.cho.delete(tin.id);
+  clearTimeout(cho.hen);
+  const ra = cauTraLoiQuyen(cho, tin);
+  try { d.con.stdin.write(`${JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: tin.id, response: ra } })}\n`); } catch {}
+  gui({ loai: 'su_kien', phien: tin.phien, luot: d.luot, ds: [{ loai: 'da_tra_loi', id: tin.id, cho_phep: ra.behavior === 'allow', tra_loi: ra.updatedInput?.answers || null, ly_do: ra.behavior === 'deny' ? ra.message : null }] });
+}
+
 function chayClaude(t, thuMuc, loiNhac, coResume) {
-  const doiSo = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
-    '--permission-mode', t.che_do === 'plan' ? 'plan' : 'acceptEdits', '--permission-prompts', 'none',
+  // Nhập dạng stream-json và --permission-prompt-tool stdio: Claude Code hỏi trạm mỗi khi cần xin phép hay hỏi người dùng.
+  const doiSo = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
+    '--permission-mode', t.che_do === 'plan' ? 'plan' : 'acceptEdits', '--permission-prompt-tool', 'stdio',
     '--append-system-prompt', t.loiDanBoNho ? `${LOI_DAN}\n\n${t.loiDanBoNho}` : LOI_DAN, '--allowedTools', ...CONG_CU];
   if (t.model) doiSo.push('--model', t.model);
   if (t.effort) doiSo.push('--effort', t.effort);
   if (coResume && t.claude_session) doiSo.push('--resume', t.claude_session);
   const con = spawn(CLAUDE, doiSo, { cwd: thuMuc, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, CLAUDECODE: '' } });
-  con.stdin.end(loiNhac);
+  con.stdin.on('error', () => {});
+  con.stdin.write(`${JSON.stringify({ type: 'control_request', request_id: 'khoi-dong', request: { subtype: 'initialize' } })}\n`);
+  con.stdin.write(`${JSON.stringify({ type: 'user', message: { role: 'user', content: loiNhac } })}\n`);
   return con;
 }
 
@@ -232,7 +274,7 @@ async function chayLuot(t) {
   const ketQua = await new Promise((xong) => {
     const chayMot = (coResume) => {
       const con = chayClaude(t, thuMuc, loiNhac, coResume);
-      const d = { luot: t.luot, con, daDung: dangChay.get(t.phien)?.daDung || false };
+      const d = { luot: t.luot, con, daDung: dangChay.get(t.phien)?.daDung || false, cho: new Map() };
       dangChay.set(t.phien, d);
       let dem = '';
       let loiRa = '';
@@ -252,6 +294,18 @@ async function chayLuot(t) {
           let m;
           try { m = JSON.parse(dong); } catch { continue; }
           if (m.type === 'system' && m.subtype === 'init') sid = m.session_id;
+          else if (m.type === 'control_request') {
+            const r = m.request || {};
+            if (r.subtype !== 'can_use_tool') {
+              try { con.stdin.write(`${JSON.stringify({ type: 'control_response', response: { subtype: 'error', request_id: m.request_id, error: 'Trạm không hỗ trợ yêu cầu này.' } })}\n`); } catch {}
+              continue;
+            }
+            const cho = { ten: r.tool_name, input: r.input || {} };
+            cho.hen = setTimeout(() => traLoi({ phien: t.phien, id: m.request_id, cho_phep: false, ly_do: 'Người dùng không trả lời trong 30 phút. Làm tiếp phần làm được và ghi rõ chỗ còn thiếu.' }), CHO_TRA_LOI_MS);
+            d.cho.set(m.request_id, cho);
+            if (r.tool_name === 'AskUserQuestion') them({ loai: 'hoi', id: m.request_id, cau_hoi: (r.input?.questions || []).slice(0, 4) }, true);
+            else them({ loai: 'xin_phep', id: m.request_id, ten: r.tool_name, mo_ta: moTaCongCu(r.tool_name, r.input), chi_tiet: chiTietXin(r.tool_name, r.input), ly_do: r.decision_reason || null }, true);
+          }
           else if (m.type === 'stream_event') {
             const e = m.event || {};
             if (e.type === 'content_block_delta' && e.delta?.type === 'text_delta' && e.delta.text) them({ loai: 'chu_dang', them: e.delta.text });
@@ -271,6 +325,7 @@ async function chayLuot(t) {
           } else if (m.type === 'result') {
             kq = m;
             sid = m.session_id || sid;
+            try { con.stdin.end(); } catch {}
           }
         }
       });
@@ -278,6 +333,8 @@ async function chayLuot(t) {
       con.on('error', (e) => { loiRa += `\n${e.message}`; });
       con.on('close', (ma) => {
         clearTimeout(henGui);
+        for (const c of d.cho.values()) clearTimeout(c.hen);
+        d.cho.clear();
         day();
         // Phiên cũ không còn trên máy (cài lại máy, đổi máy): chạy lại như phiên mới.
         if (coResume && !kq && /no conversation found|session.*not found/i.test(loiRa) && !d.daDung) return chayMot(false);

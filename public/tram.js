@@ -169,7 +169,7 @@ function veDs() {
     st.ds.length ? h('ul', {}, ...st.ds.map((p) => h('li', {},
       h('a', { href: `#claude/${p.id}`, ...(p.id === st.chon ? { 'aria-current': 'page' } : {}), onclick: (e) => { e.preventDefault(); chonPhien(p.id); } },
         h('span', { class: 'tram-ds-ten', text: p.tieu_de || 'Phiên chưa đặt tên' }),
-        h('small', {}, p.dang_chay ? h('span', { class: 'cham-chay', 'aria-label': 'Đang chạy' }) : null, p.du_an?.ten ? `${p.du_an.ten} · ` : '', luc(p.cap_nhat)))))) : h('p', { class: 'tram-ds-trong', text: 'Chưa có phiên nào. Gõ yêu cầu ở khung bên phải để bắt đầu.' }),
+        h('small', {}, p.cho_ban ? h('span', { class: 'tram-nhan-cho', text: 'chờ bạn' }) : p.dang_chay ? h('span', { class: 'cham-chay', 'aria-label': 'Đang chạy' }) : null, p.du_an?.ten ? `${p.du_an.ten} · ` : '', luc(p.cap_nhat)))))) : h('p', { class: 'tram-ds-trong', text: 'Chưa có phiên nào. Gõ yêu cầu ở khung bên phải để bắt đầu.' }),
   );
 }
 
@@ -436,6 +436,79 @@ function veSuKien(sk, ketQua) {
   return null;
 }
 
+// ---------- Câu hỏi và xin phép ----------
+// Lựa chọn đang bấm dở của từng câu hỏi (giữ qua các lần vẽ lại khung chat).
+const nhapHoi = new Map();
+const dangGuiTraLoi = new Set();
+
+function guiTraLoi(id, duLieu) {
+  if (dangGuiTraLoi.has(id)) return;
+  if (!gui({ loai: 'tra_loi', phien: st.chon, id, ...duLieu })) { st.d.bao('Mất kết nối, đang nối lại. Bấm lại sau vài giây.', { loi: true }); return; }
+  dangGuiTraLoi.add(id);
+  veLuong();
+}
+
+function veHoi(sk, traLoi, hetHan) {
+  const { h } = st.d;
+  const ds = sk.cau_hoi || [];
+  if (traLoi || hetHan) {
+    const ketQua = traLoi?.tra_loi || {};
+    return h('div', { class: 'tram-hoi xong' },
+      h('p', { class: 'tram-hoi-nhan', text: traLoi ? (traLoi.cho_phep ? 'Bạn đã trả lời' : 'Đã bỏ qua câu hỏi') : 'Lượt đã kết thúc trước khi trả lời' }),
+      ...ds.map((q) => h('p', {}, h('b', { text: q.question }), ketQua[q.question] ? h('span', { text: ` ${ketQua[q.question]}` }) : null)));
+  }
+  if (!nhapHoi.has(sk.id)) nhapHoi.set(sk.id, {});
+  const nhap = nhapHoi.get(sk.id);
+  const dangGui = dangGuiTraLoi.has(sk.id);
+  const giaTri = (q) => {
+    const n = nhap[q.question];
+    if (n?.khac?.trim()) return n.khac.trim();
+    return n?.chon?.length ? n.chon.join(', ') : '';
+  };
+  const du = () => ds.every((q) => giaTri(q));
+  const gom = () => Object.fromEntries(ds.map((q) => [q.question, giaTri(q)]));
+  const nutGui = h('button', { class: 'nut nut-chinh nut-nho', type: 'button', disabled: dangGui || !du(), onclick: () => guiTraLoi(sk.id, { cho_phep: true, tra_loi: gom() }) }, dangGui ? 'Đang gửi...' : 'Gửi trả lời');
+  const capNhatNut = () => { nutGui.disabled = dangGui || !du(); };
+  // Một câu hỏi chọn một: bấm là gửi luôn, khỏi bấm thêm nút Gửi.
+  const guiNgay = ds.length === 1 && !ds[0].multiSelect;
+  return h('div', { class: 'tram-hoi', role: 'group', 'aria-label': 'Claude hỏi bạn' },
+    h('p', { class: 'tram-hoi-nhan', text: 'Claude hỏi bạn' }),
+    ...ds.map((q) => {
+      nhap[q.question] ||= { chon: [], khac: '' };
+      const n = nhap[q.question];
+      const oKhac = h('input', { class: 'tram-hoi-khac', type: 'text', value: n.khac, placeholder: 'Hoặc gõ câu trả lời khác', 'aria-label': `Câu trả lời khác cho: ${q.question}`, disabled: dangGui });
+      oKhac.addEventListener('input', () => { n.khac = oKhac.value; capNhatNut(); });
+      oKhac.addEventListener('keydown', (e) => { if (e.key === 'Enter' && du()) { e.preventDefault(); guiTraLoi(sk.id, { cho_phep: true, tra_loi: gom() }); } });
+      return h('div', { class: 'tram-hoi-cau' },
+        q.header ? h('span', { class: 'tram-hoi-dau', text: q.header }) : null,
+        h('p', { class: 'tram-hoi-q', text: q.question }),
+        h('div', { class: 'tram-hoi-chon' }, ...(q.options || []).map((o) => h('button', {
+          type: 'button', class: 'tram-hoi-nut', 'aria-pressed': String(n.chon.includes(o.label)), disabled: dangGui,
+          onclick: () => {
+            if (guiNgay) { n.chon = [o.label]; n.khac = ''; guiTraLoi(sk.id, { cho_phep: true, tra_loi: gom() }); return; }
+            n.chon = q.multiSelect ? (n.chon.includes(o.label) ? n.chon.filter((x) => x !== o.label) : [...n.chon, o.label]) : [o.label];
+            veLuong();
+          },
+        }, h('b', { text: o.label }), o.description ? h('small', { text: o.description }) : null))),
+        oKhac);
+    }),
+    h('div', { class: 'tram-hoi-nuts' }, guiNgay ? null : nutGui,
+      h('button', { class: 'nut nut-phu nut-nho', type: 'button', disabled: dangGui, onclick: () => guiTraLoi(sk.id, { cho_phep: false }) }, 'Bỏ qua, để Claude tự quyết')));
+}
+
+function veXinPhep(sk, traLoi, hetHan) {
+  const { h } = st.d;
+  const dangGui = dangGuiTraLoi.has(sk.id);
+  const ketThuc = traLoi ? (traLoi.cho_phep ? 'Bạn đã cho phép' : 'Bạn đã không cho phép') : hetHan ? 'Lượt đã kết thúc trước khi trả lời' : null;
+  return h('div', { class: `tram-xin${ketThuc ? ' xong' : ''}${traLoi && !traLoi.cho_phep ? ' tu-choi' : ''}`, role: 'group', 'aria-label': 'Claude xin phép' },
+    h('p', { class: 'tram-hoi-nhan', text: sk.ten === 'ExitPlanMode' ? 'Claude trình kế hoạch' : 'Claude xin phép' }),
+    h('p', { class: 'tram-xin-ten', text: sk.mo_ta || sk.ten }),
+    sk.chi_tiet ? (sk.ten === 'ExitPlanMode' ? h('div', { class: 'tram-xin-ke-hoach' }, chuClaude(sk.chi_tiet)) : h('pre', { text: sk.chi_tiet })) : null,
+    ketThuc ? h('p', { class: 'tram-xin-kq', text: ketThuc }) : h('div', { class: 'tram-hoi-nuts' },
+      h('button', { class: 'nut nut-chinh nut-nho', type: 'button', disabled: dangGui, onclick: () => guiTraLoi(sk.id, { cho_phep: true }) }, sk.ten === 'ExitPlanMode' ? 'Duyệt, làm theo' : 'Cho phép'),
+      h('button', { class: 'nut nut-phu nut-nho', type: 'button', disabled: dangGui, onclick: () => guiTraLoi(sk.id, { cho_phep: false }) }, sk.ten === 'ExitPlanMode' ? 'Chưa, sửa lại' : 'Không')));
+}
+
 function veLuong(cuonXuong = false) {
   if (!st.vLuong) return;
   const { h, thay } = st.d;
@@ -450,7 +523,16 @@ function veLuong(cuonXuong = false) {
     return;
   }
   st.vDangChay = h('div', { class: 'tram-dang' });
-  thay(st.vLuong, ...st.suKien.filter((x) => x.loai !== 'ket_qua_cong_cu').map((x) => veSuKien(x, ketQua)), p?.dang_chay ? st.vDangChay : null);
+  const daTraLoi = new Map(st.suKien.filter((x) => x.loai === 'da_tra_loi').map((x) => [x.id, x]));
+  const luotXong = new Set(st.suKien.filter((x) => x.loai === 'xong').map((x) => x.luot));
+  for (const id of daTraLoi.keys()) { dangGuiTraLoi.delete(id); nhapHoi.delete(id); }
+  const ve = (x) => {
+    if (x.loai === 'hoi') return veHoi(x, daTraLoi.get(x.id), luotXong.has(x.luot));
+    if (x.loai === 'xin_phep') return veXinPhep(x, daTraLoi.get(x.id), luotXong.has(x.luot));
+    return veSuKien(x, ketQua);
+  };
+  const an = (x) => x.loai === 'ket_qua_cong_cu' || x.loai === 'da_tra_loi' || (x.loai === 'cong_cu' && x.ten === 'AskUserQuestion');
+  thay(st.vLuong, ...st.suKien.filter((x) => !an(x)).map(ve), p?.dang_chay ? st.vDangChay : null);
   veDangChay();
   if (cuonXuong || ganDay) st.vLuong.scrollTop = st.vLuong.scrollHeight;
 }
@@ -461,7 +543,7 @@ function veDangChay() {
   const { h, thay } = st.d;
   const p = phienChon();
   const ganDay = st.vLuong.scrollHeight - st.vLuong.scrollTop - st.vLuong.clientHeight < 80;
-  const nhan = p?.cho_tram ? 'Đang chờ trạm Claude trên máy Mac bật lại' : st.dangLam || 'Claude đang làm';
+  const nhan = p?.cho_tram ? 'Đang chờ trạm Claude trên máy Mac bật lại' : p?.cho_ban ? 'Claude đang chờ bạn trả lời ở trên' : st.dangLam || 'Claude đang làm';
   thay(el,
     st.dangViet ? h('div', { class: 'tram-claude dang-viet' }, chuClaude(st.dangViet)) : null,
     h('p', { class: 'tram-dang-nhan' }, h('span', { class: 'quay', 'aria-hidden': 'true' }), nhan));
