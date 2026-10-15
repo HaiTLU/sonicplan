@@ -38,6 +38,9 @@ export function kiemThuMucKb(s) {
   return RE_THU_MUC.test(t) ? t : null;
 }
 
+// Nhóm chung ("Khác", "Cá nhân", "Chưa xếp dự án") không phải dự án thật: không tự tạo thư mục trong 01_Projects cho chúng.
+export const laDuAnChung = (ten) => { const c = chuanTen(ten); return c === 'khac' || c === 'canhan' || c.startsWith('chuaxep'); };
+
 // Thư mục chứa mọi việc của dự án: dự án ghép vào 01_Projects thì thêm /Sonicplan, còn _INBOX thì dùng luôn.
 export function thuMucGocDuAn(kbThuMuc, tenDuAn) {
   const t = kiemThuMucKb(kbThuMuc);

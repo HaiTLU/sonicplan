@@ -474,3 +474,95 @@ test('thợ Claude: Claude ghi nhap-email.json thì hệ thống tạo nháp Gma
     await tho.dong();
   } finally { ga.tra(); }
 });
+
+test('ghi nhớ KB về Sonicplan: đọc lại file, hợp nhất ba bên, Sonicplan thắng khi cùng sửa, không xóa vì file thiếu', async () => {
+  const { docGhiNhoMd, dungGhiNhoMd, hopNhatGhiNho } = await import('../src/tho-claude.js');
+  const ds = [
+    { loai: 'nguoi', tieu_de: 'Bình', noi_dung: 'Trưởng phòng Hợp tác', ghim: 1 },
+    { loai: 'du_an', tieu_de: 'SonicRec', noi_dung: 'Ghi âm họp ra biên bản', ghim: 0 },
+    { loai: 'quyet_dinh', tieu_de: 'Dùng Sonnet', noi_dung: 'Mức medium', ghim: 0 },
+  ];
+  assert.deepEqual(docGhiNhoMd(dungGhiNhoMd(ds)), ds); // xuất rồi đọc lại ra đúng danh sách
+  assert.deepEqual(docGhiNhoMd('## Lạ\n- **x**: y\nrác\n## Người\n- **A**: b'), [{ loai: 'nguoi', tieu_de: 'A', noi_dung: 'b', ghim: 0 }]);
+  const base = ds;
+  const kb = (them) => ds.map((g) => ({ ...g, ...(them[g.tieu_de] || {}) }));
+  // Mục mới trong KB: thêm. Mục KB sửa mà Sonicplan chưa đổi: nhận. Cả hai cùng sửa: Sonicplan thắng. File thiếu một mục: không xóa.
+  const hn = hopNhatGhiNho({
+    base,
+    ours: ds.map((g) => (g.tieu_de === 'SonicRec' ? { ...g, noi_dung: 'Bản của Sonicplan' } : g)),
+    theirs: [...kb({ Bình: { noi_dung: 'Giám đốc Hợp tác' }, SonicRec: { noi_dung: 'Bản của KB' } }).filter((g) => g.tieu_de !== 'Dùng Sonnet'), { loai: 'su_that', tieu_de: 'Mới từ KB', noi_dung: 'PM ghi trực tiếp', ghim: 0 }],
+  });
+  assert.deepEqual(hn.them.map((g) => g.tieu_de), ['Mới từ KB']);
+  assert.deepEqual(hn.sua.map((g) => [g.tieu_de, g.noi_dung]), [['Bình', 'Giám đốc Hợp tác']]);
+  assert.deepEqual(hn.xung_dot, ['du_an|sonicrec']);
+  // Chưa có bản gốc: chỉ thêm mục mới, không ghi đè mục có sẵn. Sonicplan đã xóa mục có trong bản gốc thì KB không hồi sinh nó.
+  assert.deepEqual(hopNhatGhiNho({ base: null, ours: ds, theirs: kb({ Bình: { noi_dung: 'Khác' } }) }), { them: [], sua: [], xung_dot: [] });
+  assert.deepEqual(hopNhatGhiNho({ base, ours: ds.slice(1), theirs: ds }).them, []);
+});
+
+test('đồng bộ ghi nhớ hai chiều với KB thật (kho git cục bộ): xuất, khớp, nhận điều KB sửa, giữ bản Sonicplan khi xung đột', async () => {
+  const { db, env } = moiTruong();
+  const them = db.prepare(`INSERT INTO ghi_nho (to_chuc_id, loai, tieu_de, noi_dung, ghim, tao_luc, cap_nhat_luc) VALUES ('tc1', ?1, ?2, ?3, ?4, '2026-10-01', '2026-10-01')`);
+  them.run('nguoi', 'Bình', 'Trưởng phòng Hợp tác', 1);
+  them.run('du_an', 'SonicRec', 'Ghi âm họp ra biên bản', 0);
+  them.run('quyet_dinh', 'Dùng Sonnet', 'Mức medium', 0);
+  const { goc, kbNguon, claude } = await dungChayThu();
+  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
+  const nhanhMoi = () => git(kbNguon, 'branch', '--list', 'sonicplan/ghi-nho-*').trim().split('\n').map((x) => x.trim().replace(/^\*\s*/, '')).filter(Boolean).pop();
+  const gopVaoMain = (nhanh) => git(kbNguon, 'update-ref', 'refs/heads/main', `refs/heads/${nhanh}`);
+  assert.equal((await tho.dongBoGhiNho()).doi, true);
+  gopVaoMain(nhanhMoi());
+  assert.equal((await tho.dongBoGhiNho()).doi, false); // đã khớp: lưu bản gốc
+  assert.ok(db.prepare("SELECT gia_tri FROM cai_dat WHERE to_chuc_id = 'tc1' AND khoa = 'ghi_nho_kb_goc'").get());
+
+  // PM sửa trực tiếp trong file ở KB: sửa Bình, sửa SonicRec, thêm mục mới; cùng lúc Sonicplan đã sửa SonicRec.
+  const lam = join(goc, 'sua-kb');
+  git(goc, 'clone', '-q', kbNguon, lam);
+  const tep = join(lam, 'memory/projects/Sonicplan_GhiNho.md');
+  let nd = readFileSync(tep, 'utf8').replace('Trưởng phòng Hợp tác', 'Giám đốc Hợp tác').replace('Ghi âm họp ra biên bản', 'Bản của KB');
+  nd = `${nd.trimEnd()}\n\n## Sự thật\n\n- **Mới từ KB**: PM ghi trực tiếp trong file\n- **Mật khẩu**: mật khẩu là 123456\n`;
+  writeFileSync(tep, nd);
+  git(lam, 'commit', '-qam', 'PM sửa ghi nhớ'); git(lam, 'push', '-q', 'origin', 'main');
+  db.prepare("UPDATE ghi_nho SET noi_dung = 'Bản của Sonicplan' WHERE tieu_de = 'SonicRec'").run();
+
+  const kq = await tho.dongBoGhiNho();
+  assert.equal(kq.nhap_tu_kb, 2); // Bình sửa + mục mới; mục Mật khẩu bị bộ lọc nhạy cảm chặn
+  const dong = (t) => ({ ...db.prepare('SELECT noi_dung, nguon, da_duyet, ghim FROM ghi_nho WHERE tieu_de = ?1').get(t) });
+  assert.equal(dong('Bình').noi_dung, 'Giám đốc Hợp tác');
+  assert.equal(dong('Bình').nguon, 'tay');
+  assert.deepEqual(dong('Mới từ KB'), { noi_dung: 'PM ghi trực tiếp trong file', nguon: 'tay', da_duyet: 1, ghim: 0 });
+  assert.equal(dong('SonicRec').noi_dung, 'Bản của Sonicplan'); // xung đột: Sonicplan thắng
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM ghi_nho WHERE tieu_de = 'Mật khẩu'").get().n, 0);
+  assert.equal(kq.doi, true); // bản của KB lệch Sonicplan (SonicRec, và mục chặn) nên đẩy PR chỉnh lại
+  await tho.dong();
+});
+
+test('dự án chưa ghép: khớp tên thì dùng thư mục có sẵn, dự án thật không khớp tạo 01_Projects/<Tên>, nhóm chung vào _INBOX', async () => {
+  const { laDuAnChung } = await import('../src/kb.js');
+  assert.deepEqual(['Khác', 'Cá nhân', 'Chưa xếp dự án', 'IPSOS', 'Hợp tác và Sự kiện'].map(laDuAnChung), [true, true, true, false, false]);
+  const { db, env } = moiTruong();
+  env.TEP = { get: async () => null };
+  db.exec("INSERT INTO du_an (id, to_chuc_id, ten, tao_luc) VALUES (2, 'tc1', 'DemoDuAn', '2026-01-01'), (3, 'tc1', 'IPSOS', '2026-01-01'), (4, 'tc1', 'Khác', '2026-01-01')");
+  db.prepare("INSERT INTO viec (id, to_chuc_id, tieu_de, trang_thai, nhom, du_an_id, tao_luc, cap_nhat_luc) VALUES (?1, 'tc1', ?2, 'mo', 'claude_tu_lam', ?3, '2026-10-01', '2026-10-01')");
+  for (const [id, du] of [[1, 2], [2, 3], [3, 4]]) db.prepare("INSERT INTO viec (id, to_chuc_id, tieu_de, trang_thai, nhom, du_an_id, han_ngay, tao_luc, cap_nhat_luc) VALUES (?1, 'tc1', ?2, 'mo', 'claude_tu_lam', ?3, ?4, '2026-10-01', '2026-10-01')").run(id, `Việc ${id}`, du, `2026-10-2${id}`);
+  const { goc, kbNguon, claude } = await dungChayThu();
+  await luuCauHinhTho(env, 'tc1', { song_song: 3 });
+  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
+  await tho.vongMotLan();
+  await tho.doiXong();
+  const duAn = Object.fromEntries(db.prepare('SELECT ten, kb_thu_muc, kb_duyet FROM du_an WHERE id > 1').all().map((d) => [d.ten, { ...d }]));
+  assert.deepEqual([duAn.DemoDuAn.kb_thu_muc, duAn.DemoDuAn.kb_duyet], ['01_Projects/DemoDuAn', 0]); // khớp thư mục có sẵn
+  assert.deepEqual([duAn.IPSOS.kb_thu_muc, duAn.IPSOS.kb_duyet], ['01_Projects/IPSOS', 0]); // dự án thật chưa có thư mục: tạo mới
+  assert.equal(duAn['Khác'].kb_thu_muc, null); // nhóm chung: không tự ghép
+  const thuMuc = Object.fromEntries(db.prepare('SELECT viec_id, thu_muc_lam FROM luot_claude').all().map((l) => [l.viec_id, l.thu_muc_lam]));
+  assert.match(thuMuc[1], /^01_Projects\/DemoDuAn\/Sonicplan\//);
+  assert.match(thuMuc[2], /^01_Projects\/IPSOS\/Sonicplan\//);
+  assert.match(thuMuc[3], /^_INBOX\/Sonicplan\/Khac\//);
+  await tho.dong();
+});
+
+test('lời nhắc tách việc có ba quy tắc rà soát đã duyệt 16/10/2026', async () => {
+  const { loiNhacTachViec } = await import('../src/ai.js');
+  const [he] = loiNhacTachViec([{ so: 1, nguon: 'zalo', noi_dung: 'x', thoi_diem: 't' }], '2026-10-16', 'Hải', [], [], [], [], []).map((m) => m.content ?? m);
+  for (const can of ['13) CHỈ TÁCH VIỆC khi tin đặt việc lên người dùng', 'rủ ăn uống', 'chị mua nước cho cô giáo', '14) BẮT BUỘC có ít nhất một việc khi tin gọi đích danh', 'nom = 3'.replace('nom', 'nhom'), 'tối thiểu 4 từ', 'CÓ DẤU', 'KHÔNG sao chép nguyên lỗi', 'KHÔNG tạo việc đó']) assert.ok(he.includes(can), can);
+});

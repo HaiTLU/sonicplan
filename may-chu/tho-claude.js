@@ -8,10 +8,11 @@ import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { hoanTatLuot } from '../src/claude-code.js';
 import { taoNhapGmail } from '../src/google.js';
-import { GOC_DU_AN, goiYThuMuc } from '../src/kb.js';
+import { GOC_DU_AN, goiYThuMuc, laDuAnChung, tenThuMuc } from '../src/kb.js';
+import { nhayCam } from '../src/ghi-nho.js';
 import { khoangNgay, dungChiSoMd, dungMauRaSoatMd, layMauRaSoat, loiNhacRaSoat, tinhChatLuongTachViec } from '../src/danh-gia-tach-viec.js';
 import { taoThongBao } from '../src/thong-bao.js';
-import { chonViecTuDong, dungGhiNhoMd, demLoiTuDongGanDay, demTuDongHomNay, docCauHinhTho, dungLichSuMd, dungNguCanhMd, layDinhKem, layGhiNhoSonicplan, layLichSuLuot, layTinNguCanh, loiNhacTho, taoLuotMay, thuMucLamViec } from '../src/tho-claude.js';
+import { chonViecTuDong, docGhiNhoMd, dungGhiNhoMd, hopNhatGhiNho, demLoiTuDongGanDay, demTuDongHomNay, docCauHinhTho, dungLichSuMd, dungNguCanhMd, layDinhKem, layGhiNhoSonicplan, layLichSuLuot, layTinNguCanh, loiNhacTho, taoLuotMay, thuMucLamViec } from '../src/tho-claude.js';
 
 const TOI_DA_PHUT = 30;
 const CONG_CU = ['Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'TodoWrite', 'Task', 'Skill', 'Bash(python3:*)', 'Bash(node:*)', 'Bash(ls:*)', 'Bash(cat:*)', 'Bash(mkdir:*)'];
@@ -74,10 +75,12 @@ export function moThoClaude(env, cfg = {}) {
   async function thuMucKbCuaDuAn(duAn) {
     if (!duAn) return null;
     if (duAn.kb_thu_muc) return duAn.kb_thu_muc;
+    // Khớp tên với thư mục có sẵn; không khớp mà là dự án thật thì tạo thư mục mới 01_Projects/<Tên> (PM đổi được ở thẻ Kết nối); nhóm chung (Khác, Cá nhân) dùng _INBOX.
     const goiY = goiYThuMuc(duAn.ten, await lietKeThuMucKb());
-    if (!goiY) return null;
-    await env.CSDL.prepare('UPDATE du_an SET kb_thu_muc = ?1, kb_duyet = 0 WHERE id = ?2 AND kb_thu_muc IS NULL').bind(`${GOC_DU_AN}/${goiY}`, duAn.id).run();
-    return `${GOC_DU_AN}/${goiY}`;
+    const dich = goiY ? `${GOC_DU_AN}/${goiY}` : laDuAnChung(duAn.ten) ? null : `${GOC_DU_AN}/${tenThuMuc(duAn.ten, 40)}`;
+    if (!dich) return null;
+    await env.CSDL.prepare('UPDATE du_an SET kb_thu_muc = ?1, kb_duyet = 0 WHERE id = ?2 AND kb_thu_muc IS NULL').bind(dich, duAn.id).run();
+    return dich;
   }
 
   // Chạy Claude Code, trả { ok, chu, chi_phi, so_luot } hoặc ném lỗi.
@@ -142,10 +145,15 @@ export function moThoClaude(env, cfg = {}) {
     let tong = 0;
     let doi = false;
     let prCuoi = null;
+    const nhan = { nhap: 0 };
+    let daDungTep = false;
     for (const { id: tc } of dsTc) {
-      const { results } = await env.CSDL.prepare('SELECT loai, tieu_de, noi_dung, ghim, nguon FROM ghi_nho WHERE to_chuc_id = ?1 ORDER BY loai, ghim DESC, tieu_de').bind(tc).all();
-      if (!results.length) continue;
-      tong += results.length;
+      const doc = async () => (await env.CSDL.prepare('SELECT loai, tieu_de, noi_dung, ghim, nguon FROM ghi_nho WHERE to_chuc_id = ?1 ORDER BY loai, ghim DESC, tieu_de').bind(tc).all()).results;
+      let results = await doc();
+      // ThangLong_KB là kho của một tổ chức và chỉ có một tệp Sonicplan_GhiNho.md: tổ chức đầu tiên có ghi nhớ giữ tệp, tổ chức khác (và tổ chức chưa có ghi nhớ nào, chưa đồng bộ lần nào) bỏ qua để khỏi nhập nhầm.
+      const coGoc = Boolean((await env.CSDL.prepare(`SELECT 1 AS x FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = 'ghi_nho_kb_goc'`).bind(tc).first()));
+      if (daDungTep || (!results.length && !coGoc)) continue;
+      daDungTep = true;
       const bayGio = new Date();
       const nhanh = `sonicplan/ghi-nho-${new Date(bayGio.getTime() + 7 * 3600000).toISOString().slice(2, 16).replace(/[-:T]/g, '')}`;
       const w = join(lamDir, `ghi-nho-${tc}`.slice(0, 60));
@@ -153,20 +161,44 @@ export function moThoClaude(env, cfg = {}) {
       try {
         const tep = join(w, 'memory', 'projects', 'Sonicplan_GhiNho.md');
         const cu = existsSync(tep) ? await readFile(tep, 'utf8') : '';
-        const moi = dungGhiNhoMd(results, bayGio);
         const bo = (x) => x.replace(/^Tự sinh lúc.*$/m, '');
-        if (bo(cu) === bo(moi)) continue;
+        // Chiều KB về Sonicplan: điều PM hay Claude thêm hoặc sửa trong file trên main (hợp nhất ba bên với bản xuất lần trước đã khớp).
+        const goc = await env.CSDL.prepare(`SELECT gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = 'ghi_nho_kb_goc'`).bind(tc).first();
+        let banGoc = null;
+        try { banGoc = goc ? JSON.parse(goc.gia_tri) : null; } catch { banGoc = null; }
+        if (cu) {
+          const hn = hopNhatGhiNho({ ours: results, theirs: docGhiNhoMd(cu), base: banGoc });
+          const bayGioIso = new Date().toISOString();
+          for (const g of hn.them) {
+            if (nhayCam(`${g.tieu_de} ${g.noi_dung}`)) continue; // số thẻ, mật khẩu, mã OTP, số giấy tờ: không bao giờ nhớ
+            await env.CSDL.prepare(`INSERT INTO ghi_nho (to_chuc_id, loai, tieu_de, noi_dung, nguon, ghim, da_duyet, tao_luc, cap_nhat_luc) VALUES (?1, ?2, ?3, ?4, 'tay', ?5, 1, ?6, ?6) ON CONFLICT (to_chuc_id, loai, tieu_de) DO NOTHING`)
+              .bind(tc, g.loai, g.tieu_de.slice(0, 120), g.noi_dung.slice(0, 600), g.ghim, bayGioIso).run();
+          }
+          for (const g of hn.sua) {
+            if (nhayCam(`${g.tieu_de} ${g.noi_dung}`)) continue;
+            await env.CSDL.prepare(`UPDATE ghi_nho SET noi_dung = ?1, ghim = ?2, nguon = 'tay', cap_nhat_luc = ?3 WHERE to_chuc_id = ?4 AND loai = ?5 AND lower(tieu_de) = lower(?6)`)
+              .bind(g.noi_dung.slice(0, 600), g.ghim, bayGioIso, tc, g.loai, g.tieu_de).run();
+          }
+          if (hn.them.length || hn.sua.length) { results = await doc(); console.log(`Ghi nhớ từ KB: thêm ${hn.them.length}, sửa ${hn.sua.length}, xung đột ${hn.xung_dot.length} (Sonicplan thắng)`); }
+          nhan.nhap += [...hn.them, ...hn.sua].filter((g) => !nhayCam(`${g.tieu_de} ${g.noi_dung}`)).length;
+        }
+        if (!results.length) continue;
+        tong += results.length;
+        const moi = dungGhiNhoMd(results, bayGio);
+        // Khớp rồi thì lưu bản gốc cho lần hợp nhất sau.
+        const luuGoc = (ds) => env.CSDL.prepare(`INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES (?1, 'ghi_nho_kb_goc', ?2) ON CONFLICT (to_chuc_id, khoa) DO UPDATE SET gia_tri = excluded.gia_tri`).bind(tc, JSON.stringify(ds.map((g) => ({ loai: g.loai, tieu_de: g.tieu_de, noi_dung: g.noi_dung, ghim: g.ghim })))).run();
+        if (bo(cu) === bo(moi)) { await luuGoc(results); continue; }
         await mkdir(join(w, 'memory', 'projects'), { recursive: true });
         await writeFile(tep, moi);
         doi = true;
-        const kq = await dayLenKb(w, nhanh, ['memory/projects/Sonicplan_GhiNho.md'], { tieuDe: 'Sonicplan: cập nhật ghi nhớ trong memory/', than: `- ${results.length} ghi nhớ từ trang Ghi nhớ của Sonicplan (tự sinh, sửa ở Sonicplan)`, nhan: 'ghi nhớ' });
+        const kq = await dayLenKb(w, nhanh, ['memory/projects/Sonicplan_GhiNho.md'], { tieuDe: 'Sonicplan: cập nhật ghi nhớ trong memory/', than: `- ${results.length} ghi nhớ từ trang Ghi nhớ của Sonicplan (tự sinh, sửa ở Sonicplan hoặc trực tiếp trong file này, hệ thống hợp nhất mỗi đêm)`, nhan: 'ghi nhớ' });
         prCuoi = kq.pr || prCuoi;
       } finally {
         await lanLuot(async () => { await git(['worktree', 'remove', '--force', w]).catch(() => {}); await git(['branch', '-D', nhanh]).catch(() => {}); }).catch(() => {});
       }
     }
     await env.CSDL.prepare(`INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES ('', 'ghi_nho_kb_luc', ?1) ON CONFLICT (to_chuc_id, khoa) DO UPDATE SET gia_tri = excluded.gia_tri`).bind(new Date().toISOString()).run().catch(() => {});
-    return { so_ghi_nho: tong, doi, pr: prCuoi };
+    return { so_ghi_nho: tong, doi, pr: prCuoi, nhap_tu_kb: nhan.nhap };
   }
 
   // Rà mẫu hằng tuần: Claude chấm lại 30 tin mẫu của 7 ngày qua, báo cáo vào _INBOX/Sonicplan/DanhGia_TachViec/ của KB (PR tự gộp), báo PM bằng thông báo đẩy.

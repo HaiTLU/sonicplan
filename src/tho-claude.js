@@ -238,4 +238,46 @@ export function dungGhiNhoMd(ds, bayGio = new Date()) {
   return `${d.join('\n').trimEnd()}\n`;
 }
 
+const LOAI_TU_TEN = Object.fromEntries(Object.entries(TEN_LOAI).map(([k, v]) => [v, k]));
+
+// Đọc lại Sonicplan_GhiNho.md thành danh sách { loai, tieu_de, noi_dung, ghim }. Dòng không đúng khung bị bỏ qua.
+export function docGhiNhoMd(chu) {
+  const ra = [];
+  let loai = null;
+  for (const dong of String(chu || '').split('\n')) {
+    const muc = dong.match(/^## (.+?)\s*$/);
+    if (muc) { loai = LOAI_TU_TEN[muc[1]] || null; continue; }
+    const g = loai && dong.match(/^- \*\*(.+?)\*\*( \(ghim\))?: (.+)$/);
+    if (g) ra.push({ loai, tieu_de: g[1].trim(), noi_dung: g[3].trim(), ghim: g[2] ? 1 : 0 });
+  }
+  return ra;
+}
+
+const khoaGhiNho = (g) => `${g.loai}|${String(g.tieu_de).trim().toLowerCase()}`;
+const gonND = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+
+// Hợp nhất ba bên (base: bản xuất lần trước đã khớp với KB; ours: Sonicplan hiện tại; theirs: file trên main của KB).
+// Chỉ nhận từ KB điều PM hay Claude đã thêm hoặc sửa trong file; Sonicplan thắng khi hai bên cùng sửa; không bao giờ xóa vì file thiếu.
+// Trả { them: [...], sua: [{ ...ghi_nho, ... }], xung_dot: [khoa] }.
+export function hopNhatGhiNho({ ours, theirs, base }) {
+  const o = new Map(ours.map((g) => [khoaGhiNho(g), g]));
+  const b = base ? new Map(base.map((g) => [khoaGhiNho(g), g])) : null;
+  const them = [];
+  const sua = [];
+  const xungDot = [];
+  for (const t of theirs) {
+    const k = khoaGhiNho(t);
+    const dang = o.get(k);
+    if (!dang) { if (!b || !b.has(k)) them.push(t); continue; } // chưa có bản gốc hoặc mới trong KB thì thêm; có trong bản gốc mà Sonicplan đã xóa thì tôn trọng việc xóa
+    if (!b) continue; // chưa có bản gốc thì chưa dám ghi đè mục có sẵn
+    const goc = b.get(k);
+    const doiTrongKb = !goc || gonND(goc.noi_dung) !== gonND(t.noi_dung) || Boolean(goc.ghim) !== Boolean(t.ghim);
+    if (!doiTrongKb) continue;
+    const doiTrongSonicplan = !goc || gonND(goc.noi_dung) !== gonND(dang.noi_dung) || Boolean(goc.ghim) !== Boolean(dang.ghim);
+    if (doiTrongSonicplan) { if (gonND(dang.noi_dung) !== gonND(t.noi_dung)) xungDot.push(k); continue; }
+    sua.push({ ...t });
+  }
+  return { them, sua, xung_dot: xungDot };
+}
+
 export { thuMucLamViec };

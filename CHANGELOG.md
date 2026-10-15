@@ -10,10 +10,13 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 - Ghi nhớ trong Sonicplan tự xuất sang `memory/projects/Sonicplan_GhiNho.md` của KB mỗi đêm (nút đồng bộ ngay); trạm Claude 1.3.0 nạp thêm bộ nhớ ThangLong_KB (chỉ đọc) vào lời dặn.
 - Nút đổi sáng tối ở đầu trang, nhớ lựa chọn.
 - Trang Hiệu suất: bảng "AI tách việc đúng đến đâu" tự đo từ việc bạn hủy, đổi nhóm, đổi dự án, sửa hạn và từ nút Đạt của Claude (5 chỉ số, có mục tiêu). Mỗi sáng thứ Hai Claude rà 30 tin mẫu (cả tin không sinh việc), báo cáo và 3 đề xuất sửa lời nhắc vào ThangLong_KB, báo bằng thông báo đẩy; nút "Rà soát tách việc ngay".
+- Ghi nhớ hai chiều với ThangLong_KB: điều PM hay Claude thêm hoặc sửa trong `memory/projects/Sonicplan_GhiNho.md` được nhận về Sonicplan mỗi đêm (hợp nhất ba bên, Sonicplan thắng khi cùng sửa, không xóa vì file thiếu, mục nhạy cảm bị chặn).
+- Dự án chưa khớp thư mục KB: khớp tên với thư mục có sẵn, dự án thật không khớp thì tạo `01_Projects/<Tên>`, nhóm chung (Khác, Cá nhân) vào `_INBOX/Sonicplan`.
 - Nháp Gmail: Claude ghi `ket-qua/nhap-email.json`, hệ thống tạo bản nháp trong Thư nháp (đúng luồng thư gốc, gửi cho người viết thư). Cần đăng nhập lại Google và tick quyền soạn thư. Chỉ tạo nháp, không có mã gửi (có test quét mã).
 - Ghi sự kiện khi người dùng đổi nhóm, đổi tên, sửa hạn việc (dữ liệu đo chất lượng tách việc).
 
 ### Thay đổi
+- Lời nhắc AI tách việc thêm 3 quy tắc theo báo cáo rà soát đầu tiên (PM duyệt 16/10/2026): chỉ tách khi tin đặt việc lên người dùng, tên việc có động từ và đối tượng, có dấu, sửa lỗi gõ, bắt buộc tách khi tin gọi đích danh họ.
 - `src/api.js` tách thành 10 nhóm trong `src/api/`, `public/app.js` tách thành 11 mô-đun trong `public/trang/`.
 - Chữ nhỏ dưới 12px nâng lên; bố cục điện thoại gọn hơn (tab con, Kết nối, bộ lọc Việc, Tổng quan).
 
