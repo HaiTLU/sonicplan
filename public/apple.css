@@ -32,8 +32,9 @@
   --teal: #06e3d8;
   --navy: #02152a;
 }
+/* Theo máy; người dùng chọn light thì tắt (nút đổi sáng tối). */
 @media (prefers-color-scheme: dark) {
-  :root {
+:root:where(:not([data-theme="light"])) {
     color-scheme: dark;
     --nen: #020a14;
     --nen-2: #071014;
@@ -58,6 +59,32 @@
     --bong-noi: 0 30px 80px -20px rgba(0, 0, 0, .7), 0 0 0 1px var(--vach-2);
   }
 }
+/* Người dùng chọn dark: cùng luật, đặt ngay sau khối trên để thứ tự ưu tiên giữ nguyên. */
+:root:where([data-theme="dark"]) {
+    color-scheme: dark;
+    --nen: #020a14;
+    --nen-2: #071014;
+    --mat: #0b1620;
+    --mat-2: #101c28;
+    --mat-3: #172733;
+    --vach: rgba(255, 255, 255, .09);
+    --vach-2: rgba(255, 255, 255, .18);
+    --chu: #ffffff;
+    --chu-2: rgba(255, 255, 255, .78);
+    --phu: rgba(255, 255, 255, .64);
+    --mo: rgba(255, 255, 255, .56);
+    --nhan: #06e3d8;
+    --nhan-nhat: rgba(6, 227, 216, .14);
+    --on: #5fd3a6;
+    --on-nhat: rgba(95, 211, 166, .12);
+    --loi: #ff7a66;
+    --loi-nhat: rgba(254, 48, 28, .16);
+    --zalo: #7fb2ff;
+    --thu: #c9a2ff;
+    --bong: none;
+    --bong-noi: 0 30px 80px -20px rgba(0, 0, 0, .7), 0 0 0 1px var(--vach-2);
+  }
+
 
 /* Nền phẳng, không hạt nhiễu và quầng sáng. */
 body { font-feature-settings: normal; }
@@ -68,7 +95,13 @@ body::before, body::after { display: none; }
 .ray { background: var(--nen-2); }
 .dieu-huong a { border-radius: 10px; font-weight: 500; }
 .dieu-huong a[aria-current="page"] { background: var(--mat); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); color: var(--chu); }
-@media (prefers-color-scheme: dark) { .dieu-huong a[aria-current="page"] { background: var(--mat-3); box-shadow: none; } }
+/* Theo máy; người dùng chọn light thì tắt (nút đổi sáng tối). */
+@media (prefers-color-scheme: dark) {
+.dieu-huong a[aria-current="page"]:where(:root:not([data-theme="light"]) *) { background: var(--mat-3); box-shadow: none; }
+}
+/* Người dùng chọn dark: cùng luật, đặt ngay sau khối trên để thứ tự ưu tiên giữ nguyên. */
+.dieu-huong a[aria-current="page"]:where(:root[data-theme="dark"] *) { background: var(--mat-3); box-shadow: none; }
+
 .dieu-huong a[aria-current="page"]::before { display: none; }
 .thuong-hieu { font-weight: 600; }
 .logo-nen { fill: var(--navy); stroke: none; }
@@ -106,7 +139,13 @@ body::before, body::after { display: none; }
 /* Danh sách tin và Zalo. */
 .ds-tin button { border-radius: 14px; }
 .ds-tin button[aria-current="true"] { background: var(--mat-2); box-shadow: none; }
-@media (prefers-color-scheme: dark) { .ds-tin button[aria-current="true"] { background: var(--mat-3); } }
+/* Theo máy; người dùng chọn light thì tắt (nút đổi sáng tối). */
+@media (prefers-color-scheme: dark) {
+.ds-tin button[aria-current="true"]:where(:root:not([data-theme="light"]) *) { background: var(--mat-3); }
+}
+/* Người dùng chọn dark: cùng luật, đặt ngay sau khối trên để thứ tự ưu tiên giữ nguyên. */
+.ds-tin button[aria-current="true"]:where(:root[data-theme="dark"] *) { background: var(--mat-3); }
+
 .luong-zalo { background: color-mix(in srgb, var(--nen) 60%, var(--mat)); }
 .bong-chat { border-radius: 18px 18px 18px 5px; background: var(--mat-3); border-color: transparent; }
 .tin-zalo.toi .bong-chat { border-radius: 18px 18px 5px 18px; background: var(--teal); color: var(--navy); border-color: transparent; }

@@ -35,3 +35,20 @@ test('giao diện: index.html nạp app.js và mọi mục trong public/trang đ
   assert.match(html, /<script src="\/app\.js" type="module">/);
   for (const f of readdirSync(join(GOC, 'trang'))) assert.ok(html.includes(`href="/trang/${f}"`), `thiếu modulepreload cho trang/${f}`);
 });
+
+test('giao diện: mọi khối prefers-color-scheme có luật tương ứng cho nút đổi sáng tối, tập lệnh áp chủ đề nạp sớm', () => {
+  const loi = [];
+  for (const f of readdirSync(GOC).filter((x) => x.endsWith('.css'))) {
+    const nd = readFileSync(join(GOC, f), 'utf8');
+    const khoi = [...nd.matchAll(/@media \(prefers-color-scheme: (dark|light)\) \{([\s\S]*?)\n\}/g)];
+    for (const k of khoi) if (!k[2].includes('data-theme')) loi.push(`${f}: khối ${k[1]} chưa có điều kiện data-theme`);
+    const mo = (nd.match(/@media \(prefers-color-scheme/g) || []).length;
+    if (khoi.length !== mo) loi.push(`${f}: có khối prefers-color-scheme không đọc được (${khoi.length}/${mo})`);
+    if (mo && !nd.includes(':where(:root[data-theme=')) loi.push(`${f}: thiếu luật cho chủ đề chọn tay`);
+  }
+  assert.deepEqual(loi, []);
+  const html = readFileSync(join(GOC, 'index.html'), 'utf8');
+  assert.match(html, /<script src="\/tema\.js"><\/script>/);
+  assert.match(html, /id="nut-tema"/);
+  assert.ok(html.indexOf('/tema.js') < html.indexOf('/kieu.css'), 'tema.js phải nạp trước CSS để không nháy màu');
+});

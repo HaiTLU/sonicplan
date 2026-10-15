@@ -44,8 +44,9 @@
   --em: cubic-bezier(.2, .8, .2, 1);
   --z-ray: 10; --z-dau: 20; --z-bao: 60;
 }
+/* Theo máy; người dùng chọn dark thì tắt (nút đổi sáng tối). */
 @media (prefers-color-scheme: light) {
-  :root {
+:root:where(:not([data-theme="dark"])) {
     color-scheme: light;
     --nen: #F3F4F6; --nen-2: #ECEEF2; --mat: #FFFFFF; --mat-2: #F6F7F9; --mat-3: #ECEFF4;
     --vach: rgba(22, 32, 52, .09); --vach-2: rgba(22, 32, 52, .16);
@@ -58,6 +59,20 @@
     --bong-noi: 0 30px 80px -24px rgba(18, 24, 40, .35), 0 0 0 1px var(--vach-2);
   }
 }
+/* Người dùng chọn light: cùng luật, đặt ngay sau khối trên để thứ tự ưu tiên giữ nguyên. */
+:root:where([data-theme="light"]) {
+    color-scheme: light;
+    --nen: #F3F4F6; --nen-2: #ECEEF2; --mat: #FFFFFF; --mat-2: #F6F7F9; --mat-3: #ECEFF4;
+    --vach: rgba(22, 32, 52, .09); --vach-2: rgba(22, 32, 52, .16);
+    --chu: #121722; --chu-2: #343D4D; --phu: #5D6879; --mo: #8A94A4;
+    --nhan: #C47A12; --nhan-chu: #FFFFFF; --nhan-nhat: rgba(196, 122, 18, .10);
+    --on: #138A62; --on-nhat: rgba(19, 138, 98, .10);
+    --loi: #C8402F; --loi-nhat: rgba(200, 64, 47, .09);
+    --zalo: #2F6FE0; --thu: #7D4CD6; --hop: #B4650A;
+    --bong: 0 1px 2px rgba(18, 24, 40, .05), 0 12px 32px -20px rgba(18, 24, 40, .25);
+    --bong-noi: 0 30px 80px -24px rgba(18, 24, 40, .35), 0 0 0 1px var(--vach-2);
+  }
+
 
 /* ---------- Nền ---------- */
 * { box-sizing: border-box; }
@@ -375,7 +390,13 @@ td.ghi-chu { max-width: 30rem; overflow-wrap: anywhere; color: var(--chu-2); }
 .dem-zalo { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--nhan); color: var(--nhan-chu); font-size: 12px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
 .anh-zalo { --h: 210; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; flex: none; font: 700 15px/1 var(--phong); letter-spacing: .02em; color: hsl(var(--h) 80% 90%); background: hsl(var(--h) 42% 30%); }
 .anh-zalo.nhom { border-radius: 14px; }
-@media (prefers-color-scheme: light) { .anh-zalo { color: hsl(var(--h) 55% 24%); background: hsl(var(--h) 60% 86%); } }
+/* Theo máy; người dùng chọn dark thì tắt (nút đổi sáng tối). */
+@media (prefers-color-scheme: light) {
+.anh-zalo:where(:root:not([data-theme="dark"]) *) { color: hsl(var(--h) 55% 24%); background: hsl(var(--h) 60% 86%); }
+}
+/* Người dùng chọn light: cùng luật, đặt ngay sau khối trên để thứ tự ưu tiên giữ nguyên. */
+.anh-zalo:where(:root[data-theme="light"] *) { color: hsl(var(--h) 55% 24%); background: hsl(var(--h) 60% 86%); }
+
 .doc-zalo { display: flex; flex-direction: column; min-height: 0; padding: 0; overflow: hidden; }
 .doc-zalo > .trong-trai { flex: 1; }
 .dau-zalo { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--vach); }
@@ -1496,3 +1517,13 @@ details.bang-suc-khoe[open] > summary { padding-bottom: 0; }
 .luoi-ghep-kb { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
 .luoi-ghep-kb .chon-loc { display: flex; flex-direction: column; align-items: stretch; gap: 4px; border-radius: 12px; padding: 8px 10px; }
 .luoi-ghep-kb .chon-loc select { width: 100%; }
+
+/* Nút một biểu tượng đổi sáng tối. Điện thoại: khoảng cách hẹp lại để tiêu đề không bị ngắt dòng. */
+.nut-tema { width: 40px; padding: 0; }
+.nut-tema svg { width: 20px; height: 20px; }
+@media (max-width: 520px) {
+  .dau-trang-nut { gap: 8px; }
+}
+@media (max-width: 420px) {
+  .dau-trang h1#tieu-de-trang { font-size: 27px; }
+}

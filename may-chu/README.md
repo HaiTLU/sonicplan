@@ -54,3 +54,14 @@ Nạp một lần: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/vn.s
 - Nhận thư: `email()` của Worker cần Cloudflare Email Routing. Cần một Email Worker nhỏ đẩy thư thô về máy chủ này, chưa viết.
 - Cloudflare Tunnel đưa máy chủ ra Internet: tự cài theo hướng dẫn của Cloudflare.
 - Ollama thay Workers AI: chưa hỗ trợ.
+
+
+## Thợ Claude (Claude Code tự làm việc ở máy)
+
+Việc AI xếp nhóm "Claude làm được" (và lượt "Giao Claude" bấm tay khi thợ bật) chạy ngay trên máy này, trong bản sao ThangLong_KB, không qua GitHub Actions.
+
+- **Bật tắt, hạn mức:** thẻ "Claude làm việc ở máy" ở trang Kết nối. Mặc định bật, 2 việc cùng lúc, 10 việc tự chạy mỗi ngày, Sonnet 5.5 mức medium. Hai lượt tự chạy lỗi trong 2 giờ thì ngừng tự xếp việc mới.
+- **Mỗi lượt:** tạo git worktree riêng từ `origin/main` của ThangLong_KB, ghi `NGU-CANH.md`, `LICH-SU.md` và `dinh-kem/` vào thư mục làm việc của dự án, chạy `claude -p` trong worktree, commit chỉ thư mục làm việc và `memory/` lên nhánh `sonicplan/luot-N`, mở PR (tự gộp khi kiểm tra tự động xong không lỗi), rồi báo PM bằng thông báo đẩy và Telegram. Việc sang "chờ duyệt": bấm Đạt hoặc Làm lại ở thẻ việc.
+- **Drive:** tiến trình node không với tới Google Drive (treo khi đọc thư mục Drive dưới launchd), nên thợ xếp kết quả vào `~/.sonicplan-tho/drive-cho/` và tác vụ bash `may-chu/dong-bo-drive.sh` chép sang Drive mỗi phút. Cài một lần: `bash may-chu/cai-dong-bo-drive.sh`.
+- **Biến môi trường (tùy chọn):** `THO_CLAUDE=0` tắt hẳn; `THO_DIR` (mặc định `~/.sonicplan-tho`), `KB_DIR` (bản sao KB, mặc định `$THO_DIR/ThangLong_KB`), `KB_REPO` (mặc định `HaiTLU/ThangLong_KB`), `CLAUDE_BIN` (mặc định `~/.local/bin/claude`), `DRIVE_CHO`, `DRIVE_GOC` (script chép Drive).
+- **Cần có sẵn:** Claude Code đã đăng nhập, `gh auth login` (quyền repo), git. Cả ba đã kiểm chạy được dưới launchd.

@@ -18,8 +18,9 @@
   box-shadow: 0 24px 60px -30px rgba(0, 0, 0, .7);
   scrollbar-width: thin;
 }
+/* Theo máy; người dùng chọn dark thì tắt (nút đổi sáng tối). */
 @media (prefers-color-scheme: light) {
-  .hop-zalo {
+.hop-zalo:where(:root:not([data-theme="dark"]) *) {
     --tg-ds: #FFFFFF; --tg-ria: #F4F4F5; --tg-chon: #2A6FB5; --tg-nen: #9DB88F; --tg-dau: #FFFFFF;
     --tg-nhan: #FFFFFF; --tg-toi: #EEFFDE; --tg-chu: #000000; --tg-phu: #707579; --tg-gio-toi: #2E7D32;
     --tg-lk: #0F6FB0; --tg-dem: #2A6FB5; --tg-vach: rgba(0, 0, 0, .08); --tg-o: #F1F1F1; --tg-ngay: rgba(0, 0, 0, .45);
@@ -30,6 +31,18 @@
       url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><g fill='none' stroke='%23ffffff' stroke-opacity='.22' stroke-width='1.2'><circle cx='20' cy='24' r='6'/><path d='M70 18l8 8M78 18l-8 8'/><rect x='88' y='70' width='12' height='12' rx='3'/><path d='M22 86q6-10 12 0t12 0'/><path d='M60 60l5 9h-10z'/></g></svg>");
   }
 }
+/* Người dùng chọn light: cùng luật, đặt ngay sau khối trên để thứ tự ưu tiên giữ nguyên. */
+.hop-zalo:where(:root[data-theme="light"] *) {
+    --tg-ds: #FFFFFF; --tg-ria: #F4F4F5; --tg-chon: #2A6FB5; --tg-nen: #9DB88F; --tg-dau: #FFFFFF;
+    --tg-nhan: #FFFFFF; --tg-toi: #EEFFDE; --tg-chu: #000000; --tg-phu: #707579; --tg-gio-toi: #2E7D32;
+    --tg-lk: #0F6FB0; --tg-dem: #2A6FB5; --tg-vach: rgba(0, 0, 0, .08); --tg-o: #F1F1F1; --tg-ngay: rgba(0, 0, 0, .45);
+    --tg-the: rgba(0, 0, 0, .04);
+    --nm0: #CC5049; --nm1: #A8560C; --nm2: #955CDB; --nm3: #2E7D1F; --nm4: #176F84; --nm5: #2A6FB5; --nm6: #C7508B;
+    --tg-hoa-van:
+      linear-gradient(135deg, rgba(255, 255, 255, .16), transparent 55%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><g fill='none' stroke='%23ffffff' stroke-opacity='.22' stroke-width='1.2'><circle cx='20' cy='24' r='6'/><path d='M70 18l8 8M78 18l-8 8'/><rect x='88' y='70' width='12' height='12' rx='3'/><path d='M22 86q6-10 12 0t12 0'/><path d='M60 60l5 9h-10z'/></g></svg>");
+  }
+
 
 /* ----- Hai khung: bỏ viền thẻ của Sonicplan ----- */
 .hop-zalo > .bang { background: var(--tg-ds); border: 0; border-radius: 0; box-shadow: none; color: var(--tg-chu); }

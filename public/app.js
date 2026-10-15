@@ -6,6 +6,7 @@ import { caiNguCanh } from './trinh-don.js';
 import { S, api, bao, fmt, h, icon, lamMoiDem, luc, trang } from './trang/chung.js';
 import { moDuongDan, moMuc } from './trang/dieu-huong.js';
 import { mucChung } from './trang/viec.js';
+import { batNutTema } from './trang/tema.js';
 import './trang/chung.js';
 import './trang/tong-quan.js';
 import './trang/hop-tin.js';
@@ -20,6 +21,7 @@ import './trang/bang-lenh.js';
 
 // ---------- Khởi động ----------
 caiNguCanh({ chung: mucChung, bo: '.cot-viec' });
+batNutTema();
 
 async function batDau() {
   const ngay = fmt.ngayDai.format(new Date());

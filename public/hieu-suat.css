@@ -72,7 +72,13 @@
 .dn-nhe { background: color-mix(in srgb, var(--on) 16%, transparent); color: var(--on); }
 .dn-vua { background: color-mix(in srgb, var(--zalo) 16%, transparent); color: var(--zalo); }
 .dn-nang { background: color-mix(in srgb, #f5a524 20%, transparent); color: color-mix(in srgb, #f5a524 45%, var(--chu)); }
-@media (prefers-color-scheme: dark) { .dn-nang { color: color-mix(in srgb, #f5a524 80%, var(--chu)); } }
+/* Theo máy; người dùng chọn light thì tắt (nút đổi sáng tối). */
+@media (prefers-color-scheme: dark) {
+.dn-nang:where(:root:not([data-theme="light"]) *) { color: color-mix(in srgb, #f5a524 80%, var(--chu)); }
+}
+/* Người dùng chọn dark: cùng luật, đặt ngay sau khối trên để thứ tự ưu tiên giữ nguyên. */
+.dn-nang:where(:root[data-theme="dark"] *) { color: color-mix(in srgb, #f5a524 80%, var(--chu)); }
+
 .dn-rat_nang { background: var(--loi-nhat); color: var(--loi); }
 .dn-chua { background: var(--mat-3); color: var(--phu); }
 .hs-chip { cursor: pointer; appearance: none; -webkit-appearance: none; padding-right: 9px; min-height: 32px; }
