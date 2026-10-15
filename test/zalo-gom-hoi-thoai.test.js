@@ -131,3 +131,12 @@ test('tin cũ chưa có mã cùng tên nhóm với một cuộc đã có mã th�
   assert.equal(ds.find((x) => x.ten === 'NCS_K5_TLU\\T').n, 2);
   assert.ok(ds.some((x) => x.ten === 'Nhóm khác'));
 });
+
+test('Google báo secret sai bằng mô tả khác mã lỗi vẫn ra thông báo tiếng Việt', async () => {
+  const { doiMa } = await import('../src/google.js');
+  const goc = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: 'unauthorized', error_description: 'The provided client secret is invalid.' }), { status: 401 });
+  try {
+    await assert.rejects(doiMa({ client_id: 'a', client_secret: 'b' }, { grant_type: 'refresh_token', refresh_token: 'x' }), /Nhập lại khóa Google/);
+  } finally { globalThis.fetch = goc; }
+});
