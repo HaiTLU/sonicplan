@@ -1451,3 +1451,20 @@ details.bang-suc-khoe[open] > summary { padding-bottom: 0; }
 .dau-trang > div:first-child { min-width: 0; }
 .dau-trang-nut { flex: none; }
 .chu-an { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Đợt 1 sửa bố cục (16/10/2026) */
+/* Điện thoại: tab con xuống dòng riêng, không bị ba nút tròn che; mép phải mờ dần để biết còn tab phía sau. */
+@media (max-width: 860px) {
+  .dau-trang { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; column-gap: 12px; }
+  .dau-trang > div:first-child { display: contents; }
+  .dau-trang .ngay { grid-column: 1; grid-row: 1; }
+  .dau-trang h1 { grid-column: 1; grid-row: 2; }
+  .dau-trang-nut { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+  .dau-trang .tab-con { grid-column: 1 / -1; grid-row: 3; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); padding-right: 28px; }
+}
+/* Điện thoại hẹp: ô Kết nối một cột để tên không xuống ba dòng, trạng thái không bị cắt. */
+@media (max-width: 520px) {
+  .tom-tat-kn { grid-template-columns: minmax(0, 1fr); }
+}
+/* Trong cột "Chưa xếp dự án", nhãn "Chưa xếp dự án" trên từng thẻ là thừa. */
+.cot-viec[data-cot="da-khong"] .nhan-du-an.chua { display: none; }
