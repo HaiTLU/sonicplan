@@ -2,6 +2,22 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [1.12.0] - 2026-10-16
+
+### Thêm
+- Thợ Claude chạy ở máy riêng: việc AI xếp nhóm "Claude làm được" tự vào hàng đợi (2 việc cùng lúc, 10 việc tự chạy mỗi ngày, Sonnet 5.5 mức medium), chạy trong bản sao ThangLong_KB, kết quả lên nhánh `sonicplan/luot-N`, PR tự gộp, tệp chép sang Google Drive, báo bằng thông báo đẩy. Cầu dao khi hai lượt lỗi liền; khởi động lại thì lượt đang làm tự xếp lại hàng đợi. Claude chạy không có máy chủ MCP nào và không gửi được thư.
+- Ghép dự án với thư mục `01_Projects` của ThangLong_KB (thẻ "Claude làm việc ở máy" ở trang Kết nối).
+- Ghi nhớ trong Sonicplan tự xuất sang `memory/projects/Sonicplan_GhiNho.md` của KB mỗi đêm (nút đồng bộ ngay); trạm Claude 1.3.0 nạp thêm bộ nhớ ThangLong_KB (chỉ đọc) vào lời dặn.
+- Nút đổi sáng tối ở đầu trang, nhớ lựa chọn.
+- Ghi sự kiện khi người dùng đổi nhóm, đổi tên, sửa hạn việc (dữ liệu đo chất lượng tách việc).
+
+### Thay đổi
+- `src/api.js` tách thành 10 nhóm trong `src/api/`, `public/app.js` tách thành 11 mô-đun trong `public/trang/`.
+- Chữ nhỏ dưới 12px nâng lên; bố cục điện thoại gọn hơn (tab con, Kết nối, bộ lọc Việc, Tổng quan).
+
+### Bảo mật
+- Chặn SSRF cho webhook và địa chỉ AI, giới hạn tần suất `/nhan/*`, kiểm vai trò chủ, CSP cho bản Node, xoay khóa mã hóa (`may-chu/xoay-khoa.js`).
+
 ## [1.11.0] - 2026-10-15
 
 ### Thêm

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   MUC_BO_NHO, GIOI_HAN_BO_NHO, kiemBanGop, docGhiNhanh, canGop, lamSachDauRa, loiDanBoNho, loiNhacGop,
-  thuMucDuAn, docBoNho, docHangCho, docTrangThai, ghiNhanh, gopBoNho, ghiTayBoNho, tenGon,
+  thuMucDuAn, docBoNho, docHangCho, docTrangThai, ghiNhanh, gopBoNho, ghiTayBoNho, tenGon, chonTepKb, loiDanKb, docBoNhoKb, TEP_KB_CHUNG,
 } from '../public/tram-claude.mjs';
 import { PhongTram } from '../src/tram-claude.js';
 
@@ -176,4 +176,23 @@ test('Phòng: sự kiện bo_nho được lưu vào lịch sử phiên', async (
   await phong.nhanTin(tram, JSON.stringify({ loai: 'su_kien', phien: luot.phien, luot: luot.luot, ds: [{ loai: 'bo_nho', noi_dung: 'Đã nạp bộ nhớ dự án IPSOS: 40 dòng.' }] }));
   const ls = await phong.lichSu(luot.phien);
   assert.ok(ls.some((s) => s.loai === 'bo_nho'));
+});
+
+test('Bộ nhớ ThangLong_KB: chọn tệp theo tên dự án, ghi nhớ chung đứng đầu, đọc chỉ đọc, thiếu thư mục thì bỏ qua', () => {
+  const ds = ['Sonicplan_GhiNho.md', 'SonicRec_HeThongThietKe.md', 'SonicRec_Remotion.md', 'BienBanHop_TuDong.md', 'AILab_NIC.md', 'TTC_KeHoach.md'];
+  assert.deepEqual(chonTepKb('SonicRec', ds), [TEP_KB_CHUNG, 'SonicRec_HeThongThietKe.md', 'SonicRec_Remotion.md']);
+  assert.deepEqual(chonTepKb('Đào tạo Ngắn hạn', ds), [TEP_KB_CHUNG]);
+  assert.deepEqual(chonTepKb('TTC', ds), [TEP_KB_CHUNG]); // tên dưới 5 ký tự không khớp lan
+  assert.deepEqual(chonTepKb('AILab', ['AILab_NIC.md']), ['AILab_NIC.md']);
+  assert.equal(loiDanKb([]), '');
+  assert.match(loiDanKb([{ tep: 'a.md', noi_dung: 'xin chào' }]), /<kb-memory tep="a.md">\nxin chào\n<\/kb-memory>/);
+  const kb = tamThuMuc();
+  mkdirSync(join(kb, 'memory', 'projects'), { recursive: true });
+  writeFileSync(join(kb, 'memory', 'projects', 'Sonicplan_GhiNho.md'), '# Ghi nhớ\n- **Bình**: Trưởng phòng');
+  writeFileSync(join(kb, 'memory', 'projects', 'SonicRec_Remotion.md'), '# Remotion\nDựng video');
+  const bn = docBoNhoKb('SonicRec', kb);
+  assert.deepEqual(bn.tep, [TEP_KB_CHUNG, 'SonicRec_Remotion.md']);
+  assert.match(bn.noi_dung, /Trưởng phòng/);
+  assert.match(bn.noi_dung, /Dựng video/);
+  assert.deepEqual(docBoNhoKb('SonicRec', join(kb, 'khong-co')), { tep: [], noi_dung: '' });
 });

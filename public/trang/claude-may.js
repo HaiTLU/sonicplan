@@ -29,7 +29,10 @@ export function noiDungThoClaude({ h, api, bao, tho, kb, laChu, ve }) {
     h('label', { class: 'hang-cong-tac' }, bat, h('span', { text: 'Tự chạy việc nhóm Claude' })),
     h('div', { class: 'hang-nut' }, chon('Cùng lúc', 'song_song', [1, 2, 3, 4], c.song_song), chon('Tối đa mỗi ngày', 'toi_da_ngay', [0, 5, 10, 15, 20, 30, 50], c.toi_da_ngay)),
     h('p', { class: 'ghi-nho-kn', text: `Hôm nay đã tự chạy ${tho.hom_nay}/${c.toi_da_ngay} việc. ${tho.hang_cho ? `${tho.hang_cho} lượt đang chờ. ` : ''}${tho.dang_lam.length ? `Đang làm: ${tho.dang_lam.map((d) => `${d.tieu_de} (từ ${luc(d.bat_dau_luc)})`).join('; ')}.` : 'Chưa có việc nào đang làm.'}` }),
-    h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', disabled: !laChu, onclick: async () => { try { await api('/api/tho-claude/chay-ngay', { method: 'POST' }); bao('Đã gọi thợ Claude kiểm hàng đợi.'); setTimeout(ve, 1500); } catch (e) { bao(e.message, { loi: true }); } } }, 'Kiểm hàng đợi ngay')),
+    h('div', { class: 'hang-nut' },
+      h('button', { class: 'nut nut-phu', type: 'button', disabled: !laChu, onclick: async () => { try { await api('/api/tho-claude/chay-ngay', { method: 'POST' }); bao('Đã gọi thợ Claude kiểm hàng đợi.'); setTimeout(ve, 1500); } catch (e) { bao(e.message, { loi: true }); } } }, 'Kiểm hàng đợi ngay'),
+      h('button', { class: 'nut nut-phu', type: 'button', disabled: !laChu, onclick: async (ev) => { ev.currentTarget.disabled = true; try { const r = await api('/api/tho-claude/dong-bo-ghi-nho', { method: 'POST' }); bao(r.doi ? `Đã đưa ${r.so_ghi_nho} ghi nhớ sang ThangLong_KB${r.pr ? ' (PR đã mở)' : ''}.` : 'Ghi nhớ trong KB đã khớp, không có gì mới.'); } catch (e) { bao(e.message, { loi: true }); } ve(); } }, 'Đồng bộ ghi nhớ sang KB')),
+    h('p', { class: 'ghi-nho-kn', text: tho.ghi_nho_kb_luc ? `Ghi nhớ sang KB lần cuối: ${luc(tho.ghi_nho_kb_luc)}. Tự chạy mỗi đêm sau 23h.` : 'Ghi nhớ chưa được đồng bộ sang KB lần nào; tự chạy mỗi đêm sau 23h.' }),
   );
   if (tho.kb) goc.append(h('p', { class: 'ghi-nho-kn', text: tho.kb.da_clone ? `ThangLong_KB trên máy: bản mới nhất ${tho.kb.ban_moi_nhat || 'chưa tải'}.` : 'ThangLong_KB chưa tải về máy, sẽ tự tải ở lượt chạy đầu tiên.' }));
   if (kb?.du_an?.length) {

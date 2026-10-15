@@ -293,3 +293,27 @@ test('máy khởi động lại giữa chừng: lượt đang làm xếp lại h
   await tho.dong();
   assert.equal(db.prepare('SELECT trang_thai FROM luot_claude WHERE id = 1').get().trang_thai, 'loi');
 });
+
+test('đồng bộ ghi nhớ sang KB: tạo memory/projects/Sonicplan_GhiNho.md, không tạo nhánh khi nội dung không đổi', async () => {
+  const { db, env } = moiTruong();
+  const them = db.prepare(`INSERT INTO ghi_nho (to_chuc_id, loai, tieu_de, noi_dung, ghim, tao_luc, cap_nhat_luc) VALUES ('tc1', ?1, ?2, ?3, ?4, '2026-10-01', '2026-10-01')`);
+  them.run('nguoi', 'Bình', 'Trưởng phòng Hợp tác', 1);
+  them.run('du_an', 'SonicRec', 'Ghi âm họp ra biên bản\nvòng 2 mở 24/10', 0);
+  them.run('quyet_dinh', 'Dùng Sonnet', 'Mức medium, 10 việc mỗi ngày', 0);
+  const { goc, kbNguon, claude } = await dungChayThu();
+  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
+  const kq = await tho.dongBoGhiNho();
+  assert.deepEqual([kq.so_ghi_nho, kq.doi], [3, true]);
+  const nhanh = git(kbNguon, 'branch', '--list', 'sonicplan/ghi-nho-*').trim().replace(/^\*?\s*/, '');
+  const nd = git(kbNguon, 'show', `${nhanh}:memory/projects/Sonicplan_GhiNho.md`);
+  for (const can of ['# Ghi nhớ từ Sonicplan', '## Người', '- **Bình** (ghim): Trưởng phòng Hợp tác', '## Dự án', 'Ghi âm họp ra biên bản vòng 2 mở 24/10', '## Quyết định']) assert.ok(nd.includes(can), can);
+  assert.ok(!nd.includes('Sự thật'));
+  // PR được gộp (giả lập: đưa nhánh vào main): lần sau nội dung giống thì không có gì mới.
+  git(kbNguon, 'update-ref', 'refs/heads/main', `refs/heads/${nhanh}`);
+  const lai = await tho.dongBoGhiNho();
+  assert.equal(lai.doi, false);
+  them.run('su_that', 'Mới thêm', 'Một sự thật mới', 0);
+  assert.equal((await tho.dongBoGhiNho()).doi, true);
+  assert.ok(db.prepare(`SELECT gia_tri FROM cai_dat WHERE to_chuc_id = '' AND khoa = 'ghi_nho_kb_luc'`).get().gia_tri);
+  await tho.dong();
+});

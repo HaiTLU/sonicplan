@@ -8,7 +8,7 @@ import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { hoanTatLuot } from '../src/claude-code.js';
 import { GOC_DU_AN, goiYThuMuc } from '../src/kb.js';
-import { chonViecTuDong, demLoiTuDongGanDay, demTuDongHomNay, docCauHinhTho, dungLichSuMd, dungNguCanhMd, layDinhKem, layGhiNhoSonicplan, layLichSuLuot, layTinNguCanh, loiNhacTho, taoLuotMay, thuMucLamViec } from '../src/tho-claude.js';
+import { chonViecTuDong, dungGhiNhoMd, demLoiTuDongGanDay, demTuDongHomNay, docCauHinhTho, dungLichSuMd, dungNguCanhMd, layDinhKem, layGhiNhoSonicplan, layLichSuLuot, layTinNguCanh, loiNhacTho, taoLuotMay, thuMucLamViec } from '../src/tho-claude.js';
 
 const TOI_DA_PHUT = 30;
 const CONG_CU = ['Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'TodoWrite', 'Task', 'Skill', 'Bash(python3:*)', 'Bash(node:*)', 'Bash(ls:*)', 'Bash(cat:*)', 'Bash(mkdir:*)'];
@@ -105,6 +105,67 @@ export function moThoClaude(env, cfg = {}) {
     });
   }
 
+  // Commit các đường dẫn đã chọn trong worktree w, đẩy lên nhánh, mở PR và tự gộp khi kiểm tra tự động xong không lỗi (quy tắc kho KB).
+  // Không có thay đổi thì không làm gì. Lỗi mạng hay quyền chỉ ghi log, không làm hỏng việc gọi. Trả { pr, nhanhUrl }.
+  async function dayLenKb(w, nhanh, duongDan, { tieuDe, than, nhan }) {
+    let pr = null;
+    let nhanhUrl = null;
+    try {
+      await git(['add', '-A', '--', ...duongDan], w);
+      if (!(await git(['diff', '--cached', '--name-only'], w)).trim()) return { pr, nhanhUrl };
+      await git(['commit', '-q', '-m', `${tieuDe}\n\n${than}\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`], w);
+      await git(['push', '-q', '--force', 'origin', `${nhanh}:${nhanh}`], w, { timeout: 300000 });
+      nhanhUrl = khongMoPr ? null : `https://github.com/${kbRepo}/tree/${nhanh}`;
+      if (khongMoPr) return { pr, nhanhUrl };
+      try {
+        const moPr = (await chay('gh', ['pr', 'create', '--repo', kbRepo, '--base', 'main', '--head', nhanh, '--title', tieuDe, '--body', `Tự động từ Sonicplan.\n\n${than}\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)`], { cwd: w, timeout: 120000 })).trim();
+        pr = moPr.split('\n').find((d) => /^https:\/\/github\.com\//.test(d)) || null;
+        for (let i = 0; pr && i < 12; i++) {
+          const t = await chay('gh', ['pr', 'checks', pr, '--json', 'state'], { cwd: w }).catch((e) => e.stdout || '[]');
+          const ds = (() => { try { return JSON.parse(t); } catch { return []; } })();
+          if (ds.some((x) => ['FAILURE', 'ERROR'].includes(x.state))) break;
+          if (!ds.some((x) => ['PENDING', 'QUEUED', 'IN_PROGRESS'].includes(x.state))) { await chay('gh', ['pr', 'merge', pr, '--squash'], { cwd: w }).catch((e) => console.error('Chưa gộp được PR', pr, e.stderr)); break; }
+          await new Promise((x) => setTimeout(x, 10000));
+        }
+      } catch (e) { console.error(`Không mở được PR cho ${nhan}`, e.stderr || e.message); }
+    } catch (e) { console.error(`Không đẩy được ${nhan} lên GitHub`, e.stderr || e.message); }
+    return { pr, nhanhUrl };
+  }
+
+  // Ghi nhớ trong Sonicplan (người, dự án, quyết định, sự thật) xuất sang memory/projects/Sonicplan_GhiNho.md của KB để Claude đọc ở mọi phiên.
+  // Chỉ tạo PR khi nội dung đổi so với bản đang có trên main. Trả { so_ghi_nho, doi, pr }.
+  async function dongBoGhiNho() {
+    const { results: dsTc } = await env.CSDL.prepare('SELECT id FROM to_chuc').all();
+    let tong = 0;
+    let doi = false;
+    let prCuoi = null;
+    for (const { id: tc } of dsTc) {
+      const { results } = await env.CSDL.prepare('SELECT loai, tieu_de, noi_dung, ghim, nguon FROM ghi_nho WHERE to_chuc_id = ?1 ORDER BY loai, ghim DESC, tieu_de').bind(tc).all();
+      if (!results.length) continue;
+      tong += results.length;
+      const bayGio = new Date();
+      const nhanh = `sonicplan/ghi-nho-${new Date(bayGio.getTime() + 7 * 3600000).toISOString().slice(2, 16).replace(/[-:T]/g, '')}`;
+      const w = join(lamDir, `ghi-nho-${tc}`.slice(0, 60));
+      await lanLuot(async () => { await chuanBiKb(); await rm(w, { recursive: true, force: true }); await mkdir(lamDir, { recursive: true }); await git(['worktree', 'add', '-B', nhanh, w, 'origin/main']); });
+      try {
+        const tep = join(w, 'memory', 'projects', 'Sonicplan_GhiNho.md');
+        const cu = existsSync(tep) ? await readFile(tep, 'utf8') : '';
+        const moi = dungGhiNhoMd(results, bayGio);
+        const bo = (x) => x.replace(/^Tự sinh lúc.*$/m, '');
+        if (bo(cu) === bo(moi)) continue;
+        await mkdir(join(w, 'memory', 'projects'), { recursive: true });
+        await writeFile(tep, moi);
+        doi = true;
+        const kq = await dayLenKb(w, nhanh, ['memory/projects/Sonicplan_GhiNho.md'], { tieuDe: 'Sonicplan: cập nhật ghi nhớ trong memory/', than: `- ${results.length} ghi nhớ từ trang Ghi nhớ của Sonicplan (tự sinh, sửa ở Sonicplan)`, nhan: 'ghi nhớ' });
+        prCuoi = kq.pr || prCuoi;
+      } finally {
+        await lanLuot(async () => { await git(['worktree', 'remove', '--force', w]).catch(() => {}); await git(['branch', '-D', nhanh]).catch(() => {}); }).catch(() => {});
+      }
+    }
+    await env.CSDL.prepare(`INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES ('', 'ghi_nho_kb_luc', ?1) ON CONFLICT (to_chuc_id, khoa) DO UPDATE SET gia_tri = excluded.gia_tri`).bind(new Date().toISOString()).run().catch(() => {});
+    return { so_ghi_nho: tong, doi, pr: prCuoi };
+  }
+
   async function lamMotLuot(luot) {
     const viecList = await viecCuaLuot(luot);
     if (!viecList.length) throw new Error('Không còn việc nào của lượt này.');
@@ -138,31 +199,11 @@ export function moThoClaude(env, cfg = {}) {
       await writeFile(join(goc, 'CAU-TRA-LOI.md'), `# Câu trả lời của Claude (lượt ${luot.id})\n\n${kq.chu}\n`);
 
       // Đẩy kết quả: chỉ thư mục làm việc và memory/, các thay đổi khác của Claude bị bỏ.
-      let pr = null;
-      let nhanhUrl = null;
-      try {
-        await git(['add', '-A', '--', ...THU_MUC_DUOC_DAY(thuMucLam)], w);
-        const thayDoi = (await git(['diff', '--cached', '--name-only'], w)).trim();
-        if (thayDoi) {
-          await git(['commit', '-q', '-m', `Sonicplan lượt ${luot.id}: ${viecList[0].tieu_de.slice(0, 60)}\n\n- Thư mục làm việc: ${thuMucLam}\n- Việc: ${viecList.map((v) => `v${v.id}`).join(', ')}\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`], w);
-          await git(['push', '-q', '--force', 'origin', `${nhanh}:${nhanh}`], w, { timeout: 300000 });
-          nhanhUrl = khongMoPr ? null : `https://github.com/${kbRepo}/tree/${nhanh}`;
-          if (!khongMoPr) try {
-            const moPr = (await chay('gh', ['pr', 'create', '--repo', kbRepo, '--base', 'main', '--head', nhanh, '--title', `Sonicplan lượt ${luot.id}: ${viecList[0].tieu_de.slice(0, 60)}`, '--body', `Kết quả Claude tự làm từ Sonicplan.\n\nThư mục: ${thuMucLam}\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)`], { cwd: w, timeout: 120000 })).trim();
-            pr = moPr.split('\n').find((d) => /^https:\/\/github\.com\//.test(d)) || null;
-            if (pr) {
-              // Theo quy tắc kho: tự gộp khi kiểm tra tự động xong không lỗi. Chưa xong hay lỗi thì để PR mở cho PM.
-              for (let i = 0; i < 12; i++) {
-                const t = await chay('gh', ['pr', 'checks', pr, '--json', 'state'], { cwd: w }).catch((e) => e.stdout || '[]');
-                const ds = (() => { try { return JSON.parse(t); } catch { return []; } })();
-                if (ds.some((x) => ['FAILURE', 'ERROR'].includes(x.state))) break;
-                if (!ds.some((x) => ['PENDING', 'QUEUED', 'IN_PROGRESS'].includes(x.state))) { await chay('gh', ['pr', 'merge', pr, '--squash'], { cwd: w }).catch((e) => console.error('Chưa gộp được PR', pr, e.stderr)); break; }
-                await new Promise((x) => setTimeout(x, 10000));
-              }
-            }
-          } catch (e) { console.error('Không mở được PR cho lượt', luot.id, e.stderr || e.message); }
-        }
-      } catch (e) { console.error('Không đẩy được kết quả lên GitHub cho lượt', luot.id, e.stderr || e.message); }
+      const { pr, nhanhUrl } = await dayLenKb(w, nhanh, THU_MUC_DUOC_DAY(thuMucLam), {
+        tieuDe: `Sonicplan lượt ${luot.id}: ${viecList[0].tieu_de.slice(0, 60)}`,
+        than: `- Thư mục làm việc: ${thuMucLam}\n- Việc: ${viecList.map((v) => `v${v.id}`).join(', ')}`,
+        nhan: `lượt ${luot.id}`,
+      });
 
       // Tệp cho Drive: tác vụ bash riêng (có quyền Drive) chép từ hộp thư này, vì tiến trình node không với tới Drive.
       const driveDich = `Sonicplan Claude/${(duAn?.ten || 'Chưa xếp dự án').replace(/[\\/:*?"<>|]/g, '_').slice(0, 60)}/${basename(thuMucLam)}`;
@@ -197,10 +238,21 @@ export function moThoClaude(env, cfg = {}) {
     dangChay.set(luot.id, { tc: luot.to_chuc_id, tien_trinh: null, xong });
   }
 
+  // Mỗi ngày sau 23h giờ Việt Nam (và chưa đồng bộ trong ngày) xuất ghi nhớ sang KB. Lỗi chỉ ghi log, ngày mai thử lại.
+  async function ghiNhoHangNgay() {
+    const vn = new Date(Date.now() + 7 * 3600000);
+    if (vn.getUTCHours() < 23) return;
+    const ngay = vn.toISOString().slice(0, 10);
+    const luc = (await env.CSDL.prepare(`SELECT gia_tri FROM cai_dat WHERE to_chuc_id = '' AND khoa = 'ghi_nho_kb_luc'`).first())?.gia_tri;
+    if (luc && new Date(Date.parse(luc) + 7 * 3600000).toISOString().slice(0, 10) === ngay) return;
+    try { await dongBoGhiNho(); } catch (e) { console.error('Đồng bộ ghi nhớ sang KB lỗi', e.message); }
+  }
+
   async function vong() {
     if (dangVong || dung) return;
     dangVong = true;
     try {
+      await ghiNhoHangNgay();
       const { results: dsTc } = await env.CSDL.prepare('SELECT id FROM to_chuc').all();
       for (const { id: tc } of dsTc) {
         const cauHinh = await docCauHinhTho(env, tc);
@@ -238,6 +290,7 @@ export function moThoClaude(env, cfg = {}) {
       setTimeout(vong, 5000);
     },
     chayNgay: () => { vong(); },
+    dongBoGhiNho: () => lanLuot(async () => {}).then(() => dongBoGhiNho()),
     vongMotLan: vong,
     doiXong: async () => { while (dangChay.size) await Promise.allSettled([...dangChay.values()].map((x) => x.xong)); },
     dong: async () => {

@@ -24,6 +24,7 @@ export async function xuLyClaudeMay(yeuCau, env, phien, url) {
       dang_lam: dangLam.results,
       hang_cho: hangCho?.n || 0,
       kb: env.THO_CLAUDE?.thongTinKb ? await env.THO_CLAUDE.thongTinKb() : null,
+      ghi_nho_kb_luc: (await env.CSDL.prepare(`SELECT gia_tri FROM cai_dat WHERE to_chuc_id = '' AND khoa = 'ghi_nho_kb_luc'`).first())?.gia_tri || null,
     });
   }
   if (p === '/api/tho-claude' && m === 'PUT') {
@@ -38,6 +39,11 @@ export async function xuLyClaudeMay(yeuCau, env, phien, url) {
     return json({ ok: true });
   }
 
+  if (p === '/api/tho-claude/dong-bo-ghi-nho' && m === 'POST') {
+    if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
+    if (!env.THO_CLAUDE?.dongBoGhiNho) return loi(400, 'Máy chủ này không chạy thợ Claude.');
+    try { return json({ ok: true, ...(await env.THO_CLAUDE.dongBoGhiNho()) }); } catch (e) { return loi(502, `Chưa đồng bộ được: ${String(e.message).slice(0, 200)}`); }
+  }
   if (p === '/api/kb/du-an' && m === 'GET') {
     const { results } = await env.CSDL.prepare('SELECT id, ten, kb_thu_muc, kb_duyet FROM du_an WHERE to_chuc_id = ?1 ORDER BY thu_tu, id').bind(tc).all();
     const dsKb = env.THO_CLAUDE?.lietKeThuMucKb ? await env.THO_CLAUDE.lietKeThuMucKb() : [];
