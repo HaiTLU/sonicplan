@@ -1468,3 +1468,26 @@ details.bang-suc-khoe[open] > summary { padding-bottom: 0; }
 }
 /* Trong cột "Chưa xếp dự án", nhãn "Chưa xếp dự án" trên từng thẻ là thừa. */
 .cot-viec[data-cot="da-khong"] .nhan-du-an.chua { display: none; }
+
+/* Đợt 2 và 3 (16/10/2026) */
+/* Việc: bộ lọc phụ gom sau nút "Lọc". */
+.bo-loc-viec { margin: 0 0 14px; }
+.bo-loc-viec > summary { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--vach-2); background: var(--mat); font-size: 14px; font-weight: 600; color: var(--chu-2); cursor: pointer; list-style: none; }
+.bo-loc-viec > summary::-webkit-details-marker { display: none; }
+.bo-loc-viec > summary svg { width: 15px; height: 15px; }
+.bo-loc-viec[open] > summary { background: var(--mat-3); border-color: transparent; color: var(--chu); }
+.bo-loc-viec > .thanh-loc { margin-top: 10px; }
+/* Điện thoại: ô thêm nhanh chỉ hiện ô hạn và giờ khi đang gõ. */
+@media (max-width: 860px) {
+  .them-nhanh:not(:focus-within):has(input[name="tieu_de"]:placeholder-shown) input[name="han_ngay"],
+  .them-nhanh:not(:focus-within):has(input[name="tieu_de"]:placeholder-shown) input[name="gio_hen"],
+  .them-nhanh:not(:focus-within):has(input[name="tieu_de"]:placeholder-shown) button[type="submit"] { display: none; }
+}
+/* Hộp tin: hành động tách khỏi chip lọc. */
+.nut-hanh-dong { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; padding: 7px 10px; border: 0; background: none; color: var(--nhan); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; border-radius: 10px; }
+.nut-hanh-dong:hover { background: var(--mat-2); }
+.nut-hanh-dong svg { width: 16px; height: 16px; }
+/* Tổng quan: không có gì cần xử lý thì một dòng thay cho bốn số 0. */
+.can-lam-trong { margin: 4px 0 0; color: var(--phu); font-size: 14px; line-height: 1.5; }
+.o-can:not(.co) .o-can-so { color: var(--mo); }
+.o-so a.so-bam, .o-so a.so-bam * { text-decoration: none; }

@@ -99,12 +99,13 @@ function khoiCanLam(sl, cl) {
   return h('section', { class: 'bang can-lam', 'aria-labelledby': 'tq-can-lam' },
     h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-can-lam' }, 'Cần xử lý ngay'),
       h('span', { class: 'mo-ta', text: tong ? 'Bấm vào ô để mở danh sách' : 'Không có gì cần xử lý ngay' })),
-    h('div', { class: 'luoi-can' },
+    tong ? null : h('p', { class: 'can-lam-trong', text: `Không có việc quá hạn, việc tới hạn hôm nay, kết quả Claude chờ duyệt hay tin chưa xem. ${sl.xong_hom_nay ? `Đã xong ${sl.xong_hom_nay} việc hôm nay.` : ''}`.trim() }),
+    tong ? h('div', { class: 'luoi-can' },
       o('Quá hạn', sl.viec_qua_han, 'do', 'viec', locViec('mo'), 'Việc còn mở có hạn trước hôm nay. Bấm để xem, các việc này nằm ở cột Quá hạn.', 'việc trễ hạn'),
       o('Tới hạn hôm nay', sl.viec_hom_nay, 'cam', 'viec', locViec('mo'), 'Việc còn mở có hạn đúng hôm nay. Bấm để xem ở cột Hôm nay.', `${sl.xong_hom_nay} việc đã xong hôm nay`),
       o('Claude chờ bạn', cl?.cho_ban, 'tim', 'viec', locViec('mo'), 'Việc Claude đã làm xong hoặc đang hỏi lại, chờ bạn xem và bấm "Đạt, đóng việc" hoặc trả lời. Bấm để mở trang Việc.', cl?.dang_chay ? `${cl.dang_chay} lượt đang chạy` : 'kết quả chờ duyệt'),
       o('Tin chưa xem', sl.tin_chua_xem, 'xanh', 'hop-tin', locTin('chua-xem'), 'Tin Zalo và thư chưa mở đọc. Bấm để xem riêng các tin này.', `${sl.tin_hom_nay} tin đến hôm nay`),
-    ),
+    ) : null,
   );
 }
 
@@ -273,7 +274,7 @@ export function tomTat(tp, sl) {
   const phuViec = sl.viec_mo ? `Còn ${sl.viec_mo} việc mở${sl.viec_qua_han ? `, ${sl.viec_qua_han} việc quá hạn` : ''}.` : 'Không còn việc nào mở.';
   if (loi.length) return { den: 'do', cau: loi.length === 1 ? `${loi[0].ten} đang lỗi.` : `${loi.length} bộ phận đang lỗi.`, phu: `${loi.map((p) => `${p.ten}: ${p.mo_ta}`).join('. ')}. ${phuViec}` };
   if (sl.viec_qua_han) return { den: 'vang', cau: `${sl.viec_qua_han} việc đã quá hạn.`, phu: `Hệ thống chạy ổn. ${phuViec}` };
-  if (cho.length) return { den: 'vang', cau: 'Đang chờ tín hiệu đầu tiên.', phu: `${cho.map((p) => p.mo_ta).join('. ')}. ${chuaNoi ? `${chuaNoi} kết nối chưa cài.` : ''}` };
+  if (cho.length) return { den: 'vang', cau: cho.length === 1 ? `${cho[0].ten} chưa nhận dữ liệu lần nào.` : `${cho.length} bộ phận chưa nhận dữ liệu lần nào.`, phu: `${cho.map((p) => p.mo_ta).join('. ')}. ${chuaNoi ? `${chuaNoi} kết nối chưa cài.` : ''}` };
   return { den: 'xanh', cau: sl.viec_hom_nay ? `Hôm nay có ${sl.viec_hom_nay} việc tới hạn.` : 'Mọi thứ đang chạy êm.', phu: `${phuViec}${chuaNoi ? ` ${chuaNoi} kết nối chưa cài.` : ''}` };
 }
 

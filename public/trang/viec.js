@@ -54,12 +54,21 @@ export async function veViec(goc) {
   const vung = h('div', { class: 'cot-viec-wrap' }, ...[1, 2, 3].map(() => h('div', { class: 'cot-viec', style: 'padding:16px' }, xuong(16, '40%'), h('div', { style: 'height:14px' }), xuong(70), h('div', { style: 'height:8px' }), xuong(70))));
   const locDuAn = h('div', { class: 'thanh-loc loc-du-an', 'aria-label': 'Lọc theo dự án' });
   const chon = (khoa, nhan, ds) => h('label', { class: 'chon-loc' }, h('span', { text: nhan }), h('select', { 'aria-label': nhan, onchange: (e) => { v[khoa] = e.target.value; napViec(); } }, ...ds.map(([ma, ten]) => h('option', { value: ma, selected: v[khoa] === ma, text: ten }))));
-  const locKhac = v.tab === 'mo' ? h('div', { class: 'thanh-loc loc-khac', 'aria-label': 'Bộ lọc việc' },
+  // Bộ lọc phụ gom vào nút "Lọc" kèm số bộ lọc đang bật; máy tính mở sẵn, điện thoại gập sẵn trừ khi đang lọc.
+  const soLoc = ['nguon', 'han', 'nang'].filter((k) => v[k] && v[k] !== 'tat-ca').length + (v.chiSao ? 1 : 0);
+  if (v.moLoc === undefined) v.moLoc = !window.matchMedia?.('(max-width: 860px)').matches;
+  const boLoc = (noiDung) => {
+    const d = h('details', { class: 'bo-loc-viec', ...(v.moLoc || soLoc ? { open: true } : {}) },
+      h('summary', {}, icon('tim'), soLoc ? `Lọc (${soLoc})` : 'Lọc'), noiDung);
+    d.addEventListener('toggle', () => { v.moLoc = d.open; });
+    return d;
+  };
+  const locKhac = v.tab === 'mo' ? boLoc(h('div', { class: 'thanh-loc loc-khac', 'aria-label': 'Bộ lọc việc' },
     chon('nguon', 'Nguồn', [['tat-ca', 'Tất cả'], ['zalo', 'Zalo'], ['gmail', 'Gmail'], ['hop', 'Cuộc họp'], ['tay', 'Tự thêm']]),
     chon('han', 'Hạn', [['tat-ca', 'Tất cả'], ['qua-han', 'Quá hạn'], ['hom-nay', 'Hôm nay'], ['tuan', 'Tuần này'], ['khong', 'Chưa có hạn']]),
     chon('nang', 'Độ nặng', [['tat-ca', 'Tất cả'], ['nhe', 'Nhẹ'], ['vua', 'Vừa'], ['nang', 'Nặng'], ['rat_nang', 'Rất nặng']]),
     h('button', { class: 'chip chip-sao', type: 'button', 'aria-pressed': String(v.chiSao), onclick: () => { v.chiSao = !v.chiSao; veViec(goc); } }, icon('sao'), 'Có sao'),
-  ) : null;
+  )) : null;
   const xem = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.xem === ma), onclick: () => { v.xem = ma; try { localStorage.setItem('sp.viec.xem', ma); } catch {} veViec(goc); } }, nhan);
   thay(goc, form, h('div', { class: 'thanh-loc' }, tab('mo', 'Đang mở'), tab('xong', 'Đã xong'), v.tab === 'mo' ? h('span', { class: 'gian' }) : null, v.tab === 'mo' ? xem('han', 'Theo hạn') : null, v.tab === 'mo' ? xem('du-an', 'Theo dự án') : null, v.tab === 'mo' && v.xem === 'du-an' ? h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.anTrong), title: 'Ẩn các cột dự án chưa có việc', onclick: () => { v.anTrong = !v.anTrong; napViec(); } }, 'Ẩn cột trống') : null), locDuAn, locKhac, vung);
   batKeoTha(vung, { khiTha: (d) => khiThaViec(d, v, napViec), nhanDuoc: (ma) => ma !== 'qua-han' && v.tab === 'mo',

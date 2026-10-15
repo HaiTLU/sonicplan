@@ -102,7 +102,7 @@ export async function veHopTin(goc, thamSo) {
   thay(goc, 
     h('div', { class: 'thanh-loc' },
       nutLoc('tat-ca', 'Tất cả'), nutLoc('hom-nay', nhanHomNay), nutLoc('chua-xem', 'Chưa xem'), ...Object.entries(NGUON_TIN).map(([ma, n]) => nutLoc(ma, n.ten)),
-      h('button', { class: 'chip', type: 'button', onclick: async () => { await api('/api/tin/da-xem-het', { method: 'POST' }); bao('Đã đánh dấu xem hết.'); capNhatDem(0); veHopTin(goc); } }, 'Đánh dấu xem hết'),
+      h('button', { class: 'nut-hanh-dong', type: 'button', onclick: async () => { await api('/api/tin/da-xem-het', { method: 'POST' }); bao('Đã đánh dấu xem hết.'); capNhatDem(0); veHopTin(goc); } }, icon('xong'), 'Đánh dấu xem hết'),
       h('label', { class: 'o-tim' }, icon('tim'), oTim),
     ),
     hop,
