@@ -7,6 +7,7 @@ import { chuanDuongDanDrive } from './du-an.js';
 import { goiGithub } from './github.js';
 import { docTichHop } from './tich-hop.js';
 import { baoToChuc } from './telegram.js';
+import { taoThongBao } from './thong-bao.js';
 import { bam, json, loi, maNgauNhien } from './tien-ich.js';
 
 export const TEN_WORKFLOW = 'sonicplan-claude.yml';
@@ -388,7 +389,7 @@ export async function nhanKetQuaClaude(yeuCau, env) {
   const k = kiemBaoKetQua(await yeuCau.json().catch(() => null));
   if (k.loi) return loi(400, k.loi);
   const d = k.du_lieu;
-  const luot = await env.CSDL.prepare('SELECT l.id, l.to_chuc_id, l.trang_thai, l.ket_qua, l.ma_bam, v.tieu_de FROM luot_claude l JOIN viec v ON v.id = l.viec_id WHERE l.id = ?1').bind(d.luot).first();
+  const luot = await env.CSDL.prepare('SELECT l.id, l.to_chuc_id, l.viec_id, l.trang_thai, l.ket_qua, l.ma_bam, v.tieu_de FROM luot_claude l JOIN viec v ON v.id = l.viec_id WHERE l.id = ?1').bind(d.luot).first();
   if (!luot || luot.ma_bam !== (await bam(ma))) return loi(401, 'Mã không đúng.');
   // Lượt bị đánh lỗi vì chờ quá lâu (máy chạy ngủ dậy muộn) vẫn nhận kết quả về.
   const quaHan = luot.trang_thai === 'loi' && [CHU_CHUA_CHAY, CHU_QUA_HAN].includes(luot.ket_qua);
@@ -400,6 +401,13 @@ export async function nhanKetQuaClaude(yeuCau, env) {
     const cau = cauHoi ? `Claude cần bạn trả lời ${cauHoi.length} câu hỏi về: ${luot.tieu_de}. Mở Sonicplan để trả lời.`
       : d.trang_thai === 'xong' ? `Claude đã làm xong: ${luot.tieu_de}. Mở Sonicplan để xem kết quả và duyệt.` : `Claude gặp lỗi khi làm: ${luot.tieu_de}. Mở Sonicplan để xem nhật ký.`;
     await baoToChuc(env, luot.to_chuc_id, cau).catch((e) => console.error('Không báo được Telegram', e));
+    await taoThongBao(env, luot.to_chuc_id, {
+      loai: 'claude',
+      tieu_de: cauHoi ? `Claude hỏi lại: ${luot.tieu_de}` : d.trang_thai === 'xong' ? `Claude làm xong: ${luot.tieu_de}` : `Claude gặp lỗi: ${luot.tieu_de}`,
+      noi_dung: cauHoi ? `Claude cần bạn trả lời ${cauHoi.length} câu hỏi.` : d.trang_thai === 'xong' ? 'Mở để xem kết quả và duyệt.' : 'Mở để xem nhật ký.',
+      duong_dan: `#viec/${luot.viec_id}`,
+      viec_id: luot.viec_id,
+    });
   }
   return json({ ok: true });
 }

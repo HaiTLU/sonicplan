@@ -7,6 +7,7 @@ import { dongHieuSuat, veHieuSuat } from './hieu-suat.js';
 import { batKeoTha } from './keo-tha.js';
 import { hexMau, mauViec, oChonMau } from './mau.js';
 import { caiNguCanh, dongTrinhDon, moTrinhDon } from './trinh-don.js';
+import { batChuong, trangThaiThongBao, veTheThongBao } from './thong-bao.js';
 import { veTram } from './tram.js';
 import { mienCuaUrl, nhanTep, phanTichTin, tachLienKet, trichTin } from './zalo-tin.js';
 
@@ -2349,6 +2350,13 @@ async function veKetNoi(goc, { moi = false } = {}) {
     } }, icon('lich'), kn.lich.khoa ? 'Nối lại' : 'Nối lịch')),
   );
 
+  // Thông báo trên trình duyệt: đèn theo máy đang xem (đã cho phép chưa), phần thân tự đọc cài đặt.
+  const ttTb = trangThaiThongBao();
+  const theTb = h('section', { class: 'bang the-kn' },
+    dau('chuong', 'Thông báo trên trình duyệt', 'Việc mới, giờ hẹn, Claude hỏi lại hiện ngay trên máy tính và điện thoại, kể cả khi đã đóng trang.', ttTb.den, ttTb.chu),
+  );
+  veTheThongBao(theTb, { h, icon, api, bao, sauKhiThu: () => chuong?.lamMoi({ ep: true }) });
+
   // Telegram
   const theTele = h('section', { class: 'bang the-kn' },
     dau('telegram', 'Báo qua Telegram', 'Nhắn thường để tạo việc, lệnh /viec /nho /hoi /tomtat; báo việc mới và cảnh báo khi máy Zalo im lặng.', kn.telegram.da_noi ? 'xanh' : 'xam', kn.telegram.da_noi ? 'Đã nối' : kn.telegram.co_bot ? 'Chưa nối' : 'Chưa cài bot'),
@@ -2487,7 +2495,7 @@ async function veKetNoi(goc, { moi = false } = {}) {
   const nhomThe = [
     ['Tài khoản Google', [['google', theGoogle], ['kho', theKho]]],
     ['Tin vào', [['zalo', theZalo], ['hop', theHop], ['telegram', theTele]]],
-    ['Gửi ra', [['lich', theLich], ['api', theApi]]],
+    ['Gửi ra', [['thong-bao', theTb], ['lich', theLich], ['api', theApi]]],
     ['Hệ thống', [['nen', theNen]]],
   ];
   const cacThe = nhomThe.map(([ten, ds]) => [ten, ds.map(([ma, the]) => gapTheKn(the, ma))]);
@@ -2497,6 +2505,11 @@ async function veKetNoi(goc, { moi = false } = {}) {
     t.the.querySelector('summary').focus({ preventScroll: true });
   } }, t.bieuTuong, h('span', { class: 'o-kn-chu' }, h('b', { text: t.ten }), h('small', { text: t.trangThai })))));
   thay(goc, tomTat, ...cacThe.map(([ten, ds]) => h('section', { class: 'nhom-kn', 'aria-label': ten }, h('h2', { class: 'tieu-nhom-kn', text: ten }), h('div', { class: 'ds-kn' }, ...ds.map((t) => t.the)))));
+  // Đến từ liên kết "Cài đặt thông báo" trong chuông: mở sẵn thẻ đó.
+  if (location.hash === '#ket-noi/thong-bao') {
+    const t = document.getElementById('kn-thong-bao');
+    if (t) { t.open = true; t.scrollIntoView({ block: 'start' }); }
+  }
 }
 
 // Hàng tài khoản đã nối: chữ cái đầu, email, dòng trạng thái lần chạy cuối.
@@ -2663,8 +2676,28 @@ function veNutXoa() {
 const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'hieu-suat': (goc) => veHieuSuat(goc, { h, icon, api, bao, thay, khungLoi, xuong }), 'du-an': veDuAnTrang, claude: (goc, thamSo) => veTram(goc, { h, icon, api, bao, thay, meo, oChep, kichThuoc, luc, laChu: trang.toi?.to_chuc?.vai_tro === 'chu' }, thamSo), 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy, 'du-lieu': veDuLieu, 'da-chan': veDaChan };
 let mucTruoc = null;
 
+// Mở một chỗ trong trang theo đường dẫn của thông báo. "#viec/<mã>" thì sang trang Việc và mở luôn ngăn việc đó.
+async function moDuongDan(duongDan) {
+  const [ma, so] = String(duongDan || '').replace(/^#/, '').split('/');
+  if (ma === 'viec' && /^\d+$/.test(so || '')) {
+    if (location.hash !== '#viec') location.hash = 'viec';
+    try {
+      const { viec } = await api(`/api/viec/${so}`);
+      moNganViec(viec);
+    } catch (e) { bao(e.message, { loi: true }); }
+    return;
+  }
+  const dich = String(duongDan || 'tong-quan').replace(/^#/, '');
+  if (location.hash === `#${dich}`) moMuc();
+  else location.hash = dich;
+}
+
 async function moMuc() {
   const [ma, thamSo] = (location.hash.slice(1) || 'tong-quan').split('/');
+  if (ma === 'viec' && /^\d+$/.test(thamSo || '')) {
+    history.replaceState(null, '', '#viec');
+    moDuongDan(`#viec/${thamSo}`);
+  }
   const muc = VE[ma] ? ma : 'tong-quan';
   document.querySelectorAll('[data-trang]').forEach((sec) => { sec.hidden = sec.dataset.trang !== muc; });
   const nhom = nhomCua(muc);
@@ -2813,6 +2846,7 @@ document.addEventListener('pointermove', (e) => {
 // ---------- Khởi động ----------
 caiNguCanh({ chung: mucChung, bo: '.cot-viec' });
 
+let chuong = null;
 async function batDau() {
   const ngay = fmt.ngayDai.format(new Date());
   document.getElementById('ngay-hom-nay').textContent = ngay.charAt(0).toUpperCase() + ngay.slice(1);
@@ -2828,6 +2862,7 @@ async function batDau() {
   }
   window.addEventListener('hashchange', moMuc);
   moMuc();
+  chuong = batChuong({ h, icon, api, bao, luc, moDuongDan });
   // Làm mới số đếm mỗi 2 phút khi trang đang mở.
   setInterval(() => {
     if (document.hidden) return;

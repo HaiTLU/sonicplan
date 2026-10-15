@@ -2,6 +2,14 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [1.11.0] - 2026-10-15
+
+### Thêm
+- Thông báo trên web. Chuông ở thanh trên có số chưa đọc; bấm vào ra danh sách, bấm từng dòng mở thẳng việc đó (hoặc trang Claude), tự đánh dấu đã đọc. Trang đang mở thì chuông tự làm mới mỗi 30 giây và ngay khi có thông báo đẩy.
+- Thông báo đẩy của trình duyệt (Web Push, mã hóa theo RFC 8291, khóa VAPID tạo và lưu mã hóa trên máy chủ): hiện cả khi đã đóng trang, trên máy tính và điện thoại (iPhone cần "Thêm vào màn hình chính"). Bật ở Cài đặt, thẻ "Thông báo trên trình duyệt", nút "Bật thông báo" và "Gửi thử".
+- Báo bốn loại, mỗi loại một công tắc: việc mới AI tách từ Hộp tin (Zalo, Gmail, họp, dịch vụ ngoài), việc đổi hạn theo tin mới, việc tới giờ hẹn, Claude hỏi lại hoặc làm xong (cả lượt Giao Claude và trang Claude). Trong giờ yên lặng chỉ ghi vào chuông, không đẩy. Telegram giữ nguyên.
+- Liên kết `#viec/<mã>` mở thẳng ngăn việc. API `GET /api/viec/<mã>`.
+
 ## [1.10.1] - 2026-10-15
 
 ### Sửa

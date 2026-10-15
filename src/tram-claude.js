@@ -26,6 +26,12 @@ export class PhongTram {
     return this.mt.bayGio ? this.mt.bayGio() : new Date().toISOString();
   }
 
+  // Báo ra ngoài phòng (thông báo trên web) khi Claude cần người dùng hoặc vừa xong một lượt. Lỗi ở đây không chặn phòng.
+  baoNguoi(p, dau, noiDung) {
+    if (!this.mt.baoNguoi) return;
+    Promise.resolve(this.mt.baoNguoi({ tieu_de: `${dau}: ${p.tieu_de || 'phiên chat'}`, noi_dung: noiDung, duong_dan: `#claude/${p.id}` })).catch(() => {});
+  }
+
   // Lệnh từ Worker (HTTP nội bộ), không qua WebSocket.
   async xuLy(hanhDong, duLieu = {}) {
     const kho = this.mt.kho;
@@ -238,7 +244,11 @@ export class PhongTram {
         if (LUU_LAI.has(s.loai)) {
           if (s.loai === 'xong') continue; // xong đi đường riêng
           // Ghi nhớ câu hỏi, xin phép còn chờ để danh sách phiên hiện nhãn "chờ bạn".
-          if ((s.loai === 'hoi' || s.loai === 'xin_phep') && s.id) { p.cho_ban = [...(p.cho_ban || []), String(s.id)].slice(-20); doiMeta = true; }
+          if ((s.loai === 'hoi' || s.loai === 'xin_phep') && s.id) {
+            p.cho_ban = [...(p.cho_ban || []), String(s.id)].slice(-20);
+            doiMeta = true;
+            this.baoNguoi(p, s.loai === 'hoi' ? 'Claude hỏi lại' : 'Claude xin phép chạy lệnh', 'Mở trang Claude để trả lời.');
+          }
           if (s.loai === 'da_tra_loi') { p.cho_ban = (p.cho_ban || []).filter((x) => x !== String(s.id)); doiMeta = true; }
           this.phat({ loai: 'su_kien', phien: p.id, su_kien: await this.ghiSuKien(p, sk) });
           doi = true;
@@ -272,6 +282,7 @@ export class PhongTram {
     });
     Object.assign(p, { dang_chay: null, cho: null, cho_tram: false, cho_ban: [] });
     await this.luuPhien(p);
+    if (!tin.da_dung) this.baoNguoi(p, tin.thanh_cong ? 'Claude làm xong' : 'Claude gặp lỗi', tin.thanh_cong ? 'Mở trang Claude để xem kết quả.' : 'Mở trang Claude để xem lỗi.');
     this.phat({ loai: 'su_kien', phien: p.id, su_kien: sk });
     this.phat({ loai: 'phien', phien: this.metaPhien(p) });
   }

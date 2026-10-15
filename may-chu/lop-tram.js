@@ -29,7 +29,7 @@ function khoTep(duongDan) {
   };
 }
 
-export function moTram(thuMuc) {
+export function moTram(thuMuc, { baoNguoi } = {}) {
   mkdirSync(thuMuc, { recursive: true });
   const cacPhong = new Map();
   const phong = (tc) => {
@@ -41,6 +41,7 @@ export function moTram(thuMuc) {
         cacKetNoi: (vaiTro) => [...ketNoi].filter((ws) => ws._gan?.vai_tro === vaiTro),
         docGan: (ws) => ws._gan || null,
         ganVao: (ws, d) => { ws._gan = d; },
+        baoNguoi: baoNguoi ? (tb) => baoNguoi(tc, tb) : null,
       });
       p._ketNoi = ketNoi;
       p._kho = kho;

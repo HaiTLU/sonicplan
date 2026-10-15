@@ -1405,3 +1405,49 @@ details.bang-suc-khoe[open] > summary { padding-bottom: 0; }
 
 .nhap-lai-khoa { margin-top: 12px; }
 .nhap-lai-khoa > summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+
+/* ---------- Chuông thông báo ---------- */
+.dau-trang-nut { position: relative; }
+.nut-chuong { position: relative; width: 40px; padding: 0; }
+.nut-chuong svg { width: 20px; height: 20px; }
+.nut-chuong .dem-chuong { position: absolute; top: -5px; right: -5px; left: auto; margin: 0; min-width: 18px; padding: 1px 5px; border-radius: 999px; background: var(--nhan); color: var(--nhan-chu); font-size: 10.5px; }
+.bang-thong-bao {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 80; width: min(380px, calc(100vw - 32px)); max-height: min(70vh, 560px);
+  display: flex; flex-direction: column; border-radius: var(--r-vua); background: var(--mat-2); border: 1px solid var(--vach-2); box-shadow: var(--bong-noi); overflow: hidden;
+}
+.bang-thong-bao[hidden] { display: none; }
+.bang-thong-bao header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--vach); }
+.bang-thong-bao h2 { margin: 0; font-size: 15px; font-weight: 700; }
+.bang-thong-bao footer { padding: 10px 14px; border-top: 1px solid var(--vach); font-size: 13px; }
+.bang-thong-bao footer a { color: var(--nhan); }
+.ds-thong-bao { list-style: none; margin: 0; padding: 4px; overflow-y: auto; }
+.ds-thong-bao .tb {
+  width: 100%; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 4px 10px; align-items: start; position: relative;
+  padding: 10px 22px 10px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--chu-2); text-align: left; cursor: pointer; font: inherit;
+}
+.ds-thong-bao .tb:hover, .ds-thong-bao .tb:focus-visible { background: var(--mat-3); }
+.ds-thong-bao .tb.chua-doc { color: var(--chu); }
+.tb-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; background: var(--nhan-nhat); color: var(--nhan); }
+.tb-icon svg { width: 17px; height: 17px; }
+.tb-chu { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tb-chu b { font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
+.tb:not(.chua-doc) .tb-chu b { font-weight: 500; }
+.tb-chu small { color: var(--phu); font-size: 12.5px; }
+.ds-thong-bao time { color: var(--phu); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cham-moi { position: absolute; right: 9px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; background: var(--nhan); }
+.tb-trong { margin: 0; padding: 22px 16px; color: var(--phu); font-size: 13.5px; text-align: center; }
+.khoi-thong-bao { display: flex; flex-direction: column; gap: 12px; }
+.cong-tac-tb { margin: 0; padding: 12px 14px; border: 1px solid var(--vach); border-radius: var(--r-nho); display: flex; flex-direction: column; gap: 8px; }
+.cong-tac-tb legend { padding: 0 6px; color: var(--phu); font-size: 12.5px; }
+.hang-cong-tac { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
+.hang-cong-tac input { width: 18px; height: 18px; accent-color: var(--nhan); }
+@media (max-width: 860px) {
+  .bang-thong-bao { position: fixed; top: 70px; right: 16px; left: 16px; width: auto; }
+}
+#kn-thong-bao { scroll-margin-top: 150px; }
+.cong-tac-tb .hang-cong-tac { justify-content: flex-start; text-align: left; }
+.hang-cong-tac span { flex: 1; }
+/* Hàng tab con co lại và cuộn ngang khi chật, để nút chuông và Thêm việc luôn nằm trong màn hình điện thoại. */
+.dau-trang > div:first-child { min-width: 0; }
+.dau-trang-nut { flex: none; }
+.chu-an { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
