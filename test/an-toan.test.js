@@ -144,11 +144,58 @@ test('tên kho GitHub không được là .. hoặc .', async () => {
   assert.equal(kiemCauHinhGithub({ token, repo: 'HaiTLU/ThangLong_KB' }).repo, 'HaiTLU/ThangLong_KB');
 });
 
-test('máy chủ Node thêm tiêu đề bảo mật vào trang tĩnh, không thêm CSP', async () => {
+test('máy chủ Node thêm tiêu đề bảo mật vào trang tĩnh, gồm cả CSP', async () => {
   const { docTieuDeAnToan, moTinh } = await import('../may-chu/lop-tinh.js');
-  const t = docTieuDeAnToan('# ghi chú\n/*\n  Content-Security-Policy: default-src \'self\'\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: no-referrer\n/rieng\n  X-Frame-Options: DENY\n');
-  assert.deepEqual(t, { 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer' });
+  const t = docTieuDeAnToan('# ghi chú\n/*\n  Content-Security-Policy: default-src \'self\'\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: no-referrer\n  X-Khac: bo-qua\n/rieng\n  X-Frame-Options: DENY\n');
+  assert.deepEqual(t, { 'content-security-policy': "default-src 'self'", 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer' });
   const ra = await moTinh('public').fetch(new Request('https://x/'));
   assert.equal(ra.headers.get('x-content-type-options'), 'nosniff');
-  assert.equal(ra.headers.get('content-security-policy'), null);
+  assert.match(ra.headers.get('content-security-policy'), /script-src 'self'/);
+});
+
+test('xoay khóa mã hóa: đọc được bằng khóa cũ trong lúc xoay, mã hóa lại xong thì chỉ khóa mới đọc được', async () => {
+  const { maHoa, giaiMa, giaiMaEnv } = await import('../src/ma-hoa.js');
+  const { xoayKhoa } = await import('../may-chu/xoay-khoa.js');
+  const khoa = () => Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64');
+  const [cu, moi] = [khoa(), khoa()];
+  const db = dungCsdl();
+  db.exec("INSERT INTO to_chuc (id, ten, tao_luc) VALUES ('tc1', 'T', '2026-01-01')");
+  const ghi = db.prepare('INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES (?1, ?2, ?3)');
+  ghi.run('tc1', 'tich_hop_ai', await maHoa({ khoa: 'bi-mat-1' }, cu));
+  ghi.run('', 'telegram_bot', await maHoa({ token: 'bi-mat-2' }, cu));
+  ghi.run('tc1', 'cai_thuong', '{"a":1}');
+  // Trong lúc xoay: khóa mới + khóa cũ đều dùng được.
+  const banCu = db.prepare("SELECT gia_tri FROM cai_dat WHERE khoa = 'tich_hop_ai'").get().gia_tri;
+  assert.deepEqual(await giaiMaEnv(banCu, { KHOA_MA_HOA: moi, KHOA_MA_HOA_CU: cu }), { khoa: 'bi-mat-1' });
+  await assert.rejects(giaiMaEnv(banCu, { KHOA_MA_HOA: moi }));
+  assert.equal(await xoayKhoa(db, cu, moi), 2);
+  const banMoi = db.prepare("SELECT gia_tri FROM cai_dat WHERE khoa = 'tich_hop_ai'").get().gia_tri;
+  assert.deepEqual(await giaiMa(banMoi, moi), { khoa: 'bi-mat-1' });
+  await assert.rejects(giaiMa(banMoi, cu));
+  assert.equal(db.prepare("SELECT gia_tri FROM cai_dat WHERE khoa = 'cai_thuong'").get().gia_tri, '{"a":1}');
+  // Khóa cũ sai thì không đổi gì.
+  await assert.rejects(xoayKhoa(db, cu, khoa()), /Không giải mã được/);
+  assert.deepEqual(await giaiMa(db.prepare("SELECT gia_tri FROM cai_dat WHERE khoa = 'tich_hop_ai'").get().gia_tri, moi), { khoa: 'bi-mat-1' });
+});
+
+test('đăng ký push: tổ chức khác không chiếm được địa chỉ của máy đã đăng ký, thành viên cả hai tổ chức thì chuyển được', async () => {
+  const { xuLyApiThongBao } = await import('../src/thong-bao.js');
+  const db = dungCsdl();
+  db.exec("INSERT INTO to_chuc (id, ten, tao_luc) VALUES ('a', 'A', '2026-01-01'), ('b', 'B', '2026-01-01')");
+  const env = { CSDL: d1(db) };
+  const dk = { endpoint: 'https://web.push.apple.com/' + 'x'.repeat(40), keys: { p256dh: 'p'.repeat(87), auth: 'a'.repeat(22) } };
+  const goi = (tc, cac) => {
+    const url = new URL('https://plan.vi-du.vn/api/thong-bao/dang-ky');
+    return xuLyApiThongBao(new Request(url, { method: 'POST', body: JSON.stringify(dk), headers: { 'user-agent': 'iPhone' } }), env, { to_chuc: { id: tc, vai_tro: 'chu' }, cac_to_chuc: cac.map((id) => ({ id })) }, url);
+  };
+  assert.equal((await goi('a', ['a'])).status, 200);
+  assert.equal((await goi('b', ['b'])).status, 409);
+  assert.equal(db.prepare('SELECT to_chuc_id FROM dang_ky_day').get().to_chuc_id, 'a');
+  assert.equal((await goi('b', ['a', 'b'])).status, 200);
+  assert.equal(db.prepare('SELECT to_chuc_id FROM dang_ky_day').get().to_chuc_id, 'b');
+});
+
+test('chấm việc: đọc được kết quả AI đặt khóa "items"', async () => {
+  const { docKetQuaCham } = await import('../src/hieu-suat.js');
+  assert.equal(docKetQuaCham('{"items":[{"id":93,"do_nang":"vua","phut":35,"ly_do":"x","chua_ro":false}]}', [93]).length, 1);
 });

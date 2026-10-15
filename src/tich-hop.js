@@ -3,7 +3,7 @@
 
 import { goiNgoai } from './goi-ngoai.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
-import { giaiMa, maHoa } from './ma-hoa.js';
+import { giaiMaEnv, maHoa } from './ma-hoa.js';
 import { kiemDiaChiTruocGoi, kiemTenMayCongKhai } from './dia-chi-an-toan.js';
 
 const KHOA_CAI_DAT = { ai: 'tich_hop_ai', webhook: 'tich_hop_webhook', google_client: 'tich_hop_google_client', google: 'tich_hop_google', github: 'tich_hop_github', kho_drive: 'tich_hop_kho_drive', hop_drive: 'tich_hop_hop_drive' };
@@ -18,7 +18,7 @@ export async function docTichHop(env, toChucId, loai) {
 export async function giaiTichHop(env, banMa, loai) {
   if (!banMa || !env.KHOA_MA_HOA) return null;
   try {
-    return await giaiMa(banMa, env.KHOA_MA_HOA);
+    return await giaiMaEnv(banMa, env);
   } catch (e) {
     console.error('Không đọc được tích hợp', loai, e);
     return null;

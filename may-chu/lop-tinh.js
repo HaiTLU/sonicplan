@@ -10,9 +10,8 @@ const KIEU = {
   '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.txt': 'text/plain; charset=utf-8',
 };
 
-// Tiêu đề bảo mật: Cloudflare đọc public/_headers khi phát trang, máy chủ Node phải tự thêm. Lấy các tiêu đề an toàn không làm đổi cách trang chạy;
-// Content-Security-Policy giữ riêng ở _headers (bản Cloudflare) cho tới khi thử xong trên máy chủ này.
-const TIEU_DE_AN_TOAN = ['x-content-type-options', 'referrer-policy', 'permissions-policy', 'strict-transport-security', 'cross-origin-opener-policy'];
+// Tiêu đề bảo mật: Cloudflare đọc public/_headers khi phát trang, máy chủ Node phải tự thêm cùng bộ đó (gồm cả Content-Security-Policy).
+const TIEU_DE_AN_TOAN = ['content-security-policy', 'x-content-type-options', 'referrer-policy', 'permissions-policy', 'strict-transport-security', 'cross-origin-opener-policy'];
 export function docTieuDeAnToan(noiDung) {
   const ra = {};
   let trongKhoiChung = false;

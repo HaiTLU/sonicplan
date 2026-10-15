@@ -3,7 +3,7 @@
 // Telegram vẫn chạy song song; đây là kênh thêm. Lỗi gửi đẩy không bao giờ làm hỏng việc đang tạo.
 
 import { dangYenLang, docLuong } from './luong.js';
-import { maHoa, giaiMa } from './ma-hoa.js';
+import { maHoa, giaiMaEnv } from './ma-hoa.js';
 import { cat, gioVN, json, loi } from './tien-ich.js';
 
 const HE_THONG = '';
@@ -76,7 +76,7 @@ export async function layKhoaVapid(env, goc = '') {
     const gt = await env.CSDL.prepare('SELECT gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = ?2').bind(HE_THONG, KHOA_VAPID).first();
     if (!gt) return null;
     const s = gt.gia_tri;
-    return s.startsWith('v1.') ? giaiMa(s, env.KHOA_MA_HOA) : JSON.parse(s);
+    return s.startsWith('v1.') ? giaiMaEnv(s, env) : JSON.parse(s);
   };
   const co = await doc();
   if (co) return co;
@@ -230,6 +230,9 @@ export async function xuLyApiThongBao(yeuCau, env, phien, url) {
     const auth = String(than?.keys?.auth || '');
     if (!laDiaChiDay(dia) || dia.length > 1000) return loi(400, 'Địa chỉ nhận thông báo của trình duyệt không hợp lệ.');
     if (!/^[\w-]{80,100}$/.test(p256dh) || !/^[\w-]{16,32}$/.test(auth)) return loi(400, 'Khóa thông báo của trình duyệt không hợp lệ.');
+    // Máy này đã đăng ký cho tổ chức khác: chỉ chuyển sang tổ chức này nếu người gọi cũng thuộc tổ chức kia (đổi tổ chức trên cùng một máy).
+    const cu = await env.CSDL.prepare('SELECT to_chuc_id FROM dang_ky_day WHERE endpoint = ?1').bind(dia).first();
+    if (cu && cu.to_chuc_id !== tc && !(phien.cac_to_chuc || []).some((x) => x.id === cu.to_chuc_id)) return loi(409, 'Địa chỉ nhận thông báo này đang thuộc tổ chức khác.');
     await env.CSDL.prepare(
       `INSERT INTO dang_ky_day (to_chuc_id, endpoint, p256dh, auth, thiet_bi, tao_luc) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
        ON CONFLICT (endpoint) DO UPDATE SET to_chuc_id = excluded.to_chuc_id, p256dh = excluded.p256dh, auth = excluded.auth, thiet_bi = excluded.thiet_bi, so_loi = 0`,

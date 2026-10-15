@@ -7,7 +7,7 @@ import { goiNgoai } from './goi-ngoai.js';
 import { tongHopChoToChuc } from './tong-hop.js';
 import { chonGhiNho, docHoSo, nhayCam } from './ghi-nho.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
-import { giaiMa, maHoa } from './ma-hoa.js';
+import { giaiMaEnv, maHoa } from './ma-hoa.js';
 import { docTichHop } from './tich-hop.js';
 import { bam, congNgay, maNgauNhien, ngayVN, sangUTC } from './tien-ich.js';
 import { xuLyVanBanTrucTiep } from './viec.js';
@@ -23,7 +23,7 @@ export async function layBot(env) {
   const banMa = await docCaiDat(env, HE_THONG, 'telegram_bot');
   if (banMa && env.KHOA_MA_HOA) {
     try {
-      bot = await giaiMa(banMa, env.KHOA_MA_HOA);
+      bot = await giaiMaEnv(banMa, env);
     } catch (e) {
       console.error('Không đọc được mã bot Telegram', e);
     }

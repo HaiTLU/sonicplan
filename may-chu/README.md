@@ -19,6 +19,7 @@ Máy chủ Node chạy nguyên mã Worker trong `src/`, thay D1 bằng SQLite, R
 | `CF_ACCOUNT_ID`, `CF_AI_TOKEN` | Muốn có AI: gọi Workers AI qua REST. Thiếu thì chạy không AI |
 | `DU_LIEU`, `DB_FILE`, `TEP_DIR` | Thư mục dữ liệu (mặc định `du-lieu/`) |
 | `HEN_GIO=0` | Tắt hẹn giờ |
+| `KHOA_MA_HOA_CU` | Chỉ khi đang xoay khóa: khóa cũ, để đọc được dữ liệu chưa mã hóa lại. Cách xoay: dừng máy chủ, sao lưu, chạy `KHOA_MA_HOA_CU=<cũ> KHOA_MA_HOA=<mới> DB_FILE=<đường dẫn> node may-chu/xoay-khoa.js`, đặt khóa mới vào `.env`, gỡ biến này |
 | `EMAIL_THU` | Chỉ để thử trên máy: bỏ qua đăng nhập, chỉ nhận yêu cầu từ chính máy |
 
 ## Dịch vụ launchd (chạy nền lâu dài)

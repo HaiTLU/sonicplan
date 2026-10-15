@@ -17,6 +17,17 @@ export async function giaiMa(chuoi, khoaB64) {
   return JSON.parse(new TextDecoder().decode(ro));
 }
 
+// Giải mã bằng khóa hiện tại, không được thì thử khóa cũ (KHOA_MA_HOA_CU) trong lúc đang xoay khóa.
+// Xoay khóa: đặt khóa mới vào KHOA_MA_HOA, khóa cũ vào KHOA_MA_HOA_CU, chạy may-chu/xoay-khoa.js, rồi gỡ KHOA_MA_HOA_CU.
+export async function giaiMaEnv(chuoi, env) {
+  try {
+    return await giaiMa(chuoi, env.KHOA_MA_HOA);
+  } catch (e) {
+    if (!env.KHOA_MA_HOA_CU) throw e;
+    return giaiMa(chuoi, env.KHOA_MA_HOA_CU);
+  }
+}
+
 async function nhapKhoa(khoaB64) {
   const byte = tuB64(khoaB64 || '');
   if (byte.length !== 32) throw new Error('KHOA_MA_HOA phải dài đúng 32 byte');
