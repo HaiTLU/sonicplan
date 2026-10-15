@@ -2,6 +2,14 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [1.10.1] - 2026-10-15
+
+### Sửa
+- Bản tin sáng không còn cụt ở mục "Kế hoạch hôm nay". AI trả lời bị cắt vì hết token thì Sonicplan hỏi lại một lần với giới hạn gấp đôi, vẫn cắt thì báo lỗi thay vì gửi nửa câu. Dòng tiêu đề treo ở cuối (như "- Làm trước:") bị bỏ. Áp cho mọi lượt gọi AI, nên lỗi "AI không trả kết quả chấm đọc được" do JSON bị cắt cũng hết.
+- Máy chủ trên Mac tự áp migration còn thiếu mỗi lần khởi động. Sáng 15/10 bản tin 8h báo lỗi "no such column: so_lan_doi" vì mã mới đã chạy mà cơ sở dữ liệu chưa thêm cột.
+- Khối "việc dời nhiều lần" lỗi thì bỏ khối đó, bản tin vẫn gửi.
+- "Lưu ý từ tin mới" chỉ nêu điều cần làm hoặc cần biết để hành động, không giải thích vì sao không tạo việc.
+
 ## [1.10.0] - 2026-10-14
 
 ### Thêm
