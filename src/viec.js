@@ -9,6 +9,7 @@ import { baoSuKien, dangViecMoi, docTichHop } from './tich-hop.js';
 import { boSungHan, ngayChoGio } from './ngay-viet.js';
 import { cat, chuanHoa, doGiong, ngayVN } from './tien-ich.js';
 import { chonDuAn, docDuAn, ghiSuKien } from './du-an.js';
+import { moTaViec, taoThongBao } from './thong-bao.js';
 
 // Tiêu đề giống từ 80% với một việc đang mở trong 60 ngày (hoặc vừa xong 3 ngày) thì coi là trùng.
 export const NGUONG_TRUNG = 0.8;
@@ -215,6 +216,12 @@ async function chayLoTin(env, toChucId, tin, bayGio, khoa = null) {
     const duAnId = chonDuAn(duAn, v.du_an, `${v.tieu_de} ${nguon?.nhom || ''} ${nguon?.nguoi_gui || ''} ${nguon?.tieu_de || ''} ${String(nguon?.noi_dung || '').slice(0, 300)}`);
     const r = await themViec(env, toChucId, { ...v, ghi_chu: ghiChu }, { tinNhanId: nguon ? nguon.id : null, duAnId, nguon: (nguon || nguonChung(tin))?.nguon || null });
     if (!r.trung) soViec++;
+    // Thông báo trên web cho việc đến từ người khác. Tin bạn tự gõ qua Telegram thì không báo lại chính bạn.
+    if (nguon && nguon.nguon !== 'telegram' && (!r.trung || r.doi_han)) {
+      await taoThongBao(env, toChucId, r.trung
+        ? { loai: 'doi_han', tieu_de: `Đổi hạn: ${v.tieu_de}`, noi_dung: moTaViec(v, nguon), duong_dan: `#viec/${r.id}`, viec_id: r.id }
+        : { loai: 'viec_moi', tieu_de: `Việc mới: ${v.tieu_de}`, noi_dung: moTaViec(v, nguon), duong_dan: `#viec/${r.id}`, viec_id: r.id });
+    }
     viecRa.push({ id: r.id, tieu_de: v.tieu_de, han_ngay: v.han_ngay || null, gio_hen: v.gio_hen || null, trung: r.trung });
   }
   // Thư trả lời việc đang chờ: ghi tiến độ và tệp đính kèm vào việc đó, không tạo việc trùng.

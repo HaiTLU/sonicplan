@@ -3,6 +3,7 @@
 
 import { dangYenLang, docLuong } from './luong.js';
 import { baoToChucNut, nutNhacViec } from './telegram.js';
+import { taoThongBao } from './thong-bao.js';
 import { gioVN, sangUTC } from './tien-ich.js';
 
 const TRUOC_PHUT_MAC_DINH = 30;
@@ -45,7 +46,9 @@ export async function nhacViec(env, bayGio) {
   for (const [tc, ds] of theoToChuc) {
     // Mỗi việc một tin kèm nút Xong, Dời mai, Dời tuần sau, Bỏ; quá 5 việc thì phần còn lại gom một dòng.
     for (const v of ds.slice(0, TOI_DA_MOI_LUOT)) {
-      const dong = `Nhắc việc: ${v.gio_hen} ${v.tieu_de}${v.loai === 'truoc' ? ` (còn ${Math.max(1, Math.round((sangUTC(v.han_ngay, v.gio_hen).getTime() - bay) / 60000))} phút)` : ' (đến giờ)'}`;
+      const con = v.loai === 'truoc' ? `còn ${Math.max(1, Math.round((sangUTC(v.han_ngay, v.gio_hen).getTime() - bay) / 60000))} phút` : 'đến giờ';
+      const dong = `Nhắc việc: ${v.gio_hen} ${v.tieu_de} (${con})`;
+      await taoThongBao(env, tc, { loai: 'gio_hen', tieu_de: `${v.gio_hen} ${v.tieu_de}`, noi_dung: `Nhắc việc, ${con}.`, duong_dan: `#viec/${v.id}`, viec_id: v.id }, { bayGio });
       if (await baoToChucNut(env, tc, dong, nutNhacViec(v.id))) soNhac++;
     }
     if (ds.length > TOI_DA_MOI_LUOT) await baoToChucNut(env, tc, `... và ${ds.length - TOI_DA_MOI_LUOT} việc nữa đến giờ, xem trang Việc.`, []).catch(() => {});
