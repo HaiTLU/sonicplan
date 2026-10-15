@@ -3,6 +3,7 @@ import { trangThaiThongBao, veTheThongBao } from '../thong-bao.js';
 import { S, api, bao, h, icon, luc, oChep, thay, trang, xuong } from './chung.js';
 import { khoiNhanGoogle, linkKhoDrive } from './tep.js';
 import { tomTat } from './tong-quan.js';
+import { noiDungThoClaude, trangThaiThoClaude } from './claude-may.js';
 
 // =====================================================================
 // Kết nối
@@ -29,6 +30,7 @@ export async function veKetNoi(goc, { moi = false } = {}) {
       if (doi && location.hash.slice(1).split('/')[0] === 'ket-noi') ve();
     }).catch(() => {});
   } else ghiLuuKn(kn);
+  const [tho, kbMap] = await Promise.all([api('/api/tho-claude').catch(() => null), api('/api/kb/du-an').catch(() => null)]);
   const daoTrangThai = (den, chu) => h('span', { class: `trang-thai-kn ${den}`, text: chu });
   const dau = (ten, tieuDe, moTa, den, chu) => h('header', {}, h('span', { class: 'tp-icon', dataset: { den } }, icon(ten)), h('div', {}, h('h2', { text: tieuDe }), h('p', { text: moTa })), daoTrangThai(den, chu));
 
@@ -381,11 +383,16 @@ export async function veKetNoi(goc, { moi = false } = {}) {
     ),
   );
 
+  const ttTho = trangThaiThoClaude(tho);
+  const theTho = h('section', { class: 'bang the-kn rong' },
+    dau('ai', 'Claude làm việc ở máy', 'Claude Code tự làm việc nhóm Claude, kết quả vào ThangLong_KB và Drive.', ttTho.den, ttTho.chu),
+    noiDungThoClaude({ h, api, bao, tho, kb: kbMap, laChu: kn.tich_hop.vai_tro === 'chu', ve }));
+
   const nhomThe = [
     ['Tài khoản Google', [['google', theGoogle], ['kho', theKho]]],
     ['Tin vào', [['zalo', theZalo], ['hop', theHop], ['telegram', theTele]]],
     ['Gửi ra', [['thong-bao', theTb], ['lich', theLich], ['api', theApi]]],
-    ['Hệ thống', [['nen', theNen]]],
+    ['Hệ thống', [['claude-may', theTho], ['nen', theNen]]],
   ];
   const cacThe = nhomThe.map(([ten, ds]) => [ten, ds.map(([ma, the]) => gapTheKn(the, ma))]);
   const tomTat = h('div', { class: 'tom-tat-kn', role: 'list' }, ...cacThe.flatMap(([, ds]) => ds).map((t) => h('button', { type: 'button', class: 'o-kn', role: 'listitem', dataset: { den: t.den }, onclick: () => {

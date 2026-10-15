@@ -13,6 +13,7 @@ import { moTinh } from './lop-tinh.js';
 import { moAi } from './lop-ai.js';
 import { batHenGio } from './lich.js';
 import { moTram } from './lop-tram.js';
+import { moThoClaude } from './tho-claude.js';
 import { batTay, boc } from './lop-ws.js';
 import { xacDinhPhien } from '../src/phien.js';
 import { taoThongBao } from '../src/thong-bao.js';
@@ -107,6 +108,8 @@ export function taoMayChu(cauHinh = {}) {
   // Phòng chat của trang Claude: chạy ngay trong tiến trình này, lưu ở du-lieu/tram/.
   const tram = moTram(resolve(thuMucDuLieu, 'tram'), { baoNguoi: (tc, tb) => taoThongBao(env, tc, { loai: 'claude', ...tb }) });
   env.TRAM_NOI_BO = tram;
+  // Thợ Claude: Claude Code tự làm việc nhóm Claude trong bản sao ThangLong_KB. THO_CLAUDE=0 để tắt hẳn; vòng chạy chỉ bắt đầu cùng hẹn giờ.
+  if (cfg.THO_CLAUDE !== '0') env.THO_CLAUDE = moThoClaude(env, cfg);
   const ai = moAi({ taiKhoan: cfg.CF_ACCOUNT_ID, token: cfg.CF_AI_TOKEN });
   if (ai) env.AI = ai;
 
@@ -190,9 +193,10 @@ export function taoMayChu(cauHinh = {}) {
     env,
     ctx,
     cfg,
-    batHenGio: () => { dungHen = batHenGio(worker, env, ctx); },
+    batHenGio: () => { dungHen = batHenGio(worker, env, ctx); env.THO_CLAUDE?.bat(); },
     dong: async () => {
       dungHen();
+      await env.THO_CLAUDE?.dong();
       tram.dong();
       await new Promise((xong) => maychu.close(xong));
       await Promise.allSettled([...dangCho]);

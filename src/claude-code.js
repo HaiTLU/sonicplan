@@ -9,6 +9,7 @@ import { docTichHop } from './tich-hop.js';
 import { baoToChuc } from './telegram.js';
 import { taoThongBao } from './thong-bao.js';
 import { bam, json, loi, maNgauNhien } from './tien-ich.js';
+import { docCauHinhTho, taoLuotMay } from './tho-claude.js';
 
 export const TEN_WORKFLOW = 'sonicplan-claude.yml';
 export const DUONG_WORKFLOW = `.github/workflows/${TEN_WORKFLOW}`;
@@ -211,8 +212,10 @@ export async function giaoClaude(env, tc, viecIds, tuyChon, goc) {
   const ids = [...new Set(viecIds.map(Number).filter((x) => Number.isInteger(x) && x > 0))];
   if (!ids.length) return { ma: 400, loi: 'Chọn ít nhất một việc.' };
   if (ids.length > TOI_DA_VIEC_GOP) return { ma: 400, loi: `Mỗi lần giao tối đa ${TOI_DA_VIEC_GOP} việc.` };
-  const cauHinh = await cauHinhClaude(env, tc);
-  if (!cauHinh) return { ma: 400, loi: 'Chưa nối GitHub. Vào Kết nối, mục Claude Code.' };
+  // Thợ chạy ở máy riêng bật thì không cần GitHub: lượt xếp vào hàng đợi của máy (may-chu/tho-claude.js).
+  const may = Boolean(env.THO_CLAUDE && (await docCauHinhTho(env, tc)).bat);
+  const cauHinh = may ? null : await cauHinhClaude(env, tc);
+  if (!may && !cauHinh) return { ma: 400, loi: 'Chưa nối GitHub. Vào Kết nối, mục Claude Code.' };
   const { results: viec } = await env.CSDL.prepare(
     `SELECT id, tieu_de, ghi_chu, han_ngay, gio_hen, trang_thai, du_an_id FROM viec WHERE to_chuc_id = ?1 AND id IN (${ids.map((_, i) => `?${i + 2}`).join(',')})`,
   ).bind(tc, ...ids).all();
@@ -243,14 +246,20 @@ export async function giaoClaude(env, tc, viecIds, tuyChon, goc) {
   }
 
   let kho;
-  try {
-    kho = await goiGithub(cauHinh, `/repos/${cauHinh.repo}`);
-  } catch (e) {
-    return { ma: 502, loi: e.message };
+  if (!may) {
+    try {
+      kho = await goiGithub(cauHinh, `/repos/${cauHinh.repo}`);
+    } catch (e) {
+      return { ma: 502, loi: e.message };
+    }
   }
   const nhom = tungViec ? viec.map((v) => [v]) : [viec];
   const luot = [];
   for (const ds of nhom) {
+    if (may) {
+      luot.push(await taoLuotMay(env, tc, ds[0], { dan: ghiDan, viecPhu: ds.slice(1), tiep: tuyChon.tiepLuot }));
+      continue;
+    }
     const ma = maNgauNhien(40);
     const bayGio = new Date().toISOString();
     const { meta } = await env.CSDL.prepare('INSERT INTO luot_claude (to_chuc_id, viec_id, dan, ma_bam, tao_luc, cap_nhat_luc) VALUES (?1, ?2, ?3, ?4, ?5, ?5)')
@@ -290,10 +299,12 @@ function capNhatLuot(env, luotId, d) {
 async function danhDauQuaHan(env, tc) {
   const bayGio = Date.now();
   const truoc = (phut) => new Date(bayGio - phut * 60000).toISOString();
-  await env.CSDL.prepare(`UPDATE luot_claude SET trang_thai = 'loi', ket_qua = COALESCE(ket_qua, ?2), cap_nhat_luc = ?3 WHERE to_chuc_id = ?1 AND trang_thai = 'cho' AND tao_luc < ?4`)
+  await env.CSDL.prepare(`UPDATE luot_claude SET trang_thai = 'loi', ket_qua = COALESCE(ket_qua, ?2), cap_nhat_luc = ?3 WHERE to_chuc_id = ?1 AND trang_thai = 'cho' AND noi_chay = 'github' AND tao_luc < ?4`)
     .bind(tc, CHU_CHUA_CHAY, new Date(bayGio).toISOString(), truoc(CHUA_CHAY_PHUT)).run();
-  await env.CSDL.prepare(`UPDATE luot_claude SET trang_thai = 'loi', ket_qua = COALESCE(ket_qua, ?2), cap_nhat_luc = ?3 WHERE to_chuc_id = ?1 AND trang_thai = 'dang_lam' AND tao_luc < ?4`)
+  await env.CSDL.prepare(`UPDATE luot_claude SET trang_thai = 'loi', ket_qua = COALESCE(ket_qua, ?2), cap_nhat_luc = ?3 WHERE to_chuc_id = ?1 AND trang_thai = 'dang_lam' AND noi_chay = 'github' AND tao_luc < ?4`)
     .bind(tc, CHU_QUA_HAN, new Date(bayGio).toISOString(), truoc(QUA_HAN_PHUT)).run();
+  await env.CSDL.prepare(`UPDATE luot_claude SET trang_thai = 'loi', ket_qua = COALESCE(ket_qua, ?2), cap_nhat_luc = ?3 WHERE to_chuc_id = ?1 AND trang_thai = 'dang_lam' AND noi_chay = 'may' AND cap_nhat_luc < ?4`)
+    .bind(tc, 'Máy riêng làm lượt này quá 45 phút không báo về (máy tắt hoặc tiến trình dừng). Giao lại.', new Date(bayGio).toISOString(), truoc(45)).run();
 }
 
 export async function dsLuot(env, tc, viecId) {
@@ -380,6 +391,25 @@ export async function danhGiaLuot(env, tc, luotId, danhGia) {
   return r.meta.changes ? { ok: true } : { ma: 404, loi: 'Không tìm thấy lượt đã xong.' };
 }
 
+// Ghi kết quả một lượt (từ GitHub báo về hoặc từ thợ chạy ở máy), rồi báo người dùng: Telegram và thông báo đẩy.
+// luot: { id, to_chuc_id, viec_id, tieu_de }. d: { trang_thai, ket_qua?, nhanh?, pr?, nhat_ky? }.
+export async function hoanTatLuot(env, luot, d) {
+  const cauHoi = d.trang_thai === 'xong' ? tachCauHoi(d.ket_qua) : null;
+  await capNhatLuot(env, luot.id, { ...d, cau_hoi: cauHoi ? JSON.stringify(cauHoi) : null });
+  if (d.trang_thai !== 'dang_lam') {
+    const cau = cauHoi ? `Claude cần bạn trả lời ${cauHoi.length} câu hỏi về: ${luot.tieu_de}. Mở Sonicplan để trả lời.`
+      : d.trang_thai === 'xong' ? `Claude đã làm xong: ${luot.tieu_de}. Mở Sonicplan để xem kết quả và duyệt.` : `Claude gặp lỗi khi làm: ${luot.tieu_de}. Mở Sonicplan để xem nhật ký.`;
+    await baoToChuc(env, luot.to_chuc_id, cau).catch((e) => console.error('Không báo được Telegram', e));
+    await taoThongBao(env, luot.to_chuc_id, {
+      loai: 'claude',
+      tieu_de: cauHoi ? `Claude hỏi lại: ${luot.tieu_de}` : d.trang_thai === 'xong' ? `Claude làm xong: ${luot.tieu_de}` : `Claude gặp lỗi: ${luot.tieu_de}`,
+      noi_dung: cauHoi ? `Claude cần bạn trả lời ${cauHoi.length} câu hỏi.` : d.trang_thai === 'xong' ? 'Mở để xem kết quả và duyệt.' : 'Mở để xem nhật ký.',
+      duong_dan: `#viec/${luot.viec_id}`,
+      viec_id: luot.viec_id,
+    });
+  }
+}
+
 // ---- Workflow gọi vào (không qua đăng nhập, tự kiểm mã dùng một lần của lượt) ----
 
 export async function nhanKetQuaClaude(yeuCau, env) {
@@ -395,19 +425,6 @@ export async function nhanKetQuaClaude(yeuCau, env) {
   const quaHan = luot.trang_thai === 'loi' && [CHU_CHUA_CHAY, CHU_QUA_HAN].includes(luot.ket_qua);
   if ((luot.trang_thai === 'xong' || luot.trang_thai === 'loi') && !quaHan) return loi(409, 'Lượt này đã kết thúc.');
   if (quaHan && d.trang_thai === 'dang_lam') d.ket_qua = d.ket_qua ?? '';
-  const cauHoi = d.trang_thai === 'xong' ? tachCauHoi(d.ket_qua) : null;
-  await capNhatLuot(env, luot.id, { ...d, cau_hoi: cauHoi ? JSON.stringify(cauHoi) : null });
-  if (d.trang_thai !== 'dang_lam') {
-    const cau = cauHoi ? `Claude cần bạn trả lời ${cauHoi.length} câu hỏi về: ${luot.tieu_de}. Mở Sonicplan để trả lời.`
-      : d.trang_thai === 'xong' ? `Claude đã làm xong: ${luot.tieu_de}. Mở Sonicplan để xem kết quả và duyệt.` : `Claude gặp lỗi khi làm: ${luot.tieu_de}. Mở Sonicplan để xem nhật ký.`;
-    await baoToChuc(env, luot.to_chuc_id, cau).catch((e) => console.error('Không báo được Telegram', e));
-    await taoThongBao(env, luot.to_chuc_id, {
-      loai: 'claude',
-      tieu_de: cauHoi ? `Claude hỏi lại: ${luot.tieu_de}` : d.trang_thai === 'xong' ? `Claude làm xong: ${luot.tieu_de}` : `Claude gặp lỗi: ${luot.tieu_de}`,
-      noi_dung: cauHoi ? `Claude cần bạn trả lời ${cauHoi.length} câu hỏi.` : d.trang_thai === 'xong' ? 'Mở để xem kết quả và duyệt.' : 'Mở để xem nhật ký.',
-      duong_dan: `#viec/${luot.viec_id}`,
-      viec_id: luot.viec_id,
-    });
-  }
+  await hoanTatLuot(env, luot, d);
   return json({ ok: true });
 }

@@ -19,6 +19,7 @@ const CHI_CHU = [
   ['POST', '/api/ket-noi/github'], ['POST', '/api/ket-noi/github/cai-claude'], ['DELETE', '/api/ket-noi/github'],
   ['POST', '/api/ket-noi/nhan-viec'], ['DELETE', '/api/ket-noi/nhan-viec'],
   ['POST', '/api/ket-noi/webhook'], ['DELETE', '/api/ket-noi/webhook'], ['POST', '/api/ket-noi/webhook/thu'],
+  ['PUT', '/api/tho-claude'], ['POST', '/api/tho-claude/chay-ngay'], ['PUT', '/api/kb/du-an/1'],
 ];
 
 function moi(vaiTro) {

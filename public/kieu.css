@@ -1491,3 +1491,8 @@ details.bang-suc-khoe[open] > summary { padding-bottom: 0; }
 .can-lam-trong { margin: 4px 0 0; color: var(--phu); font-size: 14px; line-height: 1.5; }
 .o-can:not(.co) .o-can-so { color: var(--mo); }
 .o-so a.so-bam, .o-so a.so-bam * { text-decoration: none; }
+
+/* Thợ Claude: ghép dự án với thư mục ThangLong_KB */
+.luoi-ghep-kb { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.luoi-ghep-kb .chon-loc { display: flex; flex-direction: column; align-items: stretch; gap: 4px; border-radius: 12px; padding: 8px 10px; }
+.luoi-ghep-kb .chon-loc select { width: 100%; }

@@ -2,6 +2,7 @@
 // dữ liệu của phien.to_chuc.id. Tệp này chỉ chuyển yêu cầu tới đúng nhóm trong src/api/.
 
 import { xuLyTaiKhoan } from './api/tai-khoan.js';
+import { xuLyClaudeMay } from './api/claude-may.js';
 import { xuLyTongQuan } from './api/tong-quan.js';
 import { xuLyTin } from './api/tin.js';
 import { xuLyViec } from './api/viec.js';
@@ -30,7 +31,7 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   if (p.startsWith('/api/hieu-suat')) return xuLyHieuSuat(yeuCau, env, phien.to_chuc.id, p);
   if (p === '/api/game' || p.startsWith('/api/game/')) return xuLyGame(yeuCau, env, phien.to_chuc.id, p);
 
-  for (const nhom of [xuLyTongQuan, xuLyTin, xuLyViec, xuLyDuAn, xuLyLuong, xuLyGhiNho, xuLyGoogleNhan, xuLyTep, xuLyKetNoi]) {
+  for (const nhom of [xuLyClaudeMay, xuLyTongQuan, xuLyTin, xuLyViec, xuLyDuAn, xuLyLuong, xuLyGhiNho, xuLyGoogleNhan, xuLyTep, xuLyKetNoi]) {
     const kq = await nhom(yeuCau, env, phien, url);
     if (kq) return kq;
   }
