@@ -4,6 +4,7 @@
 import { goiNgoai } from './goi-ngoai.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { giaiMa, maHoa } from './ma-hoa.js';
+import { kiemDiaChiTruocGoi, kiemTenMayCongKhai } from './dia-chi-an-toan.js';
 
 const KHOA_CAI_DAT = { ai: 'tich_hop_ai', webhook: 'tich_hop_webhook', google_client: 'tich_hop_google_client', google: 'tich_hop_google', github: 'tich_hop_github', kho_drive: 'tich_hop_kho_drive', hop_drive: 'tich_hop_hop_drive' };
 export const CLAUDE_MAC_DINH = 'claude-sonnet-5-5';
@@ -48,6 +49,7 @@ export function chuanHoaCauHinhAi({ loai, khoa, mo_hinh: moHinh, dia_chi: diaChi
   if (loai === 'openai') {
     const dc = String(diaChi || '').trim().replace(/\/+$/, '') || OPENAI_MAC_DINH.dia_chi;
     if (!/^https:\/\/[^\s]+$/.test(dc)) throw new Error('Địa chỉ dịch vụ phải bắt đầu bằng https://');
+    try { kiemTenMayCongKhai(dc); } catch (e) { throw new Error(e.message.replace('Địa chỉ ', 'Địa chỉ dịch vụ ')); }
     return { loai, khoa: k, dia_chi: dc, mo_hinh: String(moHinh || '').trim() || OPENAI_MAC_DINH.mo_hinh };
   }
   throw new Error('Chọn Claude hoặc loại tương thích OpenAI.');
@@ -58,7 +60,7 @@ export function loiAi(ten, ma, chiTiet) {
     return `${ten} từ chối (400). Khóa này chưa gắn với Workspace nào. Cách 1: vào console.anthropic.com, tạo khóa mới trong một Workspace rồi dán lại. Cách 2: giữ khóa này và dán mã Workspace (Workspace ID) vào ô "Workspace ID" bên dưới.`;
   }
   const goiY = ma === 401 ? 'Khóa sai hoặc đã bị thu hồi.' : ma === 403 ? 'Khóa không được phép dùng hoặc nhà cung cấp chặn vùng máy chủ.' : ma === 429 ? 'Hết hạn mức, thử lại sau.' : '';
-  return `${ten} từ chối (${ma}). ${goiY} ${chiTiet || ''}`.replace(/\s+/g, ' ').trim();
+  return `${ten} từ chối (${ma}). ${goiY} ${String(chiTiet || '').slice(0, 200)}`.replace(/\s+/g, ' ').trim();
 }
 
 // messages: [{ role: 'system'|'user', content }]. Trả về chuỗi trả lời.
@@ -84,8 +86,10 @@ async function goiAiNgoai(cauHinh, messages, { maxTokens, nhietDo, json }) {
     if (!ph.ok) throw new Error(loiAi('Claude', ph.status, kq?.error?.message));
     return { chu: (kq.content || []).map((c) => c.text || '').join(''), cat: kq.stop_reason === 'max_tokens' };
   }
+  await kiemDiaChiTruocGoi(cauHinh.dia_chi);
   const ph = await goiNgoai(`${cauHinh.dia_chi}/chat/completions`, {
     method: 'POST',
+    redirect: 'manual', // không theo chuyển hướng: một lệnh 302 không được đưa máy chủ vào mạng nội bộ
     headers: { 'content-type': 'application/json', authorization: `Bearer ${cauHinh.khoa}` },
     body: JSON.stringify({
       model: cauHinh.mo_hinh,
@@ -117,6 +121,7 @@ export function kiemDiaChiNhan(chuoi) {
     throw new Error('Địa chỉ không đúng dạng.');
   }
   if (u.protocol !== 'https:') throw new Error('Địa chỉ phải bắt đầu bằng https://');
+  kiemTenMayCongKhai(s);
   return s;
 }
 
@@ -125,8 +130,10 @@ export function dangViecMoi(viec) {
 }
 
 export async function guiDiaChiNhan(diaChi, duLieu) {
+  await kiemDiaChiTruocGoi(diaChi);
   const ph = await fetch(diaChi, {
     method: 'POST',
+    redirect: 'manual', // không theo chuyển hướng: một lệnh 302 không được đưa máy chủ vào mạng nội bộ
     headers: { 'content-type': 'application/json', 'user-agent': 'Sonicplan' },
     body: JSON.stringify(duLieu),
     signal: AbortSignal.timeout(8000),

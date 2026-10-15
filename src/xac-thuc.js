@@ -4,6 +4,7 @@
 import { goiNgoai } from './goi-ngoai.js';
 
 const KHOA_LUU_MS = 60 * 60 * 1000;
+const LAM_MOI_TOI_THIEU_MS = 60 * 1000;
 let khoaDaLuu = { mien: '', luc: 0, khoa: [] };
 
 export async function kiemDangNhap(yeuCau, env, { layKhoa = layKhoaAccess, bayGio = Date.now() } = {}) {
@@ -22,8 +23,14 @@ export async function kiemDangNhap(yeuCau, env, { layKhoa = layKhoaAccess, bayGi
   }
   if (dau.alg !== 'RS256') return { duoc: false, ly_do: 'Thuật toán vé không hợp lệ' };
 
-  const dsKhoa = await layKhoa(env.ACCESS_TEAM_DOMAIN, bayGio);
-  const jwk = dsKhoa.find((k) => k.kid === dau.kid);
+  let jwk;
+  try {
+    jwk = (await layKhoa(env.ACCESS_TEAM_DOMAIN, bayGio)).find((k) => k.kid === dau.kid);
+    // Cloudflare xoay khóa thì vé mới mang kid lạ: lấy lại danh sách khóa một lần (nhiều nhất mỗi phút) thay vì chờ hết hạn bộ nhớ đệm.
+    if (!jwk) jwk = (await layKhoa(env.ACCESS_TEAM_DOMAIN, bayGio, { lamMoi: true })).find((k) => k.kid === dau.kid);
+  } catch {
+    return { duoc: false, ly_do: 'Không lấy được khóa Access để kiểm vé' };
+  }
   if (!jwk) return { duoc: false, ly_do: 'Không tìm thấy khóa của vé' };
 
   const khoa = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
@@ -47,8 +54,9 @@ export async function kiemDangNhap(yeuCau, env, { layKhoa = layKhoaAccess, bayGi
   return { duoc: true, email };
 }
 
-async function layKhoaAccess(mien, bayGio) {
-  if (khoaDaLuu.mien === mien && bayGio - khoaDaLuu.luc < KHOA_LUU_MS) return khoaDaLuu.khoa;
+async function layKhoaAccess(mien, bayGio, { lamMoi = false } = {}) {
+  const giuLai = lamMoi ? LAM_MOI_TOI_THIEU_MS : KHOA_LUU_MS;
+  if (khoaDaLuu.mien === mien && bayGio - khoaDaLuu.luc < giuLai) return khoaDaLuu.khoa;
   const phanHoi = await goiNgoai(`https://${mien}/cdn-cgi/access/certs`);
   if (!phanHoi.ok) throw new Error(`Không lấy được khóa Access (${phanHoi.status})`);
   const { keys = [] } = await phanHoi.json();

@@ -146,17 +146,25 @@ export const CAC_TAC_VU = {
     let soTrung = 0;
     let soLienKet = 0;
     let duPhong = false;
+    const loiToChuc = [];
     for (const { to_chuc_id: id } of results) {
-      if (!(await docLuong(env, id)).bat['tach-viec']) continue;
-      const kq = await tachViecChoToChuc(env, id);
-      soTin += kq.so_tin;
-      soViec += kq.so_viec;
-      soAi += kq.so_ai || 0;
-      soTrung += kq.so_trung || 0;
-      soLienKet += kq.so_lien_ket || 0;
-      duPhong ||= Boolean(kq.du_phong);
+      // Một tổ chức lỗi không được làm các tổ chức sau bị bỏ qua cả lượt.
+      try {
+        if (!(await docLuong(env, id)).bat['tach-viec']) continue;
+        const kq = await tachViecChoToChuc(env, id);
+        soTin += kq.so_tin;
+        soViec += kq.so_viec;
+        soAi += kq.so_ai || 0;
+        soTrung += kq.so_trung || 0;
+        soLienKet += kq.so_lien_ket || 0;
+        duPhong ||= Boolean(kq.du_phong);
+      } catch (e) {
+        console.error('Tách việc lỗi ở tổ chức', id, e);
+        loiToChuc.push(`tổ chức ${id}: ${String(e.message || e).slice(0, 100)}`);
+      }
     }
-    const chiTiet = `AI thấy ${soAi} việc, trùng ${soTrung}, gắn vào việc cũ ${soLienKet}${duPhong ? ', dùng AI dự phòng' : ''}`;
+    if (loiToChuc.length && !soViec && !soTin) throw new Error(loiToChuc.join('; '));
+    const chiTiet = `AI thấy ${soAi} việc, trùng ${soTrung}, gắn vào việc cũ ${soLienKet}${duPhong ? ', dùng AI dự phòng' : ''}${loiToChuc.length ? `, lỗi ${loiToChuc.length} tổ chức` : ''}`;
     return { so_muc: soViec, ghi_chu: soTin ? `Đọc ${soTin} tin, thêm ${soViec} việc (${chiTiet})` : 'Không có tin mới' };
   },
 
@@ -264,32 +272,40 @@ export const CAC_TAC_VU = {
 
   'sao-luu': async (env, bayGio) => {
     let soToChuc = 0;
+    const loiToChuc = [];
     for (const tc of await cacToChuc(env)) {
-      if (!(await docLuong(env, tc.id)).bat['sao-luu']) continue;
-      const [viec, tin, tep, caiDat, ghiNho, duAn, suKien, luotClaude, chanTin] = await env.CSDL.batch([
-        env.CSDL.prepare('SELECT * FROM viec WHERE to_chuc_id = ?1').bind(tc.id),
-        env.CSDL.prepare('SELECT * FROM tin_nhan WHERE to_chuc_id = ?1 AND thoi_diem >= ?2').bind(tc.id, new Date(Date.now() - 90 * 86400000).toISOString()),
-        env.CSDL.prepare('SELECT * FROM tep WHERE to_chuc_id = ?1').bind(tc.id),
-        env.CSDL.prepare(`SELECT khoa, gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa NOT LIKE '%ma_noi%' AND khoa NOT LIKE 'tich_hop%' AND khoa <> 'google_state'`).bind(tc.id),
-        env.CSDL.prepare('SELECT * FROM ghi_nho WHERE to_chuc_id = ?1').bind(tc.id),
-        // Dự án và lịch sử dự án: thiếu thì việc khôi phục lại trỏ tới dự án không còn (thử khôi phục 13/10/2026).
-        env.CSDL.prepare('SELECT * FROM du_an WHERE to_chuc_id = ?1').bind(tc.id),
-        env.CSDL.prepare('SELECT * FROM viec_su_kien WHERE to_chuc_id = ?1').bind(tc.id),
-        env.CSDL.prepare('SELECT id, to_chuc_id, viec_id, trang_thai, dan, ket_qua, nhanh, pr, nhat_ky, danh_gia, tao_luc, cap_nhat_luc FROM luot_claude WHERE to_chuc_id = ?1').bind(tc.id),
-        env.CSDL.prepare('SELECT * FROM nguon_chan WHERE to_chuc_id = ?1').bind(tc.id),
-      ]);
-      const banSao = {
-        to_chuc: tc, luc: bayGio, viec: viec.results, tin_nhan: tin.results, tep: tep.results, cai_dat: caiDat.results, ghi_nho: ghiNho.results,
-        du_an: duAn.results, viec_su_kien: suKien.results, luot_claude: luotClaude.results, nguon_chan: chanTin.results,
-      };
-      await env.TEP.put(`sao-luu/${tc.id}/${ngayVN(bayGio)}.json`, JSON.stringify(banSao), {
-        httpMetadata: { contentType: 'application/json' },
-      });
-      soToChuc++;
+      try {
+        if (!(await docLuong(env, tc.id)).bat['sao-luu']) continue;
+        const [viec, tin, tep, caiDat, ghiNho, duAn, suKien, luotClaude, chanTin] = await env.CSDL.batch([
+          env.CSDL.prepare('SELECT * FROM viec WHERE to_chuc_id = ?1').bind(tc.id),
+          env.CSDL.prepare('SELECT * FROM tin_nhan WHERE to_chuc_id = ?1 AND thoi_diem >= ?2').bind(tc.id, new Date(Date.now() - 90 * 86400000).toISOString()),
+          env.CSDL.prepare('SELECT * FROM tep WHERE to_chuc_id = ?1').bind(tc.id),
+          env.CSDL.prepare(`SELECT khoa, gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa NOT LIKE '%ma_noi%' AND khoa NOT LIKE 'tich_hop%' AND khoa <> 'google_state'`).bind(tc.id),
+          env.CSDL.prepare('SELECT * FROM ghi_nho WHERE to_chuc_id = ?1').bind(tc.id),
+          // Dự án và lịch sử dự án: thiếu thì việc khôi phục lại trỏ tới dự án không còn (thử khôi phục 13/10/2026).
+          env.CSDL.prepare('SELECT * FROM du_an WHERE to_chuc_id = ?1').bind(tc.id),
+          env.CSDL.prepare('SELECT * FROM viec_su_kien WHERE to_chuc_id = ?1').bind(tc.id),
+          env.CSDL.prepare('SELECT id, to_chuc_id, viec_id, trang_thai, dan, ket_qua, nhanh, pr, nhat_ky, danh_gia, tao_luc, cap_nhat_luc FROM luot_claude WHERE to_chuc_id = ?1').bind(tc.id),
+          env.CSDL.prepare('SELECT * FROM nguon_chan WHERE to_chuc_id = ?1').bind(tc.id),
+        ]);
+        const banSao = {
+          to_chuc: tc, luc: bayGio, viec: viec.results, tin_nhan: tin.results, tep: tep.results, cai_dat: caiDat.results, ghi_nho: ghiNho.results,
+          du_an: duAn.results, viec_su_kien: suKien.results, luot_claude: luotClaude.results, nguon_chan: chanTin.results,
+        };
+        await env.TEP.put(`sao-luu/${tc.id}/${ngayVN(bayGio)}.json`, JSON.stringify(banSao), {
+          httpMetadata: { contentType: 'application/json' },
+        });
+        soToChuc++;
+      } catch (e) {
+        // Một tổ chức lỗi không được làm các tổ chức sau không có bản sao; báo lỗi sau khi đã chạy hết.
+        console.error('Sao lưu lỗi ở tổ chức', tc.id, e);
+        loiToChuc.push(`tổ chức ${tc.id}: ${String(e.message || e).slice(0, 100)}`);
+      }
     }
     // Tổ chức đã xóa quá 30 ngày: xóa hẳn tệp và bản sao. Nhật ký truy cập giữ 1 năm.
     const soDon = await donTepDaXoa(env, new Date(bayGio));
     await env.CSDL.prepare('DELETE FROM nhat_ky_truy_cap WHERE luc < ?1').bind(new Date(Date.parse(bayGio) - 365 * 86400000).toISOString()).run();
+    if (loiToChuc.length) throw new Error(`Sao lưu ${soToChuc} tổ chức, lỗi ${loiToChuc.length}: ${loiToChuc.join('; ')}`);
     return { so_muc: soToChuc, ghi_chu: cat(`Sao lưu ${soToChuc} tổ chức vào kho tệp${soDon ? `, xóa hẳn tệp của ${soDon} tổ chức đã xóa` : ''}`, 200) };
   },
 };

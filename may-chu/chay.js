@@ -75,14 +75,23 @@ export function taoMayChu(cauHinh = {}) {
   const thuMucDuLieu = resolve(GOC, cfg.DU_LIEU || 'du-lieu');
   const csdl = moCsdl(cfg.DB_FILE || resolve(thuMucDuLieu, 'sonicplan.sqlite'), cfg.MIGRATIONS ? { migrations: cfg.MIGRATIONS } : {});
   // Mã mới mà cơ sở dữ liệu chưa áp migration (kéo mã bằng git pull, máy khởi động lại...) thì lỗi "no such column".
-  // Nên mỗi lần khởi động tự áp migration còn thiếu; lỗi thì ghi log và chạy tiếp như cũ.
+  // Nên mỗi lần khởi động tự áp migration còn thiếu. Lỗi thì dừng hẳn: chạy tiếp với schema lệch chỉ sinh lỗi rải rác và dữ liệu sai.
   if (!cfg.MIGRATIONS) {
     try {
       const kq = chayMigration(csdl.db, resolve(GOC, 'migrations'));
       if (kq.da_ap.length) console.log(`Đã áp migration: ${kq.da_ap.join(', ')}`);
     } catch (e) {
-      console.error('Áp migration lúc khởi động lỗi', e.message);
+      console.error('Áp migration lúc khởi động lỗi, dừng máy chủ.', e.message);
+      throw e;
     }
+  }
+  // Tác vụ đang chạy mà tiến trình bị tắt giữa chừng thì dòng nhật ký kẹt ở "dang_chay" mãi: đóng lại thành lỗi.
+  try {
+    const luc = new Date().toISOString();
+    const dong = csdl.db.prepare(`UPDATE nhat_ky_chay SET trang_thai = 'loi', ket_thuc = ?1, ghi_chu = 'Bị ngắt giữa chừng (máy chủ khởi động lại)' WHERE trang_thai = 'dang_chay'`).run(luc);
+    if (dong.changes) console.log(`Đã đóng ${dong.changes} dòng nhật ký tác vụ bị ngắt giữa chừng`);
+  } catch (e) {
+    console.error('Dọn nhật ký tác vụ lỗi', e.message);
   }
   const env = {
     CSDL: csdl,

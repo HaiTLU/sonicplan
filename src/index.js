@@ -2,6 +2,7 @@
 
 import { xuLyApi } from './api.js';
 import { nhanKetQuaClaude } from './claude-code.js';
+import { diaChiIp, gioiHanTanSuat, hanMucDuongDan } from './gioi-han.js';
 import { nhanViecNgoai } from './nhan-ngoai.js';
 import { taoIcs } from './lich-ics.js';
 import { TAC_VU, tacVuTheoLich } from './lich-chay.js';
@@ -24,6 +25,11 @@ export default {
       if (url.pathname === '/api/suc-khoe') return json({ ok: true });
 
       // Địa chỉ cho máy móc gọi vào, tự kiểm bằng mã riêng, không qua đăng nhập Access.
+      const han = hanMucDuongDan(url.pathname);
+      if (han) {
+        const kq = gioiHanTanSuat(han.nhom, diaChiIp(yeuCau), han.toiDa);
+        if (!kq.duoc) return new Response(JSON.stringify({ loi: 'Gọi quá nhiều lần, thử lại sau ít phút.' }), { status: 429, headers: { 'content-type': 'application/json; charset=utf-8', 'retry-after': String(kq.cho_giay) } });
+      }
       const cai = url.pathname.match(/^\/nhan\/zalo-cai\/([^/]+)$/);
       if (cai && yeuCau.method === 'GET') return lenhCaiZalo(env, cai[1], url);
       if (url.pathname.startsWith('/nhan/zalo-')) return nhanZalo(yeuCau, env, ctx, url.pathname);
@@ -106,6 +112,12 @@ async function docLich(env, khoa, url) {
 export async function chayTacVu(env, tv, bayGio = new Date().toISOString(), tuyChon = {}) {
   const lam = CAC_TAC_VU[tv.ma];
   if (!lam) return { trang_thai: 'khong-co', ghi_chu: 'Không có tác vụ này' };
+  // Bấm "Chạy ngay" khi lượt trước còn đang chạy (dưới 10 phút) thì không chạy chồng lên nhau.
+  if (tuyChon.ep) {
+    const dangChay = await env.CSDL.prepare(`SELECT id FROM nhat_ky_chay WHERE tac_vu = ?1 AND trang_thai = 'dang_chay' AND bat_dau > ?2 LIMIT 1`)
+      .bind(tv.ma, new Date(Date.parse(bayGio) - 10 * 60000).toISOString()).first();
+    if (dangChay) return { trang_thai: 'dang-chay', ghi_chu: 'Tác vụ này đang chạy, đợi nó xong rồi bấm lại.' };
+  }
   const { meta } = await env.CSDL.prepare(
     `INSERT INTO nhat_ky_chay (to_chuc_id, tac_vu, bat_dau, trang_thai) VALUES ('', ?1, ?2, 'dang_chay')`,
   ).bind(tv.ma, bayGio).run();

@@ -261,7 +261,11 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   if ((khop = p.match(/^\/api\/tep\/(\d+)\/chu$/)) && m === 'GET') return chuTep(env, tc, Number(khop[1]));
 
   if (p === '/api/ket-noi' && m === 'GET') return json(await layKetNoi(env, tc, url, phien));
-  if ((khop = p.match(/^\/api\/ket-noi\/(zalo|lich)$/)) && m === 'POST') return taoKhoa(env, tc, khop[1], url);
+  if ((khop = p.match(/^\/api\/ket-noi\/(zalo|lich)$/)) && m === 'POST') {
+    // Mã Zalo làm luồng nhận tin cả tổ chức đứt nếu bị đổi, và trả về chính mã đó: chỉ chủ được tạo.
+    if (khop[1] === 'zalo' && phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức tạo được mã Zalo.');
+    return taoKhoa(env, tc, khop[1], url);
+  }
   if (p === '/api/ket-noi/ai' && m === 'POST') {
     if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức nối được dịch vụ AI.');
     try {
@@ -357,6 +361,7 @@ export async function xuLyApi(yeuCau, env, phien, url) {
     return Response.redirect(taoDiaChiDangNhap(client.client_id, diaChiGoiLai(url.origin), state), 302);
   }
   if (p === '/api/google/goi-lai' && m === 'GET') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức nối được Google.');
     const [state, han, dich] = String((await docCaiDat(env, tc, 'google_state')) || '').split('.');
     await env.CSDL.prepare(`DELETE FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = 'google_state'`).bind(tc).run();
     const laKho = dich === 'kho';
@@ -427,6 +432,7 @@ export async function xuLyApi(yeuCau, env, phien, url) {
     return json({ ok: true });
   }
   if (p === '/api/ket-noi/webhook/thu' && m === 'POST') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
     const cauHinh = await docTichHop(env, tc, 'webhook');
     if (!cauHinh) return loi(400, 'Chưa nối địa chỉ nhận việc mới.');
     try {
