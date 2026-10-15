@@ -12,7 +12,7 @@ import { quetHop } from './ghi-am-hop.js';
 import { nhacViec } from './nhac-viec.js';
 import { bamNutDuocChua, baoToChuc } from './telegram.js';
 import { docTichHop } from './tich-hop.js';
-import { cat, congNgay, gioVN, ngayVN } from './tien-ich.js';
+import { bam, cat, congNgay, gioVN, ngayVN } from './tien-ich.js';
 import { tachViecChoToChuc } from './viec.js';
 
 
@@ -294,9 +294,9 @@ export const CAC_TAC_VU = {
   },
 };
 
-// Tác vụ lỗi thì nhắn Telegram, mỗi tác vụ nhiều nhất một lần trong 6 giờ để khỏi dồn tin.
+// Tác vụ lỗi thì nhắn Telegram, cùng một lỗi nhiều nhất một lần trong 6 giờ dù nhiều tác vụ cùng dính (khỏi dồn tin).
 export async function baoLoiTacVu(env, tv, bayGio, thongBao) {
-  const khoa = `loi_bao_${tv.ma}`;
+  const khoa = `loi_bao_${(await bam(String(thongBao).slice(0, 120))).slice(0, 16)}`;
   const truoc = await docCaiDat(env, '', khoa);
   if (truoc && Date.parse(bayGio) - Date.parse(truoc) < 6 * 3600000) return;
   await ghiCaiDat(env, '', khoa, bayGio);
