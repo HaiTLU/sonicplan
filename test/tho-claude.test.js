@@ -272,3 +272,24 @@ test('không có đường nào trong mã để tự gửi thư: không gọi AP
   for (const f of [...quet('src'), ...quet('may-chu')]) if (cam.test(readFileSync(f, 'utf8'))) loi.push(f);
   assert.deepEqual(loi, []);
 });
+
+test('máy khởi động lại giữa chừng: lượt đang làm xếp lại hàng đợi tối đa 2 lần, quá thì báo lỗi, không mất việc', async () => {
+  const { db, env } = moiTruong();
+  viec(db, 1, 'Việc bị ngắt', 'claude_tu_lam', '2026-10-20');
+  viec(db, 2, 'Việc gộp phụ', 'claude_tu_lam', '2026-10-21');
+  db.exec("INSERT INTO luot_claude (id, to_chuc_id, viec_id, trang_thai, ma_bam, tao_luc, cap_nhat_luc, noi_chay, bo_do) VALUES (1, 'tc1', 1, 'dang_lam', 'x', '2026-10-16', '2026-10-16', 'may', 0)");
+  db.exec("INSERT INTO luot_claude (id, to_chuc_id, viec_id, lo_id, trang_thai, ma_bam, tao_luc, cap_nhat_luc, noi_chay) VALUES (2, 'tc1', 2, 1, 'dang_lam', '', '2026-10-16', '2026-10-16', 'may')");
+  const mo = () => moThoClaude(env, { THO_DIR: join(mkdtempSync(join(tmpdir(), 'tho-')), 'nha'), CLAUDE_BIN: '/khong/co' });
+  for (const lan of [1, 2]) {
+    const tho = mo();
+    await tho.bat(3600000);
+    await tho.dong();
+    assert.deepEqual(db.prepare('SELECT trang_thai, bo_do FROM luot_claude WHERE id = 1').get() && { ...db.prepare('SELECT trang_thai, bo_do FROM luot_claude WHERE id = 1').get() }, { trang_thai: 'cho', bo_do: lan });
+    assert.equal(db.prepare('SELECT trang_thai FROM luot_claude WHERE id = 2').get().trang_thai, 'cho');
+    db.exec("UPDATE luot_claude SET trang_thai = 'dang_lam' WHERE noi_chay = 'may'"); // giả lập lại: lượt được nhận rồi máy lại khởi động
+  }
+  const tho = mo();
+  await tho.bat(3600000);
+  await tho.dong();
+  assert.equal(db.prepare('SELECT trang_thai FROM luot_claude WHERE id = 1').get().trang_thai, 'loi');
+});

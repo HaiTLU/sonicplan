@@ -228,9 +228,12 @@ export function moThoClaude(env, cfg = {}) {
   }
 
   return {
-    // Máy khởi động lại giữa chừng thì lượt đang làm bị bỏ dở: báo lỗi để PM giao lại, rồi mới chạy vòng đầu.
+    // Máy khởi động lại giữa chừng (triển khai bản mới, mất điện) thì lượt đang làm bị bỏ dở: xếp lại hàng đợi, tối đa 2 lần; quá thì báo lỗi.
     async bat(tick = 60000) {
-      await env.CSDL.prepare(`UPDATE luot_claude SET trang_thai = 'loi', ket_qua = 'Máy chủ khởi động lại giữa chừng, lượt này bị bỏ dở. Giao lại.', cap_nhat_luc = ?1 WHERE noi_chay = 'may' AND trang_thai = 'dang_lam'`).bind(new Date().toISOString()).run().catch(() => {});
+      const bayGio = new Date().toISOString();
+      await env.CSDL.prepare(`UPDATE luot_claude SET trang_thai = 'cho', bo_do = bo_do + 1, cap_nhat_luc = ?1 WHERE noi_chay = 'may' AND trang_thai = 'dang_lam' AND bo_do < 2`).bind(bayGio).run().catch(() => {});
+      await env.CSDL.prepare(`UPDATE luot_claude SET trang_thai = 'loi', ket_qua = 'Máy chủ khởi động lại giữa chừng nhiều lần, lượt này bị bỏ dở. Giao lại.', cap_nhat_luc = ?1 WHERE noi_chay = 'may' AND trang_thai = 'dang_lam'`).bind(bayGio).run().catch(() => {});
+      await env.CSDL.prepare(`UPDATE luot_claude SET trang_thai = 'cho' WHERE noi_chay = 'may' AND lo_id IS NOT NULL AND trang_thai = 'dang_lam' AND lo_id IN (SELECT id FROM luot_claude WHERE trang_thai = 'cho')`).run().catch(() => {});
       hen = setInterval(vong, tick);
       setTimeout(vong, 5000);
     },
