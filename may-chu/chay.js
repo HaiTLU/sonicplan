@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { Readable } from 'node:stream';
 import worker from '../src/index.js';
 import { moCsdl } from './lop-d1.js';
+import { chayMigration } from './migrate.js';
 import { moR2 } from './lop-r2.js';
 import { moTinh } from './lop-tinh.js';
 import { moAi } from './lop-ai.js';
@@ -72,8 +73,19 @@ export function taoMayChu(cauHinh = {}) {
 
   const thuMucDuLieu = resolve(GOC, cfg.DU_LIEU || 'du-lieu');
   const csdl = moCsdl(cfg.DB_FILE || resolve(thuMucDuLieu, 'sonicplan.sqlite'), cfg.MIGRATIONS ? { migrations: cfg.MIGRATIONS } : {});
+  // Mã mới mà cơ sở dữ liệu chưa áp migration (kéo mã bằng git pull, máy khởi động lại...) thì lỗi "no such column".
+  // Nên mỗi lần khởi động tự áp migration còn thiếu; lỗi thì ghi log và chạy tiếp như cũ.
+  if (!cfg.MIGRATIONS) {
+    try {
+      const kq = chayMigration(csdl.db, resolve(GOC, 'migrations'));
+      if (kq.da_ap.length) console.log(`Đã áp migration: ${kq.da_ap.join(', ')}`);
+    } catch (e) {
+      console.error('Áp migration lúc khởi động lỗi', e.message);
+    }
+  }
   const env = {
     CSDL: csdl,
+    MAY_RIENG: '1',
     TEP: moR2(cfg.TEP_DIR || resolve(thuMucDuLieu, 'tep')),
     ASSETS: moTinh(resolve(GOC, 'public')),
     ...Object.fromEntries(

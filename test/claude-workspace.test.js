@@ -30,3 +30,20 @@ test('gửi header anthropic-workspace-id khi có', async () => {
   assert.equal(dau[0]['anthropic-workspace-id'], 'wrkspc_1');
   assert.equal(dau[1]['anthropic-workspace-id'], undefined);
 });
+
+test('trả lời bị cắt vì hết token: hỏi lại gấp đôi, vẫn cắt thì báo lỗi', async () => {
+  const goc = globalThis.fetch;
+  const han = [];
+  const traVe = (cat) => async (url, op) => {
+    han.push(JSON.parse(op.body).max_tokens);
+    return new Response(JSON.stringify({ content: [{ text: cat ? '- Làm trước:' : 'đủ' }], stop_reason: cat ? 'max_tokens' : 'end_turn' }), { status: 200 });
+  };
+  try {
+    let lan = 0;
+    globalThis.fetch = async (u, o) => traVe(lan++ === 0)(u, o);
+    assert.equal(await chayAiNgoai({ loai: 'claude', khoa: KHOA, mo_hinh: 'm' }, [{ role: 'user', content: 'a' }], { maxTokens: 100 }), 'đủ');
+    assert.deepEqual(han, [100, 200]);
+    globalThis.fetch = traVe(true);
+    await assert.rejects(chayAiNgoai({ loai: 'claude', khoa: KHOA, mo_hinh: 'm' }, [{ role: 'user', content: 'a' }], { maxTokens: 100 }), /bị cắt/);
+  } finally { globalThis.fetch = goc; }
+});

@@ -113,3 +113,10 @@ test('dọn cuối ngày đếm số lần tự dời, giữ hạn gốc; bản 
   assert.equal(khoiDoiNhieu([{ tieu_de: 'Gửi báo giá', han_goc: '2026-10-12', so_lan_doi: 3 }]), 'Đã tự dời từ 3 lần, nên xem lại (làm, đổi hạn hoặc bỏ):\n- Gửi báo giá (dời 3 lần, hạn gốc 12/10)');
   assert.equal(khoiDoiNhieu([]), '');
 });
+
+test('kế hoạch ngày: bỏ dòng tiêu đề treo ở cuối, không gửi bản tin cụt', async () => {
+  const { gonKeHoach } = await import('../src/ai.js');
+  assert.equal(gonKeHoach('- Gửi thư Khoa (hạn hôm nay)\n- Làm trước:'), '- Gửi thư Khoa (hạn hôm nay)');
+  assert.equal(gonKeHoach('- Làm trước:'), '');
+  assert.equal(gonKeHoach('trống'), '');
+});
