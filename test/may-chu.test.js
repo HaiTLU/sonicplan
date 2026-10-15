@@ -164,3 +164,17 @@ test('Máy chủ: khởi động tự áp migration còn thiếu (mã mới, cơ
     await m.dong();
   }
 });
+
+test('Worker cũ trên Cloudflare không chạy tác vụ hẹn giờ, máy chủ riêng thì chạy', async () => {
+  const worker = (await import('../src/index.js')).default;
+  const goi = [];
+  const ctx = { waitUntil: (p) => goi.push(p) };
+  await worker.scheduled({ cron: '*/5 * * * *' }, {}, ctx);
+  assert.equal(goi.length, 0);
+  const m = taoMayChu({ DB_FILE: ':memory:', MIGRATIONS: 'migrations', HEN_GIO: '0', EMAIL_THU: '' });
+  try {
+    assert.equal(m.env.MAY_RIENG, '1');
+  } finally {
+    await m.dong();
+  }
+});

@@ -6,7 +6,8 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 
 ### Sửa
 - Bản tin sáng không còn cụt ở mục "Kế hoạch hôm nay". AI trả lời bị cắt vì hết token thì Sonicplan hỏi lại một lần với giới hạn gấp đôi, vẫn cắt thì báo lỗi thay vì gửi nửa câu. Dòng tiêu đề treo ở cuối (như "- Làm trước:") bị bỏ. Áp cho mọi lượt gọi AI, nên lỗi "AI không trả kết quả chấm đọc được" do JSON bị cắt cũng hết.
-- Máy chủ trên Mac tự áp migration còn thiếu mỗi lần khởi động. Sáng 15/10 bản tin 8h báo lỗi "no such column: so_lan_doi" vì mã mới đã chạy mà cơ sở dữ liệu chưa thêm cột.
+- Bản Worker cũ trên Cloudflare thôi chạy tác vụ hẹn giờ. Nó vẫn được tự triển khai từ main và chạy song song với Mac mini trên D1 cũ, nên gửi tin Telegram trùng: lỗi "D1_ERROR: no such column: so_lan_doi" lúc 8h ngày 15/10 và lỗi Google 401 mỗi 5 phút là của bản này. Muốn bật lại thì đặt biến CHAY_TREN_CF = "1".
+- Máy chủ trên Mac tự áp migration còn thiếu mỗi lần khởi động, để mã mới không chạy trước cơ sở dữ liệu.
 - Khối "việc dời nhiều lần" lỗi thì bỏ khối đó, bản tin vẫn gửi.
 - "Lưu ý từ tin mới" chỉ nêu điều cần làm hoặc cần biết để hành động, không giải thích vì sao không tạo việc.
 

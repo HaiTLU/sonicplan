@@ -85,6 +85,7 @@ export function taoMayChu(cauHinh = {}) {
   }
   const env = {
     CSDL: csdl,
+    MAY_RIENG: '1',
     TEP: moR2(cfg.TEP_DIR || resolve(thuMucDuLieu, 'tep')),
     ASSETS: moTinh(resolve(GOC, 'public')),
     ...Object.fromEntries(

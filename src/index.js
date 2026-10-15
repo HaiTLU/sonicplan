@@ -81,6 +81,10 @@ export default {
   },
 
   async scheduled(dieuKhien, env, ctx) {
+    // Từ 13/10/2026 Sonicplan chạy trên Mac mini (may-chu/). Bản Worker cũ trên Cloudflare vẫn được tự triển khai
+    // từ main và vẫn có lịch hẹn giờ, nên chạy song song trên D1 cũ: báo lỗi trùng, gửi tin Telegram trùng.
+    // Chỉ chạy tác vụ khi là máy chủ riêng, hoặc khi cố ý đặt biến CHAY_TREN_CF = "1".
+    if (!env.MAY_RIENG && env.CHAY_TREN_CF !== '1') return;
     for (const tv of tacVuTheoLich(dieuKhien.cron)) {
       ctx.waitUntil(chayTacVu(env, tv));
     }
