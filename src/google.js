@@ -145,7 +145,7 @@ export async function doiMa(client, thamSo) {
   if (!ph.ok) {
     const e = new Error(
       kq.error === 'invalid_grant' ? 'Google đã thu hồi quyền hoặc khóa hết hạn, đăng nhập lại.'
-        : kq.error === 'invalid_client' ? 'Google không nhận Client Secret đang lưu (đã đổi hoặc nhập sai). Vào Cài đặt, Kết nối, thẻ Google, bấm "Nhập lại khóa Google" rồi dán Client Secret mới.'
+        : (kq.error === 'invalid_client' || /client secret/i.test(kq.error_description || '')) ? 'Google không nhận Client Secret đang lưu (đã đổi hoặc nhập sai). Vào Cài đặt, Kết nối, thẻ Google, bấm "Nhập lại khóa Google" rồi dán Client Secret mới.'
           : `Google từ chối (${ph.status}): ${kq.error_description || kq.error || ''}`.trim(),
     );
     e.maLoi = kq.error;
@@ -419,7 +419,12 @@ async function dongBoDrive(env, tc, token) {
 
 // Chạy mỗi 5 phút cho một tổ chức đã nối Google. Lỗi một phần không chặn các phần còn lại.
 export async function dongBoGoogle(env, tc, { thu = true, viec = true } = {}) {
-  const token = await layTruyCap(env, tc);
+  let token;
+  try { token = await layTruyCap(env, tc); } catch (e) {
+    // Khóa hỏng thì ghi lỗi vào tín hiệu để trang Kết nối báo đỏ kèm lý do, rồi vẫn báo lỗi lên tác vụ.
+    await ghiTinHieu(env, tc, 'google', `Lỗi ${String(e.message).slice(0, 200)}`).catch(() => {});
+    throw e;
+  }
   if (!token) return null;
   const kq = { thu: 0, day_len: 0, ve_lai: 0, lich: 0, tep: 0, loi: [] };
   const lam = async (ten, f) => {

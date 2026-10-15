@@ -337,7 +337,11 @@ async function luuViec(env, tc, token) {
 
 // Chạy mỗi 5 phút cho tổ chức đã nối Drive kho. Lỗi một phần không chặn các phần còn lại.
 export async function dongBoKho(env, tc) {
-  const token = await layTruyCapKho(env, tc);
+  let token;
+  try { token = await layTruyCapKho(env, tc); } catch (e) {
+    await ghiTinHieu(env, tc, 'kho', `Lỗi ${String(e.message).slice(0, 200)}`).catch(() => {});
+    throw e;
+  }
   if (!token) return null;
   const kq = { tep: 0, tin: 0, bo_nho: 0, viec: 0, du_an: 0, loi: [] };
   const lam = async (ten, f) => {
