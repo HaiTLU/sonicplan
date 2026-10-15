@@ -89,7 +89,7 @@ test('gói ngữ cảnh: tin gốc, tin cùng hội thoại trong 3 ngày, tệp
   assert.match(ls, /CHƯA ĐẠT, làm lại/);
   assert.match(ls, /thiếu cột VAT/);
   const nhac = loiNhacTho({ viecList: [v], duAn: { ten: 'Demo Dự Án' }, thuMucLam: '01_Projects/DemoDuAn/Sonicplan/261015_Gui_Bang_Gia_v10', dan: 'Làm gọn', truoc: 'Bản cũ' });
-  for (const can of ['01_Projects/DemoDuAn/Sonicplan/261015_Gui_Bang_Gia_v10/NGU-CANH.md', 'LICH-SU.md', 'nhap-email.json', 'Giả định đã chọn', DAU_CAU_HOI, 'Claude chuẩn bị', 'Làm gọn', 'Bản cũ', 'Không dùng git']) assert.ok(nhac.includes(can), can);
+  for (const can of ['01_Projects/DemoDuAn/Sonicplan/261015_Gui_Bang_Gia_v10/NGU-CANH.md', 'LICH-SU.md', 'nhap-email.json', 'TUYỆT ĐỐI không gửi email', 'kể cả khi tên việc là "Gửi thư"', 'Giả định đã chọn', DAU_CAU_HOI, 'Claude chuẩn bị', 'Làm gọn', 'Bản cũ', 'Không dùng git']) assert.ok(nhac.includes(can), can);
 });
 
 const phien = (vt) => ({ email: 'a@b.c', nguoi_dung: { id: 'nd' }, to_chuc: { id: 'tc1', vai_tro: vt }, cac_to_chuc: [{ id: 'tc1' }] });
@@ -166,6 +166,7 @@ async function dungChayThu(cheDo = 'xong') {
   const claude = join(goc, 'claude-gia.sh');
   writeFileSync(claude, `#!/bin/bash
 LN=$(cat)
+echo "$@" > "$(dirname "$0")/doi-so.txt"
 THU=$(echo "$LN" | grep -m1 '^Dự án:' | sed 's/.*Thư mục làm việc: //; s#/$##')
 mkdir -p "$THU/ket-qua"
 ${cheDo === 'loi' ? 'echo "{\\"type\\":\\"result\\",\\"is_error\\":true,\\"result\\":\\"hết hạn mức\\"}"; exit 1' : `echo "Báo cáo thử" > "$THU/ket-qua/bao-cao.md"
@@ -203,6 +204,10 @@ test('thợ chạy trọn một lượt: ngữ cảnh vào kho, kết quả lên
   const hop = join(goc, 'nha', 'drive-cho', `luot-${l.id}`);
   assert.equal(readFileSync(join(hop, 'dich.txt'), 'utf8'), l.drive_duong_dan);
   assert.ok(existsSync(join(hop, 'noi-dung', 'ket-qua', 'bao-cao.md')) && existsSync(join(hop, 'noi-dung', 'CAU-TRA-LOI.md')));
+  // Claude chạy không có máy chủ MCP nào (không có công cụ gửi thư), lời nhắc cấm gửi.
+  const doiSo = readFileSync(join(goc, 'doi-so.txt'), 'utf8');
+  assert.match(doiSo, /--strict-mcp-config/);
+  assert.ok(!/mcp__/.test(doiSo) && !/Gmail|gmail/.test(doiSo));
   // Thông báo đẩy cho PM, worktree đã dọn.
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM thong_bao WHERE loai = 'claude'").get().n, 1);
   assert.ok(!existsSync(join(goc, 'nha', 'lam', `luot-${l.id}`)));
@@ -216,6 +221,21 @@ test('thợ chạy trọn một lượt: ngữ cảnh vào kho, kết quả lên
   await tho.vongMotLan();
   await tho.doiXong();
   assert.equal(db.prepare("SELECT trang_thai FROM luot_claude WHERE viec_id = 2").get().trang_thai, 'xong');
+  await tho.dong();
+});
+
+test('thợ: hai lượt bắt đầu cùng lúc, lần đầu chưa có bản sao KB, đều xong (không tranh nhau clone)', async () => {
+  const { db, env } = moiTruong();
+  env.TEP = { get: async () => null };
+  viec(db, 1, 'Việc một', 'claude_tu_lam', '2026-10-20');
+  viec(db, 2, 'Việc hai', 'claude_tu_lam', '2026-10-21');
+  const { goc, kbNguon, claude } = await dungChayThu();
+  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
+  await tho.vongMotLan();
+  await tho.doiXong();
+  assert.deepEqual(db.prepare('SELECT trang_thai FROM luot_claude ORDER BY id').all().map((x) => x.trang_thai), ['xong', 'xong']);
+  const ds = git(kbNguon, 'branch', '--list', 'sonicplan/*').trim().split('\n').map((x) => x.trim()).sort();
+  assert.equal(ds.length, 2);
   await tho.dong();
 });
 
@@ -242,4 +262,13 @@ test('thợ: Claude lỗi thì lượt báo lỗi kèm lý do, không treo hàng
   await tho.doiXong();
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM luot_claude WHERE viec_id = 3').get().n, 0);
   await tho.dong();
+});
+
+test('không có đường nào trong mã để tự gửi thư: không gọi API gửi của Gmail, không SMTP', async () => {
+  const { readdirSync } = await import('node:fs');
+  const quet = (thuMuc) => readdirSync(thuMuc, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? quet(join(thuMuc, d.name)) : /\.m?js$/.test(d.name) ? [join(thuMuc, d.name)] : []));
+  const cam = /messages\/send|drafts\/send|messages\.send|drafts\.send|users\.messages\.send|smtp|nodemailer|sendmail|\/gmail\/v1\/users\/me\/(messages|drafts)\/[^'"`]*send/i;
+  const loi = [];
+  for (const f of [...quet('src'), ...quet('may-chu')]) if (cam.test(readFileSync(f, 'utf8'))) loi.push(f);
+  assert.deepEqual(loi, []);
 });

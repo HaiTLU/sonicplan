@@ -208,7 +208,7 @@ export function loiNhacTho({ viecList, duAn, thuMucLam, dan, truoc, soLanLam = 0
     `- Mọi tệp kết quả ghi vào ${thuMucLam}/ket-qua/. Word, Excel, PowerPoint: dùng kỹ năng xu-ly-van-phong và chuẩn .claude/skills/xu-ly-van-phong/standards/dhtl.md. Tên tệp YYMMDD_TenDuAn_NoiDung.ext.`,
     '- Chỉ tạo hoặc sửa tệp trong thư mục làm việc ở trên (và memory/ khi có bài học). Không xóa tệp, không đổi tệp ngoài phạm vi.',
     '- Không dùng git, không chạy scripts/nhat-ky.py: hệ thống tự commit phần kết quả.',
-    '- Không gửi email, tin nhắn hay đăng bất cứ gì ra ngoài. Cần trả lời thư thì ghi tệp ket-qua/nhap-email.json dạng {"den": ["a@b.c"], "cc": [], "chu_de": "...", "noi_dung": "..."}; hệ thống chỉ tạo bản nháp trong Gmail, PM tự bấm gửi.',
+    '- TUYỆT ĐỐI không gửi email, tin nhắn hay đăng bất cứ gì ra ngoài, dưới mọi hình thức, kể cả khi tên việc là "Gửi thư" hay "Trả lời": việc đó nghĩa là soạn sẵn nội dung để PM tự gửi. Cần trả lời thư thì ghi tệp ket-qua/nhap-email.json dạng {"den": ["a@b.c"], "cc": [], "chu_de": "...", "noi_dung": "..."}; hệ thống chỉ tạo bản nháp trong Gmail, PM tự bấm gửi.',
     '- Văn phong theo CLAUDE.md: gạch ngắn, không biểu tượng, từ dễ hiểu, không từ trong sổ từ cấm.',
     `- Thiếu thông tin: vẫn làm hết phần làm được. Cuối câu trả lời có mục "Giả định đã chọn:" liệt kê điều bạn tự quyết, và nếu thật cần PM trả lời thì thêm dòng "${DAU_CAU_HOI}" cùng tối đa 3 câu hỏi ngắn.`,
     '- Có bài học đáng nhớ cho lần sau (cách PM thích, lỗi đã gặp) thì ghi 1 đến 3 ý ngắn vào memory/context/bai-hoc/ theo mẫu memory/context/mau-bai-hoc.md; không có thì bỏ qua.',

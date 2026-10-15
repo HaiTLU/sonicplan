@@ -32,6 +32,9 @@ export function moThoClaude(env, cfg = {}) {
   let dangVong = false;
   let dung = false;
   const git = (doiSo, cwd = kbDir, tuyChon = {}) => chay('git', doiSo, { cwd, ...tuyChon });
+  // Các thao tác đổi kho gốc (clone, fetch, thêm hoặc gỡ worktree) chạy lần lượt: hai lượt cùng bắt đầu thì lượt sau đợi lượt trước.
+  let hangKb = Promise.resolve();
+  const lanLuot = (f) => { const ra = hangKb.then(f, f); hangKb = ra.catch(() => {}); return ra; };
 
   async function chuanBiKb() {
     await mkdir(nha, { recursive: true });
@@ -77,7 +80,8 @@ export function moThoClaude(env, cfg = {}) {
   // Chạy Claude Code, trả { ok, chu, chi_phi, so_luot } hoặc ném lỗi.
   function chayClaude(cwd, loiNhac, cauHinh, luotId) {
     return new Promise((xong, loi) => {
-      const doiSo = ['-p', '--output-format', 'json', '--model', cauHinh.model, '--effort', cauHinh.effort, '--permission-mode', 'acceptEdits', '--permission-prompts', 'none', '--allowedTools', ...CONG_CU];
+      const doiSo = ['-p', '--output-format', 'json', '--model', cauHinh.model, '--effort', cauHinh.effort, '--permission-mode', 'acceptEdits', '--permission-prompts', 'none', '--strict-mcp-config', '--allowedTools', ...CONG_CU];
+      // --strict-mcp-config: không nạp máy chủ MCP nào (kể cả Gmail, Slack...), nên Claude không có công cụ gửi gì ra ngoài. PM dặn 16/10/2026: không tự gửi thư.
       const con = spawn(claudeBin, doiSo, { cwd, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, PATH: `${join(homedir(), '.local', 'bin')}:/opt/homebrew/bin:${process.env.PATH || '/usr/bin:/bin'}`, CLAUDECODE: '' } });
       dangChay.get(luotId).tien_trinh = con;
       let out = '';
@@ -110,10 +114,12 @@ export function moThoClaude(env, cfg = {}) {
     const thuMucLam = thuMucLamViec(kbThuMuc, duAn?.ten, viecList[0]);
     const nhanh = `sonicplan/luot-${luot.id}`;
     const w = join(lamDir, `luot-${luot.id}`);
-    await chuanBiKb();
-    await rm(w, { recursive: true, force: true });
-    await mkdir(lamDir, { recursive: true });
-    await git(['worktree', 'add', '-B', nhanh, w, 'origin/main']);
+    await lanLuot(async () => {
+      await chuanBiKb();
+      await rm(w, { recursive: true, force: true });
+      await mkdir(lamDir, { recursive: true });
+      await git(['worktree', 'add', '-B', nhanh, w, 'origin/main']);
+    });
     try {
       const goc = join(w, thuMucLam);
       await mkdir(join(goc, 'ket-qua'), { recursive: true });
@@ -170,8 +176,10 @@ export function moThoClaude(env, cfg = {}) {
 
       await hoanTatLuot(env, { id: luot.id, to_chuc_id: luot.to_chuc_id, viec_id: luot.viec_id, tieu_de: viecList[0].tieu_de }, { trang_thai: 'xong', ket_qua: kq.chu.slice(0, 20000), nhanh: nhanhUrl, pr });
     } finally {
-      await git(['worktree', 'remove', '--force', w]).catch(() => {});
-      await git(['branch', '-D', nhanh]).catch(() => {});
+      await lanLuot(async () => {
+        await git(['worktree', 'remove', '--force', w]).catch(() => {});
+        await git(['branch', '-D', nhanh]).catch(() => {});
+      }).catch(() => {});
     }
   }
 
