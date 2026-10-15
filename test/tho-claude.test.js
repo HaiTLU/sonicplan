@@ -169,7 +169,7 @@ LN=$(cat)
 echo "$@" > "$(dirname "$0")/doi-so.txt"
 THU=$(echo "$LN" | grep -m1 '^Dự án:' | sed 's/.*Thư mục làm việc: //; s#/$##')
 mkdir -p "$THU/ket-qua"
-${cheDo === 'loi' ? 'echo "{\\"type\\":\\"result\\",\\"is_error\\":true,\\"result\\":\\"hết hạn mức\\"}"; exit 1' : `echo "Báo cáo thử" > "$THU/ket-qua/bao-cao.md"
+${cheDo === 'email' ? `mkdir -p "$THU/ket-qua"\ncat > "$THU/ket-qua/nhap-email.json" <<'JSON'\n{"chu_de": "Trả lời Khoa Khoa học Sức khỏe về lịch họp", "noi_dung": "Kính gửi Khoa,\\nBên em xác nhận lịch họp thứ Sáu.\\nTrân trọng."}\nJSON\necho '{"type":"result","subtype":"success","is_error":false,"result":"Đã soạn thư.","total_cost_usd":0.01,"num_turns":2}'` : cheDo === 'bao-cao' ? `echo '{"type":"result","subtype":"success","is_error":false,"result":"## Tóm tắt\\nĐúng việc 5/6.\\n\\n## Đề xuất\\n1. Thêm quy tắc về hạn.","total_cost_usd":0.03,"num_turns":2}'` : cheDo === 'loi' ? 'echo "{\\"type\\":\\"result\\",\\"is_error\\":true,\\"result\\":\\"hết hạn mức\\"}"; exit 1' : `echo "Báo cáo thử" > "$THU/ket-qua/bao-cao.md"
 echo "ghi chu ngoai pham vi" > ngoai-pham-vi.txt
 echo '{"type":"result","subtype":"success","is_error":false,"result":"Đã soạn xong báo cáo.\\n\\nGiả định đã chọn:\\n- Dùng mẫu chuẩn.","total_cost_usd":0.02,"num_turns":4}'`}
 `);
@@ -316,4 +316,161 @@ test('đồng bộ ghi nhớ sang KB: tạo memory/projects/Sonicplan_GhiNho.md,
   assert.equal((await tho.dongBoGhiNho()).doi, true);
   assert.ok(db.prepare(`SELECT gia_tri FROM cai_dat WHERE to_chuc_id = '' AND khoa = 'ghi_nho_kb_luc'`).get().gia_tri);
   await tho.dong();
+});
+
+test('đo chất lượng tách việc: tự tính 5 chỉ số từ thao tác của người dùng, bỏ qua việc tự thêm và hủy do chặn nguồn', async () => {
+  const { tinhChatLuongTachViec, khoangNgay } = await import('../src/danh-gia-tach-viec.js');
+  const { db, env } = moiTruong();
+  const them = (id, nguon, duAn, han) => db.prepare(`INSERT INTO viec (id, to_chuc_id, tieu_de, trang_thai, nguon, du_an_id, han_ngay, tao_luc, cap_nhat_luc) VALUES (?1, 'tc1', 'v', 'mo', ?2, ?3, ?4, '2026-10-10T01:00:00Z', '2026-10-10T01:00:00Z')`).run(id, nguon, duAn, han);
+  for (let i = 1; i <= 10; i++) them(i, 'zalo', i <= 8 ? 1 : null, i <= 8 ? '2026-10-20' : null); // 10 việc AI, 8 có dự án và hạn
+  them(11, 'tay', 1, '2026-10-20'); // việc tự thêm: không tính
+  const sk = (viecId, loai, noi, luc = '2026-10-10T05:00:00Z') => db.prepare(`INSERT INTO viec_su_kien (to_chuc_id, viec_id, loai, noi_dung, luc) VALUES ('tc1', ?1, ?2, ?3, ?4)`).run(viecId, loai, noi, luc);
+  sk(1, 'huy', 'Việc không đúng'); sk(2, 'huy', 'Gỡ vì đã chặn Zalo nhóm X'); // chỉ việc 1 tính
+  sk(3, 'doi_nhom', 'claude_chuan_bi -> anh_tu_lam'); sk(4, 'doi_nhom', 'a -> b');
+  sk(5, 'doi_du_an', 'Chuyển vào dự án X');
+  sk(6, 'sua_han', 'a -> b', '2026-10-10T20:00:00Z'); // trong 24 giờ: tính
+  sk(7, 'sua_han', 'a -> b', '2026-10-15T20:00:00Z'); // sau 5 ngày: không tính
+  sk(11, 'huy', 'Việc tự thêm bị hủy'); // việc tay: không tính
+  db.exec("INSERT INTO luot_claude (to_chuc_id, viec_id, trang_thai, danh_gia, ma_bam, tao_luc, cap_nhat_luc) VALUES ('tc1', 1, 'xong', 'dat', 'x', '2026-10-11T00:00:00Z', '2026-10-11'), ('tc1', 2, 'xong', 'dat', 'x', '2026-10-11T00:00:00Z', '2026-10-11'), ('tc1', 3, 'xong', 'lam_lai', 'x', '2026-10-11T00:00:00Z', '2026-10-11'), ('tc1', 4, 'xong', NULL, 'x', '2026-10-11T00:00:00Z', '2026-10-11')");
+  const kq = await tinhChatLuongTachViec(env, 'tc1', { tu: '2026-10-01T00:00:00Z', den: '2026-10-31T00:00:00Z' });
+  const c = Object.fromEntries(kq.chi_so.map((x) => [x.ma, x]));
+  assert.equal(kq.so_viec_ai, 10);
+  assert.deepEqual([c.dung_viec.tu_so, c.dung_viec.mau_so, c.dung_viec.ty_le, c.dung_viec.dat], [1, 10, 0.9, true]);
+  assert.deepEqual([c.dung_nguoi.tu_so, c.dung_nguoi.ty_le, c.dung_nguoi.dat], [2, 0.8, false]);
+  assert.deepEqual([c.dung_du_an.tu_so, c.dung_du_an.mau_so], [1, 8]); // mẫu số: việc có dự án (việc 9, 10 không có thì không tính)
+  assert.deepEqual([c.dung_han.tu_so, c.dung_han.mau_so], [1, 8]); // chỉ việc 6 sửa hạn trong 24 giờ đầu; việc 7 sửa sau 5 ngày không tính
+  assert.deepEqual([c.claude_dat.tu_so, c.claude_dat.mau_so, Math.round(c.claude_dat.ty_le * 100)], [2, 3, 67]);
+  assert.deepEqual([c.claude_dat.du_lieu, c.claude_dat.dat], [false, null]); // mới 3 lượt có đánh giá, dưới 5 thì chưa kết luận
+  const it = await tinhChatLuongTachViec(env, 'tc1', { tu: '2020-01-01T00:00:00Z', den: '2020-02-01T00:00:00Z' });
+  assert.deepEqual([it.so_viec_ai, it.chi_so[0].ty_le, it.chi_so[0].dat, it.chi_so[0].du_lieu], [0, null, null, false]);
+  const k = khoangNgay(7, new Date('2026-10-16T00:00:00Z'));
+  assert.deepEqual([k.tu, k.den], ['2026-10-09T00:00:00.000Z', '2026-10-16T00:00:00.000Z']);
+  const r = await goi(env, 'thanh_vien', 'GET', '/api/hieu-suat/tach-viec?ky=7');
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).ky, 7);
+});
+
+test('rà soát tách việc hằng tuần: lấy mẫu cả tin có và không sinh việc, Claude chấm, báo cáo vào KB, báo PM', async () => {
+  const { layMauRaSoat, dungMauRaSoatMd } = await import('../src/danh-gia-tach-viec.js');
+  const { db, env } = moiTruong();
+  const gan = (gio) => new Date(Date.now() - gio * 3600000).toISOString();
+  const tin = db.prepare(`INSERT INTO tin_nhan (id, to_chuc_id, nguon, ma_goc, nguoi_gui, nhom, noi_dung, thoi_diem, tao_luc, da_tach, an) VALUES (?1, 'tc1', 'zalo', ?2, 'An', 'Nhóm A', ?3, ?4, ?4, 1, ?5)`);
+  for (let i = 1; i <= 6; i++) { tin.run(i, `g${i}`, `Anh gửi giúp em báo cáo số ${i} nhé`, gan(i), 0); viec(db, i, `Gửi báo cáo ${i}`, 'claude_chuan_bi', '2026-10-20', i); }
+  for (let i = 7; i <= 11; i++) tin.run(i, `g${i}`, `Chào cả nhà, hôm nay trời đẹp quá ${i}`, gan(i), 0);
+  tin.run(12, 'g12', 'Tin bị ẩn nên không lấy vào mẫu', gan(2), 1);
+  tin.run(13, 'g13', 'Tin quá cũ', gan(24 * 20), 0);
+  const khoang = { tu: gan(24 * 7), den: new Date().toISOString() };
+  const mau = await layMauRaSoat(env, 'tc1', khoang);
+  assert.deepEqual([mau.filter((t) => t.sinh_viec).length, mau.filter((t) => !t.sinh_viec).length], [6, 5]);
+  assert.ok(!mau.some((t) => [12, 13].includes(t.id)));
+  const md = dungMauRaSoatMd(mau, khoang);
+  assert.match(md, /AI TÁCH: "Gửi báo cáo \d" \| nhóm Claude chuẩn bị \| hạn 2026-10-20 \| dự án Demo Dự Án/);
+  assert.match(md, /AI TÁCH: không sinh việc nào\./);
+
+  const { goc, kbNguon, claude } = await dungChayThu('bao-cao');
+  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
+  const [kq] = await tho.raSoatTachViec();
+  assert.equal(kq.so_mau, 11, JSON.stringify(kq));
+  const nhanh = git(kbNguon, 'branch', '--list', 'sonicplan/ra-soat-*').trim().replace(/^\*?\s*/, '');
+  const ds = git(kbNguon, 'ls-tree', '-r', '--name-only', nhanh).trim().split('\n').filter((x) => x.includes('DanhGia_TachViec'));
+  for (const t of ['mau-tin.md', 'chi-so.md', 'BAO-CAO.md']) assert.ok(ds.some((x) => x.endsWith(`_RaSoatTuan/${t}`)), t);
+  const bc = git(kbNguon, 'show', `${nhanh}:${ds.find((x) => x.endsWith('BAO-CAO.md'))}`);
+  assert.match(bc, /Đúng việc 5\/6/);
+  assert.match(git(kbNguon, 'show', `${nhanh}:${ds.find((x) => x.endsWith('chi-so.md'))}`), /Đúng việc/);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM thong_bao WHERE loai = 'claude' AND tieu_de LIKE 'Báo cáo rà soát%'").get().n, 1);
+  assert.equal(JSON.parse(db.prepare("SELECT gia_tri FROM cai_dat WHERE khoa = 'ra_soat_tach_viec'").get().gia_tri).so_mau, 11);
+  await tho.dong();
+});
+
+// ---- Nháp Gmail: chỉ tạo nháp, không bao giờ gửi ----
+function gaGiaGoogle(env) {
+  const goi = [];
+  const cu = globalThis.fetch;
+  globalThis.fetch = async (url, tuyChon = {}) => {
+    const u = String(url);
+    goi.push({ url: u, method: tuyChon.method || 'GET', body: tuyChon.body });
+    if (u.includes('/messages?')) return new Response(JSON.stringify({ messages: [{ id: 'm1', threadId: 'thr1' }] }), { status: 200 });
+    if (u.includes('/messages/m1')) return new Response(JSON.stringify({ threadId: 'thr1', payload: { headers: [{ name: 'Message-ID', value: '<goc@khoa.vn>' }, { name: 'From', value: 'Khoa KHSK <khsk@thanglong.edu.vn>' }, { name: 'References', value: '<cu@khoa.vn>' }] } }), { status: 200 });
+    if (u.endsWith('/users/me/drafts')) return new Response(JSON.stringify({ id: 'nhap1' }), { status: 200 });
+    return new Response('{}', { status: 404 });
+  };
+  return { goi, tra: () => { globalThis.fetch = cu; } };
+}
+
+async function noiGoogle(env, coNhap) {
+  const { luuTichHop } = await import('../src/tich-hop.js');
+  env.KHOA_MA_HOA = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64');
+  await luuTichHop(env, 'tc1', 'google_client', { client_id: 'c', client_secret: 's' });
+  await luuTichHop(env, 'tc1', 'google', { refresh_token: 'r', email: 'hai@x.vn', co_nhap: coNhap, truy_cap: 'tok', het_han: Date.now() + 3600000 });
+}
+
+test('nháp Gmail: kiểm đầu vào, mã hóa tiêu đề tiếng Việt, thư dạng RFC 822 đúng', async () => {
+  const { chuanNhapEmail, maHoaTieuDe, dungThuNhap } = await import('../src/google.js');
+  assert.match(chuanNhapEmail({ den: ['khong-hop-le'], chu_de: 'a', noi_dung: 'b' }).loi, /không hợp lệ/);
+  assert.match(chuanNhapEmail({ den: ['a@b.vn'], chu_de: '', noi_dung: 'b' }).loi, /chủ đề/);
+  assert.match(chuanNhapEmail({ den: ['a@b.vn'], chu_de: 'a', noi_dung: ' ' }).loi, /nội dung/);
+  assert.match(chuanNhapEmail({ den: Array.from({ length: 21 }, (_, i) => `a${i}@b.vn`), chu_de: 'a', noi_dung: 'b' }).loi, /20/);
+  const ok = chuanNhapEmail({ den: 'a@b.vn', cc: ['c@d.vn'], chu_de: 'Dòng 1\r\nBcc: ke-xau@x.vn', noi_dung: 'Nội dung' });
+  assert.ok(ok.nhap);
+  assert.ok(!ok.nhap.chu_de.includes('\n'), 'chủ đề không được xuống dòng (chèn tiêu đề thư)');
+  assert.equal(maHoaTieuDe('Hello'), 'Hello');
+  const mh = maHoaTieuDe('Trả lời Khoa Khoa học Sức khỏe về lịch họp ngày thứ Sáu tuần này');
+  assert.match(mh, /^=\?UTF-8\?B\?/);
+  assert.equal(mh.split(' ').length, 3); // 62 ký tự thành 3 nhóm 30 ký tự
+  const thu = dungThuNhap({ den: ['a@b.vn'], cc: [], chu_de: 'Chào', noi_dung: 'Xin chào' }, { messageId: '<g@x>', references: '<c@x>' });
+  assert.match(thu, /^To: a@b\.vn\r\nSubject: =\?UTF-8\?B\?/);
+  assert.match(thu, /In-Reply-To: <g@x>\r\nReferences: <c@x> <g@x>/);
+  assert.match(thu, /Content-Type: text\/plain; charset="UTF-8"/);
+  assert.equal(Buffer.from(thu.split('\r\n\r\n')[1].replace(/\r\n/g, ''), 'base64').toString('utf8'), 'Xin chào');
+});
+
+test('nháp Gmail: tạo đúng một nháp trong luồng thư gốc, gửi cho người viết thư, không gọi API gửi', async () => {
+  const { taoNhapGmail } = await import('../src/google.js');
+  const { db, env } = moiTruong();
+  await noiGoogle(env, true);
+  const ga = gaGiaGoogle(env);
+  try {
+    const r = await taoNhapGmail(env, 'tc1', { chu_de: 'Trả lời lịch họp', noi_dung: 'Xác nhận thứ Sáu.' }, { tinGoc: { nguon: 'gmail', ma_goc: 'goc@khoa.vn' } });
+    assert.deepEqual([r.ok, r.id, r.trong_luong_thu], [true, 'nhap1', true]);
+    const tao = ga.goi.find((g) => g.method === 'POST');
+    assert.ok(tao.url.endsWith('/gmail/v1/users/me/drafts'));
+    const body = JSON.parse(tao.body);
+    assert.equal(body.message.threadId, 'thr1');
+    const raw = Buffer.from(body.message.raw.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+    assert.match(raw, /To: khsk@thanglong\.edu\.vn/);
+    assert.match(raw, /In-Reply-To: <goc@khoa\.vn>/);
+    assert.match(raw, /References: <cu@khoa\.vn> <goc@khoa\.vn>/);
+    assert.ok(!ga.goi.some((g) => /send/i.test(g.url)), 'không được gọi bất kỳ API gửi nào');
+    assert.equal(ga.goi.filter((g) => g.method === 'POST').length, 1);
+    // Không có tin gốc và không ghi người nhận: không tạo nháp.
+    const khong = await taoNhapGmail(env, 'tc1', { chu_de: 'a', noi_dung: 'b' });
+    assert.match(khong.ly_do, /người nhận/);
+    // Chưa cấp quyền soạn nháp thì báo cách cấp, không gọi Gmail.
+    await noiGoogle(env, false);
+    const dem = ga.goi.length;
+    const chua = await taoNhapGmail(env, 'tc1', { den: ['a@b.vn'], chu_de: 'a', noi_dung: 'b' });
+    assert.match(chua.ly_do, /quyền soạn nháp/);
+    assert.equal(ga.goi.length, dem);
+  } finally { ga.tra(); }
+});
+
+test('thợ Claude: Claude ghi nhap-email.json thì hệ thống tạo nháp Gmail, ghi vào câu trả lời, không gửi', async () => {
+  const { db, env } = moiTruong();
+  env.TEP = { get: async () => null };
+  await noiGoogle(env, true);
+  db.prepare(`INSERT INTO tin_nhan (id, to_chuc_id, nguon, ma_goc, nguoi_gui, tieu_de, noi_dung, thoi_diem, tao_luc) VALUES (1, 'tc1', 'gmail', 'goc@khoa.vn', 'Khoa KHSK', 'Lịch họp', 'Nhờ anh xác nhận lịch họp thứ Sáu', '2026-10-15T01:00:00Z', '2026-10-15T01:00:00Z')`).run();
+  viec(db, 1, 'Gửi thư cho Khoa khoa học sức khỏe', 'claude_chuan_bi', '2026-10-20', 1);
+  const { goc, kbNguon, claude } = await dungChayThu('email');
+  const ga = gaGiaGoogle(env);
+  try {
+    const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
+    await tho.vongMotLan();
+    await tho.doiXong();
+    const l = db.prepare('SELECT trang_thai, ket_qua FROM luot_claude WHERE viec_id = 1').get();
+    assert.equal(l.trang_thai, 'xong', l.ket_qua);
+    assert.match(l.ket_qua, /Nháp Gmail:\n- nhap-email\.json: đã tạo bản nháp trong Gmail.*đúng luồng thư gốc.*Chưa gửi/s);
+    assert.equal(ga.goi.filter((g) => g.method === 'POST').length, 1);
+    assert.ok(!ga.goi.some((g) => /send/i.test(g.url)));
+    await tho.dong();
+  } finally { ga.tra(); }
 });

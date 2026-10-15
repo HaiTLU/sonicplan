@@ -2,6 +2,7 @@
 // Mỗi nhóm nhận (yeuCau, env, phien, url) và trả Response, hoặc null nếu địa chỉ không thuộc nhóm này.
 import { GOC_DU_AN, goiYThuMuc, kiemThuMucKb } from '../kb.js';
 import { demTuDongHomNay, docCauHinhTho, luuCauHinhTho } from '../tho-claude.js';
+import { docTichHop } from '../tich-hop.js';
 import { json, loi } from '../tien-ich.js';
 import { laChu } from './chung.js';
 
@@ -24,6 +25,8 @@ export async function xuLyClaudeMay(yeuCau, env, phien, url) {
       dang_lam: dangLam.results,
       hang_cho: hangCho?.n || 0,
       kb: env.THO_CLAUDE?.thongTinKb ? await env.THO_CLAUDE.thongTinKb() : null,
+      nhap_gmail: Boolean((await docTichHop(env, tc, 'google').catch(() => null))?.co_nhap),
+      ra_soat: JSON.parse((await env.CSDL.prepare(`SELECT gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = 'ra_soat_tach_viec'`).bind(tc).first())?.gia_tri || 'null'),
       ghi_nho_kb_luc: (await env.CSDL.prepare(`SELECT gia_tri FROM cai_dat WHERE to_chuc_id = '' AND khoa = 'ghi_nho_kb_luc'`).first())?.gia_tri || null,
     });
   }
@@ -43,6 +46,12 @@ export async function xuLyClaudeMay(yeuCau, env, phien, url) {
     if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
     if (!env.THO_CLAUDE?.dongBoGhiNho) return loi(400, 'Máy chủ này không chạy thợ Claude.');
     try { return json({ ok: true, ...(await env.THO_CLAUDE.dongBoGhiNho()) }); } catch (e) { return loi(502, `Chưa đồng bộ được: ${String(e.message).slice(0, 200)}`); }
+  }
+  if (p === '/api/tho-claude/ra-soat-ngay' && m === 'POST') {
+    if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
+    if (!env.THO_CLAUDE?.raSoatTachViec) return loi(400, 'Máy chủ này không chạy thợ Claude.');
+    env.THO_CLAUDE.raSoatTachViec().catch((e) => console.error('Rà soát lỗi', e.message));
+    return json({ ok: true, ghi_chu: 'Claude đang rà 30 tin mẫu, khoảng vài phút. Xong sẽ có thông báo.' });
   }
   if (p === '/api/kb/du-an' && m === 'GET') {
     const { results } = await env.CSDL.prepare('SELECT id, ten, kb_thu_muc, kb_duyet FROM du_an WHERE to_chuc_id = ?1 ORDER BY thu_tu, id').bind(tc).all();

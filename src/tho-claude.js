@@ -89,7 +89,7 @@ const KHOANG_NGAY = 3 * 86400000;
 // Tin gốc của việc và các tin trước sau trong cùng cuộc trò chuyện (Zalo cùng hội thoại, thư cùng chủ đề), tối đa TOI_DA_TIN tin trong 3 ngày quanh tin gốc.
 export async function layTinNguCanh(env, tc, viec) {
   if (!viec.tin_nhan_id) return { goc: null, quanh: [] };
-  const goc = await env.CSDL.prepare('SELECT id, nguon, ma_hoi_thoai, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem FROM tin_nhan WHERE id = ?1 AND to_chuc_id = ?2').bind(viec.tin_nhan_id, tc).first();
+  const goc = await env.CSDL.prepare('SELECT id, nguon, ma_goc, ma_hoi_thoai, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem FROM tin_nhan WHERE id = ?1 AND to_chuc_id = ?2').bind(viec.tin_nhan_id, tc).first();
   if (!goc) return { goc: null, quanh: [] };
   const t0 = Date.parse(goc.thoi_diem);
   const tu = new Date(t0 - KHOANG_NGAY).toISOString();

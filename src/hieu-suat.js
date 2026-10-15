@@ -8,6 +8,7 @@ import { docLuong } from './luong.js';
 import { docTichHop } from './tich-hop.js';
 import { congNgay, json, loi, ngayVN } from './tien-ich.js';
 import { themViec } from './viec.js';
+import { khoangNgay, tinhChatLuongTachViec } from './danh-gia-tach-viec.js';
 
 export const DO_NANG = ['nhe', 'vua', 'nang', 'rat_nang'];
 export const TEN_DO_NANG = { nhe: 'nhẹ', vua: 'vừa', nang: 'nặng', rat_nang: 'rất nặng' };
@@ -377,6 +378,11 @@ export async function xuLyHieuSuat(yeuCau, env, tc, p) {
   const m = yeuCau.method;
   let khop;
   if (p === '/api/hieu-suat' && m === 'GET') return json(await layHieuSuat(env, tc));
+  if (p === '/api/hieu-suat/tach-viec' && m === 'GET') {
+    const hoi = Number(new URL(yeuCau.url).searchParams.get('ky'));
+    const ky = [7, 14, 30, 90].includes(hoi) ? hoi : 30;
+    return json({ ky, ...(await tinhChatLuongTachViec(env, tc, khoangNgay(ky))) });
+  }
   if (p === '/api/hieu-suat/cham-ngay' && m === 'POST') {
     try { return json(await chamViecToChuc(env, tc)); } catch (e) { return loi(502, `Chưa chấm được: ${String(e.message || e).slice(0, 150)}`); }
   }

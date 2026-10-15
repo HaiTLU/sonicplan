@@ -9,6 +9,8 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 - Ghép dự án với thư mục `01_Projects` của ThangLong_KB (thẻ "Claude làm việc ở máy" ở trang Kết nối).
 - Ghi nhớ trong Sonicplan tự xuất sang `memory/projects/Sonicplan_GhiNho.md` của KB mỗi đêm (nút đồng bộ ngay); trạm Claude 1.3.0 nạp thêm bộ nhớ ThangLong_KB (chỉ đọc) vào lời dặn.
 - Nút đổi sáng tối ở đầu trang, nhớ lựa chọn.
+- Trang Hiệu suất: bảng "AI tách việc đúng đến đâu" tự đo từ việc bạn hủy, đổi nhóm, đổi dự án, sửa hạn và từ nút Đạt của Claude (5 chỉ số, có mục tiêu). Mỗi sáng thứ Hai Claude rà 30 tin mẫu (cả tin không sinh việc), báo cáo và 3 đề xuất sửa lời nhắc vào ThangLong_KB, báo bằng thông báo đẩy; nút "Rà soát tách việc ngay".
+- Nháp Gmail: Claude ghi `ket-qua/nhap-email.json`, hệ thống tạo bản nháp trong Thư nháp (đúng luồng thư gốc, gửi cho người viết thư). Cần đăng nhập lại Google và tick quyền soạn thư. Chỉ tạo nháp, không có mã gửi (có test quét mã).
 - Ghi sự kiện khi người dùng đổi nhóm, đổi tên, sửa hạn việc (dữ liệu đo chất lượng tách việc).
 
 ### Thay đổi

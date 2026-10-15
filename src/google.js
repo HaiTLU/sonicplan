@@ -17,6 +17,9 @@ export const QUYEN = [
 ];
 // Drive chỉ xin quyền hẹp (drive.file): hệ thống chỉ thấy tệp và thư mục do chính nó tạo. Không bắt buộc.
 export const QUYEN_DRIVE = 'https://www.googleapis.com/auth/drive.file';
+// Soạn nháp thư (Đợt 4 kế hoạch Claude tự làm việc). Không bắt buộc. Google gộp cả quyền gửi vào gmail.compose, nhưng Sonicplan chỉ gọi drafts.create:
+// PM dặn 16/10/2026 không được tự gửi thư, có test quét mã không có đường gửi.
+export const QUYEN_NHAP = 'https://www.googleapis.com/auth/gmail.compose';
 const TEN_THU_MUC_GOC = 'Sonicplan';
 const TEN_THU_MUC_NGUON = { zalo: 'Zalo', gmail: 'Gmail', tay: 'Tải lên' };
 const TOI_DA_TEP_DRIVE = 8;
@@ -45,7 +48,7 @@ export function taoDiaChiDangNhap(clientId, goiLai, state) {
     client_id: clientId,
     redirect_uri: goiLai,
     response_type: 'code',
-    scope: [...QUYEN, QUYEN_DRIVE].join(' '),
+    scope: [...QUYEN, QUYEN_DRIVE, QUYEN_NHAP].join(' '),
     access_type: 'offline',
     prompt: 'consent',
     include_granted_scopes: 'true',
@@ -163,8 +166,9 @@ export async function hoanTatDangNhap(env, tc, code, goiLai) {
   const duQuyen = QUYEN.slice(2).every((q) => String(kq.scope || '').includes(q));
   if (!duQuyen) throw new Error('Chưa tick đủ quyền Gmail, Lịch và Tasks ở màn hình Google. Đăng nhập lại và tick hết.');
   const coDrive = String(kq.scope || '').includes(QUYEN_DRIVE);
+  const coNhap = String(kq.scope || '').includes(QUYEN_NHAP);
   const email = emailTuIdToken(kq.id_token);
-  await luuTichHop(env, tc, 'google', { refresh_token: kq.refresh_token, email, co_drive: coDrive, truy_cap: kq.access_token, het_han: Date.now() + (kq.expires_in - 120) * 1000 });
+  await luuTichHop(env, tc, 'google', { refresh_token: kq.refresh_token, email, co_drive: coDrive, co_nhap: coNhap, truy_cap: kq.access_token, het_han: Date.now() + (kq.expires_in - 120) * 1000 });
   await ghiCaiDat(env, tc, 'google_gmail_moc', String(Math.floor(Date.now() / 1000) - 86400));
   await env.CSDL.prepare(`DELETE FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = 'google_drive_thu_muc'`).bind(tc).run();
   await ghiTinHieu(env, tc, 'google', 'Vừa nối xong');
@@ -178,6 +182,92 @@ async function layTruyCap(env, tc) {
   const kq = await doiMa(client, { grant_type: 'refresh_token', refresh_token: tk.refresh_token });
   await luuTichHop(env, tc, 'google', { ...tk, truy_cap: kq.access_token, het_han: Date.now() + (kq.expires_in - 120) * 1000 });
   return kq.access_token;
+}
+
+// ---- Nháp thư Gmail (không bao giờ gửi) ----
+
+const RE_EMAIL = /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/;
+const bytesB64 = (u8) => btoa(String.fromCharCode(...u8));
+const chuoiB64 = (s) => bytesB64(new TextEncoder().encode(s));
+const b64url = (s) => chuoiB64(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const mot = (s) => String(s ?? '').replace(/[\r\n]+/g, ' ').trim();
+
+// Tiêu đề không dấu để nguyên; có dấu thì mã hóa RFC 2047, cắt từng nhóm 30 ký tự để không vượt 75 ký tự mỗi từ mã hóa.
+export function maHoaTieuDe(s) {
+  const t = mot(s);
+  if (/^[\x20-\x7e]*$/.test(t)) return t;
+  const ky = [...t];
+  const nhom = [];
+  for (let i = 0; i < ky.length; i += 30) nhom.push(`=?UTF-8?B?${chuoiB64(ky.slice(i, i + 30).join(''))}?=`);
+  return nhom.join(' ');
+}
+
+// Làm sạch và kiểm bản nháp do Claude ghi ở ket-qua/nhap-email.json. Trả { nhap } hoặc { loi }.
+export function chuanNhapEmail(x) {
+  if (!x || typeof x !== 'object') return { loi: 'Tệp nhap-email.json không phải JSON đối tượng.' };
+  const ds = (v) => (Array.isArray(v) ? v : typeof v === 'string' && v ? [v] : []).map(mot).filter(Boolean);
+  const den = ds(x.den);
+  const cc = ds(x.cc);
+  const sai = [...den, ...cc].find((e) => !RE_EMAIL.test(e));
+  if (sai) return { loi: `Địa chỉ không hợp lệ: ${sai.slice(0, 60)}` };
+  if (den.length + cc.length > 20) return { loi: 'Quá 20 người nhận.' };
+  const chuDe = mot(x.chu_de).slice(0, 200);
+  const noiDung = String(x.noi_dung ?? '').replace(/\r\n?/g, '\n').trim().slice(0, 20000);
+  if (!chuDe) return { loi: 'Thiếu chủ đề.' };
+  if (!noiDung) return { loi: 'Thiếu nội dung.' };
+  return { nhap: { den, cc, chu_de: chuDe, noi_dung: noiDung } };
+}
+
+// Thư dạng RFC 822 từ bản nháp. goc: { threadId, messageId, references } nếu trả lời một thư.
+export function dungThuNhap(nhap, goc = {}) {
+  const dau = [
+    ...(nhap.den.length ? [`To: ${nhap.den.join(', ')}`] : []),
+    ...(nhap.cc.length ? [`Cc: ${nhap.cc.join(', ')}`] : []),
+    `Subject: ${maHoaTieuDe(nhap.chu_de)}`,
+    ...(goc.messageId ? [`In-Reply-To: ${mot(goc.messageId)}`, `References: ${mot([goc.references, goc.messageId].filter(Boolean).join(' '))}`] : []),
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+  ];
+  const than = chuoiB64(nhap.noi_dung).replace(/(.{76})/g, '$1\r\n');
+  return `${dau.join('\r\n')}\r\n\r\n${than}`;
+}
+
+// Tạo MỘT bản nháp trong Gmail của tổ chức (Thư nháp). Có tin gốc là thư Gmail thì nháp nằm trong đúng luồng thư và, nếu Claude không ghi người nhận, gửi cho người đã viết thư gốc.
+// Không gọi bất kỳ API gửi nào. Trả { ok, id } hoặc { ok: false, ly_do }.
+export async function taoNhapGmail(env, tc, nhapTho, { tinGoc = null } = {}) {
+  const k = chuanNhapEmail(nhapTho);
+  if (k.loi) return { ok: false, ly_do: k.loi };
+  const tk = await docTichHop(env, tc, 'google');
+  if (!tk) return { ok: false, ly_do: 'Chưa nối Google.' };
+  if (!tk.co_nhap) return { ok: false, ly_do: 'Chưa có quyền soạn nháp thư. Vào Kết nối, đăng nhập lại Google và tick quyền soạn thư (Sonicplan chỉ tạo nháp, không gửi).' };
+  const token = await layTruyCap(env, tc);
+  if (!token) return { ok: false, ly_do: 'Chưa nối Google.' };
+  const nhap = k.nhap;
+  const goc = {};
+  if (tinGoc?.nguon === 'gmail' && tinGoc.ma_goc && !String(tinGoc.ma_goc).startsWith('gmail:')) {
+    try {
+      const ds = (await goiGoogle(token, `gmail.googleapis.com/gmail/v1/users/me/messages?${new URLSearchParams({ q: `rfc822msgid:${tinGoc.ma_goc}`, maxResults: '1' })}`)).messages || [];
+      if (ds[0]) {
+        const m = await goiGoogle(token, `gmail.googleapis.com/gmail/v1/users/me/messages/${ds[0].id}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References&metadataHeaders=Reply-To&metadataHeaders=From`);
+        const h = Object.fromEntries((m.payload?.headers || []).map((x) => [x.name.toLowerCase(), x.value]));
+        goc.threadId = m.threadId;
+        goc.messageId = h['message-id'];
+        goc.references = h.references;
+        if (!nhap.den.length) {
+          const dich = String(h['reply-to'] || h.from || '').match(/[^\s<>",;]+@[^\s<>",;]+/)?.[0];
+          if (dich && RE_EMAIL.test(dich)) nhap.den = [dich];
+        }
+      }
+    } catch (e) { /* không lấy được luồng thư: vẫn tạo nháp riêng */ }
+  }
+  if (!nhap.den.length) return { ok: false, ly_do: 'Không có người nhận (Claude chưa ghi và không tìm được người gửi thư gốc).' };
+  try {
+    const kq = await goiGoogle(token, 'gmail.googleapis.com/gmail/v1/users/me/drafts', { method: 'POST', body: { message: { raw: b64url(dungThuNhap(nhap, goc)), ...(goc.threadId ? { threadId: goc.threadId } : {}) } } });
+    return { ok: true, id: kq.id, trong_luong_thu: Boolean(goc.threadId) };
+  } catch (e) {
+    return { ok: false, ly_do: /403|insufficient/i.test(e.message) ? 'Google từ chối: cần đăng nhập lại và cấp quyền soạn thư.' : `Gmail báo lỗi: ${String(e.message).slice(0, 120)}` };
+  }
 }
 
 export async function goKetNoiGoogle(env, tc) {

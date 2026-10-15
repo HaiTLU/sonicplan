@@ -7,7 +7,10 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { hoanTatLuot } from '../src/claude-code.js';
+import { taoNhapGmail } from '../src/google.js';
 import { GOC_DU_AN, goiYThuMuc } from '../src/kb.js';
+import { khoangNgay, dungChiSoMd, dungMauRaSoatMd, layMauRaSoat, loiNhacRaSoat, tinhChatLuongTachViec } from '../src/danh-gia-tach-viec.js';
+import { taoThongBao } from '../src/thong-bao.js';
 import { chonViecTuDong, dungGhiNhoMd, demLoiTuDongGanDay, demTuDongHomNay, docCauHinhTho, dungLichSuMd, dungNguCanhMd, layDinhKem, layGhiNhoSonicplan, layLichSuLuot, layTinNguCanh, loiNhacTho, taoLuotMay, thuMucLamViec } from '../src/tho-claude.js';
 
 const TOI_DA_PHUT = 30;
@@ -166,6 +169,70 @@ export function moThoClaude(env, cfg = {}) {
     return { so_ghi_nho: tong, doi, pr: prCuoi };
   }
 
+  // Rà mẫu hằng tuần: Claude chấm lại 30 tin mẫu của 7 ngày qua, báo cáo vào _INBOX/Sonicplan/DanhGia_TachViec/ của KB (PR tự gộp), báo PM bằng thông báo đẩy.
+  // Kết quả chỉ là đề xuất: PM duyệt thì mới sửa lời nhắc tách việc.
+  async function raSoatTachViec() {
+    const { results: dsTc } = await env.CSDL.prepare('SELECT id FROM to_chuc').all();
+    const ra = [];
+    for (const { id: tc } of dsTc) {
+      const cauHinh = await docCauHinhTho(env, tc);
+      const khoang = khoangNgay(7);
+      const mau = await layMauRaSoat(env, tc, khoang);
+      if (!mau.length) { ra.push({ tc, bo_qua: 'không có tin nào trong 7 ngày qua' }); continue; }
+      const chiSo = await tinhChatLuongTachViec(env, tc, khoangNgay(30));
+      const ngay = new Date(Date.now() + 7 * 3600000).toISOString().slice(2, 10).replace(/-/g, '');
+      const thuMucLam = `_INBOX/Sonicplan/DanhGia_TachViec/${ngay}_RaSoatTuan`;
+      const nhanh = `sonicplan/ra-soat-${ngay}-${Date.now().toString(36).slice(-4)}`;
+      const w = join(lamDir, `ra-soat-${tc}`.slice(0, 60));
+      const khoa = `ra-soat-${tc}`;
+      dangChay.set(khoa, { tc, tien_trinh: null, xong: Promise.resolve() });
+      try {
+        await lanLuot(async () => { await chuanBiKb(); await rm(w, { recursive: true, force: true }); await mkdir(lamDir, { recursive: true }); await git(['worktree', 'add', '-B', nhanh, w, 'origin/main']); });
+        const goc = join(w, thuMucLam);
+        await mkdir(goc, { recursive: true });
+        await writeFile(join(goc, 'mau-tin.md'), dungMauRaSoatMd(mau, khoang));
+        await writeFile(join(goc, 'chi-so.md'), dungChiSoMd(chiSo));
+        const kq = await chayClaude(w, loiNhacRaSoat({ thuMucLam }), cauHinh, khoa);
+        await writeFile(join(goc, 'BAO-CAO.md'), `# Rà soát AI tách việc, tuần ${ngay}\n\n${kq.chu}\n`);
+        const { pr, nhanhUrl } = await dayLenKb(w, nhanh, [thuMucLam], { tieuDe: `Sonicplan: rà soát AI tách việc tuần ${ngay}`, than: `- ${mau.length} tin mẫu, báo cáo ở ${thuMucLam}/BAO-CAO.md (đề xuất, PM duyệt mới sửa lời nhắc)`, nhan: 'báo cáo rà soát' });
+        await env.CSDL.prepare(`INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES (?1, 'ra_soat_tach_viec', ?2) ON CONFLICT (to_chuc_id, khoa) DO UPDATE SET gia_tri = excluded.gia_tri`).bind(tc, JSON.stringify({ luc: new Date().toISOString(), tep: `${thuMucLam}/BAO-CAO.md`, pr, so_mau: mau.length })).run();
+        await taoThongBao(env, tc, { loai: 'claude', tieu_de: 'Báo cáo rà soát AI tách việc tuần này đã sẵn sàng', noi_dung: `Claude chấm ${mau.length} tin mẫu và đề xuất 3 sửa. Xem ở ThangLong_KB: ${thuMucLam}/BAO-CAO.md`, duong_dan: '#hieu-suat' });
+        ra.push({ tc, so_mau: mau.length, pr, nhanh_url: nhanhUrl, tep: `${thuMucLam}/BAO-CAO.md` });
+      } catch (e) {
+        console.error('Rà soát tách việc lỗi', e.message);
+        ra.push({ tc, loi: String(e.message).slice(0, 300) });
+      } finally {
+        dangChay.delete(khoa);
+        await lanLuot(async () => { await git(['worktree', 'remove', '--force', w]).catch(() => {}); await git(['branch', '-D', nhanh]).catch(() => {}); }).catch(() => {});
+      }
+    }
+    return ra;
+  }
+
+  // Thứ Hai từ 8h giờ Việt Nam, mỗi tuần một lần (đánh dấu theo tuần), khi thợ còn rảnh.
+  async function raSoatHangTuan() {
+    const vn = new Date(Date.now() + 7 * 3600000);
+    if (vn.getUTCDay() !== 1 || vn.getUTCHours() < 8 || dangChay.size >= 2) return;
+    const tuan = new Date(vn.getTime() - 3 * 86400000).toISOString().slice(0, 10); // ngày thứ Hai mở đầu tuần: đủ để phân biệt tuần
+    const da = (await env.CSDL.prepare(`SELECT gia_tri FROM cai_dat WHERE to_chuc_id = '' AND khoa = 'ra_soat_tuan'`).first())?.gia_tri;
+    if (da === vn.toISOString().slice(0, 10) || da === tuan) return;
+    await env.CSDL.prepare(`INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES ('', 'ra_soat_tuan', ?1) ON CONFLICT (to_chuc_id, khoa) DO UPDATE SET gia_tri = excluded.gia_tri`).bind(vn.toISOString().slice(0, 10)).run();
+    raSoatTachViec().catch((e) => console.error('Rà soát tuần lỗi', e.message));
+  }
+
+  // Claude ghi ket-qua/nhap-email*.json thì tạo bản nháp trong Gmail (không gửi). Trả đoạn chữ thêm vào câu trả lời, rỗng nếu không có nháp.
+  async function taoNhapTuKetQua(tc, goc, tinGoc) {
+    const ds = (await readdir(join(goc, 'ket-qua')).catch(() => [])).filter((t) => /^nhap-email.*\.json$/i.test(t)).sort().slice(0, 5);
+    const dong = [];
+    for (const t of ds) {
+      let x;
+      try { x = JSON.parse(await readFile(join(goc, 'ket-qua', t), 'utf8')); } catch { dong.push(`- ${t}: không đọc được JSON, chưa tạo nháp.`); continue; }
+      const r = await taoNhapGmail(env, tc, x, { tinGoc }).catch((e) => ({ ok: false, ly_do: String(e.message).slice(0, 120) }));
+      dong.push(r.ok ? `- ${t}: đã tạo bản nháp trong Gmail (mục Thư nháp)${r.trong_luong_thu ? ', nằm trong đúng luồng thư gốc' : ''}. Chưa gửi: bạn tự xem và bấm gửi.` : `- ${t}: chưa tạo được nháp: ${r.ly_do}`);
+    }
+    return dong.length ? `Nháp Gmail:\n${dong.join('\n')}` : '';
+  }
+
   async function lamMotLuot(luot) {
     const viecList = await viecCuaLuot(luot);
     if (!viecList.length) throw new Error('Không còn việc nào của lượt này.');
@@ -196,6 +263,8 @@ export function moThoClaude(env, cfg = {}) {
       await env.CSDL.prepare('UPDATE luot_claude SET thu_muc_lam = ?1 WHERE id = ?2 OR lo_id = ?2').bind(thuMucLam, luot.id).run();
 
       const kq = await chayClaude(w, loiNhac, cauHinh, luot.id);
+      const ghiChuNhap = await taoNhapTuKetQua(luot.to_chuc_id, goc, tin.goc);
+      if (ghiChuNhap) kq.chu = `${kq.chu}\n\n${ghiChuNhap}`;
       await writeFile(join(goc, 'CAU-TRA-LOI.md'), `# Câu trả lời của Claude (lượt ${luot.id})\n\n${kq.chu}\n`);
 
       // Đẩy kết quả: chỉ thư mục làm việc và memory/, các thay đổi khác của Claude bị bỏ.
@@ -253,6 +322,7 @@ export function moThoClaude(env, cfg = {}) {
     dangVong = true;
     try {
       await ghiNhoHangNgay();
+      await raSoatHangTuan();
       const { results: dsTc } = await env.CSDL.prepare('SELECT id FROM to_chuc').all();
       for (const { id: tc } of dsTc) {
         const cauHinh = await docCauHinhTho(env, tc);
@@ -290,6 +360,7 @@ export function moThoClaude(env, cfg = {}) {
       setTimeout(vong, 5000);
     },
     chayNgay: () => { vong(); },
+    raSoatTachViec,
     dongBoGhiNho: () => lanLuot(async () => {}).then(() => dongBoGhiNho()),
     vongMotLan: vong,
     doiXong: async () => { while (dangChay.size) await Promise.allSettled([...dangChay.values()].map((x) => x.xong)); },

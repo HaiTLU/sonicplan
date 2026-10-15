@@ -297,3 +297,6 @@
 .hs-ghi summary { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; list-style-position: inside; }
 .hs-ghi[open] summary { white-space: normal; }
 .hs-ghi p { margin: 6px 0 2px; padding: 8px 10px; border-radius: 8px; background: var(--mat-2); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--chu-2); }
+
+/* Chất lượng AI tách việc */
+.hs-tv-chua { color: var(--loi); font-weight: 700; }

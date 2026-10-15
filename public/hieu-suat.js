@@ -265,7 +265,24 @@ export async function veHieuSuat(goc, t) {
 
   const khuGame = h('div', { class: 'hs-game' });
   import('./game-ui.js').then((m) => m.veKhuGame(khuGame, t, napLai)).catch((e) => console.error('Chế độ game lỗi', e));
-  thay(goc, h('div', { class: 'hs vao' }, khuGame, dauTrang, daiSo, bang30, bangNx, bangMo, bangDn, bangGio, bangDuAn, bangNguon));
+  // Chất lượng AI tách việc: tự đo từ thao tác sửa việc của bạn, không tốn hạn mức AI.
+  const bangTv = h('section', { class: 'bang hs-tv' },
+    h('div', { class: 'bang-dau' }, h('h2', {}, icon('ai'), 'AI tách việc đúng đến đâu'), h('span', { class: 'phu', text: '30 ngày, tự đo từ việc bạn hủy, đổi nhóm, đổi dự án, sửa hạn' })),
+    h('div', { class: 'hs-than' }, xuong(14, '70%'), xuong(14, '85%'), xuong(14, '60%')));
+  api('/api/hieu-suat/tach-viec?ky=30').then((tv) => {
+    const dong = (c) => h('tr', {},
+      h('td', { text: c.ten }),
+      h('td', { class: c.dat === false ? 'hs-tv-chua' : '', text: c.ty_le == null ? '-' : `${Math.round(c.ty_le * 100)}%` }),
+      h('td', { text: `từ ${Math.round(c.nguong * 100)}%` }),
+      h('td', { text: c.du_lieu ? (c.dat ? 'Đạt' : 'Chưa đạt') : `Chưa đủ số liệu (${c.mau_so}/5)` }),
+      h('td', { text: c.mau_so ? `${c.tu_so} lỗi trên ${c.mau_so}` : '-' }));
+    thay(bangTv.querySelector('.hs-than'),
+      h('p', { class: 'mo-ta', text: `${tv.so_viec_ai} việc AI tách trong ${tv.ky} ngày qua. Mỗi tuần Claude còn rà ngẫu nhiên 30 tin và gửi báo cáo vào ThangLong_KB.` }),
+      h('div', { class: 'bang-cuon', tabindex: '0', role: 'region', 'aria-label': 'Chất lượng tách việc' }, h('table', { class: 'hs-bang' },
+        h('thead', {}, h('tr', {}, ...['Chỉ số', 'Tỷ lệ', 'Mục tiêu', 'Kết quả', 'Số liệu'].map((c) => h('th', { text: c })))),
+        h('tbody', {}, ...tv.chi_so.map(dong)))));
+  }).catch((e) => thay(bangTv.querySelector('.hs-than'), h('p', { class: 'mo-ta', text: e.message })));
+  thay(goc, h('div', { class: 'hs vao' }, khuGame, dauTrang, daiSo, bang30, bangNx, bangMo, bangDn, bangGio, bangDuAn, bangNguon, bangTv));
 }
 
 // Dải nhỏ trên Tổng quan: tự nạp, lỗi thì ẩn để không làm hỏng trang.
