@@ -1,7 +1,7 @@
 // Địa chỉ cho dịch vụ khác (Zapier, Make, biểu mẫu, Apps Script) gửi việc vào: POST /nhan/viec kèm mã riêng.
 // Mã chỉ lưu dạng băm ở cai_dat, hiện đúng một lần khi tạo.
 
-import { kiemViec } from './api.js';
+import { kiemViec } from './api/viec.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { bam, json, loi, maNgauNhien } from './tien-ich.js';
 import { themViec, xuLyVanBanTrucTiep } from './viec.js';
