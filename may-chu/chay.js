@@ -15,6 +15,7 @@ import { batHenGio } from './lich.js';
 import { moTram } from './lop-tram.js';
 import { batTay, boc } from './lop-ws.js';
 import { xacDinhPhien } from '../src/phien.js';
+import { taoThongBao } from '../src/thong-bao.js';
 
 const GOC = resolve(fileURLToPath(import.meta.url), '../..');
 const TOI_DA_THAN = 30 * 1024 * 1024;
@@ -95,7 +96,7 @@ export function taoMayChu(cauHinh = {}) {
     ),
   };
   // Phòng chat của trang Claude: chạy ngay trong tiến trình này, lưu ở du-lieu/tram/.
-  const tram = moTram(resolve(thuMucDuLieu, 'tram'));
+  const tram = moTram(resolve(thuMucDuLieu, 'tram'), { baoNguoi: (tc, tb) => taoThongBao(env, tc, { loai: 'claude', ...tb }) });
   env.TRAM_NOI_BO = tram;
   const ai = moAi({ taiKhoan: cfg.CF_ACCOUNT_ID, token: cfg.CF_AI_TOKEN });
   if (ai) env.AI = ai;

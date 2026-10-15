@@ -26,6 +26,7 @@ import { tinhTinhTrang } from './tinh-trang.js';
 import { TAC_VU } from './lich-chay.js';
 import { chuTuDocx, loaiXem, TOI_DA_DOCX } from './xem-tep.js';
 import { themViec } from './viec.js';
+import { xuLyApiThongBao } from './thong-bao.js';
 import { chuanMau } from './mau.js';
 import { chuanCauHinh, ganNhan, LOAI_NHAN } from './google-nhan.js';
 import { xuLyHieuSuat } from './hieu-suat.js';
@@ -75,6 +76,7 @@ export async function xuLyApi(yeuCau, env, phien, url) {
     ).bind(tc).first();
     return json({ tin_chua_xem: r?.tin_chua_xem ?? 0, viec_mo: r?.viec_mo ?? 0 });
   }
+  if (p === '/api/thong-bao' || p.startsWith('/api/thong-bao/')) return xuLyApiThongBao(yeuCau, env, phien, url);
   if (p === '/api/tong-quan' && m === 'GET') return json(await tongQuan(env, tc, phien));
   if (p === '/api/tong-quan/bo-cuc' && m === 'PUT') {
     const bc = chuanBoCuc(await yeuCau.json().catch(() => null));
@@ -125,6 +127,11 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   if ((khop = p.match(/^\/api\/claude\/(\d+)\/danh-gia$/)) && m === 'POST') {
     const r = await danhGiaLuot(env, tc, Number(khop[1]), (await yeuCau.json().catch(() => ({}))).danh_gia);
     return r.loi ? loi(r.ma, r.loi) : json(r);
+  }
+  // Một việc theo mã: trang mở thẳng việc khi bấm thông báo.
+  if ((khop = p.match(/^\/api\/viec\/(\d+)$/)) && m === 'GET') {
+    const v = await env.CSDL.prepare('SELECT * FROM viec WHERE id = ?1 AND to_chuc_id = ?2').bind(Number(khop[1]), tc).first();
+    return v ? json({ viec: v }) : loi(404, 'Việc này không còn.');
   }
   if ((khop = p.match(/^\/api\/viec\/(\d+)$/)) && m === 'PATCH') return suaViec(env, tc, Number(khop[1]), await yeuCau.json().catch(() => ({})));
 

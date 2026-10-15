@@ -18,6 +18,7 @@ export const BANG_XUAT = [
   ['nhat_ky_truy_cap', 'SELECT email, hanh_dong, chi_tiet, luc FROM nhat_ky_truy_cap WHERE to_chuc_id = ?1 ORDER BY id DESC LIMIT 5000'],
   ['kho_da_luu', 'SELECT * FROM kho_da_luu WHERE to_chuc_id = ?1'],
   ['cai_dat', `SELECT khoa, gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa NOT LIKE 'tich_hop%' AND khoa NOT LIKE '%ma_noi%' AND khoa NOT LIKE '%bam%' AND khoa <> 'google_state'`],
+  ['thong_bao', 'SELECT loai, tieu_de, noi_dung, viec_id, tao_luc, da_doc_luc FROM thong_bao WHERE to_chuc_id = ?1'],
   ['nhat_ky_chay', 'SELECT * FROM nhat_ky_chay WHERE to_chuc_id = ?1 ORDER BY id DESC LIMIT 2000'],
 ];
 
