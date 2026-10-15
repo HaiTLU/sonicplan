@@ -62,7 +62,16 @@ export function loiAi(ten, ma, chiTiet) {
 }
 
 // messages: [{ role: 'system'|'user', content }]. Trả về chuỗi trả lời.
+// Trả lời bị cắt vì hết max_tokens (bản tin cụt, JSON dở) thì hỏi lại một lần với gấp đôi; vẫn cắt thì báo lỗi,
+// không trả nửa câu cho người dùng.
 export async function chayAiNgoai(cauHinh, messages, { maxTokens = 1500, nhietDo = 0.1, json = false } = {}) {
+  let kq = await goiAiNgoai(cauHinh, messages, { maxTokens, nhietDo, json });
+  if (kq.cat) kq = await goiAiNgoai(cauHinh, messages, { maxTokens: maxTokens * 2, nhietDo, json });
+  if (kq.cat) throw new Error(`AI trả lời bị cắt giữa chừng (quá ${maxTokens * 2} token)`);
+  return kq.chu;
+}
+
+async function goiAiNgoai(cauHinh, messages, { maxTokens, nhietDo, json }) {
   const he = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
   const hoi = messages.filter((m) => m.role !== 'system');
   if (cauHinh.loai === 'claude') {
@@ -73,7 +82,7 @@ export async function chayAiNgoai(cauHinh, messages, { maxTokens = 1500, nhietDo
     }, { hetGioMs: 60000 });
     const kq = await ph.json().catch(() => ({}));
     if (!ph.ok) throw new Error(loiAi('Claude', ph.status, kq?.error?.message));
-    return (kq.content || []).map((c) => c.text || '').join('');
+    return { chu: (kq.content || []).map((c) => c.text || '').join(''), cat: kq.stop_reason === 'max_tokens' };
   }
   const ph = await goiNgoai(`${cauHinh.dia_chi}/chat/completions`, {
     method: 'POST',
@@ -88,7 +97,7 @@ export async function chayAiNgoai(cauHinh, messages, { maxTokens = 1500, nhietDo
   }, { hetGioMs: 60000 });
   const kq = await ph.json().catch(() => ({}));
   if (!ph.ok) throw new Error(loiAi('Dịch vụ AI', ph.status, kq?.error?.message));
-  return kq.choices?.[0]?.message?.content || '';
+  return { chu: kq.choices?.[0]?.message?.content || '', cat: kq.choices?.[0]?.finish_reason === 'length' };
 }
 
 // Thử khóa bằng một câu hỏi ngắn trước khi lưu.

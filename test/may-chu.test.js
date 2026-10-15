@@ -148,3 +148,33 @@ test('Máy chủ: không có EMAIL_THU và không có vé Access thì từ chố
     await m.dong();
   }
 });
+
+test('Máy chủ: khởi động tự áp migration còn thiếu (mã mới, cơ sở dữ liệu cũ)', async () => {
+  const { chayMigration } = await import('../may-chu/migrate.js');
+  const tep = join(await mkdtemp(join(tmpdir(), 'sp-mig-')), 'cu.sqlite');
+  const cu = moCsdl(tep);
+  chayMigration(cu.db, 'migrations');
+  cu.db.exec("ALTER TABLE viec DROP COLUMN so_lan_doi; DELETE FROM _migrations WHERE ten = '0026_viec_so_lan_doi.sql'");
+  cu.db.close();
+  const m = taoMayChu({ DB_FILE: tep, HEN_GIO: '0', EMAIL_THU: '' });
+  try {
+    const cot = m.env.CSDL.db.prepare('PRAGMA table_info(viec)').all().map((c) => c.name);
+    assert.ok(cot.includes('so_lan_doi'));
+  } finally {
+    await m.dong();
+  }
+});
+
+test('Worker cũ trên Cloudflare không chạy tác vụ hẹn giờ, máy chủ riêng thì chạy', async () => {
+  const worker = (await import('../src/index.js')).default;
+  const goi = [];
+  const ctx = { waitUntil: (p) => goi.push(p) };
+  await worker.scheduled({ cron: '*/5 * * * *' }, {}, ctx);
+  assert.equal(goi.length, 0);
+  const m = taoMayChu({ DB_FILE: ':memory:', MIGRATIONS: 'migrations', HEN_GIO: '0', EMAIL_THU: '' });
+  try {
+    assert.equal(m.env.MAY_RIENG, '1');
+  } finally {
+    await m.dong();
+  }
+});

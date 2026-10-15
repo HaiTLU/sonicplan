@@ -70,12 +70,17 @@ export async function banTinNgay(env, bayGio, { ep = false } = {}) {
     }
     let noiDung = dungBanTin(results, homNay, sang, luuY);
     // Việc tự dời từ 3 lần: nhắc riêng buổi sáng để người dùng quyết giữ, đổi hạn hay bỏ.
+    // Khối phụ lỗi (ví dụ cơ sở dữ liệu chưa có cột mới) thì bỏ khối đó, bản tin vẫn gửi.
     if (sang) {
-      const { results: doiNhieu } = await env.CSDL.prepare(
-        `SELECT tieu_de, han_goc, so_lan_doi FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND so_lan_doi >= ?2 ORDER BY so_lan_doi DESC LIMIT 8`,
-      ).bind(tc.id, SO_LAN_DOI_NHAC).all();
-      const khoiDoi = khoiDoiNhieu(doiNhieu);
-      if (khoiDoi) noiDung = noiDung ? `${noiDung}\n\n${khoiDoi}` : `Bản tin sáng ${ngayNgan(homNay)}\n\n${khoiDoi}`;
+      try {
+        const { results: doiNhieu } = await env.CSDL.prepare(
+          `SELECT tieu_de, han_goc, so_lan_doi FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND so_lan_doi >= ?2 ORDER BY so_lan_doi DESC LIMIT 8`,
+        ).bind(tc.id, SO_LAN_DOI_NHAC).all();
+        const khoiDoi = khoiDoiNhieu(doiNhieu);
+        if (khoiDoi) noiDung = noiDung ? `${noiDung}\n\n${khoiDoi}` : `Bản tin sáng ${ngayNgan(homNay)}\n\n${khoiDoi}`;
+      } catch (e) {
+        console.error('Khối việc dời nhiều lần lỗi', e);
+      }
     }
     // Kế hoạch trong ngày do AI lập; AI lỗi thì bản tin vẫn gửi như cũ.
     if (sang && noiDung) {

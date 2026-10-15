@@ -268,7 +268,7 @@ export async function chamViecToChuc(env, tc, { gioiHan = TOI_DA_CHAM } = {}) {
   const heSo = heSoHoc(daXong);
   const ngoai = await docTichHop(env, tc, 'ai');
   const hoSo = await docHoSo(env, tc);
-  const tra = await chayAi(env, { ngoai, hoSo }, loiNhacCham(canCham, daXong.slice(0, 25)), { maxTokens: 1800, nhietDo: 0.1, khuon: KHUON_CHAM });
+  const tra = await chayAi(env, { ngoai, hoSo }, loiNhacCham(canCham, daXong.slice(0, 25)), { maxTokens: 3000, nhietDo: 0.1, khuon: KHUON_CHAM });
   const kq = docKetQuaCham(tra, canCham.map((v) => v.id));
   if (!kq.length) throw new Error(`AI không trả kết quả chấm đọc được: ${String(typeof tra === 'string' ? tra : JSON.stringify(tra)).slice(0, 160)}`);
   const cau = kq.map((x) => env.CSDL.prepare(
