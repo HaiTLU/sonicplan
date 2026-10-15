@@ -243,7 +243,8 @@ export function chuanDoNang(x) {
 
 export function docKetQuaCham(tra, ids) {
   const du = docJson(tra);
-  const ds = Array.isArray(du) ? du : Array.isArray(du?.viec) ? du.viec : [];
+  // AI hay đặt tên khóa khác nhau ("viec", "kq", "ket_qua"...): lấy mảng đầu tiên trong đối tượng.
+  const ds = Array.isArray(du) ? du : Array.isArray(du?.viec) ? du.viec : Object.values(du && typeof du === 'object' ? du : {}).find(Array.isArray) || [];
   const coId = new Set(ids);
   return ds
     .map((x) => ({ id: Number(String(x?.id ?? '').replace(/\D/g, '')), do_nang: chuanDoNang(x?.do_nang), phut: Number(x?.phut ?? x?.phut_uoc ?? x?.thoi_luong), ly_do: String(x?.ly_do || '').trim().slice(0, 200) || null, chua_ro: x?.chua_ro === true || x?.chua_ro === 'true' }))

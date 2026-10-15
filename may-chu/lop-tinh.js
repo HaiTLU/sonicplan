@@ -1,4 +1,5 @@
 // Lớp thay env.ASSETS: phục vụ thư mục public/. Đường dẫn không có đuôi tệp thì trả index.html (ứng dụng một trang).
+import { readFileSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 
@@ -9,8 +10,26 @@ const KIEU = {
   '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.txt': 'text/plain; charset=utf-8',
 };
 
+// Tiêu đề bảo mật: Cloudflare đọc public/_headers khi phát trang, máy chủ Node phải tự thêm. Lấy các tiêu đề an toàn không làm đổi cách trang chạy;
+// Content-Security-Policy giữ riêng ở _headers (bản Cloudflare) cho tới khi thử xong trên máy chủ này.
+const TIEU_DE_AN_TOAN = ['x-content-type-options', 'referrer-policy', 'permissions-policy', 'strict-transport-security', 'cross-origin-opener-policy'];
+export function docTieuDeAnToan(noiDung) {
+  const ra = {};
+  let trongKhoiChung = false;
+  for (const dong of String(noiDung).split('\n')) {
+    if (/^\S/.test(dong) && !dong.startsWith('#')) trongKhoiChung = dong.trim() === '/*';
+    else if (trongKhoiChung) {
+      const m = dong.match(/^\s+([\w-]+):\s*(.+)$/);
+      if (m && TIEU_DE_AN_TOAN.includes(m[1].toLowerCase())) ra[m[1].toLowerCase()] = m[2].trim();
+    }
+  }
+  return ra;
+}
+
 export function moTinh(thuMuc) {
   const goc = resolve(thuMuc);
+  let tieuDe = {};
+  try { tieuDe = docTieuDeAnToan(readFileSync(resolve(goc, '_headers'), 'utf8')); } catch { /* không có _headers thì thôi */ }
   const docTep = async (d) => {
     try {
       if (!(await stat(d)).isFile()) return null;
@@ -37,7 +56,7 @@ export function moTinh(thuMuc) {
         duoi = '.html';
       }
       if (!noiDung) return new Response('Không tìm thấy', { status: 404 });
-      return new Response(yeuCau.method === 'HEAD' ? null : noiDung, { headers: { 'content-type': KIEU[duoi] || 'application/octet-stream' } });
+      return new Response(yeuCau.method === 'HEAD' ? null : noiDung, { headers: { 'content-type': KIEU[duoi] || 'application/octet-stream', ...tieuDe } });
     },
   };
 }

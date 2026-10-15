@@ -126,3 +126,29 @@ test('sao lưu: một tổ chức lỗi không làm các tổ chức sau mất b
   assert.ok(luu.some((k) => k.startsWith('sao-luu/b/')), 'tổ chức b vẫn được sao lưu');
   assert.ok(!luu.some((k) => k.startsWith('sao-luu/a/')));
 });
+
+test('chấm việc: đọc được kết quả AI đặt tên khóa "kq", "ket_qua" hay mảng trần', async () => {
+  const { docKetQuaCham } = await import('../src/hieu-suat.js');
+  const mot = '{"id":5,"do_nang":"nhe","phut":10,"ly_do":"Ngắn","chua_ro":false}';
+  for (const tra of [`{"kq":[${mot}]}`, `{"ket_qua":[${mot}]}`, `{"viec":[${mot}]}`, `[${mot}]`, `Kết quả: \`\`\`json\n{"kq":[${mot}]}\n\`\`\``]) {
+    assert.deepEqual(docKetQuaCham(tra, [5]), [{ id: 5, do_nang: 'nhe', phut: 10, ly_do: 'Ngắn', chua_ro: false }], tra);
+  }
+  assert.deepEqual(docKetQuaCham('{"ghi_chu":"không có mảng"}', [5]), []);
+});
+
+test('tên kho GitHub không được là .. hoặc .', async () => {
+  const { kiemCauHinhGithub } = await import('../src/github.js');
+  const token = `github_pat_${'a'.repeat(30)}`;
+  assert.throws(() => kiemCauHinhGithub({ token, repo: '../x' }), /chủ-kho/);
+  assert.throws(() => kiemCauHinhGithub({ token, repo: 'a/..' }), /chủ-kho/);
+  assert.equal(kiemCauHinhGithub({ token, repo: 'HaiTLU/ThangLong_KB' }).repo, 'HaiTLU/ThangLong_KB');
+});
+
+test('máy chủ Node thêm tiêu đề bảo mật vào trang tĩnh, không thêm CSP', async () => {
+  const { docTieuDeAnToan, moTinh } = await import('../may-chu/lop-tinh.js');
+  const t = docTieuDeAnToan('# ghi chú\n/*\n  Content-Security-Policy: default-src \'self\'\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: no-referrer\n/rieng\n  X-Frame-Options: DENY\n');
+  assert.deepEqual(t, { 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer' });
+  const ra = await moTinh('public').fetch(new Request('https://x/'));
+  assert.equal(ra.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(ra.headers.get('content-security-policy'), null);
+});

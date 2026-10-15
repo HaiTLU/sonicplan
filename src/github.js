@@ -8,7 +8,7 @@ export function kiemCauHinhGithub({ token, repo, nhan }) {
   const r = String(repo || '').trim().replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '').replace(/\/+$/, '');
   const n = String(nhan || '').trim() || 'viec-cho-claude';
   if (!/^(ghp_|github_pat_|gho_|ghs_)[\w]{20,}$/.test(t)) throw new Error('Token GitHub không đúng dạng. Chép nguyên chuỗi bắt đầu bằng github_pat_ hoặc ghp_.');
-  if (!/^[\w.-]+\/[\w.-]+$/.test(r)) throw new Error('Tên kho phải dạng chủ-kho/tên-kho, ví dụ HaiTLU/ThangLong_KB.');
+  if (!/^[\w.-]+\/[\w.-]+$/.test(r) || r.split('/').some((x) => /^\.+$/.test(x))) throw new Error('Tên kho phải dạng chủ-kho/tên-kho, ví dụ HaiTLU/ThangLong_KB.');
   if (!/^[\w .:-]{1,50}$/.test(n)) throw new Error('Tên nhãn không hợp lệ.');
   return { token: t, repo: r, nhan: n };
 }
