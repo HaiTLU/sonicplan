@@ -159,11 +159,11 @@ export const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zal
 // Đường dẫn cũ (#viec, #zalo...) giữ nguyên để liên kết đã lưu vẫn mở được.
 export const NHOM = [
   { ma: 'hom-nay', ten: 'Hôm nay', con: ['tong-quan', 'viec', 'hieu-suat'] },
-  { ma: 'hop-tin', ten: 'Hộp tin', con: ['hop-tin', 'zalo', 'da-chan'] },
+  { ma: 'hop-tin', ten: 'Hộp tin', con: ['zalo', 'hop-tin', 'da-chan'] },
   { ma: 'du-an', ten: 'Dự án', con: ['du-an', 'claude', 'tep', 'ghi-nho'] },
   { ma: 'cai-dat', ten: 'Cài đặt', con: ['ket-noi', 'luong', 'nhat-ky', 'du-lieu'] },
 ];
-export const TEN_TAB = { 'hop-tin': 'Tất cả tin', 'du-an': 'Dự án', 'nhat-ky': 'Nhật ký' };
+export const TEN_TAB = { 'hop-tin': 'Dòng tin', 'du-an': 'Dự án', 'nhat-ky': 'Nhật ký' };
 export const nhomCua = (muc) => NHOM.find((n) => n.con.includes(muc)) || NHOM[0];
 export const KET_QUA = { xong: 'Xong', loi: 'Lỗi', dang_chay: 'Đang chạy' };
 export const ICON_TP = { hop: 'ghi-am', 'may-chu': 'he-thong', csdl: 'kho', 'hen-gio': 'dong-ho', thu: 'thu', zalo: 'zalo', tep: 'tep', lich: 'lich', ai: 'ai', telegram: 'telegram' };

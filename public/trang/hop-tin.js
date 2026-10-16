@@ -86,6 +86,7 @@ function nutCuocHop(tep) {
 
 export async function veHopTin(goc, thamSo) {
   const t = trang.tin;
+  if (t.loc === 'zalo') t.loc = 'tat-ca'; // bộ lọc Zalo đã chuyển thành tab Zalo
   if (thamSo) t.chon = Number(thamSo);
   const khungDs = h('div', { class: 'bang ds-tin', 'aria-label': 'Danh sách tin' }, ...[1, 2, 3, 4, 5].map(() => h('div', { style: 'padding:12px 10px' }, xuong(14, '60%'), h('div', { style: 'height:8px' }), xuong(32))));
   const khungDoc = h('div', { class: 'bang doc-tin', 'aria-live': 'polite' });
@@ -101,7 +102,7 @@ export async function veHopTin(goc, thamSo) {
   });
   thay(goc, 
     h('div', { class: 'thanh-loc' },
-      nutLoc('tat-ca', 'Tất cả'), nutLoc('hom-nay', nhanHomNay), nutLoc('chua-xem', 'Chưa xem'), ...Object.entries(NGUON_TIN).map(([ma, n]) => nutLoc(ma, n.ten)),
+      nutLoc('tat-ca', 'Tất cả'), nutLoc('chua-xem', 'Chưa xem'), nutLoc('hom-nay', nhanHomNay), ...Object.entries(NGUON_TIN).filter(([ma]) => ma !== 'zalo').map(([ma, n]) => nutLoc(ma, n.ten)), // Zalo có tab riêng, không lặp thành bộ lọc
       h('button', { class: 'nut-hanh-dong', type: 'button', onclick: async () => { await api('/api/tin/da-xem-het', { method: 'POST' }); bao('Đã đánh dấu xem hết.'); capNhatDem(0); veHopTin(goc); } }, icon('xong'), 'Đánh dấu xem hết'),
       h('label', { class: 'o-tim' }, icon('tim'), oTim),
     ),

@@ -1529,3 +1529,11 @@ details.bang-suc-khoe[open] > summary { padding-bottom: 0; }
 @media (max-width: 420px) {
   .dau-trang h1#tieu-de-trang { font-size: 27px; }
 }
+
+/* Tạo dự án nhanh ở hàng lọc dự án của trang Việc */
+.them-du-an { display: inline-flex; align-items: center; }
+.them-du-an-nhanh { display: inline-flex; align-items: center; gap: 6px; }
+.them-du-an-nhanh[hidden], .chip-them-du-an[hidden] { display: none; }
+.chip-them-du-an svg { width: 14px; height: 14px; margin-right: 4px; }
+.o-du-an-moi { min-width: 180px; padding: 7px 12px; border: 1px solid var(--vach-2, rgba(128,128,128,.4)); border-radius: 999px; background: transparent; color: inherit; font: inherit; font-size: 14px; }
+.o-du-an-moi:focus-visible { outline: 2px solid var(--nhan); outline-offset: 2px; }

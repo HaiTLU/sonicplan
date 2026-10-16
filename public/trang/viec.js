@@ -78,11 +78,35 @@ export async function veViec(goc) {
       napViec();
     } });
 
+  // Tạo dự án ngay trên trang Việc: bấm "+ Dự án", gõ tên, Enter. Dự án mới được chọn sẵn để thêm việc vào.
+  function nutThemDuAn() {
+    const o = h('input', { type: 'text', class: 'o-du-an-moi', placeholder: 'Tên dự án mới', maxlength: '80', autocomplete: 'off', 'aria-label': 'Tên dự án mới' });
+    const dong = () => { form.hidden = true; nut.hidden = false; o.value = ''; };
+    const nut = h('button', { class: 'chip chip-them-du-an', type: 'button', onclick: () => { nut.hidden = true; form.hidden = false; o.focus(); } }, icon('cong'), 'Dự án');
+    const form = h('form', { class: 'them-du-an-nhanh', hidden: true },
+      o,
+      h('button', { class: 'chip', type: 'submit' }, 'Tạo'),
+      h('button', { class: 'chip', type: 'button', onclick: dong }, 'Hủy'));
+    o.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') dong(); });
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const ten = o.value.trim();
+      if (!ten) { o.focus(); return; }
+      try {
+        const r = await api('/api/du-an', { method: 'POST', body: JSON.stringify({ ten, luu_o: 'kho' }) });
+        bao(r.drive_loi ? `Đã tạo dự án "${ten}". ${r.drive_loi}` : `Đã tạo dự án "${ten}".`, r.drive_loi ? { loi: true } : undefined);
+        v.duAn = r.id;
+        napViec();
+      } catch (err) { bao(err.message, { loi: true }); }
+    });
+    return h('span', { class: 'them-du-an' }, nut, form);
+  }
+
   function veLoc(viec) {
     const dem = (f) => viec.filter(f).length;
     const chip = (ma, nhan, so, mau, da) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.duAn === ma), onclick: () => { v.duAn = ma; napViec(); } }, da && (da.icon || da.anh_khoa) ? anhDuAn(h, da, 'nho') : hexMau(mau) ? h('i', { class: 'cham-mau', style: `--mau:${hexMau(mau)}` }) : null, nhan, h('b', { text: String(so) }));
     const ds = S.duAnDs.filter((d) => viec.some((x) => x.du_an_id === d.id) || v.duAn === d.id);
-    thay(locDuAn, chip('tat-ca', 'Tất cả dự án', viec.length), ...ds.map((d) => chip(d.id, d.ten, dem((x) => x.du_an_id === d.id), d.mau, d)), dem((x) => !x.du_an_id) ? chip('khong', 'Chưa xếp dự án', dem((x) => !x.du_an_id)) : null);
+    thay(locDuAn, chip('tat-ca', 'Tất cả dự án', viec.length), ...ds.map((d) => chip(d.id, d.ten, dem((x) => x.du_an_id === d.id), d.mau, d)), dem((x) => !x.du_an_id) ? chip('khong', 'Chưa xếp dự án', dem((x) => !x.du_an_id)) : null, nutThemDuAn());
   }
 
   async function napViec() {

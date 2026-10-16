@@ -9,7 +9,7 @@ const oLenh = document.getElementById('o-lenh');
 const dsLenh = document.getElementById('ds-lenh');
 const LENH = [
   { nhan: 'Tổng quan', icon: 'tong-quan', lam: () => (location.hash = 'tong-quan'), goi: 'G T' },
-  { nhan: 'Hộp tin', icon: 'hop-tin', lam: () => (location.hash = 'hop-tin'), goi: 'G H' },
+  { nhan: 'Hộp tin', icon: 'hop-tin', lam: () => (location.hash = 'zalo'), goi: 'G H' },
   { nhan: 'Zalo', icon: 'zalo', lam: () => (location.hash = 'zalo'), goi: 'G Z' },
   { nhan: 'Việc', icon: 'viec', lam: () => (location.hash = 'viec'), goi: 'G V' },
   { nhan: 'Hiệu suất, quá tải, độ nặng việc', icon: 'tong-quan', lam: () => (location.hash = 'hieu-suat') },
@@ -69,7 +69,7 @@ document.addEventListener('keydown', (e) => {
   if (e.target.closest('input, textarea, select, dialog') || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (phimTruoc === 'g') {
-    const dich = { t: 'tong-quan', h: 'hop-tin', v: 'viec', c: 'claude' }[k];
+    const dich = { t: 'tong-quan', h: 'zalo', v: 'viec', c: 'claude' }[k];
     if (dich) location.hash = dich;
     phimTruoc = '';
     return;
