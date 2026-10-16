@@ -143,3 +143,15 @@ test('Google báo secret sai bằng mô tả khác mã lỗi vẫn ra thông bá
     await assert.rejects(doiMa({ client_id: 'a', client_secret: 'b' }, { grant_type: 'refresh_token', refresh_token: 'x' }), /Nhập lại khóa Google/);
   } finally { globalThis.fetch = goc; }
 });
+
+test('tin tệp chat riêng (không mã, không tieu_de) nhập chung với cuộc trò chuyện của người gửi, không hiện hai mục', async () => {
+  const env = csdlGia();
+  them(env, { ma: '1', gui: 'Đông', tieu_de: 'Đông', nd: 'Đã gửi một ảnh', luc: '2026-10-16T03:15:00Z', hoi: 'ca-nhan:29' });
+  them(env, { ma: 'tep-2026-10-16T03:15:01Z-a.jpg', gui: 'Đông', nd: 'Gửi tệp: a.jpg', luc: '2026-10-16T03:15:01Z' });
+  them(env, { ma: 'tep-x', gui: 'Lạ', nd: 'Gửi tệp: b.pdf', luc: '2026-10-16T03:16:00Z' }); // chưa có cuộc nào tên này: để nguyên một mục riêng
+  const { ds } = await dsHoiThoaiZalo(env, 't', new URL('http://x/'));
+  assert.deepEqual(ds.map((x) => x.khoa).sort(), ['ca-nhan:29', 'ca-nhan~Lạ']);
+  assert.equal(ds.find((x) => x.khoa === 'ca-nhan:29').n, 2);
+  const r = await tinHoiThoaiZalo(env, 't', new URL('http://x/api/zalo/tin?khoa=ca-nhan:29'));
+  assert.deepEqual((await r.json()).tin.map((x) => x.noi_dung), ['Đã gửi một ảnh', 'Gửi tệp: a.jpg']);
+});

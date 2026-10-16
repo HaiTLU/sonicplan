@@ -45,6 +45,12 @@ export function chuyenTinZalo(t) {
 // nhìn các tin người kia gửi quanh đó 30 phút. Chỉ khi toàn bộ chúng thuộc đúng một cuộc trò chuyện
 // thì xếp tin vào cuộc đó; có hai người trở lên thì để nguyên, không đoán bừa.
 export async function xepTinGuiDiVaoHoiThoai(env, toChucId) {
+  // Tin tệp từ máy Mac không kèm mã hội thoại và không có tieu_de, nên hiện thành một mục riêng cạnh cuộc trò chuyện của người gửi.
+  // Chat riêng thì tên người gửi chính là tên cuộc trò chuyện: điền tieu_de để bước nhập chung bên dưới ghép đúng cuộc đã có mã.
+  await env.CSDL.prepare(
+    `UPDATE tin_nhan SET tieu_de = nguoi_gui WHERE to_chuc_id = ?1 AND nguon = 'zalo' AND ma_goc LIKE 'tep-%' AND COALESCE(nhom, '') = ''
+       AND COALESCE(tieu_de, '') = '' AND COALESCE(ma_hoi_thoai, '') = '' AND COALESCE(nguoi_gui, '') NOT IN ('', 'Tôi')`,
+  ).bind(toChucId).run();
   // Tin cũ chưa có mã (trước bản vá) cùng tên nhóm/người với đúng một cuộc đã có mã thì nhập vào cuộc đó, khỏi hiện thành hai mục.
   for (const [cot, loai] of [['nhom', 'nhom'], ['tieu_de', 'ca-nhan']]) {
     const dieuKien = cot === 'nhom' ? `COALESCE(nhom, '') <> ''` : `COALESCE(nhom, '') = '' AND COALESCE(tieu_de, '') <> ''`;
