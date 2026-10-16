@@ -5,6 +5,7 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 ## [1.13.0] - 2026-10-16
 
 ### Đổi
+- Trang Việc nhớ cách hiển thị trên trình duyệt: kiểu xem (Theo hạn, Theo dự án), Ẩn cột trống, Có sao và các bộ lọc Nguồn, Hạn, Độ nặng. Tab Đang mở/Đã xong và dự án đang chọn vẫn về mặc định mỗi lần mở để không ẩn nhầm việc.
 - Mở Sonicplan (và bấm Hôm nay, logo) vào thẳng trang Việc thay vì Tổng quan. Tổng quan vẫn là thẻ đầu tiên của Hôm nay.
 - Hộp tin Zalo: tin tệp của chat riêng nhập chung với cuộc trò chuyện của người gửi, hết hiện hai mục.
 

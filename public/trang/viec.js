@@ -5,6 +5,7 @@ import { batKeoTha } from '../keo-tha.js';
 import { hexMau, mauViec, oChonMau } from '../mau.js';
 import { dongTrinhDon, moTrinhDon } from '../trinh-don.js';
 import { NHOM, S, api, bao, capNhatDem, congNgay, h, homNay, icon, khungLoi, luc, meo, ngayHienThi, thay, trang, xuong } from './chung.js';
+import { luuTuyChonViec } from './tuy-chon-viec.js';
 import { moBangLenh } from './bang-lenh.js';
 import { moMuc } from './dieu-huong.js';
 import { doiXong, huyViec, moTinhChinh, moTrinhDonViec, mucTrinhDonViec } from './tong-quan.js';
@@ -53,7 +54,7 @@ export async function veViec(goc) {
   const tab = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.tab === ma), onclick: () => { v.tab = ma; veViec(goc); } }, nhan);
   const vung = h('div', { class: 'cot-viec-wrap' }, ...[1, 2, 3].map(() => h('div', { class: 'cot-viec', style: 'padding:16px' }, xuong(16, '40%'), h('div', { style: 'height:14px' }), xuong(70), h('div', { style: 'height:8px' }), xuong(70))));
   const locDuAn = h('div', { class: 'thanh-loc loc-du-an', 'aria-label': 'Lọc theo dự án' });
-  const chon = (khoa, nhan, ds) => h('label', { class: 'chon-loc' }, h('span', { text: nhan }), h('select', { 'aria-label': nhan, onchange: (e) => { v[khoa] = e.target.value; napViec(); } }, ...ds.map(([ma, ten]) => h('option', { value: ma, selected: v[khoa] === ma, text: ten }))));
+  const chon = (khoa, nhan, ds) => h('label', { class: 'chon-loc' }, h('span', { text: nhan }), h('select', { 'aria-label': nhan, onchange: (e) => { v[khoa] = e.target.value; luuTuyChonViec(v); napViec(); } }, ...ds.map(([ma, ten]) => h('option', { value: ma, selected: v[khoa] === ma, text: ten }))));
   // Bộ lọc phụ gom vào nút "Lọc" kèm số bộ lọc đang bật; máy tính mở sẵn, điện thoại gập sẵn trừ khi đang lọc.
   const soLoc = ['nguon', 'han', 'nang'].filter((k) => v[k] && v[k] !== 'tat-ca').length + (v.chiSao ? 1 : 0);
   if (v.moLoc === undefined) v.moLoc = !window.matchMedia?.('(max-width: 860px)').matches;
@@ -67,10 +68,10 @@ export async function veViec(goc) {
     chon('nguon', 'Nguồn', [['tat-ca', 'Tất cả'], ['zalo', 'Zalo'], ['gmail', 'Gmail'], ['hop', 'Cuộc họp'], ['tay', 'Tự thêm']]),
     chon('han', 'Hạn', [['tat-ca', 'Tất cả'], ['qua-han', 'Quá hạn'], ['hom-nay', 'Hôm nay'], ['tuan', 'Tuần này'], ['khong', 'Chưa có hạn']]),
     chon('nang', 'Độ nặng', [['tat-ca', 'Tất cả'], ['nhe', 'Nhẹ'], ['vua', 'Vừa'], ['nang', 'Nặng'], ['rat_nang', 'Rất nặng']]),
-    h('button', { class: 'chip chip-sao', type: 'button', 'aria-pressed': String(v.chiSao), onclick: () => { v.chiSao = !v.chiSao; veViec(goc); } }, icon('sao'), 'Có sao'),
+    h('button', { class: 'chip chip-sao', type: 'button', 'aria-pressed': String(v.chiSao), onclick: () => { v.chiSao = !v.chiSao; luuTuyChonViec(v); veViec(goc); } }, icon('sao'), 'Có sao'),
   )) : null;
-  const xem = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.xem === ma), onclick: () => { v.xem = ma; try { localStorage.setItem('sp.viec.xem', ma); } catch {} veViec(goc); } }, nhan);
-  thay(goc, form, h('div', { class: 'thanh-loc' }, tab('mo', 'Đang mở'), tab('xong', 'Đã xong'), v.tab === 'mo' ? h('span', { class: 'gian' }) : null, v.tab === 'mo' ? xem('han', 'Theo hạn') : null, v.tab === 'mo' ? xem('du-an', 'Theo dự án') : null, v.tab === 'mo' && v.xem === 'du-an' ? h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.anTrong), title: 'Ẩn các cột dự án chưa có việc', onclick: () => { v.anTrong = !v.anTrong; napViec(); } }, 'Ẩn cột trống') : null), locDuAn, locKhac, vung);
+  const xem = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.xem === ma), onclick: () => { v.xem = ma; luuTuyChonViec(v); veViec(goc); } }, nhan);
+  thay(goc, form, h('div', { class: 'thanh-loc' }, tab('mo', 'Đang mở'), tab('xong', 'Đã xong'), v.tab === 'mo' ? h('span', { class: 'gian' }) : null, v.tab === 'mo' ? xem('han', 'Theo hạn') : null, v.tab === 'mo' ? xem('du-an', 'Theo dự án') : null, v.tab === 'mo' && v.xem === 'du-an' ? h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.anTrong), title: 'Ẩn các cột dự án chưa có việc', onclick: () => { v.anTrong = !v.anTrong; luuTuyChonViec(v); napViec(); } }, 'Ẩn cột trống') : null), locDuAn, locKhac, vung);
   batKeoTha(vung, { khiTha: (d) => khiThaViec(d, v, napViec), nhanDuoc: (ma) => ma !== 'qua-han' && v.tab === 'mo',
     khiThaCot: async (ids) => {
       try { await api('/api/du-an/sap-xep', { method: 'POST', body: JSON.stringify({ ids }) }); bao('Đã lưu thứ tự dự án.'); } catch (err) { bao(err.message, { loi: true }); }

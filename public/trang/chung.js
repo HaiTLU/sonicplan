@@ -1,5 +1,6 @@
 // Giao diện Sonicplan, Phần dùng chung: định dạng ngày giờ, dựng phần tử, gọi API, khung giải thích, trạng thái chung.
 import { moMuc } from './dieu-huong.js';
+import { docTuyChonViec } from './tuy-chon-viec.js';
 
 const MUI_GIO = 'Asia/Ho_Chi_Minh';
 export const fmt = {
@@ -152,10 +153,7 @@ export function tenNhom(ten) {
   return /^nh[oó]m\s/i.test(ten) ? ten : `Nhóm ${ten}`;
 }
 
-function docXemViec() {
-  try { return localStorage.getItem('sp.viec.xem') === 'han' ? 'han' : 'du-an'; } catch { return 'du-an'; }
-}
-export const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', gio: null, q: '', chon: null, ds: [] }, viec: { tab: 'mo', duAn: 'tat-ca', xem: docXemViec(), anTrong: false, nguon: 'tat-ca', han: 'tat-ca', nang: 'tat-ca', chiSao: false }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
+export const trang = { toi: null, zalo: { loc: 'tat-ca', q: '' }, tin: { loc: 'tat-ca', gio: null, q: '', chon: null, ds: [] }, viec: { tab: 'mo', duAn: 'tat-ca', ...docTuyChonViec() }, tep: { q: '' }, nho: { loai: 'tat-ca', q: '' } };
 export const TEN_MUC = { 'tong-quan': 'Tổng quan', 'hop-tin': 'Hộp tin', zalo: 'Zalo', viec: 'Việc', 'hieu-suat': 'Hiệu suất', 'du-an': 'Dự án', claude: 'Claude', 'ghi-nho': 'Ghi nhớ', tep: 'Tệp', luong: 'Luồng', 'ket-noi': 'Kết nối', 'nhat-ky': 'Nhật ký chạy', 'du-lieu': 'Dữ liệu của bạn', 'da-chan': 'Đã chặn' };
 // Bốn mục chính, mỗi mục gom vài trang con (kế hoạch chuẩn quốc tế 13/10/2026, giai đoạn 3).
 // Đường dẫn cũ (#viec, #zalo...) giữ nguyên để liên kết đã lưu vẫn mở được.
