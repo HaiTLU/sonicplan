@@ -224,6 +224,34 @@ test('thợ chạy trọn một lượt: ngữ cảnh vào kho, kết quả lên
   await tho.dong();
 });
 
+test('thợ chạy lượt gộp nhiều việc: tin gốc và tệp của từng việc, tệp người dùng thêm, tệp bỏ chọn không lên kho', async () => {
+  const { db, env } = moiTruong();
+  const them = (id, hoi, nhom, nd) => db.prepare(`INSERT INTO tin_nhan (id, to_chuc_id, nguon, ma_goc, nguoi_gui, nhom, noi_dung, thoi_diem, tao_luc, ma_hoi_thoai) VALUES (?1, 'tc1', 'zalo', ?2, 'An', ?3, ?4, '2026-10-14T01:00:00Z', '2026-10-14T01:00:00Z', ?5)`).run(id, `g${id}`, nhom, nd, hoi);
+  them(1, 'nhom:A', 'Nhóm A', 'Làm giúp em báo cáo tuần');
+  them(2, 'nhom:B', 'Nhóm B', 'Xem giúp em kịch bản Marcom');
+  const tep = (id, tinId, ten, nguon, khoa) => db.prepare(`INSERT INTO tep (id, to_chuc_id, tin_nhan_id, ten, loai, kich_thuoc, r2_khoa, nguon, tao_luc) VALUES (?1, 'tc1', ?2, ?3, 'csv', 4, ?4, ?5, '2026-10-14')`).run(id, tinId, ten, khoa, nguon);
+  tep(1, 1, 'so-lieu-a.csv', 'zalo', 'kA');
+  tep(2, 2, 'kich-ban-b.csv', 'zalo', 'kB');
+  tep(3, 2, 'bo-chon.csv', 'zalo', 'kX');
+  tep(4, null, 'tu-them.csv', 'giao-claude', 'kT');
+  env.TEP = { get: async (k) => ({ arrayBuffer: async () => new TextEncoder().encode(`noi-dung-${k}`).buffer }) };
+  viec(db, 1, 'Soạn báo cáo tuần', 'claude_chuan_bi', '2026-10-20', 1);
+  viec(db, 2, 'Xem kịch bản Marcom', 'claude_chuan_bi', '2026-10-21', 2);
+  const id = await taoLuotMay(env, 'tc1', { id: 1 }, { viecPhu: [{ id: 2 }], tepTuy: { them: [4], bo: [3] } });
+  const { goc, kbNguon, claude } = await dungChayThu();
+  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
+  await tho.vongMotLan();
+  await tho.doiXong();
+  const l = db.prepare('SELECT * FROM luot_claude WHERE id = ?').get(id);
+  assert.equal(l.trang_thai, 'xong', l.ket_qua);
+  const ds = git(kbNguon, 'ls-tree', '-r', '--name-only', `sonicplan/luot-${id}`).trim().split('\n');
+  const dk = ds.filter((x) => x.includes('/dinh-kem/')).map((x) => x.split('/').pop()).sort();
+  assert.deepEqual(dk, ['kich-ban-b.csv', 'so-lieu-a.csv', 'tu-them.csv']);
+  const nguCanh = git(kbNguon, 'show', `sonicplan/luot-${id}:${l.thu_muc_lam}/NGU-CANH.md`);
+  assert.match(nguCanh, /Làm giúp em báo cáo tuần/);
+  assert.match(nguCanh, /Xem giúp em kịch bản Marcom/);
+});
+
 test('thợ: hai lượt bắt đầu cùng lúc, lần đầu chưa có bản sao KB, đều xong (không tranh nhau clone)', async () => {
   const { db, env } = moiTruong();
   env.TEP = { get: async () => null };

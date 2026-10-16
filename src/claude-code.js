@@ -257,7 +257,7 @@ export async function giaoClaude(env, tc, viecIds, tuyChon, goc) {
   const luot = [];
   for (const ds of nhom) {
     if (may) {
-      luot.push(await taoLuotMay(env, tc, ds[0], { dan: ghiDan, viecPhu: ds.slice(1), tiep: tuyChon.tiepLuot }));
+      luot.push(await taoLuotMay(env, tc, ds[0], { dan: ghiDan, viecPhu: ds.slice(1), tiep: tuyChon.tiepLuot, tepTuy: tuyChon.tepTuy }));
       continue;
     }
     const ma = maNgauNhien(40);

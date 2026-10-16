@@ -5,6 +5,7 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 ## [1.13.0] - 2026-10-16
 
 ### Đổi
+- Giao Claude cả dự án (gộp nhiều việc một lượt): ngữ cảnh gồm tin gốc, cuộc trò chuyện và tệp đính kèm của TỪNG việc (trước đây chỉ lấy của việc đầu). Khung giao có mục "Tệp đi kèm": hiện các tệp tìm được để bỏ chọn, và nút "Thêm tệp" để tự đính kèm (tối đa 10 tệp, 25 MB mỗi tệp; lượt gộp nhận tối đa 25 tệp). Migration 0032.
 - Hộp tin mở thẳng tab Zalo. Thứ tự tab: Zalo, Dòng tin (đổi tên từ Tất cả tin), Đã chặn. Bỏ chip Zalo lặp trong Dòng tin, xếp chip: Tất cả, Chưa xem, Hôm nay, Thư, Họp.
 - Tạo dự án ngay ở trang Việc: nút "+ Dự án" ở hàng lọc dự án, gõ tên rồi Enter, dự án mới được chọn sẵn.
 - Trang Việc nhớ cách hiển thị trên trình duyệt: kiểu xem (Theo hạn, Theo dự án), Ẩn cột trống, Có sao và các bộ lọc Nguồn, Hạn, Độ nặng. Tab Đang mở/Đã xong và dự án đang chọn vẫn về mặc định mỗi lần mở để không ẩn nhầm việc.

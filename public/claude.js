@@ -58,7 +58,7 @@ export function moKhungGiaoClaude(viec, { h, api, bao, icon, duAn = null, danSan
     ? h('fieldset', { class: 'kc-nhom' },
       h('legend', { text: `Việc giao (${viec.length})` }),
       h('ul', { class: 'kc-ds-viec' }, ...viec.map((v) => h('li', {}, h('label', {},
-        h('input', { type: 'checkbox', checked: '', onchange: (e) => { if (e.target.checked) chon.add(v.id); else chon.delete(v.id); capNhatNut(); } }),
+        h('input', { type: 'checkbox', checked: '', onchange: (e) => { if (e.target.checked) chon.add(v.id); else chon.delete(v.id); capNhatNut(); veTep(); } }),
         h('span', { text: v.tieu_de }))))))
     : h('p', { class: 'kc-viec', text: viec[0].tieu_de });
 
@@ -71,6 +71,41 @@ export function moKhungGiaoClaude(viec, { h, api, bao, icon, duAn = null, danSan
           h('span', {}, h('strong', { text: ten }), h('small', { text: mo })))))
     : null;
 
+  // Tệp đi kèm: tệp tự tìm được quanh các việc (bỏ chọn được) và tệp tự thêm (gửi lên khi bấm Giao).
+  let tepTuDong = [];
+  const boChon = new Set();
+  const tepThem = [];
+  const kb = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round((b || 0) / 1024))} KB`);
+  const dsTep = h('ul', { class: 'kc-ds-tep' });
+  const oChonTep = h('input', { type: 'file', multiple: true, hidden: '', onchange: () => {
+    for (const f of oChonTep.files) {
+      if (tepThem.length >= 10) { bao('Mỗi lần thêm tối đa 10 tệp.', { loi: true }); break; }
+      if (f.size > 25 * 1024 * 1024) { bao(`${f.name} lớn quá 25 MB.`, { loi: true }); continue; }
+      tepThem.push(f);
+    }
+    oChonTep.value = '';
+    veTep();
+  } });
+  const veTep = () => {
+    const hien = tepTuDong.filter((t) => chon.has(t.viec_id));
+    const tenViec = new Map(viec.map((v) => [v.id, v.tieu_de]));
+    const dong = [
+      ...hien.map((t) => h('li', {}, h('label', {},
+        h('input', { type: 'checkbox', ...(boChon.has(t.id) ? {} : { checked: '' }), onchange: (e) => { if (e.target.checked) boChon.delete(t.id); else boChon.add(t.id); } }),
+        h('span', {}, h('strong', { text: t.ten }), h('small', { text: ` ${kb(t.kich_thuoc)}${nhieu ? ` · ${tenViec.get(t.viec_id) || ''}` : ''} · có sẵn trong tin` }))))),
+      ...tepThem.map((f, i) => h('li', { class: 'kc-tep-them' },
+        h('span', {}, h('strong', { text: f.name }), h('small', { text: ` ${kb(f.size)} · bạn thêm` })),
+        h('button', { class: 'nut-icon', type: 'button', 'aria-label': `Bỏ ${f.name}`, onclick: () => { tepThem.splice(i, 1); veTep(); } }, '×'))),
+    ];
+    dsTep.replaceChildren(...(dong.length ? dong : [h('li', { class: 'kc-tep-trong', text: 'Chưa có tệp nào kèm theo. Thêm tệp nếu Claude cần xem.' })]));
+  };
+  const khungTep = h('fieldset', { class: 'kc-nhom kc-tep' },
+    h('legend', { text: 'Tệp đi kèm' }),
+    dsTep,
+    h('div', { class: 'kc-tep-nut' }, h('button', { class: 'nut nut-phu nut-nho', type: 'button', onclick: () => oChonTep.click() }, icon('cong'), 'Thêm tệp'), oChonTep));
+  api(`/api/claude/dinh-kem?viec_ids=${viec.map((v) => v.id).join(',')}`).then((r) => { tepTuDong = r.tep || []; veTep(); }).catch(() => {});
+  veTep();
+
   const vungHoi = h('section', { class: 'kc-hoi', 'aria-live': 'polite', 'aria-busy': 'true' },
     h('p', { class: 'kc-dang-doc' }, h('span', { class: 'cham-quay', 'aria-hidden': 'true' }), 'Claude đang đọc việc xem có cần hỏi gì thêm…'));
   const oDan = h('textarea', { id: 'kc-dan', rows: '3', maxlength: '4000', 'aria-label': 'Dặn thêm Claude', placeholder: 'Ví dụ: soạn email trả lời, giọng lịch sự, dưới 200 chữ' });
@@ -82,7 +117,7 @@ export function moKhungGiaoClaude(viec, { h, api, bao, icon, duAn = null, danSan
       h('h2', { id: 'kc-tieu-de' }, icon('ai'), h('span', { text: duAn ? `Giao Claude cả dự án ${duAn}` : 'Giao Claude' })),
       h('button', { class: 'nut-dong', type: 'button', 'aria-label': 'Đóng', onclick: dong }, '×')),
     h('div', { class: 'kc-than' },
-      dsViec, cachLam, vungHoi, dan,
+      dsViec, cachLam, khungTep, vungHoi, dan,
       h('p', { class: 'kc-ghi', text: 'Câu nào bỏ trống, Claude tự chọn cách hợp lý. Claude chỉ soạn nháp, không tự gửi gì ra ngoài.' })),
     h('footer', { class: 'kc-chan' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: dong }, 'Hủy'), nutGiao),
   );
@@ -91,7 +126,13 @@ export function moKhungGiaoClaude(viec, { h, api, bao, icon, duAn = null, danSan
     nutGiao.disabled = true;
     const so = chon.size;
     try {
-      const kq = await api('/api/claude/giao', { method: 'POST', body: JSON.stringify({ viec_ids: [...chon], cach, dan: oDan.value, tra_loi: cauHoi.map((c) => c.lay()) }) });
+      let tepThemIds = [];
+      if (tepThem.length) {
+        const fd = new FormData();
+        for (const f of tepThem) fd.append('tep', f, f.name);
+        tepThemIds = (await api('/api/claude/dinh-kem', { method: 'POST', body: fd })).tep.map((t) => t.id);
+      }
+      const kq = await api('/api/claude/giao', { method: 'POST', body: JSON.stringify({ viec_ids: [...chon], cach, dan: oDan.value, tra_loi: cauHoi.map((c) => c.lay()), tep_them: tepThemIds, tep_bo: [...boChon] }) });
       if (kq.loi_mot_phan) bao(`Giao được ${kq.cac_luot.length} lượt, lượt sau gặp lỗi: ${kq.loi_mot_phan}`, { loi: true });
       else bao(so > 1 ? `Đã giao ${so} việc cho Claude${cach === 'gop' ? ' trong một lượt' : ''}. Kết quả hiện ở từng việc.` : 'Đã giao cho Claude. Kết quả sẽ hiện trong việc.');
       dong();

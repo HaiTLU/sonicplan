@@ -12,7 +12,7 @@ import { GOC_DU_AN, goiYThuMuc, laDuAnChung, tenThuMuc } from '../src/kb.js';
 import { nhayCam } from '../src/ghi-nho.js';
 import { khoangNgay, dungChiSoMd, dungMauRaSoatMd, layMauRaSoat, loiNhacRaSoat, tinhChatLuongTachViec } from '../src/danh-gia-tach-viec.js';
 import { taoThongBao } from '../src/thong-bao.js';
-import { chonViecTuDong, docGhiNhoMd, dungGhiNhoMd, hopNhatGhiNho, demLoiTuDongGanDay, demTuDongHomNay, docCauHinhTho, dungLichSuMd, dungNguCanhMd, layDinhKem, layGhiNhoSonicplan, layLichSuLuot, layTinNguCanh, loiNhacTho, taoLuotMay, thuMucLamViec } from '../src/tho-claude.js';
+import { chonViecTuDong, docGhiNhoMd, dungGhiNhoMd, hopNhatGhiNho, demLoiTuDongGanDay, demTuDongHomNay, docCauHinhTho, dungLichSuMd, dungNguCanhMd, layDinhKem, layGhiNhoSonicplan, TOI_DA_DINH_KEM_GOP, layLichSuLuot, layTinNguCanh, loiNhacTho, taoLuotMay, thuMucLamViec } from '../src/tho-claude.js';
 
 const TOI_DA_PHUT = 30;
 const CONG_CU = ['Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'TodoWrite', 'Task', 'Skill', 'Bash(python3:*)', 'Bash(node:*)', 'Bash(ls:*)', 'Bash(cat:*)', 'Bash(mkdir:*)'];
@@ -284,11 +284,16 @@ export function moThoClaude(env, cfg = {}) {
       const goc = join(w, thuMucLam);
       await mkdir(join(goc, 'ket-qua'), { recursive: true });
       await mkdir(join(goc, 'dinh-kem'), { recursive: true });
-      const tin = await layTinNguCanh(env, luot.to_chuc_id, viecList[0]);
-      const dinhKem = await layDinhKem(env, luot.to_chuc_id, tin.quanh.map((t) => t.id));
+      // Ngữ cảnh của TỪNG việc trong lượt (giao cả dự án thì mọi việc, không chỉ việc đầu), tệp của mọi việc cộng tệp người dùng tự thêm, trừ tệp đã bỏ chọn.
+      const tins = [];
+      for (const v of viecList) tins.push(await layTinNguCanh(env, luot.to_chuc_id, v));
+      const tin = tins[0];
+      let tuyTep = null;
+      try { tuyTep = luot.tep_tuy ? JSON.parse(luot.tep_tuy) : null; } catch { /* bỏ qua */ }
+      const dinhKem = await layDinhKem(env, luot.to_chuc_id, [...new Set(tins.flatMap((t) => t.quanh.map((x) => x.id)))], { ...(tuyTep || {}), gioiHan: viecList.length > 1 ? TOI_DA_DINH_KEM_GOP : undefined });
       for (const t of dinhKem) if (t.byte) await writeFile(join(goc, 'dinh-kem', `${t.ten.replace(/[\\/:*?"<>|\0]/g, '_').slice(0, 120)}`), t.byte);
       const ghiNho = await layGhiNhoSonicplan(env, luot.to_chuc_id, duAn?.ten);
-      await writeFile(join(goc, 'NGU-CANH.md'), dungNguCanhMd({ viecList, duAn, tin, ghiNho, dinhKem }));
+      await writeFile(join(goc, 'NGU-CANH.md'), dungNguCanhMd({ viecList, duAn, tin, tins, ghiNho, dinhKem }));
       await writeFile(join(goc, 'LICH-SU.md'), dungLichSuMd((await layLichSuLuot(env, luot.to_chuc_id, viecList[0])).filter((l) => l.id !== luot.id)));
       const truoc = luot.tiep_luot ? (await env.CSDL.prepare('SELECT ket_qua FROM luot_claude WHERE id = ?1 AND to_chuc_id = ?2').bind(luot.tiep_luot, luot.to_chuc_id).first())?.ket_qua : null;
       const loiNhac = loiNhacTho({ viecList, duAn, thuMucLam, dan: luot.dan, truoc });
@@ -362,7 +367,7 @@ export function moThoClaude(env, cfg = {}) {
         const dangCua = [...dangChay.values()].filter((x) => x.tc === tc).length;
         let ranh = cauHinh.song_song - dangCua;
         if (ranh <= 0) continue;
-        const { results: cho } = await env.CSDL.prepare(`SELECT id, to_chuc_id, viec_id, dan, tiep_luot FROM luot_claude WHERE to_chuc_id = ?1 AND noi_chay = 'may' AND trang_thai = 'cho' AND lo_id IS NULL ORDER BY id LIMIT ?2`).bind(tc, ranh).all();
+        const { results: cho } = await env.CSDL.prepare(`SELECT id, to_chuc_id, viec_id, dan, tiep_luot, tep_tuy FROM luot_claude WHERE to_chuc_id = ?1 AND noi_chay = 'may' AND trang_thai = 'cho' AND lo_id IS NULL ORDER BY id LIMIT ?2`).bind(tc, ranh).all();
         for (const l of cho) { await batDauLuot(l); ranh--; }
         if (ranh <= 0) continue;
         if ((await demLoiTuDongGanDay(env, tc)) >= 2) continue; // cầu dao: 2 lượt tự chạy lỗi trong 2 giờ qua

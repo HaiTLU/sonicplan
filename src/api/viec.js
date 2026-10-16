@@ -9,7 +9,8 @@ import { docTichHop } from '../tich-hop.js';
 import { cat, json, loi, ngayVN } from '../tien-ich.js';
 import { themViec } from '../viec.js';
 import { laChu } from './chung.js';
-import { docCauHinhTho } from '../tho-claude.js';
+import { docCauHinhTho, dsDinhKemTuDong } from '../tho-claude.js';
+import { luuTep, TEP_TOI_DA } from '../hop-tin.js';
 
 const GIO = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -140,8 +141,30 @@ export async function xuLyViec(yeuCau, env, phien, url) {
   if (((khop = p.match(/^\/api\/viec\/(\d+)\/claude$/)) || p === '/api/claude/giao') && m === 'POST') {
     if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức giao việc cho Claude được.');
     const b = await yeuCau.json().catch(() => ({}));
-    const r = await giaoClaude(env, tc, khop ? [Number(khop[1])] : b.viec_ids, { dan: b.dan, traLoi: b.tra_loi, cach: b.cach, tiepLuot: b.tiep_luot }, url.origin);
+    const r = await giaoClaude(env, tc, khop ? [Number(khop[1])] : b.viec_ids, { dan: b.dan, traLoi: b.tra_loi, cach: b.cach, tiepLuot: b.tiep_luot, tepTuy: { them: b.tep_them, bo: b.tep_bo } }, url.origin);
     return r.loi ? loi(r.ma, r.loi) : json(r, 201);
+  }
+  // Tệp đi kèm khi giao Claude: liệt kê tệp tự tìm được quanh các việc, và nhận tệp người dùng tự thêm (lưu ở kho tệp, nguon 'giao-claude').
+  if (p === '/api/claude/dinh-kem' && m === 'GET') {
+    const ids = [...new Set(String(url.searchParams.get('viec_ids') || '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 20);
+    if (!ids.length) return json({ tep: [] });
+    const { results: viec } = await env.CSDL.prepare(`SELECT id, tieu_de, tin_nhan_id FROM viec WHERE to_chuc_id = ?1 AND id IN (${ids.map((_, i) => `?${i + 2}`).join(',')})`).bind(tc, ...ids).all();
+    return json({ tep: await dsDinhKemTuDong(env, tc, viec) });
+  }
+  if (p === '/api/claude/dinh-kem' && m === 'POST') {
+    if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức giao việc cho Claude được.');
+    const form = await yeuCau.formData().catch(() => null);
+    const ds = (form?.getAll('tep') || []).filter((t) => t && typeof t !== 'string' && t.size > 0);
+    if (!ds.length) return loi(400, 'Chưa chọn tệp nào.');
+    if (ds.length > 10) return loi(400, 'Mỗi lần thêm tối đa 10 tệp.');
+    if (ds.some((t) => t.size > TEP_TOI_DA)) return loi(413, 'Có tệp lớn quá 25 MB.');
+    const ra = [];
+    for (const t of ds) {
+      const id = await luuTep(env, tc, { ten: t.name || 'tep', loai: t.type || 'application/octet-stream', kich_thuoc: t.size, du_lieu: await t.arrayBuffer(), nguon: 'giao-claude', nguoi_gui: 'Tôi', nhom: '', tin_nhan_id: null });
+      if (!id) return loi(507, 'Kho tệp đã đầy, chưa thêm được tệp.');
+      ra.push({ id, ten: t.name || 'tep', kich_thuoc: t.size });
+    }
+    return json({ tep: ra }, 201);
   }
   if (p === '/api/claude/hoi-truoc' && m === 'POST') {
     const b = await yeuCau.json().catch(() => ({}));
