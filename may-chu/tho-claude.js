@@ -7,12 +7,13 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { hoanTatLuot } from '../src/claude-code.js';
+import { hoiAi, locTepTheoLuong } from '../src/luong-thu.js';
 import { taoNhapGmail } from '../src/google.js';
 import { GOC_DU_AN, goiYThuMuc, laDuAnChung, tenThuMuc } from '../src/kb.js';
 import { nhayCam } from '../src/ghi-nho.js';
 import { khoangNgay, dungChiSoMd, dungMauRaSoatMd, layMauRaSoat, loiNhacRaSoat, tinhChatLuongTachViec } from '../src/danh-gia-tach-viec.js';
 import { taoThongBao } from '../src/thong-bao.js';
-import { chonViecTuDong, docGhiNhoMd, dungGhiNhoMd, hopNhatGhiNho, demLoiTuDongGanDay, demTuDongHomNay, docCauHinhTho, dungLichSuMd, dungNguCanhMd, layDinhKem, layGhiNhoSonicplan, TOI_DA_DINH_KEM_GOP, layLichSuLuot, layTinNguCanh, loiNhacTho, taoLuotMay, thuMucLamViec } from '../src/tho-claude.js';
+import { chonViecTuDong, docGhiNhoMd, dungGhiNhoMd, hopNhatGhiNho, demLoiTuDongGanDay, demTuDongHomNay, docCauHinhTho, dungLichSuMd, dungNguCanhMd, docDinhKem, timDinhKem, TOI_DA_DINH_KEM, layGhiNhoSonicplan, TOI_DA_DINH_KEM_GOP, layLichSuLuot, layTinNguCanh, loiNhacTho, taoLuotMay, thuMucLamViec } from '../src/tho-claude.js';
 
 const TOI_DA_PHUT = 30;
 const CONG_CU = ['Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'TodoWrite', 'Task', 'Skill', 'Bash(python3:*)', 'Bash(node:*)', 'Bash(ls:*)', 'Bash(cat:*)', 'Bash(mkdir:*)'];
@@ -290,7 +291,10 @@ export function moThoClaude(env, cfg = {}) {
       const tin = tins[0];
       let tuyTep = null;
       try { tuyTep = luot.tep_tuy ? JSON.parse(luot.tep_tuy) : null; } catch { /* bỏ qua */ }
-      const dinhKem = await layDinhKem(env, luot.to_chuc_id, [...new Set(tins.flatMap((t) => t.quanh.map((x) => x.id)))], { ...(tuyTep || {}), gioiHan: viecList.length > 1 ? TOI_DA_DINH_KEM_GOP : undefined });
+      let tepRows = await timDinhKem(env, luot.to_chuc_id, [...new Set(tins.flatMap((t) => t.quanh.map((x) => x.id)))], { ...(tuyTep || {}), gioiHan: 100 });
+      // PM phụ trách Đào tạo ngắn hạn: lượt chưa qua khung giao (tự động) bỏ tệp của luồng Kết nối doanh nghiệp. Khung giao đã cho PM tự chọn thì giữ đúng lựa chọn.
+      if (!tuyTep?.da_chon) tepRows = await locTepTheoLuong(env, luot.to_chuc_id, tepRows, hoiAi(env, luot.to_chuc_id));
+      const dinhKem = await docDinhKem(env, tepRows.slice(0, viecList.length > 1 ? TOI_DA_DINH_KEM_GOP : TOI_DA_DINH_KEM));
       for (const t of dinhKem) if (t.byte) await writeFile(join(goc, 'dinh-kem', `${t.ten.replace(/[\\/:*?"<>|\0]/g, '_').slice(0, 120)}`), t.byte);
       const ghiNho = await layGhiNhoSonicplan(env, luot.to_chuc_id, duAn?.ten);
       await writeFile(join(goc, 'NGU-CANH.md'), dungNguCanhMd({ viecList, duAn, tin, tins, ghiNho, dinhKem }));

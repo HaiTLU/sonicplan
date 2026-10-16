@@ -252,6 +252,33 @@ test('thợ chạy lượt gộp nhiều việc: tin gốc và tệp của từn
   assert.match(nguCanh, /Xem giúp em kịch bản Marcom/);
 });
 
+test('thợ: lượt tự động bỏ tệp thư luồng Kết nối doanh nghiệp, lượt qua khung giao (PM đã chọn) giữ đúng lựa chọn', async () => {
+  const { db, env } = moiTruong();
+  const thu = (id, gui, tieuDe) => db.prepare(`INSERT INTO tin_nhan (id, to_chuc_id, nguon, ma_goc, nguoi_gui, tieu_de, noi_dung, thoi_diem, tao_luc) VALUES (?1, 'tc1', 'gmail', ?2, ?3, ?4, 'Nội dung thư', '2026-10-14T01:00:00Z', '2026-10-14T01:00:00Z')`).run(id, `m${id}`, gui, tieuDe);
+  thu(1, 'Công ty B <b@congty.vn>', 'Đề xuất tài trợ học bổng');
+  thu(2, 'Khoa A <a@thanglong.edu.vn>', 'Mở lớp ngắn hạn');
+  db.exec("INSERT INTO tep (id, to_chuc_id, tin_nhan_id, ten, loai, kich_thuoc, r2_khoa, nguon, tao_luc) VALUES (1, 'tc1', 1, 'hop-dong-tai-tro.csv', 'csv', 4, 'k1', 'gmail', '2026-10-14'), (2, 'tc1', 2, 'danh-sach-lop.csv', 'csv', 4, 'k2', 'gmail', '2026-10-14')");
+  env.TEP = { get: async () => ({ arrayBuffer: async () => new TextEncoder().encode('abcd').buffer }) };
+  env.CLAUDE_CODE_AI = { chay: async () => '[{"id":1,"luong":"doanh_nghiep"},{"id":2,"luong":"dao_tao"}]' };
+  viec(db, 1, 'Xử lý đề xuất tài trợ', 'claude_chuan_bi', '2026-10-20', 1);
+  viec(db, 2, 'Mở lớp Excel', 'claude_chuan_bi', '2026-10-21', 2);
+  const tuDong = await taoLuotMay(env, 'tc1', { id: 1 }, { tuDong: true, viecPhu: [{ id: 2 }] });
+  const { goc, kbNguon, claude } = await dungChayThu();
+  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
+  await tho.vongMotLan();
+  await tho.doiXong();
+  const dsTep = (id) => git(kbNguon, 'ls-tree', '-r', '--name-only', `sonicplan/luot-${id}`).trim().split('\n').filter((x) => x.includes('/dinh-kem/')).map((x) => x.split('/').pop()).sort();
+  assert.equal(db.prepare('SELECT trang_thai FROM luot_claude WHERE id = ?').get(tuDong).trang_thai, 'xong');
+  assert.deepEqual(dsTep(tuDong), ['danh-sach-lop.csv']);
+  assert.equal(db.prepare('SELECT luong FROM tin_nhan WHERE id = 1').get().luong, 'doanh_nghiep');
+  // PM đã xem danh sách ở khung giao và tự tích lại tệp luồng doanh nghiệp: giữ đúng, không lọc lại.
+  db.exec("UPDATE viec SET trang_thai = 'mo'");
+  const chon = await taoLuotMay(env, 'tc1', { id: 1 }, { viecPhu: [{ id: 2 }], tepTuy: { them: [], bo: [], da_chon: true } });
+  await tho.vongMotLan();
+  await tho.doiXong();
+  assert.deepEqual(dsTep(chon), ['danh-sach-lop.csv', 'hop-dong-tai-tro.csv']);
+});
+
 test('thợ: hai lượt bắt đầu cùng lúc, lần đầu chưa có bản sao KB, đều xong (không tranh nhau clone)', async () => {
   const { db, env } = moiTruong();
   env.TEP = { get: async () => null };

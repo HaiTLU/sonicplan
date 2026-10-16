@@ -92,7 +92,7 @@ export function moKhungGiaoClaude(viec, { h, api, bao, icon, duAn = null, danSan
     const dong = [
       ...hien.map((t) => h('li', {}, h('label', {},
         h('input', { type: 'checkbox', ...(boChon.has(t.id) ? {} : { checked: '' }), onchange: (e) => { if (e.target.checked) boChon.delete(t.id); else boChon.add(t.id); } }),
-        h('span', {}, h('strong', { text: t.ten }), h('small', { text: ` ${kb(t.kich_thuoc)}${nhieu ? ` · ${tenViec.get(t.viec_id) || ''}` : ''} · có sẵn trong tin` }))))),
+        h('span', {}, h('strong', { text: t.ten }), h('small', { text: ` ${kb(t.kich_thuoc)}${nhieu ? ` · ${tenViec.get(t.viec_id) || ''}` : ''} · ${t.luong === 'doanh_nghiep' ? 'thư luồng Kết nối doanh nghiệp, bỏ sẵn' : t.luong === 'chung' ? 'thông tin chung của Trường' : t.luong === 'dao_tao' ? 'thư luồng Đào tạo ngắn hạn' : 'có sẵn trong tin'}` }))))),
       ...tepThem.map((f, i) => h('li', { class: 'kc-tep-them' },
         h('span', {}, h('strong', { text: f.name }), h('small', { text: ` ${kb(f.size)} · bạn thêm` })),
         h('button', { class: 'nut-icon', type: 'button', 'aria-label': `Bỏ ${f.name}`, onclick: () => { tepThem.splice(i, 1); veTep(); } }, '×'))),
@@ -103,7 +103,7 @@ export function moKhungGiaoClaude(viec, { h, api, bao, icon, duAn = null, danSan
     h('legend', { text: 'Tệp đi kèm' }),
     dsTep,
     h('div', { class: 'kc-tep-nut' }, h('button', { class: 'nut nut-phu nut-nho', type: 'button', onclick: () => oChonTep.click() }, icon('cong'), 'Thêm tệp'), oChonTep));
-  api(`/api/claude/dinh-kem?viec_ids=${viec.map((v) => v.id).join(',')}`).then((r) => { tepTuDong = r.tep || []; veTep(); }).catch(() => {});
+  api(`/api/claude/dinh-kem?viec_ids=${viec.map((v) => v.id).join(',')}`).then((r) => { tepTuDong = r.tep || []; for (const t of tepTuDong) if (t.bo_san) boChon.add(t.id); veTep(); }).catch(() => {});
   veTep();
 
   const vungHoi = h('section', { class: 'kc-hoi', 'aria-live': 'polite', 'aria-busy': 'true' },
@@ -132,7 +132,7 @@ export function moKhungGiaoClaude(viec, { h, api, bao, icon, duAn = null, danSan
         for (const f of tepThem) fd.append('tep', f, f.name);
         tepThemIds = (await api('/api/claude/dinh-kem', { method: 'POST', body: fd })).tep.map((t) => t.id);
       }
-      const kq = await api('/api/claude/giao', { method: 'POST', body: JSON.stringify({ viec_ids: [...chon], cach, dan: oDan.value, tra_loi: cauHoi.map((c) => c.lay()), tep_them: tepThemIds, tep_bo: [...boChon] }) });
+      const kq = await api('/api/claude/giao', { method: 'POST', body: JSON.stringify({ viec_ids: [...chon], cach, dan: oDan.value, tra_loi: cauHoi.map((c) => c.lay()), tep_them: tepThemIds, tep_bo: [...boChon], tep_da_chon: true }) });
       if (kq.loi_mot_phan) bao(`Giao được ${kq.cac_luot.length} lượt, lượt sau gặp lỗi: ${kq.loi_mot_phan}`, { loi: true });
       else bao(so > 1 ? `Đã giao ${so} việc cho Claude${cach === 'gop' ? ' trong một lượt' : ''}. Kết quả hiện ở từng việc.` : 'Đã giao cho Claude. Kết quả sẽ hiện trong việc.');
       dong();

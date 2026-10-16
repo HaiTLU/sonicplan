@@ -2,6 +2,7 @@
 // Tệp này là phần logic dùng chung (hàng đợi, gói ngữ cảnh, lời nhắc); phần chạy tiến trình nằm ở may-chu/tho-claude.js.
 // Hạn mức do PM đặt 15/10/2026: 2 việc cùng lúc, 10 việc tự chạy mỗi ngày, Sonnet 5.5 mức medium.
 
+import { phanLuongThu } from './luong-thu.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
 import { thuMucLamViec } from './kb.js';
 import { bam, maNgauNhien } from './tien-ich.js';
@@ -113,7 +114,8 @@ export function chuanTepTuy(x) {
   if (!x || typeof x !== 'object') return null;
   const them = dsSo(x.them);
   const bo = dsSo(x.bo);
-  return them.length || bo.length ? { them, bo } : null;
+  const daChon = x.da_chon === true; // người dùng đã xem danh sách tệp ở khung giao: không tự lọc theo luồng nữa
+  return them.length || bo.length || daChon ? { them, bo, ...(daChon ? { da_chon: true } : {}) } : null;
 }
 export async function timDinhKem(env, tc, idTin, { them = [], bo = [], gioiHan = TOI_DA_DINH_KEM } = {}) {
   const rows = [];
@@ -151,7 +153,7 @@ export async function layDinhKem(env, tc, idTin, tuyChon = {}) {
 }
 
 // Tệp tự tìm được cho một nhóm việc (để hiện trong khung giao Claude): gom theo từng việc, mỗi tệp chỉ một lần.
-export async function dsDinhKemTuDong(env, tc, viecList) {
+export async function dsDinhKemTuDong(env, tc, viecList, hoi = null) {
   const ra = [];
   const thay = new Set();
   for (const v of viecList) {
@@ -160,10 +162,12 @@ export async function dsDinhKemTuDong(env, tc, viecList) {
     for (const t of await timDinhKem(env, tc, ids, { gioiHan: 100 })) {
       if (thay.has(t.id)) continue;
       thay.add(t.id);
-      ra.push({ id: t.id, ten: t.ten, loai: t.loai, kich_thuoc: t.kich_thuoc, viec_id: v.id });
+      ra.push({ id: t.id, ten: t.ten, loai: t.loai, kich_thuoc: t.kich_thuoc, viec_id: v.id, tin_nhan_id: t.tin_nhan_id });
     }
   }
-  return ra;
+  // Luồng của thư chứa tệp (Đào tạo ngắn hạn, Kết nối doanh nghiệp, chung): tệp luồng Kết nối doanh nghiệp được bỏ chọn sẵn.
+  const luong = hoi ? await phanLuongThu(env, tc, ra.map((t) => t.tin_nhan_id).filter(Boolean), hoi) : new Map();
+  return ra.map(({ tin_nhan_id: tin, ...t }) => ({ ...t, luong: luong.get(tin) || null, bo_san: luong.get(tin) === 'doanh_nghiep' }));
 }
 
 // Các lượt Claude trước trong cùng dự án (hoặc cùng việc), kèm đánh giá và lý do làm lại của PM (nằm trong lời dặn của lượt sau).
