@@ -134,6 +134,7 @@ body::before, body::after { display: none; }
 .trang-thai-kn { border-radius: 999px; padding: 4px 12px; font-weight: 500; }
 .dem, .dem-zalo { border-radius: 999px; }
 .dem-zalo { background: var(--teal); color: var(--navy); }
+.nut-chuong .dem-chuong { background: var(--teal); color: var(--navy); font-weight: 700; } /* nền teal sáng ở cả hai giao diện, chữ navy đậm (nền --nhan ở giao diện sáng là teal tối, chữ navy gần như chìm) */
 .dem { color: var(--nhan); }
 
 /* Danh sách tin và Zalo. */

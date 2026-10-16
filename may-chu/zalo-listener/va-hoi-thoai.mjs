@@ -52,7 +52,7 @@ async function anhDaiDien(api, msg) {
   const ra = {};
   try {
     if (msg.type === ThreadType.Group) {
-      const url = await anhTheoMa(async () => (await api.getGroupInfo(msg.threadId)).gridInfoMap?.[msg.threadId]?.avt, 'g:' + msg.threadId);
+      const url = await anhTheoMa(async () => { const g = (await api.getGroupInfo(msg.threadId)).gridInfoMap?.[msg.threadId]; return g?.avt || g?.fullAvt; }, 'g:' + msg.threadId);
       if (url) ra.thread_avatar = url;
       if (!msg.isSelf && msg.data.uidFrom) {
         ra.sender_id = String(msg.data.uidFrom);

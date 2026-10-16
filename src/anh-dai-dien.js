@@ -5,7 +5,7 @@ import { choPhepMayChu } from './zalo-ngoai.js';
 
 const TOI_DA_BYTE = 2 * 1024 * 1024;
 const TOI_DA_MOI_LO = 30;
-const KIEU_ANH = { 'image/jpeg': 1, 'image/png': 1, 'image/gif': 1, 'image/webp': 1 };
+const KIEU_ANH = { 'image/jpeg': 1, 'image/jpg': 1, 'image/png': 1, 'image/gif': 1, 'image/webp': 1 };
 export const RE_MA_ANH = /^(nhom|ca-nhan|nguoi):[0-9A-Za-z_.-]{1,100}$/;
 
 // Gom từ một lô tin các ảnh cần lưu: ảnh cuộc trò chuyện (theo mã hội thoại) và ảnh người gửi trong nhóm.

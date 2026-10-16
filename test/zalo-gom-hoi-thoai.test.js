@@ -64,7 +64,7 @@ test('vá chương trình Zalo: thêm thread_id và tên người nhận, chạy
   assert.match(a.ma, /thread_id: msg\.threadId,/);
   assert.match(a.ma, /return tenNguoiDoiDien\(api, msg\);/);
   assert.match(a.ma, /\.\.\.\(await anhDaiDien\(api, msg\)\),/);
-  assert.match(a.ma, /gridInfoMap\?\.\[msg\.threadId\]\?\.avt/);
+  assert.match(a.ma, /g\?\.avt \|\| g\?\.fullAvt/);
   assert.match(a.ma, /setInterval\(\(\) => \{ if \(buffer\.length\) guiLo\(\); \}, 30_000\);/);
   assert.equal(vaMa(a.ma).doi, false);
   // bản đã vá lần trước (chỉ có mã hội thoại) vẫn được vá thêm phần gửi nhanh
