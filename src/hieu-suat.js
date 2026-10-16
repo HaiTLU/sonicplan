@@ -242,10 +242,33 @@ export function chuanDoNang(x) {
   return DO_NANG.includes(k) ? k : null;
 }
 
+// Câu trả lời bị cắt giữa chừng (hết max_tokens) thì JSON không đóng: lấy các đối tượng đã đóng ngoặc đủ
+// trong mảng đầu tiên, bỏ mục dở dang cuối cùng.
+export function docMucDu(chuoi) {
+  const m = /\[\s*\{/.exec(chuoi);
+  if (!m) return [];
+  const ds = [];
+  let sau = 0, dau = -1, trongChuoi = false, thoat = false;
+  for (let i = m.index + 1; i < chuoi.length; i++) {
+    const c = chuoi[i];
+    if (trongChuoi) {
+      if (thoat) thoat = false;
+      else if (c === '\\') thoat = true;
+      else if (c === '"') trongChuoi = false;
+    } else if (c === '"') trongChuoi = true;
+    else if (c === '{') { if (sau++ === 0) dau = i; }
+    else if (c === '}' && sau > 0 && --sau === 0) { try { ds.push(JSON.parse(chuoi.slice(dau, i + 1))); } catch { /* bỏ mục hỏng */ } }
+    else if (c === ']' && sau === 0) break;
+  }
+  return ds;
+}
+
 export function docKetQuaCham(tra, ids) {
   const du = docJson(tra);
   // AI hay đặt tên khóa khác nhau ("viec", "kq", "ket_qua"...): lấy mảng đầu tiên trong đối tượng.
-  const ds = Array.isArray(du) ? du : Array.isArray(du?.viec) ? du.viec : Object.values(du && typeof du === 'object' ? du : {}).find(Array.isArray) || [];
+  let ds = Array.isArray(du) ? du : Array.isArray(du?.viec) ? du.viec : Object.values(du && typeof du === 'object' ? du : {}).find(Array.isArray) || [];
+  const chu = tra?.response ?? tra;
+  if (du == null && typeof chu === 'string') ds = docMucDu(chu);
   const coId = new Set(ids);
   return ds
     .map((x) => ({ id: Number(String(x?.id ?? '').replace(/\D/g, '')), do_nang: chuanDoNang(x?.do_nang), phut: Number(x?.phut ?? x?.phut_uoc ?? x?.thoi_luong), ly_do: String(x?.ly_do || '').trim().slice(0, 200) || null, chua_ro: x?.chua_ro === true || x?.chua_ro === 'true' }))

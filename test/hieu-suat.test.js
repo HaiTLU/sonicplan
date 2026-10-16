@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { docKetQuaCham, heSoHoc, mucTai, phutThuc, tinhHieuSuat } from '../src/hieu-suat.js';
+import { chamViecToChuc, docKetQuaCham, heSoHoc, mucTai, phutThuc, tinhHieuSuat } from '../src/hieu-suat.js';
+import { d1, dungCsdl } from './csdl-thu.js';
 
 // Giờ UTC; 03:00Z = 10:00 giờ Việt Nam.
 const v = (id, o) => ({ id, tieu_de: `Việc ${id}`, trang_thai: 'mo', tao_luc: '2026-10-10T01:00:00Z', ...o });
@@ -72,4 +73,43 @@ test('đọc kết quả chấm: chấp nhận khối ```json, id dạng chữ, 
   assert.deepEqual(docKetQuaCham({ response: { viec: [{ id: 1, do_nang: 'nhe', phut: 10, ly_do: null, chua_ro: false }] } }, [1]), [{ id: 1, do_nang: 'nhe', phut: 10, ly_do: null, chua_ro: false }]);
   assert.deepEqual(docKetQuaCham('[{"id":1,"do_nang":"nang","phut":90}]', [1]), [{ id: 1, do_nang: 'nang', phut: 90, ly_do: null, chua_ro: false }]);
   assert.deepEqual(docKetQuaCham('{"viec":[{"id":5,"do_nang":"nhe","phut":15,"ly_do":"Tiêu đề quá chung, chưa rõ cập nhật gì","chua_ro":true}]}', [5]), [{ id: 5, do_nang: 'nhe', phut: 15, ly_do: 'Tiêu đề quá chung, chưa rõ cập nhật gì', chua_ro: true }]);
+});
+
+// Câu trả lời 25 việc bị cắt giữa mục thứ 18 như khi hết max_tokens; lý do có cả ngoặc và dấu nháy.
+const muc = (id) => ({ id, do_nang: 'vua', phut: 30, ly_do: `Soạn "tờ trình" {mục ${id}} rồi gửi [phòng] duyệt`, chua_ro: false });
+const traBiCat = (khoa = 'ket_qua') => {
+  const du = JSON.stringify({ [khoa]: Array.from({ length: 25 }, (_, i) => muc(i + 1)) });
+  return du.slice(0, du.indexOf('{"id":18,') + 40);
+};
+
+test('đọc kết quả chấm: câu trả lời bị cắt giữa chừng vẫn giữ các mục đã đủ', () => {
+  const ids = Array.from({ length: 25 }, (_, i) => i + 1);
+  for (const tra of [traBiCat(), traBiCat('viec'), `\`\`\`json\n${traBiCat('kq')}`, { response: traBiCat() }, JSON.stringify(Array.from({ length: 25 }, (_, i) => muc(i + 1))).slice(0, -30)]) {
+    const kq = docKetQuaCham(tra, ids);
+    assert.ok(kq.length >= 17, String(tra?.response ?? tra).slice(0, 40));
+    assert.deepEqual(kq[0], { ...muc(1), ly_do: 'Soạn "tờ trình" {mục 1} rồi gửi [phòng] duyệt' });
+    assert.ok(kq.every((x, i) => x.id === i + 1 && x.do_nang === 'vua'));
+  }
+  assert.equal(docKetQuaCham(traBiCat(), ids).length, 17);
+  // Cắt ngay trong mục đầu tiên: không có gì để giữ.
+  assert.deepEqual(docKetQuaCham('{"ket_qua":[{"id":1,"do_nang":"vua","ly_do":"Soạn {', ids), []);
+});
+
+test('chấm việc: AI trả câu bị cắt thì vẫn lưu các việc đã chấm đủ, không báo lỗi cả lượt', async () => {
+  const db = dungCsdl();
+  db.exec("INSERT INTO to_chuc (id, ten, tao_luc) VALUES ('tc1', 'T', '2026-01-01')");
+  const them = db.prepare("INSERT INTO viec (id, to_chuc_id, tieu_de, trang_thai, tao_luc, cap_nhat_luc) VALUES (?, 'tc1', ?, 'mo', '2026-10-15T01:00:00Z', '2026-10-15T01:00:00Z')");
+  for (let id = 1; id <= 25; id++) them.run(id, `Việc ${id}`);
+  let hoi = 0;
+  const env = { CSDL: d1(db), AI: { run: async () => { hoi++; return { response: traBiCat() }; } } };
+  assert.deepEqual(await chamViecToChuc(env, 'tc1'), { so: 17 });
+  assert.equal(hoi, 1);
+  const da = db.prepare("SELECT id, do_nang, phut_uoc, do_nang_nguon FROM viec WHERE do_nang IS NOT NULL ORDER BY id").all();
+  assert.deepEqual(da.map((x) => x.id), Array.from({ length: 17 }, (_, i) => i + 1));
+  assert.ok(da.every((x) => x.do_nang === 'vua' && x.phut_uoc === 30 && x.do_nang_nguon === 'ai'));
+  // Lượt sau chỉ còn 8 việc chưa chấm.
+  let canCham = [];
+  env.AI.run = async (_, { messages }) => { canCham = JSON.parse(messages.at(-1).content.split('Việc cần chấm:\n')[1]).map((x) => x.id); return { response: '{"viec":[]}' }; };
+  await assert.rejects(chamViecToChuc(env, 'tc1'), /AI không trả kết quả chấm đọc được/);
+  assert.deepEqual(canCham.sort((a, b) => a - b), [18, 19, 20, 21, 22, 23, 24, 25]);
 });
