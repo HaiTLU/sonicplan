@@ -127,18 +127,18 @@ export async function moDuongDan(duongDan) {
     } catch (e) { bao(e.message, { loi: true }); }
     return;
   }
-  const dich = String(duongDan || 'tong-quan').replace(/^#/, '');
+  const dich = String(duongDan || 'viec').replace(/^#/, '');
   if (location.hash === `#${dich}`) moMuc();
   else location.hash = dich;
 }
 
 export async function moMuc() {
-  const [ma, thamSo] = (location.hash.slice(1) || 'tong-quan').split('/');
+  const [ma, thamSo] = (location.hash.slice(1) || 'viec').split('/');
   if (ma === 'viec' && /^\d+$/.test(thamSo || '')) {
     history.replaceState(null, '', '#viec');
     moDuongDan(`#viec/${thamSo}`);
   }
-  const muc = VE[ma] ? ma : 'tong-quan';
+  const muc = VE[ma] ? ma : 'viec';
   document.querySelectorAll('[data-trang]').forEach((sec) => { sec.hidden = sec.dataset.trang !== muc; });
   const nhom = nhomCua(muc);
   document.querySelectorAll('[data-nhom]').forEach((a) => {

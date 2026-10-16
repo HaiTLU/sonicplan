@@ -4,6 +4,10 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 
 ## [1.13.0] - 2026-10-16
 
+### Đổi
+- Mở Sonicplan (và bấm Hôm nay, logo) vào thẳng trang Việc thay vì Tổng quan. Tổng quan vẫn là thẻ đầu tiên của Hôm nay.
+- Hộp tin Zalo: tin tệp của chat riêng nhập chung với cuộc trò chuyện của người gửi, hết hiện hai mục.
+
 ### Thêm
 - Hộp tin Zalo hiện ảnh đại diện thật như Zalo: ảnh cuộc trò chuyện ở danh sách và đầu khung chat, ảnh từng người gửi trong nhóm. Chương trình Zalo trên Mac gửi kèm địa chỉ ảnh (chạy lại `cai-va.sh` để vá), Sonicplan tải về lưu ở kho tệp, chỉ nhận ảnh từ máy chủ Zalo, đổi ảnh trên Zalo thì ảnh được tải lại. Chưa có ảnh hoặc ảnh lỗi thì vẫn hiện chữ cái đầu như trước. Migration 0030.
 

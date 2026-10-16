@@ -280,7 +280,7 @@ export function mucChung() {
     { vach: true },
     { nhan: 'Đi tới', con: NHOM.map((n) => ({ nhan: n.ten, lam: () => { location.hash = n.con[0]; } })) },
   ];
-  if ((location.hash.slice(1) || 'tong-quan').split('/')[0] === 'tong-quan' && S.boCucTQ) o.push({ nhan: 'Tinh chỉnh Tổng quan', lam: () => moTinhChinh(S.boCucTQ) });
+  if ((location.hash.slice(1) || 'viec').split('/')[0] === 'tong-quan' && S.boCucTQ) o.push({ nhan: 'Tinh chỉnh Tổng quan', lam: () => moTinhChinh(S.boCucTQ) });
   return o;
 }
 

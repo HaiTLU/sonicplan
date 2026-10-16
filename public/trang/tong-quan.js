@@ -516,7 +516,7 @@ async function moMucEm() {
   lamMoiEm = true;
   try { await moMuc(); } finally { lamMoiEm = false; }
 }
-const dangOTrangViec = () => (location.hash.slice(1) || 'tong-quan').split('/')[0] === 'viec';
+const dangOTrangViec = () => (location.hash.slice(1) || 'viec').split('/')[0] === 'viec';
 function napSauKhiDoi() { return dangOTrangViec() ? S.napLaiViec() : moMucEm(); }
 export const itChuyenDong = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 // Dòng việc mờ dần rồi thu chiều cao về 0, các dòng dưới trượt lên; trả về hàm gỡ hiệu ứng nếu cần hoàn lại.
