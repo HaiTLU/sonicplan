@@ -9,7 +9,7 @@ export const GIU_NGAY = 30;
 // Các bảng có cột to_chuc_id. Thêm bảng mới có cột này thì thêm vào đây (test/xoa-to-chuc.test.js kiểm đủ).
 export const BANG_CUA_TO_CHUC = [
   'viec_su_kien', 'luot_claude', 'nguon_chan', 'nhat_ky_truy_cap', 'kho_da_luu', 'ghi_nho', 'tep', 'viec', 'du_an',
-  'tin_nhan', 'cai_dat', 'lenh_cho', 'khoa_truy_cap', 'ket_noi', 'tin_hieu', 'nhat_ky_chay', 'thanh_vien', 'thong_bao', 'dang_ky_day',
+  'tin_nhan', 'cai_dat', 'lenh_cho', 'khoa_truy_cap', 'ket_noi', 'tin_hieu', 'nhat_ky_chay', 'thanh_vien', 'thong_bao', 'dang_ky_day', 'anh_dai_dien',
 ];
 
 // tenXacNhan: người dùng phải gõ đúng tên tổ chức (lần xác nhận thứ hai).
@@ -52,7 +52,7 @@ export async function donTepDaXoa(env, bayGio = new Date()) {
     // Tổ chức được khôi phục lại (có dòng to_chuc) thì bỏ mốc, không xóa tệp.
     const conLai = await env.CSDL.prepare('SELECT 1 AS x FROM to_chuc WHERE id = ?1').bind(tt.to_chuc_id).first();
     if (!conLai) {
-      for (const tienTo of [`${tt.to_chuc_id}/`, `sao-luu/${tt.to_chuc_id}/`]) {
+      for (const tienTo of [`${tt.to_chuc_id}/`, `sao-luu/${tt.to_chuc_id}/`, `anh-dai-dien/${tt.to_chuc_id}/`]) {
         let con = true;
         let cursor;
         while (con) {

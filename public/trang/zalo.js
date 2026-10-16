@@ -21,8 +21,15 @@ function chuDau(ten) {
 }
 // Bảy màu như Telegram: cùng một tên luôn ra cùng một màu, ở ảnh đại diện và tên người gửi trong nhóm.
 const chiSoMau = (ten) => mauAnh(ten) % 7;
-function anhZalo(ten, loai) {
-  return h('span', { class: `anh-zalo${loai === 'nhom' ? ' nhom' : ''}`, 'data-m': String(chiSoMau(ten)), style: `--h:${mauAnh(ten)}`, 'aria-hidden': 'true', text: chuDau(ten) });
+// anh: địa chỉ ảnh đại diện Zalo đã lưu. Có ảnh thì phủ lên chữ cái đầu; ảnh lỗi thì bỏ ảnh, chữ cái vẫn còn bên dưới.
+function anhZalo(ten, loai, anh) {
+  const the = h('span', { class: `anh-zalo${loai === 'nhom' ? ' nhom' : ''}`, 'data-m': String(chiSoMau(ten)), style: `--h:${mauAnh(ten)}`, 'aria-hidden': 'true', text: chuDau(ten) });
+  if (anh) {
+    const hinh = h('img', { src: anh, alt: '', loading: 'lazy', decoding: 'async' });
+    hinh.addEventListener('error', () => hinh.remove());
+    the.append(hinh);
+  }
+  return the;
 }
 function nhanNgayTin(iso) {
   const d = new Date(iso);
@@ -191,7 +198,7 @@ export async function veZalo(goc, thamSo) {
       const ai = x.nguoi_cuoi === 'Tôi' ? 'Bạn: ' : x.loai === 'nhom' && x.nguoi_cuoi ? `${x.nguoi_cuoi.split(' ').slice(-1)[0]}: ` : '';
       const li = h('li', { class: x.chua_xem ? 'chua-xem' : '' },
         h('button', { type: 'button', 'aria-current': String(Boolean(dang)), onclick: () => { location.hash = `zalo/${khoaHoiThoai(x)}`; } },
-          anhZalo(x.ten, x.loai),
+          anhZalo(x.ten, x.loai, x.anh),
           h('div', { style: 'min-width:0' },
             h('div', { class: 'dong-1' }, h('strong', { text: x.ten }), h('time', { datetime: x.cuoi, text: luc(x.cuoi) })),
             h('div', { class: 'dong-2' }, h('p', { text: `${ai}${trichTin(x.trich)}` }), x.chua_xem ? h('b', { class: 'dem-zalo', text: x.chua_xem > 99 ? '99+' : String(x.chua_xem), 'aria-label': `${x.chua_xem} tin chưa xem` }) : null),
@@ -222,6 +229,9 @@ export async function veZalo(goc, thamSo) {
       return api(`/api/zalo/tin?${q}`);
     };
     let tin = [];
+    let anhHoiThoai = null;
+    const anhNguoi = {};
+    const nhoAnh = (kq) => { if (kq.anh_hoi_thoai) anhHoiThoai = kq.anh_hoi_thoai; Object.assign(anhNguoi, kq.anh_nguoi); };
     let tep = [];
     let conNua = false;
     const luong = h('div', { class: 'luong-zalo', tabindex: '0', 'aria-label': `Tin trong ${ten}` });
@@ -234,7 +244,7 @@ export async function veZalo(goc, thamSo) {
         try {
           const cu = await tai(tin[0]);
           const caoCu = luong.scrollHeight;
-          tin = [...cu.tin, ...tin]; tep = [...cu.tep, ...tep]; conNua = cu.con_nua;
+          tin = [...cu.tin, ...tin]; tep = [...cu.tep, ...tep]; conNua = cu.con_nua; nhoAnh(cu);
           veLuong();
           luong.scrollTop = luong.scrollHeight - caoCu;
         } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
@@ -245,7 +255,7 @@ export async function veZalo(goc, thamSo) {
       const dongCum = () => {
         if (!truocEl) return;
         truocEl.classList.add('cuoi');
-        if (!truocEl.classList.contains('toi')) truocEl.querySelector('.cho-anh')?.replaceWith(anhZalo(truocEl._ten, 'ca-nhan'));
+        if (!truocEl.classList.contains('toi')) truocEl.querySelector('.cho-anh')?.replaceWith(anhZalo(truocEl._ten, 'ca-nhan', truocEl._anh));
       };
       for (const m of tin) {
         const ngay = nhanNgayTin(m.thoi_diem);
@@ -266,6 +276,7 @@ export async function veZalo(goc, thamSo) {
           h('div', { class: 'cot-tin' }, bong),
         );
         hang._ten = ten;
+        hang._anh = loai === 'nhom' ? anhNguoi[ten] : anhHoiThoai;
         if (toi && loai === 'ca-nhan' && khoa.includes('~')) hang._td = () => mucChuyenTin(m);
         con.push(hang);
         truocEl = hang;
@@ -305,11 +316,11 @@ export async function veZalo(goc, thamSo) {
     });
     try {
       const kq = await tai(null);
-      tin = kq.tin; tep = kq.tep; conNua = kq.con_nua;
+      tin = kq.tin; tep = kq.tep; conNua = kq.con_nua; nhoAnh(kq);
       thay(khungDoc,
         h('header', { class: 'dau-zalo' },
           h('button', { class: 'nut nut-phu nut-nho nut-quay', type: 'button', 'aria-label': 'Quay lại danh sách', onclick: () => { location.hash = 'zalo'; } }, icon('mui-ten')),
-          anhZalo(ten, loai),
+          anhZalo(ten, loai, anhHoiThoai),
           h('div', { style: 'flex:1;min-width:0' }, h('h2', { text: ten }), h('p', { text: loai === 'nhom' ? 'Nhóm Zalo' : 'Tin riêng' })),
           spamZalo.nut,
         ),
@@ -327,7 +338,7 @@ export async function veZalo(goc, thamSo) {
           const r = await api(`/api/zalo/tin?${new URLSearchParams({ khoa, sau_id: String(tin[tin.length - 1].id) })}`);
           if (!r.tin.length) return;
           const dangODay = luong.scrollHeight - luong.scrollTop - luong.clientHeight < 120;
-          tin = [...tin, ...r.tin];
+          tin = [...tin, ...r.tin]; nhoAnh(r);
           tep = [...tep, ...r.tep];
           veLuong();
           if (dangODay) luong.scrollTop = luong.scrollHeight;

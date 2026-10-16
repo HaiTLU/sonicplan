@@ -3,6 +3,7 @@
 // đổi N8N_WEBHOOK_URL và N8N_HEADER_VALUE trong tệp .env, không phải sửa mã.
 
 import { tomTatTin } from './ai.js';
+import { luuAnhTuLo } from './anh-dai-dien.js';
 import { docHoSo } from './ghi-nho.js';
 import { docDiaChiNgoai, napTepNgoai } from './zalo-ngoai.js';
 import { ghiTinHieu, luuTep, luuTin, TEP_TOI_DA } from './hop-tin.js';
@@ -112,6 +113,8 @@ export async function nhanZalo(yeuCau, env, ctx, duongDan) {
     // Tải ảnh và tệp về kho ngay khi tin về, trước khi đường dẫn Zalo hết hạn. Lỗi thì bỏ qua, trang tin vẫn thử lại khi mở.
     if (canNap.length) ctx.waitUntil((async () => { for (const id of canNap.slice(0, 15)) await napTepNgoai(env, toChucId, id).catch(() => {}); })());
     if (moi) await xepTinGuiDiVaoHoiThoai(env, toChucId).catch((e) => console.error('Xếp tin gửi đi lỗi', e));
+    // Ảnh đại diện Zalo (cuộc trò chuyện, người gửi): tải về kho ở nền, lỗi thì bỏ qua.
+    if (than.messages.some((t) => t && (t.thread_avatar || t.sender_avatar))) ctx.waitUntil(luuAnhTuLo(env, toChucId, than.messages.slice(0, 500)).catch((e) => console.error('Lưu ảnh đại diện lỗi', e)));
     // Ghi rõ chương trình Zalo trên Mac là bản đã vá (gửi mã hội thoại) hay chưa, để anh thấy ngay ở trang Kết nối.
     const daVa = than.messages.some((t) => t && t.thread_id);
     const chuVa = than.messages.length ? (daVa ? ', chương trình Zalo đã vá' : ', chương trình Zalo chưa vá (chạy cai-va.sh)') : '';

@@ -9,7 +9,8 @@ function csdlGia() {
   const db = new DatabaseSync(':memory:');
   db.exec(`CREATE TABLE tin_nhan (id INTEGER PRIMARY KEY AUTOINCREMENT, to_chuc_id TEXT, nguon TEXT, ma_goc TEXT, nguoi_gui TEXT, nhom TEXT, tieu_de TEXT, noi_dung TEXT, thoi_diem TEXT, da_xem INTEGER DEFAULT 0, an INTEGER DEFAULT 0, ma_hoi_thoai TEXT);
     CREATE TABLE tep (id INTEGER PRIMARY KEY, to_chuc_id TEXT, tin_nhan_id INTEGER, ten TEXT, loai TEXT, kich_thuoc INTEGER, drive_id TEXT);
-    CREATE TABLE kho_da_luu (to_chuc_id TEXT, loai TEXT, ma TEXT, drive_id TEXT);`);
+    CREATE TABLE kho_da_luu (to_chuc_id TEXT, loai TEXT, ma TEXT, drive_id TEXT);
+    CREATE TABLE anh_dai_dien (to_chuc_id TEXT, ma TEXT, ten TEXT, url_goc TEXT, r2_khoa TEXT, cap_nhat_luc TEXT);`);
   const chay = (sql, tham) => ({ q: db.prepare(sql.replace(/\?(\d+)/g, '?')), th: [...sql.matchAll(/\?(\d+)/g)].map((m) => tham[m[1] - 1]) });
   return { db, CSDL: { prepare: (sql) => ({ bind: (...tham) => {
     const { q, th } = chay(sql, tham);
@@ -62,6 +63,8 @@ test('vá chương trình Zalo: thêm thread_id và tên người nhận, chạy
   assert.ok(a.doi);
   assert.match(a.ma, /thread_id: msg\.threadId,/);
   assert.match(a.ma, /return tenNguoiDoiDien\(api, msg\);/);
+  assert.match(a.ma, /\.\.\.\(await anhDaiDien\(api, msg\)\),/);
+  assert.match(a.ma, /gridInfoMap\?\.\[msg\.threadId\]\?\.avt/);
   assert.match(a.ma, /setInterval\(\(\) => \{ if \(buffer\.length\) guiLo\(\); \}, 30_000\);/);
   assert.equal(vaMa(a.ma).doi, false);
   // bản đã vá lần trước (chỉ có mã hội thoại) vẫn được vá thêm phần gửi nhanh

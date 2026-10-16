@@ -1,6 +1,7 @@
 // API giao diện: Hộp tin: tin nhắn, nguồn bị chặn và hội thoại Zalo.
 // Mỗi nhóm nhận (yeuCau, env, phien, url) và trả Response, hoặc null nếu địa chỉ không thuộc nhóm này.
 import { boChan, chanNguon, danhSachChan, kiemChan, tuyChonChan } from '../chan-tin.js';
+import { anhCoSan, phucVuAnh } from '../anh-dai-dien.js';
 import { xepTinGuiDiVaoHoiThoai } from '../nhan-zalo.js';
 import { json, loi, ngayVN } from '../tien-ich.js';
 import { napTepNgoai } from '../zalo-ngoai.js';
@@ -100,7 +101,8 @@ export async function dsHoiThoaiZalo(env, tc, url) {
      SELECT khoa, loai, ten_hien AS ten, n, chua_xem, thoi_diem AS cuoi, nguoi_gui AS nguoi_cuoi, substr(noi_dung, 1, 120) AS trich
      FROM x WHERE rn = 1 AND ten_hien LIKE ?2 ORDER BY thoi_diem DESC LIMIT 300`,
   ).bind(tc, `%${q}%`).all();
-  return { ds: results };
+  const anh = new Map((await anhCoSan(env, tc, 'nhom')).concat(await anhCoSan(env, tc, 'ca-nhan')).map((a) => [a.ma, a.url]));
+  return { ds: results.map((r) => ({ ...r, anh: anh.get(r.khoa) || null })) };
 }
 
 // Chuyển tay tin mình gửi mà máy chủ không đoán được gửi cho ai (chương trình Zalo chưa vá, không có mã hội thoại)
@@ -165,7 +167,12 @@ export async function tinHoiThoaiZalo(env, tc, url) {
   if (!truocLuc) {
     await env.CSDL.prepare(`UPDATE tin_nhan SET da_xem = 1 WHERE ${dieuKien} AND da_xem = 0`).bind(tc, khoa).run();
   }
-  return json({ tin, tep, con_nua: conNua });
+  // Ảnh đại diện: của cuộc trò chuyện, và của từng người gửi trong nhóm (ghép theo tên hiển thị).
+  const anhHoiThoai = (await anhCoSan(env, tc, khoa.startsWith('nhom:') ? 'nhom' : 'ca-nhan')).find((a) => a.ma === khoa)?.url || null;
+  const tenGui = new Set(tin.map((t) => t.nguoi_gui).filter(Boolean));
+  const anhNguoi = {};
+  if (khoa.startsWith('nhom:') && tenGui.size) for (const a of await anhCoSan(env, tc, 'nguoi')) if (tenGui.has(a.ten)) anhNguoi[a.ten] = a.url;
+  return json({ tin, tep, con_nua: conNua, anh_hoi_thoai: anhHoiThoai, anh_nguoi: anhNguoi });
 }
 
 export async function xuLyTin(yeuCau, env, phien, url) {
@@ -176,6 +183,7 @@ export async function xuLyTin(yeuCau, env, phien, url) {
 
   if (p === '/api/zalo/hoi-thoai' && m === 'GET') return json(await dsHoiThoaiZalo(env, tc, url));
   if (p === '/api/zalo/tin' && m === 'GET') return tinHoiThoaiZalo(env, tc, url);
+  if ((khop = p.match(/^\/api\/anh\/([^/]+)$/)) && m === 'GET') return phucVuAnh(env, tc, decodeURIComponent(khop[1]));
   if (p === '/api/zalo/chuyen-tin' && m === 'POST') return chuyenTinSangHoiThoai(env, tc, await yeuCau.json().catch(() => ({})));
 
   if (p === '/api/tin' && m === 'GET') return json(await dsTin(env, tc, url));

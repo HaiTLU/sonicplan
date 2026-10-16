@@ -2,6 +2,11 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [1.13.0] - 2026-10-16
+
+### Thêm
+- Hộp tin Zalo hiện ảnh đại diện thật như Zalo: ảnh cuộc trò chuyện ở danh sách và đầu khung chat, ảnh từng người gửi trong nhóm. Chương trình Zalo trên Mac gửi kèm địa chỉ ảnh (chạy lại `cai-va.sh` để vá), Sonicplan tải về lưu ở kho tệp, chỉ nhận ảnh từ máy chủ Zalo, đổi ảnh trên Zalo thì ảnh được tải lại. Chưa có ảnh hoặc ảnh lỗi thì vẫn hiện chữ cái đầu như trước. Migration 0030.
+
 ## [1.12.0] - 2026-10-16
 
 ### Thêm
