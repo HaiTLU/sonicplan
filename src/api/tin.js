@@ -3,6 +3,7 @@
 import { boChan, chanNguon, danhSachChan, kiemChan, tuyChonChan } from '../chan-tin.js';
 import { anhCoSan, phucVuAnh } from '../anh-dai-dien.js';
 import { xepTinGuiDiVaoHoiThoai } from '../nhan-zalo.js';
+import { taoLenhGui, trangThaiGui } from '../zalo-gui.js';
 import { json, loi, ngayVN } from '../tien-ich.js';
 import { napTepNgoai } from '../zalo-ngoai.js';
 import { COT_DRIVE } from './chung.js';
@@ -184,6 +185,8 @@ export async function xuLyTin(yeuCau, env, phien, url) {
   if (p === '/api/zalo/hoi-thoai' && m === 'GET') return json(await dsHoiThoaiZalo(env, tc, url));
   if (p === '/api/zalo/tin' && m === 'GET') return tinHoiThoaiZalo(env, tc, url);
   if ((khop = p.match(/^\/api\/anh\/([^/]+)$/)) && m === 'GET') return phucVuAnh(env, tc, decodeURIComponent(khop[1]));
+  if (p === '/api/zalo/gui' && m === 'POST') return taoLenhGui(env, tc, phien, yeuCau);
+  if (p === '/api/zalo/gui' && m === 'GET') return trangThaiGui(env, tc, url);
   if (p === '/api/zalo/chuyen-tin' && m === 'POST') return chuyenTinSangHoiThoai(env, tc, await yeuCau.json().catch(() => ({})));
 
   if (p === '/api/tin' && m === 'GET') return json(await dsTin(env, tc, url));

@@ -58,13 +58,15 @@ test('máy Mac gửi thread_id thì lưu thành mã hội thoại có loại; th
 });
 
 test('vá chương trình Zalo: thêm thread_id và tên người nhận, chạy lại không đổi, mã lạ thì từ chối', () => {
-  const goc = `async function threadName(api, msg) {\n  if (msg.type !== ThreadType.Group) return msg.data.dName || msg.threadId;\n}\nbuffer.push({\n    id,\n    thread,\n    type: key === "group" ? "nhom" : "ca-nhan",\n  });\n  setInterval(async () => { await flush({ heartbeat: true }); saveSession(api); }, FLUSH_MIN * 60_000);\n`;
+  const goc = `async function threadName(api, msg) {\n  if (msg.type !== ThreadType.Group) return msg.data.dName || msg.threadId;\n}\nbuffer.push({\n    id,\n    thread,\n    type: key === "group" ? "nhom" : "ca-nhan",\n  });\n  setInterval(async () => { await flush({ heartbeat: true }); saveSession(api); }, FLUSH_MIN * 60_000);\n  setInterval(pollLenh, 60_000);\n}\nasync function main() {\n`;
   const a = vaMa(goc);
   assert.ok(a.doi);
   assert.match(a.ma, /thread_id: msg\.threadId,/);
   assert.match(a.ma, /return tenNguoiDoiDien\(api, msg\);/);
   assert.match(a.ma, /\.\.\.\(await anhDaiDien\(api, msg\)\),/);
   assert.match(a.ma, /g\?\.avt \|\| g\?\.fullAvt/);
+  assert.match(a.ma, /setInterval\(\(\) => pollGui\(api\), 3_000\);/);
+  assert.match(a.ma, /\/zalo-gui-cho/);
   assert.match(a.ma, /setInterval\(\(\) => \{ if \(buffer\.length\) guiLo\(\); \}, 30_000\);/);
   assert.equal(vaMa(a.ma).doi, false);
   // bản đã vá lần trước (chỉ có mã hội thoại) vẫn được vá thêm phần gửi nhanh

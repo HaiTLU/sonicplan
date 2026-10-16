@@ -65,7 +65,7 @@ export function icon(ten) {
 export async function api(duongDan, tuyChon = {}) {
   const ph = await fetch(duongDan, {
     ...tuyChon,
-    headers: { accept: 'application/json', ...(tuyChon.body ? { 'content-type': 'application/json' } : {}) },
+    headers: { accept: 'application/json', ...(tuyChon.body && !(tuyChon.body instanceof FormData) ? { 'content-type': 'application/json' } : {}) },
   });
   const duLieu = await ph.json().catch(() => ({}));
   if (!ph.ok) throw new Error(duLieu.loi || 'Không đọc được dữ liệu. Tải lại trang để thử lại.');

@@ -3,6 +3,7 @@
 // đổi N8N_WEBHOOK_URL và N8N_HEADER_VALUE trong tệp .env, không phải sửa mã.
 
 import { tomTatTin } from './ai.js';
+import { ketThucGui, layLenhGui, taiTepGui } from './zalo-gui.js';
 import { luuAnhTuLo } from './anh-dai-dien.js';
 import { docHoSo } from './ghi-nho.js';
 import { docDiaChiNgoai, napTepNgoai } from './zalo-ngoai.js';
@@ -101,6 +102,11 @@ export async function nhanZalo(yeuCau, env, ctx, duongDan) {
     if (Date.now() - Date.parse(lenh.tao_luc) > 15 * 60000) return json({}); // lệnh quá 15 phút thì bỏ
     return json({ cmd: lenh.lenh, since: lenh.tu_luc, label: lenh.nhan });
   }
+
+  // Gửi tin Zalo do chủ bấm trong Sonicplan: máy Mac lấy lệnh, tải tệp đính kèm, gửi rồi báo kết quả.
+  if (duongDan === '/nhan/zalo-gui-cho' && yeuCau.method === 'GET') return layLenhGui(env, toChucId);
+  if (duongDan === '/nhan/zalo-gui-tep' && yeuCau.method === 'GET') return taiTepGui(env, toChucId, new URL(yeuCau.url));
+  if (duongDan === '/nhan/zalo-gui-xong' && yeuCau.method === 'POST') return ketThucGui(env, toChucId, await yeuCau.json().catch(() => ({})));
 
   if (yeuCau.method !== 'POST') return loi(405, 'Sai phương thức.');
 

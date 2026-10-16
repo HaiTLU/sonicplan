@@ -4,6 +4,7 @@ import { api, bao, chep, congNgay, fmt, h, homNay, icon, khungLoi, kichThuoc, la
 import { moMuc } from './dieu-huong.js';
 import { nutSpam } from './hop-tin.js';
 import { kieuMo, kieuXemTep, moXemTep } from './tep.js';
+import { khungSoan } from './zalo-soan.js';
 import { chepChu } from './viec.js';
 
 // =====================================================================
@@ -130,37 +131,6 @@ function noiDungBong(m, files, tepTheoTin) {
 // Khóa hội thoại do máy chủ trả: mã hội thoại Zalo, hoặc "loại~tên" với tin cũ chưa có mã.
 const khoaHoiThoai = (x) => encodeURIComponent(x.khoa);
 
-// Khung soạn tin: Sonicplan không gửi thay bạn. Bấm gửi thì chép tin và mở Zalo để bạn dán vào đúng hội thoại.
-function khungSoan(ten) {
-  const o = h('textarea', { class: 'o-soan', name: 'tin', autocomplete: 'off', rows: '1', maxlength: '4000', placeholder: 'Soạn tin…', 'aria-label': `Soạn tin cho ${ten}` });
-  const nut = h('button', { class: 'nut-gui-zalo', type: 'submit', disabled: true, 'aria-label': 'Chép tin và mở Zalo' }, icon('gui'));
-  const khop = () => { o.style.height = 'auto'; o.style.height = `${Math.min(o.scrollHeight, 160)}px`; nut.disabled = !o.value.trim(); };
-  o.addEventListener('input', khop);
-  const form = h('form', { class: 'soan-zalo' }, o, nut);
-  form.addEventListener('submit', async (ev) => {
-    ev.preventDefault();
-    const van = o.value.trim();
-    if (!van) return;
-    // Mở Zalo ngay trong lúc còn thao tác bấm của người dùng (Safari chặn cửa sổ mở sau lệnh chờ), rồi mới đợi kết quả chép.
-    const chep = navigator.clipboard.writeText(van);
-    window.open('https://chat.zalo.me/', '_blank', 'noopener');
-    try {
-      await chep;
-    } catch {
-      bao('Trình duyệt chặn chép. Tin vẫn còn trong ô soạn: bôi đen và chép tay, hoặc cho phép trang này chép.', { loi: true });
-      return;
-    }
-    bao(`Đã chép tin. Dán vào hội thoại "${ten}" trong Zalo rồi bấm gửi.`);
-    o.value = '';
-    khop();
-  });
-  // Enter gửi, Shift+Enter xuống dòng. Đang gõ dấu tiếng Việt (IME) thì Enter chỉ chốt chữ, không gửi.
-  o.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && ev.keyCode !== 229) { ev.preventDefault(); form.requestSubmit(); }
-  });
-  return h('div', { class: 'vung-soan' }, form, h('p', { class: 'goi-y-soan', text: 'Sonicplan không gửi thay bạn: bấm gửi sẽ chép tin và mở Zalo.' }));
-}
-
 export async function veZalo(goc, thamSo) {
   const z = trang.zalo;
   let chon = null;
@@ -267,10 +237,10 @@ export async function veZalo(goc, thamSo) {
         const { nut, coAnh } = noiDungBong(m, files);
         const ten = m.nguoi_gui || 'Không rõ';
         if (!lien) dongCum();
-        const bong = h('div', { class: `bong-chat${coAnh ? ' co-anh' : ''}` },
+        const bong = h('div', { class: `bong-chat${coAnh ? ' co-anh' : ''}${m.tam ? (m.loi ? ' gui-loi' : m.da_gui ? ' da-gui' : ' dang-gui') : ''}` },
           !toi && loai === 'nhom' && !lien ? h('span', { class: `ten-gui m${chiSoMau(ten)}`, text: ten }) : null,
           ...nut,
-          h('time', { datetime: m.thoi_diem, text: fmt.gioPhut.format(new Date(m.thoi_diem)) }));
+          h('time', { datetime: m.thoi_diem, text: m.tam ? (m.loi ? 'Chưa gửi được' : m.da_gui ? 'Đã gửi' : 'Đang gửi…') : fmt.gioPhut.format(new Date(m.thoi_diem)) }));
         const hang = h('div', { class: `tin-zalo${toi ? ' toi' : ''}${lien ? ' lien' : ''}` },
           toi ? null : h('span', { class: 'cho-anh', 'aria-hidden': 'true' }),
           h('div', { class: 'cot-tin' }, bong),
@@ -314,6 +284,38 @@ export async function veZalo(goc, thamSo) {
       gui: (c) => api('/api/chan', { method: 'POST', body: JSON.stringify({ nguon: 'zalo', loai: c.loai, gia_tri: c.gia_tri, nhan: c.nhan }) }),
       sauKhi: () => { location.hash = 'zalo'; veZalo(goc); },
     });
+    // Tin đang gửi (do chủ bấm gửi trong khung soạn): hiện ngay ở cuối, chờ tin thật từ Zalo về thì bỏ.
+    const themTam = ({ chu, soTep }) => {
+      const tam = { id: -Date.now(), nguoi_gui: 'Tôi', noi_dung: chu || `Đang gửi ${soTep} tệp…`, thoi_diem: new Date().toISOString(), tam: true, moc: Date.now() };
+      tin = [...tin, tam];
+      veLuong();
+      luong.scrollTop = luong.scrollHeight;
+      return tam;
+    };
+    const daGui = (tam, loiGui) => {
+      if (loiGui) tam.loi = loiGui; else tam.da_gui = true;
+      tam.moc = Date.now();
+      veLuong();
+    };
+    const tinThat = () => tin.filter((x) => !x.tam);
+    const kiemTinMoi = async () => {
+      if (document.hidden || !tinThat().length) return;
+      try {
+        const cuoi = tinThat();
+        const r = await api(`/api/zalo/tin?${new URLSearchParams({ khoa, sau_id: String(cuoi[cuoi.length - 1].id) })}`);
+        const coToi = r.tin.some((x) => x.nguoi_gui === 'Tôi');
+        // Bỏ tin tạm đã gửi xong khi tin thật của mình về, hoặc sau 2 phút.
+        tin = tin.filter((x) => !(x.tam && ((x.da_gui && (coToi || Date.now() - x.moc > 120000)) || (x.loi && Date.now() - x.moc > 60000))));
+        if (!r.tin.length) { veLuong(); return; }
+        const dangODay = luong.scrollHeight - luong.scrollTop - luong.clientHeight < 120;
+        tin = [...tinThat(), ...r.tin, ...tin.filter((x) => x.tam)]; nhoAnh(r);
+        tep = [...tep, ...r.tep];
+        veLuong();
+        if (dangODay) luong.scrollTop = luong.scrollHeight;
+      } catch { /* lần sau thử lại */ }
+    };
+    // Tin mình vừa gửi về từ Zalo sau tối đa khoảng 30 giây (máy Mac gom lô): hỏi vài lần liền cho nhanh.
+    const lamMoiSauGui = () => { for (const ms of [4000, 12000, 25000, 40000]) setTimeout(() => { if (luong.isConnected) kiemTinMoi(); }, ms); };
     try {
       const kq = await tai(null);
       tin = kq.tin; tep = kq.tep; conNua = kq.con_nua; nhoAnh(kq);
@@ -326,24 +328,12 @@ export async function veZalo(goc, thamSo) {
         ),
         spamZalo.khung,
         luong,
-        khungSoan(ten),
+        khungSoan({ ten, khoa, vungTha: khungDoc, themTam, daGui, lamMoi: lamMoiSauGui }),
       );
       veLuong();
       luong.scrollTop = luong.scrollHeight;
       // Tin mới về thì hiện ngay trong hội thoại đang mở, không cần tải lại trang.
-      const nghe = setInterval(async () => {
-        if (!luong.isConnected) { clearInterval(nghe); return; }
-        if (document.hidden || !tin.length) return;
-        try {
-          const r = await api(`/api/zalo/tin?${new URLSearchParams({ khoa, sau_id: String(tin[tin.length - 1].id) })}`);
-          if (!r.tin.length) return;
-          const dangODay = luong.scrollHeight - luong.scrollTop - luong.clientHeight < 120;
-          tin = [...tin, ...r.tin]; nhoAnh(r);
-          tep = [...tep, ...r.tep];
-          veLuong();
-          if (dangODay) luong.scrollTop = luong.scrollHeight;
-        } catch { /* lần sau thử lại */ }
-      }, 10000);
+      const nghe = setInterval(() => { if (!luong.isConnected) { clearInterval(nghe); return; } kiemTinMoi(); }, 10000);
       const muc = ds.find((x) => x.khoa === khoa);
       if (muc?.chua_xem) {
         muc.chua_xem = 0;

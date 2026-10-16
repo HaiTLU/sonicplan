@@ -9,6 +9,7 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 - Hộp tin Zalo: tin tệp của chat riêng nhập chung với cuộc trò chuyện của người gửi, hết hiện hai mục.
 
 ### Thêm
+- Soạn và gửi tin Zalo ngay trong Sonicplan (chỉ chủ tổ chức): gõ chữ, chọn emoji, đính kèm ảnh và tệp bằng kẹp giấy, kéo thả hoặc dán ảnh, Enter gửi. Lệnh vào hàng đợi, chương trình Zalo trên Mac (chạy lại `cai-va.sh` để vá) lấy lệnh và gửi thật; lệnh chờ quá 3 phút thì bỏ, không gửi muộn; tối đa 20 lần mỗi 10 phút, 5 tệp mỗi lần. Chỉ tạo khi người dùng bấm gửi, thợ Claude và tác vụ hẹn giờ không tạo được. Cuộc trò chuyện chưa có mã Zalo thì giữ cách cũ (chép tin, mở Zalo). Migration 0031.
 - Hộp tin Zalo hiện ảnh đại diện thật như Zalo: ảnh cuộc trò chuyện ở danh sách và đầu khung chat, ảnh từng người gửi trong nhóm. Chương trình Zalo trên Mac gửi kèm địa chỉ ảnh (chạy lại `cai-va.sh` để vá), Sonicplan tải về lưu ở kho tệp, chỉ nhận ảnh từ máy chủ Zalo, đổi ảnh trên Zalo thì ảnh được tải lại. Chưa có ảnh hoặc ảnh lỗi thì vẫn hiện chữ cái đầu như trước. Migration 0030.
 
 ## [1.12.0] - 2026-10-16
