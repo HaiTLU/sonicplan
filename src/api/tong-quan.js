@@ -162,11 +162,12 @@ async function tinhKetNoi(env, tc, khoa, tinHieu) {
   if (th.kho) ds.push({ loai: 'kho', trang_thai: th.kho.ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th.kho.ghi_chu?.startsWith('Lỗi') ? th.kho.ghi_chu.slice(0, 120) : `Lưu ${gioTruoc(th.kho.lan_cuoi)}`, cap_nhat_luc: th.kho.lan_cuoi });
   if (env.TEP) ds.push({ loai: 'tep', trang_thai: 'dang_chay', mo_ta: 'Kho R2 sẵn sàng' });
   if (coKhoa.lich) ds.push({ loai: 'lich', trang_thai: 'dang_chay', mo_ta: coKhoa.lich.dung_luc ? `Lịch đọc ${gioTruoc(coKhoa.lich.dung_luc)}` : 'Chờ ứng dụng lịch đọc lần đầu' });
-  if (env.AI) {
+  if (env.AI || env.CLAUDE_CODE_AI) {
     const loiAi = await env.CSDL.prepare(`SELECT COUNT(*) AS n FROM tin_nhan WHERE to_chuc_id = ?1 AND da_tach = 3 AND tao_luc >= ?2`)
       .bind(tc, new Date(Date.now() - 86400000).toISOString())
       .first();
-    ds.push(loiAi.n ? { loai: 'ai', trang_thai: 'loi', mo_ta: `${loiAi.n} tin không tách được trong 24 giờ` } : { loai: 'ai', trang_thai: 'dang_chay', mo_ta: 'Workers AI sẵn sàng' });
+    const sanSang = env.CLAUDE_CODE_AI ? `${env.CLAUDE_CODE_AI.ten} sẵn sàng${env.AI ? ', dự phòng Workers AI' : ''}` : 'Workers AI sẵn sàng';
+    ds.push(loiAi.n ? { loai: 'ai', trang_thai: 'loi', mo_ta: `${loiAi.n} tin không tách được trong 24 giờ` } : { loai: 'ai', trang_thai: 'dang_chay', mo_ta: sanSang });
   }
   if (await docCaiDat(env, tc, 'telegram_chat_id')) ds.push({ loai: 'telegram', trang_thai: 'dang_chay', mo_ta: th.telegram ? `Gửi lần cuối ${gioTruoc(th.telegram.lan_cuoi)}` : 'Đã nối' });
   return ds;

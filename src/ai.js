@@ -1,6 +1,7 @@
 // Tách việc từ tin nhắn và tóm tắt tin. Mặc định dùng Workers AI của Cloudflare, không cần khóa.
 // Tổ chức dán khóa Claude hoặc loại tương thích OpenAI ở trang Kết nối thì dùng dịch vụ đó,
 // lỗi thì tự quay về Workers AI. Đổi mô hình mặc định bằng biến AI_MODEL trong wrangler.jsonc.
+// Máy chủ trên Mac còn có Claude Code gói Max đứng trước Workers AI (may-chu/ai-claude-code.js).
 
 import { chuanHoaGhiNho } from './ghi-nho.js';
 import { chayAiNgoai } from './tich-hop.js';
@@ -174,7 +175,8 @@ export function ghiChuKeHoach(v) {
   return dong.join('\n');
 }
 
-// Chạy AI: ưu tiên dịch vụ ngoài của tổ chức (ngoai), lỗi thì dùng Workers AI và gọi baoLoi(thongBao).
+// Chạy AI theo thứ tự: dịch vụ ngoài của tổ chức (ngoai), Claude Code gói Max của máy chủ trên Mac, Workers AI.
+// Bước nào lỗi thì gọi baoLoi(thongBao) rồi sang bước sau.
 export function themHoSo(messages, hoSo) {
   const ho = String(hoSo || '').trim();
   if (!ho || messages[0]?.role !== 'system') return messages;
@@ -189,13 +191,22 @@ export async function chayAi(env, tuyChon, messages, { maxTokens, nhietDo, khuon
     try {
       return await chayAiNgoai(ngoai, messages, { maxTokens, nhietDo, json: Boolean(khuon) });
     } catch (e) {
-      console.error('AI ngoài lỗi, dùng Workers AI', e);
+      console.error('AI ngoài lỗi, dùng AI có sẵn', e);
+      if (baoLoi) await baoLoi(String(e.message || e).slice(0, 150));
+    }
+  }
+  // Máy chủ trên Mac: Claude qua Claude Code gói Max (env.CLAUDE_CODE_AI, gắn ở may-chu/chay.js) đứng trước Workers AI.
+  if (env.CLAUDE_CODE_AI) {
+    try {
+      return await env.CLAUDE_CODE_AI.chay(messages);
+    } catch (e) {
+      console.error('Claude Code lỗi, dùng Workers AI', e);
       if (baoLoi) await baoLoi(String(e.message || e).slice(0, 150));
     }
   }
   if (tuyChon) tuyChon.duPhong = true; // đã quay về Workers AI: ghi nhớ từ lượt này có độ tin cậy thấp
   // Máy chủ trên Mac không có Workers AI khi thiếu CF_AI_TOKEN: báo rõ thay vì lỗi "undefined".
-  if (!env.AI) throw new Error(ngoai ? 'AI của bạn lỗi và máy chủ không có AI dự phòng' : 'Chưa nối AI, vào Kết nối > AI của bạn để dán khóa');
+  if (!env.AI) throw new Error(ngoai || env.CLAUDE_CODE_AI ? 'AI lỗi và máy chủ không có Workers AI dự phòng' : 'Chưa nối AI, vào Kết nối > AI của bạn để dán khóa');
   const phanHoi = await env.AI.run(moHinh(env), {
     messages,
     ...(khuon ? { response_format: { type: 'json_schema', json_schema: khuon } } : {}),

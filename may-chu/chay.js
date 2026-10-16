@@ -2,7 +2,8 @@
 // Chạy: node may-chu/chay.js   (cấu hình qua biến môi trường hoặc tệp may-chu/.env, xem may-chu/README.md)
 import { createServer } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { homedir, tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Readable } from 'node:stream';
 import worker from '../src/index.js';
@@ -11,6 +12,7 @@ import { chayMigration } from './migrate.js';
 import { moR2 } from './lop-r2.js';
 import { moTinh } from './lop-tinh.js';
 import { moAi } from './lop-ai.js';
+import { moAiClaudeCode } from './ai-claude-code.js';
 import { batHenGio } from './lich.js';
 import { moTram } from './lop-tram.js';
 import { moThoClaude } from './tho-claude.js';
@@ -112,6 +114,16 @@ export function taoMayChu(cauHinh = {}) {
   if (cfg.THO_CLAUDE !== '0') env.THO_CLAUDE = moThoClaude(env, cfg);
   const ai = moAi({ taiKhoan: cfg.CF_ACCOUNT_ID, token: cfg.CF_AI_TOKEN });
   if (ai) env.AI = ai;
+  // AI qua Claude Code gói Max, đứng trước Workers AI. Mặc định bật khi có lệnh claude; AI_CLAUDE_CODE=0 để tắt.
+  const claudeBin = cfg.CLAUDE_BIN || join(homedir(), '.local', 'bin', 'claude');
+  if (cfg.AI_CLAUDE_CODE !== '0' && existsSync(claudeBin)) {
+    env.CLAUDE_CODE_AI = moAiClaudeCode({
+      claudeBin,
+      model: cfg.AI_CLAUDE_CODE_MODEL || 'claude-sonnet-5-5',
+      effort: cfg.AI_CLAUDE_CODE_EFFORT || 'low',
+      thuMuc: join(tmpdir(), 'sonicplan-ai-claude-code'), // thư mục rỗng, ngoài mọi kho: không nạp CLAUDE.md hay cài đặt dự án nào
+    });
+  }
 
   const dangCho = new Set();
   const ctx = {
@@ -210,7 +222,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const cong = Number(m.cfg.PORT || 8787);
   const may = m.cfg.HOST || '127.0.0.1';
   m.maychu.listen(cong, may, () => {
-    console.log(`Sonicplan chạy ở ${may}:${cong}${m.cfg.PUBLIC_ORIGIN ? ` (địa chỉ công khai ${m.cfg.PUBLIC_ORIGIN})` : ''}${m.env.AI ? ', có AI' : ', không có AI'}`);
+    console.log(`Sonicplan chạy ở ${may}:${cong}${m.cfg.PUBLIC_ORIGIN ? ` (địa chỉ công khai ${m.cfg.PUBLIC_ORIGIN})` : ''}${m.env.CLAUDE_CODE_AI ? `, AI: ${m.env.CLAUDE_CODE_AI.ten}${m.env.AI ? ', dự phòng Workers AI' : ''}` : m.env.AI ? ', có AI' : ', không có AI'}`);
     if (m.cfg.HEN_GIO !== '0') m.batHenGio();
   });
   for (const tin of ['SIGINT', 'SIGTERM']) process.on(tin, () => m.dong().finally(() => process.exit(0)));
