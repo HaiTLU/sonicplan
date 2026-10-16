@@ -4,6 +4,10 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 
 ## [1.13.0] - 2026-10-16
 
+### Sửa
+- Bảng ghép dự án với thư mục ThangLong_KB (thẻ Claude làm việc ở máy) bị các hàng đè lên nhau, ô chọn bị cắt: ô ghép giờ tự cao.
+- Nút, tab, tiêu đề, đồng hồ và số liệu không chọn được chữ, nên không hiện con trỏ nhấp nháy khi trình duyệt bật duyệt bằng con trỏ văn bản (Chrome F7). Nội dung tin và ô nhập liệu vẫn chọn được.
+
 ### Đổi
 - Tệp thư đưa cho Claude chỉ lấy luồng Đào tạo ngắn hạn và thông tin chung của Trường. AI xếp từng thư Gmail vào luồng (lưu ở tin_nhan.luong, thư E-Office luôn là thông tin chung); tệp thư luồng Kết nối doanh nghiệp bị bỏ ở lượt tự động và bỏ chọn sẵn ở khung giao (tích lại được). Không chắc luồng thì giữ tệp. Hộp tin vẫn nhận đủ thư. Migration 0033.
 - Giao Claude cả dự án (gộp nhiều việc một lượt): ngữ cảnh gồm tin gốc, cuộc trò chuyện và tệp đính kèm của TỪNG việc (trước đây chỉ lấy của việc đầu). Khung giao có mục "Tệp đi kèm": hiện các tệp tìm được để bỏ chọn, và nút "Thêm tệp" để tự đính kèm (tối đa 10 tệp, 25 MB mỗi tệp; lượt gộp nhận tối đa 25 tệp). Migration 0032.

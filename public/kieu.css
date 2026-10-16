@@ -1517,7 +1517,7 @@ details.bang-suc-khoe[open] > summary { padding-bottom: 0; }
 
 /* Thợ Claude: ghép dự án với thư mục ThangLong_KB */
 .luoi-ghep-kb { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
-.luoi-ghep-kb .chon-loc { display: flex; flex-direction: column; align-items: stretch; gap: 4px; border-radius: 12px; padding: 8px 10px; }
+.luoi-ghep-kb .chon-loc { display: flex; flex-direction: column; align-items: stretch; gap: 4px; height: auto; border-radius: 12px; padding: 8px 10px; } /* .chon-loc có height 36px cho thanh lọc; ô ghép dự án gồm tên và ô chọn nên phải tự cao, nếu không các hàng đè lên nhau */
 .luoi-ghep-kb .chon-loc select { width: 100%; }
 
 /* Nút một biểu tượng đổi sáng tối. Điện thoại: khoảng cách hẹp lại để tiêu đề không bị ngắt dòng. */
@@ -1548,3 +1548,10 @@ details.bang-suc-khoe[open] > summary { padding-bottom: 0; }
 .kc-tep-trong { padding: 8px 10px; color: var(--phu); font-size: 13.5px; }
 .kc-tep-nut { display: flex; }
 .kc-tep-nut .nut svg { width: 14px; height: 14px; margin-right: 4px; }
+
+/* Con trỏ chữ nhấp nháy chỉ nên có ở ô nhập liệu. Khi trình duyệt bật "duyệt bằng con trỏ văn bản" (Chrome F7), bấm vào chữ nào chọn được cũng hiện con trỏ.
+   Phần giao diện (nút, tab, thanh lọc, tiêu đề, đồng hồ và số liệu, danh sách) không chọn được chữ nên không đặt được con trỏ; nội dung đọc và chép (tin, ghi chú, kết quả Claude) vẫn chọn được. */
+button, summary, legend, th, nav, h1, h2, h3, dt, dd, [role="tab"], [role="img"],
+.nut, .nut-icon, .chip, .thanh-loc, .dieu-huong, .tab-con, .ds-tin, .ds-zalo, .o-so, .so-lon, .the-so, .huy-hieu, .dem,
+[class^="hs-"], [class*=" hs-"] { user-select: none; -webkit-user-select: none; }
+input, textarea, select, [contenteditable], pre, code, .oChep { user-select: text; -webkit-user-select: text; }
