@@ -6,6 +6,7 @@
 import { chuanHoaGhiNho } from './ghi-nho.js';
 import { chayAiNgoai } from './tich-hop.js';
 import { trichBienBan } from './ghi-am-hop.js';
+import { TamDungHanMuc, docHetHanMuc, ghiHetHanMuc, laHetHanMucNgay } from './han-muc-ai.js';
 
 const MO_HINH_MAC_DINH = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 
@@ -207,12 +208,24 @@ export async function chayAi(env, tuyChon, messages, { maxTokens, nhietDo, khuon
   if (tuyChon) tuyChon.duPhong = true; // đã quay về Workers AI: ghi nhớ từ lượt này có độ tin cậy thấp
   // Máy chủ trên Mac không có Workers AI khi thiếu CF_AI_TOKEN: báo rõ thay vì lỗi "undefined".
   if (!env.AI) throw new Error(ngoai || env.CLAUDE_CODE_AI ? 'AI lỗi và máy chủ không có Workers AI dự phòng' : 'Chưa nối AI, vào Kết nối > AI của bạn để dán khóa');
-  const phanHoi = await env.AI.run(moHinh(env), {
-    messages,
-    ...(khuon ? { response_format: { type: 'json_schema', json_schema: khuon } } : {}),
-    max_tokens: maxTokens,
-    temperature: nhietDo,
-  });
+  // Đã biết hết hạn mức ngày thì không gọi nữa tới lúc đặt lại, khỏi lặp lỗi 429 mỗi 5 phút.
+  const tamDung = await docHetHanMuc(env);
+  if (tamDung) throw new TamDungHanMuc(tamDung);
+  let phanHoi;
+  try {
+    phanHoi = await env.AI.run(moHinh(env), {
+      messages,
+      ...(khuon ? { response_format: { type: 'json_schema', json_schema: khuon } } : {}),
+      max_tokens: maxTokens,
+      temperature: nhietDo,
+    });
+  } catch (e) {
+    if (laHetHanMucNgay(e)) {
+      await ghiHetHanMuc(env);
+      e.hetHanMuc = true;
+    }
+    throw e;
+  }
   return phanHoi?.response ?? phanHoi;
 }
 

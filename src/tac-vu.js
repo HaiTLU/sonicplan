@@ -2,6 +2,7 @@
 
 import { docLuong, dangYenLang } from './luong.js';
 import { chamViecMoi } from './hieu-suat.js';
+import { moTaLucDatLai } from './han-muc-ai.js';
 import { donTepDaXoa } from './xoa-to-chuc.js';
 import { banTinNgay, baoCaoTuan, cacToChuc, goiYMoi, gioDayDuVN } from './ban-tin.js';
 import { taoIssue } from './github.js';
@@ -146,6 +147,7 @@ export const CAC_TAC_VU = {
     let soTrung = 0;
     let soLienKet = 0;
     let duPhong = false;
+    let tamDung = null;
     const loiToChuc = [];
     for (const { to_chuc_id: id } of results) {
       // Một tổ chức lỗi không được làm các tổ chức sau bị bỏ qua cả lượt.
@@ -159,13 +161,18 @@ export const CAC_TAC_VU = {
         soLienKet += kq.so_lien_ket || 0;
         duPhong ||= Boolean(kq.du_phong);
       } catch (e) {
+        // Đang tạm dừng vì hết hạn mức ngày: tin còn nguyên ở hàng chờ, không phải sự cố mới.
+        if (e.tamDung) { tamDung = e.den; continue; }
         console.error('Tách việc lỗi ở tổ chức', id, e);
         loiToChuc.push(`tổ chức ${id}: ${String(e.message || e).slice(0, 100)}`);
       }
     }
     if (loiToChuc.length && !soViec && !soTin) throw new Error(loiToChuc.join('; '));
     const chiTiet = `AI thấy ${soAi} việc, trùng ${soTrung}, gắn vào việc cũ ${soLienKet}${duPhong ? ', dùng AI dự phòng' : ''}${loiToChuc.length ? `, lỗi ${loiToChuc.length} tổ chức` : ''}`;
-    return { so_muc: soViec, ghi_chu: soTin ? `Đọc ${soTin} tin, thêm ${soViec} việc (${chiTiet})` : 'Không có tin mới' };
+    // Tạm dừng thì không ghi nhật ký mỗi 5 phút; trang Tổng quan đã báo, tin chờ tới khi hạn mức đặt lại.
+    if (tamDung && !soTin) return { bo_qua: true };
+    const ghiChuTamDung = tamDung ? `; Workers AI hết hạn mức ngày, tin còn lại được giữ tới ${moTaLucDatLai(tamDung)}` : '';
+    return { so_muc: soViec, ghi_chu: soTin ? `Đọc ${soTin} tin, thêm ${soViec} việc (${chiTiet})${ghiChuTamDung}` : 'Không có tin mới' };
   },
 
   'bao-viec-moi': async (env, bayGio) => {

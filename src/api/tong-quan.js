@@ -1,5 +1,6 @@
 // API giao diện: Tổng quan, tình trạng hệ thống và nhật ký chạy.
 // Mỗi nhóm nhận (yeuCau, env, phien, url) và trả Response, hoặc null nếu địa chỉ không thuộc nhóm này.
+import { docHetHanMuc, moTaLucDatLai } from '../han-muc-ai.js';
 import { docCaiDat, ghiCaiDat } from '../hop-tin.js';
 import { TAC_VU } from '../lich-chay.js';
 import { json, loi, ngayVN } from '../tien-ich.js';
@@ -167,7 +168,12 @@ async function tinhKetNoi(env, tc, khoa, tinHieu) {
       .bind(tc, new Date(Date.now() - 86400000).toISOString())
       .first();
     const sanSang = env.CLAUDE_CODE_AI ? `${env.CLAUDE_CODE_AI.ten} sẵn sàng${env.AI ? ', dự phòng Workers AI' : ''}` : 'Workers AI sẵn sàng';
-    ds.push(loiAi.n ? { loai: 'ai', trang_thai: 'loi', mo_ta: `${loiAi.n} tin không tách được trong 24 giờ` } : { loai: 'ai', trang_thai: 'dang_chay', mo_ta: sanSang });
+    // Hết hạn mức ngày (gói miễn phí): tin được giữ ở hàng chờ, hiện rõ để biết Workers AI chạy lại lúc nào.
+    // Đã có Claude Code làm AI chính thì Workers AI hết hạn mức chỉ là cảnh báo dự phòng, không phải lỗi.
+    const hetHanMuc = env.AI ? await docHetHanMuc(env) : null;
+    if (hetHanMuc && env.CLAUDE_CODE_AI) ds.push({ loai: 'ai', trang_thai: 'dang_chay', mo_ta: `${sanSang}; Workers AI dự phòng hết hạn mức ngày, chạy lại lúc ${moTaLucDatLai(hetHanMuc)}` });
+    else if (hetHanMuc) ds.push({ loai: 'ai', trang_thai: 'loi', mo_ta: `Workers AI hết hạn mức ngày, tin được giữ lại, tự chạy lại lúc ${moTaLucDatLai(hetHanMuc)}` });
+    else ds.push(loiAi.n ? { loai: 'ai', trang_thai: 'loi', mo_ta: `${loiAi.n} tin không tách được trong 24 giờ` } : { loai: 'ai', trang_thai: 'dang_chay', mo_ta: sanSang });
   }
   if (await docCaiDat(env, tc, 'telegram_chat_id')) ds.push({ loai: 'telegram', trang_thai: 'dang_chay', mo_ta: th.telegram ? `Gửi lần cuối ${gioTruoc(th.telegram.lan_cuoi)}` : 'Đã nối' });
   return ds;

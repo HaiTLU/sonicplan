@@ -3,6 +3,7 @@
 import { NHOM_THEO_SO, tachViec } from './ai.js';
 import { ghiChuKeHoach } from './ai.js';
 import { docHoSo, ghiNhoChoAi, luuGhiNho } from './ghi-nho.js';
+import { laHetHanMucNgay } from './han-muc-ai.js';
 import { ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { docLuong } from './luong.js';
 import { baoSuKien, dangViecMoi, docTichHop } from './tich-hop.js';
@@ -195,10 +196,11 @@ async function chayLoTin(env, toChucId, tin, bayGio, khoa = null) {
     }));
   } catch (e) {
     // Lỗi AI: trả tin về hàng chờ để lượt sau thử lại; tin đã nằm chờ quá 6 giờ thì bỏ qua.
+    // Riêng hết hạn mức ngày thì chờ tới lúc đặt lại (có thể hơn 6 giờ) là chuyện bình thường: giữ mọi tin, không bỏ tin nào.
     if (tin.some((t) => t.id)) await env.CSDL.prepare(
-      `UPDATE tin_nhan SET da_tach = CASE WHEN tao_luc < ?2 THEN 3 ELSE 0 END
+      `UPDATE tin_nhan SET da_tach = CASE WHEN ?3 = 0 AND tao_luc < ?2 THEN 3 ELSE 0 END
        WHERE to_chuc_id = ?1 AND da_tach = 2`,
-    ).bind(toChucId, new Date(Date.now() - 6 * 3600000).toISOString()).run();
+    ).bind(toChucId, new Date(Date.now() - 6 * 3600000).toISOString(), laHetHanMucNgay(e) ? 1 : 0).run();
     throw e;
   }
 

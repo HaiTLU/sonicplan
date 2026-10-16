@@ -3,6 +3,7 @@
 
 import { goiYViec, NHOM_THEO_SO } from './ai.js';
 import { keHoachNgayAi, phanTichTuanAi } from './ai.js';
+import { laHetHanMucNgay } from './han-muc-ai.js';
 import { docCaiDat } from './hop-tin.js';
 import { docLuong } from './luong.js';
 import { docTichHop } from './tich-hop.js';
@@ -165,7 +166,9 @@ const SO_LAN_LOI = (ghiChu) => (String(ghiChu || '').match(/\[Gợi ý: lỗi/g)
 export async function goiYMoi(env, bayGio) {
   let soViec = 0;
   let soLoi = 0;
+  let hetHanMuc = false;
   for (const tc of await cacToChuc(env)) {
+    if (hetHanMuc) break;
     const lg = await docLuong(env, tc.id);
     if (!lg.bat['goi-y']) continue;
     const { results } = await env.CSDL.prepare(
@@ -187,6 +190,8 @@ export async function goiYMoi(env, bayGio) {
         ).bind(v.id, tc.id, kq.ghi_them, NHOM_THEO_SO[kq.nhom], bayGio).run();
         soViec++;
       } catch (e) {
+        // Hết hạn mức ngày không phải lỗi của việc này: không đánh dấu lỗi (hai lần là bỏ hẳn việc), thử lại sau khi đặt lại.
+        if (laHetHanMucNgay(e)) { hetHanMuc = true; break; }
         console.error('Gợi ý việc lỗi', v.id, e);
         soLoi++;
         await env.CSDL.prepare(

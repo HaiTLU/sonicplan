@@ -315,6 +315,7 @@ export async function chamViecMoi(env) {
     try {
       so += (await chamViecToChuc(env, id)).so;
     } catch (e) {
+      if (e.tamDung) return { bo_qua: true }; // hết hạn mức ngày đã biết: chờ tới lúc đặt lại, không ghi lỗi
       await ghiCaiDat(env, id, 'cham_loi_luc', new Date().toISOString());
       throw e;
     }
