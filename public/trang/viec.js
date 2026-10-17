@@ -351,6 +351,45 @@ function theViec(v, hn) {
 // Ngăn kéo thêm và sửa việc, dùng chung cho mọi trang.
 const ngan = document.getElementById('ngan-viec');
 const formViec = document.getElementById('form-viec');
+// Kéo mép trái của ngăn để đổi độ rộng; nhớ trên trình duyệt này. Bấm đúp để về mặc định, phím mũi tên trái phải chỉnh từng bước.
+const KHOA_RONG_NGAN = 'sp.ngan.rong';
+const gioiHanRong = (px) => Math.round(Math.min(Math.max(px, 400), window.innerWidth * 0.95));
+function datRongNgan(px) {
+  if (px == null) ngan.style.removeProperty('--rong-ngan');
+  else ngan.style.setProperty('--rong-ngan', `${gioiHanRong(px)}px`);
+}
+function nhoRongNgan() {
+  try {
+    const v = Number(ngan.style.getPropertyValue('--rong-ngan').replace('px', ''));
+    if (v) localStorage.setItem(KHOA_RONG_NGAN, String(v)); else localStorage.removeItem(KHOA_RONG_NGAN);
+  } catch { /* không lưu được thì thôi */ }
+}
+try { const da = Number(localStorage.getItem(KHOA_RONG_NGAN)); if (da) datRongNgan(da); } catch { /* chặn lưu trữ */ }
+const tayKeo = h('div', { class: 'tay-keo-ngan', role: 'separator', 'aria-orientation': 'vertical', tabindex: '0', title: 'Kéo để đổi độ rộng, bấm đúp để về mặc định', 'aria-label': 'Đổi độ rộng ngăn' });
+tayKeo.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  tayKeo.setPointerCapture(e.pointerId);
+  tayKeo.classList.add('dang-keo');
+  ngan.classList.add('dang-doi-rong');
+});
+tayKeo.addEventListener('pointermove', (e) => { if (tayKeo.hasPointerCapture(e.pointerId)) datRongNgan(window.innerWidth - e.clientX); });
+const xongKeo = (e) => {
+  if (!tayKeo.hasPointerCapture(e.pointerId)) return;
+  tayKeo.releasePointerCapture(e.pointerId);
+  tayKeo.classList.remove('dang-keo');
+  ngan.classList.remove('dang-doi-rong');
+  nhoRongNgan();
+};
+tayKeo.addEventListener('pointerup', xongKeo);
+tayKeo.addEventListener('pointercancel', xongKeo);
+tayKeo.addEventListener('dblclick', () => { datRongNgan(null); nhoRongNgan(); });
+tayKeo.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  e.preventDefault();
+  datRongNgan(ngan.getBoundingClientRect().width + (e.key === 'ArrowLeft' ? 40 : -40));
+  nhoRongNgan();
+});
+ngan.prepend(tayKeo);
 let viecDangSua = null;
 let mauDangChon = null;
 export function moNganViec(v, macDinh = {}) {
