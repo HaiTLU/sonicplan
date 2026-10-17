@@ -317,6 +317,7 @@ function nutClaudeThe(v) {
     return h('button', { class: `nhan-claude ${v.claude_trang_thai}`, type: 'button', text: CHU_TRANG_THAI[v.claude_trang_thai], 'aria-label': `${CHU_TRANG_THAI[v.claude_trang_thai]}: ${v.tieu_de}. Mở để xem`, onclick: () => moNganViec(v) });
   }
   if (v.trang_thai !== 'mo') return null;
+  if (v.claude_can_tep) return h('button', { class: 'nhan-claude giao can-tep', type: 'button', 'aria-label': `Cần thêm tệp rồi giao Claude: ${v.tieu_de}`, ...meo('Việc này thiếu tệp hoặc nội dung nên Claude chưa tự làm. Thêm tệp (hoặc dặn thêm) rồi bấm giao.'), onclick: () => giaoClaudeNhanh([v]) }, icon('ai'), 'Cần thêm tệp');
   return h('button', { class: 'nhan-claude giao', type: 'button', 'aria-label': `Giao Claude: ${v.tieu_de}`, ...meo('Giao việc này cho Claude Code làm. Claude hỏi lại nếu việc chưa rõ.'), onclick: () => giaoClaudeNhanh([v]) }, icon('ai'), 'Claude');
 }
 

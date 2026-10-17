@@ -2,6 +2,21 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [1.14.0] - 2026-10-17
+
+Đợt 1 của kế hoạch "AI giải quyết được việc" (PM duyệt 17/10/2026). Không có migration.
+
+### Sửa
+- Thợ Claude không ra được Word và Excel: PATH dưới launchd rơi về `python3` 3.9 của hệ thống, không có python-docx và openpyxl. PATH nay có `/usr/local/bin` và các bản Python cài từ python.org (đặt `PYTHON_BIN` trong cấu hình thợ nếu cần).
+- "Làm lại" không gửi kết quả lần trước cho Claude (`tiep_luot`), và dòng "lần làm lại thứ N" không bao giờ hiện. Nay cả hai có.
+
+### Đổi
+- Thợ chỉ tự chạy việc đủ đầu vào: có ít nhất một tệp đọc được ở các tin quanh việc, hoặc tin gốc cùng hội thoại từ 300 ký tự và tin gốc không phải E-Office (E-Office thường chỉ có trích yếu). Việc thiếu đầu vào hiện nhãn "Cần thêm tệp" ở thẻ việc, chờ bạn thêm tệp rồi giao. Tắt lọc bằng `loc_dau_vao: false` trong cấu hình `tho_claude`.
+- Model theo loại việc: tờ trình, hợp đồng, thỏa thuận, MOU, NDA, pháp lý, phân tích, đề xuất, BGH, đối tác dùng Claude Opus 5.5; còn lại dùng model cấu hình. Tắt bằng `model_theo_loai: false`. Model dùng ghi ở đầu CAU-TRA-LOI.md.
+- Tệp ghi âm (m4a, mp3, wav...) không tải cho Claude, ghi chú để bạn mở bằng SonicRec; khung giao Claude bỏ chọn sẵn và đánh nhãn.
+- Bỏ bước chép tệp riêng sang thư mục Drive "Sonicplan Claude": tệp nằm trong `01_Projects/<dự án>/Sonicplan/...` của KB và về Drive khi PR gộp vào main (thư mục ThangLong_KB trên Drive tự kéo main). Ngăn việc hiện đường dẫn, trạng thái "đã về Drive" hay "PR chưa gộp", và nút mở thư mục Drive của dự án (nếu có link).
+- Tổng quan và thẻ Claude làm việc ở máy sửa câu chữ cho đúng thực tế (thợ tự chạy việc đủ đầu vào, không còn "chỉ làm khi bạn bấm").
+
 ## [1.13.0] - 2026-10-16
 
 ### Sửa

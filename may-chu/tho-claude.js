@@ -1,11 +1,11 @@
 // Thợ Claude trên máy chủ riêng: lấy việc nhóm Claude (và lượt "Giao Claude" bấm tay) từ hàng đợi, chạy Claude Code
-// trong bản sao ThangLong_KB, đẩy kết quả lên nhánh sonicplan/luot-N và mở PR, xếp tệp vào hộp thư cho tác vụ chép sang Drive.
+// trong bản sao ThangLong_KB, đẩy kết quả lên nhánh sonicplan/luot-N và mở PR và tự gộp. Tệp về Drive nhờ thư mục ThangLong_KB trên Drive tự kéo main.
 // Logic hàng đợi và lời nhắc ở src/tho-claude.js. Mỗi lượt chạy trong một git worktree riêng nên hai lượt chạy song song không đụng nhau.
 import { execFile, spawn } from 'node:child_process';
-import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { existsSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { hoanTatLuot } from '../src/claude-code.js';
 import { hoiAi, locTepTheoLuong } from '../src/luong-thu.js';
 import { taoNhapGmail } from '../src/google.js';
@@ -13,7 +13,21 @@ import { GOC_DU_AN, goiYThuMuc, laDuAnChung, tenThuMuc } from '../src/kb.js';
 import { nhayCam } from '../src/ghi-nho.js';
 import { khoangNgay, dungChiSoMd, dungMauRaSoatMd, layMauRaSoat, loiNhacRaSoat, tinhChatLuongTachViec } from '../src/danh-gia-tach-viec.js';
 import { taoThongBao } from '../src/thong-bao.js';
-import { chonViecTuDong, docGhiNhoMd, dungGhiNhoMd, hopNhatGhiNho, demLoiTuDongGanDay, demTuDongHomNay, docCauHinhTho, dungLichSuMd, dungNguCanhMd, docDinhKem, timDinhKem, TOI_DA_DINH_KEM, layGhiNhoSonicplan, TOI_DA_DINH_KEM_GOP, layLichSuLuot, layTinNguCanh, loiNhacTho, taoLuotMay, thuMucLamViec } from '../src/tho-claude.js';
+import { chonModelChoViec, chonViecTuDong, docGhiNhoMd, dungGhiNhoMd, hopNhatGhiNho, demLoiTuDongGanDay, demTuDongHomNay, docCauHinhTho, dungLichSuMd, dungNguCanhMd, docDinhKem, timDinhKem, TOI_DA_DINH_KEM, layGhiNhoSonicplan, TOI_DA_DINH_KEM_GOP, layLichSuLuot, layTinNguCanh, loiNhacTho, taoLuotMay, thuMucLamViec } from '../src/tho-claude.js';
+
+// PATH cho Claude Code. python3 phải là bản có python-docx và openpyxl (bản cài từ python.org, thường ở /usr/local/bin hoặc /Library/Frameworks):
+// dịch vụ chạy dưới launchd nên PATH rất ngắn, rơi về python3 3.9 của hệ thống thì không tạo được Word và Excel (lượt 16/10 chỉ ra được tệp .md).
+export function duongDanChoClaude(cfg = {}, goc = process.env.PATH) {
+  const python = [];
+  if (cfg.PYTHON_BIN) python.push(dirname(cfg.PYTHON_BIN));
+  try {
+    const phienBan = readdirSync('/Library/Frameworks/Python.framework/Versions').filter((v) => /^\d/.test(v));
+    phienBan.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+    for (const v of phienBan) python.push(`/Library/Frameworks/Python.framework/Versions/${v}/bin`);
+  } catch { /* máy không cài Python từ python.org */ }
+  const dau = [join(homedir(), '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin', ...python];
+  return [...new Set([...dau, ...String(goc || '/usr/bin:/bin').split(':').filter(Boolean)])].join(':');
+}
 
 const TOI_DA_PHUT = 30;
 const CONG_CU = ['Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'TodoWrite', 'Task', 'Skill', 'Bash(python3:*)', 'Bash(node:*)', 'Bash(ls:*)', 'Bash(cat:*)', 'Bash(mkdir:*)'];
@@ -27,7 +41,6 @@ export function moThoClaude(env, cfg = {}) {
   const nha = resolve(cfg.THO_DIR || join(homedir(), '.sonicplan-tho'));
   const kbDir = resolve(cfg.KB_DIR || join(nha, 'ThangLong_KB'));
   const lamDir = join(nha, 'lam');
-  const driveCho = resolve(cfg.DRIVE_CHO || join(nha, 'drive-cho'));
   const claudeBin = cfg.CLAUDE_BIN || join(homedir(), '.local', 'bin', 'claude');
   const kbRepo = cfg.KB_REPO || 'HaiTLU/ThangLong_KB';
   const kbNguon = cfg.KB_REMOTE || `https://github.com/${kbRepo}.git`; // thử nghiệm đặt đường dẫn kho cục bộ
@@ -89,7 +102,7 @@ export function moThoClaude(env, cfg = {}) {
     return new Promise((xong, loi) => {
       const doiSo = ['-p', '--output-format', 'json', '--model', cauHinh.model, '--effort', cauHinh.effort, '--permission-mode', 'acceptEdits', '--permission-prompts', 'none', '--strict-mcp-config', '--allowedTools', ...CONG_CU];
       // --strict-mcp-config: không nạp máy chủ MCP nào (kể cả Gmail, Slack...), nên Claude không có công cụ gửi gì ra ngoài. PM dặn 16/10/2026: không tự gửi thư.
-      const con = spawn(claudeBin, doiSo, { cwd, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, PATH: `${join(homedir(), '.local', 'bin')}:/opt/homebrew/bin:${process.env.PATH || '/usr/bin:/bin'}`, CLAUDECODE: '' } });
+      const con = spawn(claudeBin, doiSo, { cwd, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, PATH: duongDanChoClaude(cfg), CLAUDECODE: '' } });
       dangChay.get(luotId).tien_trinh = con;
       let out = '';
       let err = '';
@@ -117,13 +130,14 @@ export function moThoClaude(env, cfg = {}) {
   async function dayLenKb(w, nhanh, duongDan, { tieuDe, than, nhan }) {
     let pr = null;
     let nhanhUrl = null;
+    let daGop = false;
     try {
       await git(['add', '-A', '--', ...duongDan], w);
-      if (!(await git(['diff', '--cached', '--name-only'], w)).trim()) return { pr, nhanhUrl };
+      if (!(await git(['diff', '--cached', '--name-only'], w)).trim()) return { pr, nhanhUrl, daGop };
       await git(['commit', '-q', '-m', `${tieuDe}\n\n${than}\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`], w);
       await git(['push', '-q', '--force', 'origin', `${nhanh}:${nhanh}`], w, { timeout: 300000 });
       nhanhUrl = khongMoPr ? null : `https://github.com/${kbRepo}/tree/${nhanh}`;
-      if (khongMoPr) return { pr, nhanhUrl };
+      if (khongMoPr) return { pr, nhanhUrl, daGop };
       try {
         const moPr = (await chay('gh', ['pr', 'create', '--repo', kbRepo, '--base', 'main', '--head', nhanh, '--title', tieuDe, '--body', `Tự động từ Sonicplan.\n\n${than}\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)`], { cwd: w, timeout: 120000 })).trim();
         pr = moPr.split('\n').find((d) => /^https:\/\/github\.com\//.test(d)) || null;
@@ -131,12 +145,12 @@ export function moThoClaude(env, cfg = {}) {
           const t = await chay('gh', ['pr', 'checks', pr, '--json', 'state'], { cwd: w }).catch((e) => e.stdout || '[]');
           const ds = (() => { try { return JSON.parse(t); } catch { return []; } })();
           if (ds.some((x) => ['FAILURE', 'ERROR'].includes(x.state))) break;
-          if (!ds.some((x) => ['PENDING', 'QUEUED', 'IN_PROGRESS'].includes(x.state))) { await chay('gh', ['pr', 'merge', pr, '--squash'], { cwd: w }).catch((e) => console.error('Chưa gộp được PR', pr, e.stderr)); break; }
+          if (!ds.some((x) => ['PENDING', 'QUEUED', 'IN_PROGRESS'].includes(x.state))) { daGop = await chay('gh', ['pr', 'merge', pr, '--squash'], { cwd: w }).then(() => true, (e) => { console.error('Chưa gộp được PR', pr, e.stderr); return false; }); break; }
           await new Promise((x) => setTimeout(x, 10000));
         }
       } catch (e) { console.error(`Không mở được PR cho ${nhan}`, e.stderr || e.message); }
     } catch (e) { console.error(`Không đẩy được ${nhan} lên GitHub`, e.stderr || e.message); }
-    return { pr, nhanhUrl };
+    return { pr, nhanhUrl, daGop };
   }
 
   // Ghi nhớ trong Sonicplan (người, dự án, quyết định, sự thật) xuất sang memory/projects/Sonicplan_GhiNho.md của KB để Claude đọc ở mọi phiên.
@@ -300,30 +314,27 @@ export function moThoClaude(env, cfg = {}) {
       await writeFile(join(goc, 'NGU-CANH.md'), dungNguCanhMd({ viecList, duAn, tin, tins, ghiNho, dinhKem }));
       await writeFile(join(goc, 'LICH-SU.md'), dungLichSuMd((await layLichSuLuot(env, luot.to_chuc_id, viecList[0])).filter((l) => l.id !== luot.id)));
       const truoc = luot.tiep_luot ? (await env.CSDL.prepare('SELECT ket_qua FROM luot_claude WHERE id = ?1 AND to_chuc_id = ?2').bind(luot.tiep_luot, luot.to_chuc_id).first())?.ket_qua : null;
-      const loiNhac = loiNhacTho({ viecList, duAn, thuMucLam, dan: luot.dan, truoc });
+      const soLanLam = (await env.CSDL.prepare("SELECT COUNT(*) AS n FROM luot_claude WHERE to_chuc_id = ?1 AND viec_id = ?2 AND danh_gia = 'lam_lai'").bind(luot.to_chuc_id, viecList[0].id).first())?.n || 0;
+      const loiNhac = loiNhacTho({ viecList, duAn, thuMucLam, dan: luot.dan, truoc, soLanLam });
       await env.CSDL.prepare('UPDATE luot_claude SET thu_muc_lam = ?1 WHERE id = ?2 OR lo_id = ?2').bind(thuMucLam, luot.id).run();
 
-      const kq = await chayClaude(w, loiNhac, cauHinh, luot.id);
+      const mo = chonModelChoViec(viecList, cauHinh);
+      const kq = await chayClaude(w, loiNhac, { ...cauHinh, model: mo.model, effort: mo.effort }, luot.id);
+      kq.model = mo.model;
       const ghiChuNhap = await taoNhapTuKetQua(luot.to_chuc_id, goc, tin.goc);
       if (ghiChuNhap) kq.chu = `${kq.chu}\n\n${ghiChuNhap}`;
-      await writeFile(join(goc, 'CAU-TRA-LOI.md'), `# Câu trả lời của Claude (lượt ${luot.id})\n\n${kq.chu}\n`);
+      await writeFile(join(goc, 'CAU-TRA-LOI.md'), `# Câu trả lời của Claude (lượt ${luot.id})\n\nModel: ${kq.model}${mo.theo_loai ? ' (chọn theo loại việc)' : ''}\n\n${kq.chu}\n`);
 
       // Đẩy kết quả: chỉ thư mục làm việc và memory/, các thay đổi khác của Claude bị bỏ.
-      const { pr, nhanhUrl } = await dayLenKb(w, nhanh, THU_MUC_DUOC_DAY(thuMucLam), {
+      const { pr, nhanhUrl, daGop } = await dayLenKb(w, nhanh, THU_MUC_DUOC_DAY(thuMucLam), {
         tieuDe: `Sonicplan lượt ${luot.id}: ${viecList[0].tieu_de.slice(0, 60)}`,
         than: `- Thư mục làm việc: ${thuMucLam}\n- Việc: ${viecList.map((v) => `v${v.id}`).join(', ')}`,
         nhan: `lượt ${luot.id}`,
       });
 
-      // Tệp cho Drive: tác vụ bash riêng (có quyền Drive) chép từ hộp thư này, vì tiến trình node không với tới Drive.
-      const driveDich = `Sonicplan Claude/${(duAn?.ten || 'Chưa xếp dự án').replace(/[\\/:*?"<>|]/g, '_').slice(0, 60)}/${basename(thuMucLam)}`;
-      const hop = join(driveCho, `luot-${luot.id}`);
-      await rm(hop, { recursive: true, force: true });
-      await mkdir(join(hop, 'noi-dung'), { recursive: true });
-      await cp(join(goc, 'ket-qua'), join(hop, 'noi-dung', 'ket-qua'), { recursive: true });
-      await cp(join(goc, 'CAU-TRA-LOI.md'), join(hop, 'noi-dung', 'CAU-TRA-LOI.md'));
-      await writeFile(join(hop, 'dich.txt'), driveDich);
-      await env.CSDL.prepare('UPDATE luot_claude SET drive_duong_dan = ?1, ket_thuc_luc = ?2 WHERE id = ?3 OR lo_id = ?3').bind(driveDich, new Date().toISOString(), luot.id).run();
+      // Tệp nằm trong thư mục dự án của KB; thư mục ThangLong_KB trên Drive tự kéo main nên tệp về Drive khi PR đã gộp (PM chọn 17/10/2026, thay cho bước chép sang "Sonicplan Claude").
+      // drive_duong_dan chỉ ghi khi PR đã gộp: giao diện dựa vào đó để báo "đã về Drive" hay "chờ gộp PR".
+      await env.CSDL.prepare('UPDATE luot_claude SET drive_duong_dan = ?1, ket_thuc_luc = ?2 WHERE id = ?3 OR lo_id = ?3').bind(daGop ? thuMucLam : null, new Date().toISOString(), luot.id).run();
 
       await hoanTatLuot(env, { id: luot.id, to_chuc_id: luot.to_chuc_id, viec_id: luot.viec_id, tieu_de: viecList[0].tieu_de }, { trang_thai: 'xong', ket_qua: kq.chu.slice(0, 20000), nhanh: nhanhUrl, pr });
     } finally {
@@ -378,7 +389,7 @@ export function moThoClaude(env, cfg = {}) {
         const daChay = await demTuDongHomNay(env, tc, new Date());
         const conLai = Math.min(ranh, cauHinh.toi_da_ngay - daChay);
         if (conLai <= 0) continue;
-        for (const v of await chonViecTuDong(env, tc, conLai)) {
+        for (const v of await chonViecTuDong(env, tc, conLai, { loc: cauHinh.loc_dau_vao })) {
           const id = await taoLuotMay(env, tc, v, { tuDong: true });
           await batDauLuot({ id, to_chuc_id: tc, viec_id: v.id, dan: null, tiep_luot: null });
         }

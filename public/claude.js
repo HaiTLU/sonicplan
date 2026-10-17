@@ -35,8 +35,19 @@ function oCauHoi(h, c, i, ma) {
   };
 }
 
+// Chỗ để tệp của một lượt: thư mục trong ThangLong_KB, đã về Drive chưa (chỉ khi PR đã gộp vào main), và nút mở thư mục Drive của dự án.
+function duongTepLuot(h, l) {
+  if (!l.thu_muc_lam && !l.drive_duong_dan) return null;
+  const drive = l.drive_duong_dan;
+  const duong = drive && drive.startsWith('Sonicplan Claude') ? drive : `Thư mục AI/ThangLong_KB/${l.thu_muc_lam}`;
+  const doan = [h('strong', { text: drive ? 'Tệp đã về Drive: ' : 'Tệp ở ThangLong_KB: ' }), h('code', { text: drive ? duong : l.thu_muc_lam })];
+  if (!drive && l.trang_thai === 'xong') doan.push(h('span', { class: 'phu', text: l.pr ? ' (PR chưa gộp vào main nên chưa về Drive)' : ' (chưa đẩy lên GitHub)' }));
+  if (l.drive_link) doan.push(' ', h('a', { href: l.drive_link, target: '_blank', rel: 'noopener', text: 'Mở thư mục Drive của dự án' }));
+  return h('p', { class: 'duong-tep' }, ...doan);
+}
+
 // Khung giao Claude. viec: mảng việc đang mở; duAn: tên dự án khi giao cả cột.
-export function moKhungGiaoClaude(viec, { h, api, bao, icon, duAn = null, danSan = '', sauKhiGiao = () => {} }) {
+export function moKhungGiaoClaude(viec, { h, api, bao, icon, duAn = null, danSan = '', tiepLuot = null, sauKhiGiao = () => {} }) {
   const nhieu = viec.length > 1;
   const chon = new Set(viec.map((v) => v.id));
   let cach = 'gop';
@@ -92,7 +103,7 @@ export function moKhungGiaoClaude(viec, { h, api, bao, icon, duAn = null, danSan
     const dong = [
       ...hien.map((t) => h('li', {}, h('label', {},
         h('input', { type: 'checkbox', ...(boChon.has(t.id) ? {} : { checked: '' }), onchange: (e) => { if (e.target.checked) boChon.delete(t.id); else boChon.add(t.id); } }),
-        h('span', {}, h('strong', { text: t.ten }), h('small', { text: ` ${kb(t.kich_thuoc)}${nhieu ? ` · ${tenViec.get(t.viec_id) || ''}` : ''} · ${t.luong === 'doanh_nghiep' ? 'thư luồng Kết nối doanh nghiệp, bỏ sẵn' : t.luong === 'chung' ? 'thông tin chung của Trường' : t.luong === 'dao_tao' ? 'thư luồng Đào tạo ngắn hạn' : 'có sẵn trong tin'}` }))))),
+        h('span', {}, h('strong', { text: t.ten }), h('small', { text: ` ${kb(t.kich_thuoc)}${nhieu ? ` · ${tenViec.get(t.viec_id) || ''}` : ''} · ${t.ghi_am ? 'ghi âm: mở bằng SonicRec, Claude không chuyển chữ được' : t.luong === 'doanh_nghiep' ? 'thư luồng Kết nối doanh nghiệp, bỏ sẵn' : t.luong === 'chung' ? 'thông tin chung của Trường' : t.luong === 'dao_tao' ? 'thư luồng Đào tạo ngắn hạn' : 'có sẵn trong tin'}` }))))),
       ...tepThem.map((f, i) => h('li', { class: 'kc-tep-them' },
         h('span', {}, h('strong', { text: f.name }), h('small', { text: ` ${kb(f.size)} · bạn thêm` })),
         h('button', { class: 'nut-icon', type: 'button', 'aria-label': `Bỏ ${f.name}`, onclick: () => { tepThem.splice(i, 1); veTep(); } }, '×'))),
@@ -132,7 +143,7 @@ export function moKhungGiaoClaude(viec, { h, api, bao, icon, duAn = null, danSan
         for (const f of tepThem) fd.append('tep', f, f.name);
         tepThemIds = (await api('/api/claude/dinh-kem', { method: 'POST', body: fd })).tep.map((t) => t.id);
       }
-      const kq = await api('/api/claude/giao', { method: 'POST', body: JSON.stringify({ viec_ids: [...chon], cach, dan: oDan.value, tra_loi: cauHoi.map((c) => c.lay()), tep_them: tepThemIds, tep_bo: [...boChon], tep_da_chon: true }) });
+      const kq = await api('/api/claude/giao', { method: 'POST', body: JSON.stringify({ viec_ids: [...chon], cach, dan: oDan.value, tra_loi: cauHoi.map((c) => c.lay()), tep_them: tepThemIds, tep_bo: [...boChon], tep_da_chon: true, ...(tiepLuot ? { tiep_luot: tiepLuot } : {}) }) });
       if (kq.loi_mot_phan) bao(`Giao được ${kq.cac_luot.length} lượt, lượt sau gặp lỗi: ${kq.loi_mot_phan}`, { loi: true });
       else bao(so > 1 ? `Đã giao ${so} việc cho Claude${cach === 'gop' ? ' trong một lượt' : ''}. Kết quả hiện ở từng việc.` : 'Đã giao cho Claude. Kết quả sẽ hiện trong việc.');
       dong();
@@ -183,7 +194,7 @@ export async function veKhoiClaude(goc, v, { h, api, bao, luc, icon, sauKhiDat }
     goc.append(h('p', { class: 'mo-ta' }, 'Nối GitHub ở ', h('a', { href: '#ket-noi', text: 'trang Kết nối' }), ' để giao việc này cho Claude làm.'));
     return;
   }
-  const moKhung = (danSan = '') => moKhungGiaoClaude([v], { h, api, bao, icon, danSan, sauKhiGiao: ve });
+  const moKhung = (danSan = '', tiepLuot = null) => moKhungGiaoClaude([v], { h, api, bao, icon, danSan, tiepLuot, sauKhiGiao: ve });
   const hoiLai = moi?.cau_hoi && moi.trang_thai === 'xong' && !moi.danh_gia;
 
   if (moi) {
@@ -192,6 +203,7 @@ export async function veKhoiClaude(goc, v, { h, api, bao, luc, icon, sauKhiDat }
       moi.so_viec_gop > 1 ? h('p', { class: 'dan', text: `Làm chung một lượt với ${moi.so_viec_gop - 1} việc khác trong dự án.` }) : null,
       moi.dan ? h('p', { class: 'dan', text: `Bạn dặn: ${moi.dan}` }) : null,
       moi.ket_qua ? h('div', { class: 'ket-qua', tabindex: '0', 'aria-label': 'Kết quả Claude', text: moi.ket_qua }) : null,
+      duongTepLuot(h, moi),
       h('p', { class: 'lien-ket-luot' },
         moi.pr ? h('a', { href: moi.pr, target: '_blank', rel: 'noopener', text: 'Xem PR' }) : null,
         moi.nhanh ? h('a', { href: moi.nhanh, target: '_blank', rel: 'noopener', text: 'Xem tệp' }) : null,
@@ -211,7 +223,7 @@ export async function veKhoiClaude(goc, v, { h, api, bao, luc, icon, sauKhiDat }
         } }, 'Đạt, đóng việc'),
         h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => {
           await api(`/api/claude/${moi.id}/danh-gia`, { method: 'POST', body: JSON.stringify({ danh_gia: 'lam_lai' }) }).catch(() => {});
-          moKhung('Lần trước chưa đạt vì: ');
+          moKhung('Lần trước chưa đạt vì: ', moi.id);
         } }, 'Làm lại'),
       ));
     }

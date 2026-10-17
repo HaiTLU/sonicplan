@@ -397,10 +397,10 @@ function khoiDeXuatClaude(dx, hn) {
     h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-de-xuat' }, icon('ai'), 'Đề xuất giao Claude'),
       ds.length > 1
         ? h('button', { class: 'nut nut-phu nut-nho', type: 'button', ...meo('Mở khung giao Claude cho các việc đang hiện, bạn chọn gộp một lượt hay từng việc.'), onclick: () => giao(ds) }, icon('ai'), `Giao cả ${ds.length} việc`)
-        : h('span', { class: 'mo-ta', text: ds.length ? 'Bấm Giao Claude để Claude làm' : 'Chưa có đề xuất' })),
+        : h('span', { class: 'mo-ta', text: ds.length ? 'Thêm tệp rồi bấm Giao Claude' : 'Chưa có đề xuất' })),
   );
   if (!ds.length) {
-    goc.append(h('p', { class: 'mo-ta', style: 'padding:0 20px 18px', text: 'Khi AI tách việc từ tin nhắn và thấy Claude tự làm được (soạn nháp, tra cứu, tóm tắt), việc đó hiện ở đây. Claude chỉ làm khi bạn bấm.' }));
+    goc.append(h('p', { class: 'mo-ta', style: 'padding:0 20px 18px', text: 'Khi AI tách việc từ tin nhắn và thấy Claude tự làm được (soạn nháp, tra cứu, tóm tắt), việc đó hiện ở đây. Việc đủ tệp hoặc nội dung thì thợ Claude tự chạy theo hạn mức mỗi ngày; việc thiếu tệp thì chờ bạn thêm tệp rồi bấm giao.' }));
     return goc;
   }
   const ul = h('ul', { class: 'dong-thoi-gian' });

@@ -9,7 +9,9 @@ import { bam, maNgauNhien } from './tien-ich.js';
 
 const KHOA = 'tho_claude';
 export const DAU_CAU_HOI = 'CÂU HỎI CHO BẠN:'; // phải trùng với claude-code.js (có test)
-export const MAC_DINH = { bat: true, song_song: 2, toi_da_ngay: 10, model: 'claude-sonnet-5-5', effort: 'medium' };
+export const MAC_DINH = { bat: true, song_song: 2, toi_da_ngay: 10, model: 'claude-sonnet-5-5', effort: 'medium', loc_dau_vao: true, model_theo_loai: true };
+export const MODEL_VIEC_KHO = 'claude-opus-5-5';
+export const NGUONG_CHU_DAU_VAO = 300;
 export const NHOM_CLAUDE = ['claude_tu_lam', 'claude_chuan_bi'];
 export const TOI_DA_TIN = 40;
 export const TOI_DA_DINH_KEM = 15;
@@ -25,6 +27,8 @@ export function chuanCauHinhTho(x) {
     toi_da_ngay: trong(o.toi_da_ngay, 0, 50, MAC_DINH.toi_da_ngay),
     model: /^[\w.-]{3,60}$/.test(String(o.model || '')) ? o.model : MAC_DINH.model,
     effort: ['low', 'medium', 'high'].includes(o.effort) ? o.effort : MAC_DINH.effort,
+    loc_dau_vao: typeof o.loc_dau_vao === 'boolean' ? o.loc_dau_vao : MAC_DINH.loc_dau_vao,
+    model_theo_loai: typeof o.model_theo_loai === 'boolean' ? o.model_theo_loai : MAC_DINH.model_theo_loai,
   };
 }
 
@@ -58,15 +62,51 @@ export async function demLoiTuDongGanDay(env, tc, bayGio = new Date(), gio = 2) 
   return r?.n || 0;
 }
 
+// Tệp ghi âm: Claude không chuyển chữ được (máy không có ffmpeg, whisper), nên không tính là đầu vào đọc được; PM mở bằng SonicRec.
+export const laTepAmThanh = (t) => /^audio\//i.test(String(t?.loai || '')) || /\.(m4a|mp3|wav|aac|ogg|opus|flac|amr)$/i.test(String(t?.ten || ''));
+
+const RE_EOFFICE = /noreply-eoffice@thanglong\.edu\.vn/i;
+
+// Việc có đủ đầu vào để Claude làm được không: có ít nhất một tệp đọc được ở các tin quanh việc, hoặc tin gốc cùng hội thoại dài từ NGUONG_CHU_DAU_VAO ký tự
+// và tin gốc không phải E-Office (E-Office thường chỉ có trích yếu, văn bản nằm ở tệp đính kèm). Trả { du, ly_do }.
+export async function viecDuDauVao(env, tc, viec) {
+  if (!viec?.tin_nhan_id) return { du: false, ly_do: 'khong_co_tin' };
+  const { goc, quanh } = await layTinNguCanh(env, tc, viec);
+  if (!goc) return { du: false, ly_do: 'khong_co_tin' };
+  const tep = await timDinhKem(env, tc, [...new Set(quanh.map((x) => x.id))], { gioiHan: 100 });
+  if (tep.some((t) => !laTepAmThanh(t) && (t.kich_thuoc || 0) <= TOI_DA_BYTE_DINH_KEM)) return { du: true, ly_do: 'co_tep' };
+  const coAm = tep.some(laTepAmThanh);
+  if (RE_EOFFICE.test(String(goc.nguoi_gui || ''))) return { du: false, ly_do: 'eoffice_thieu_tep' };
+  const chu = quanh.reduce((n, t) => n + String(t.noi_dung || '').trim().length, 0);
+  if (chu >= NGUONG_CHU_DAU_VAO) return { du: true, ly_do: 'du_chu' };
+  return { du: false, ly_do: coAm ? 'chi_co_ghi_am' : 'it_chu' };
+}
+
+// Model theo loại việc (PM chọn 17/10/2026): tờ trình, hợp đồng, thỏa thuận, pháp lý, phân tích, đề xuất gửi BGH hay đối tác dùng Opus; thư, tóm tắt, bảng dùng model cấu hình.
+const RE_VIEC_KHO = /t[ờơ]\s*tr[ìi]nh|h[ợo]p\s*[đd][ồo]ng|th[ỏo]a\s*thu[ậa]n|\bmou\b|\bnda\b|ph[áa]p\s*l[ýy]|ph[áa]p\s*ch[ếe]|ph[âa]n\s*t[íi]ch|[đd][ềe]\s*xu[ấa]t|\bbgh\b|ban\s*gi[áa]m\s*hi[ệe]u|[đd][ốo]i\s*t[áa]c/i;
+export function chonModelChoViec(viecList, cauHinh) {
+  const mac = { model: cauHinh.model, effort: cauHinh.effort, theo_loai: false };
+  if (!cauHinh.model_theo_loai || /opus/i.test(cauHinh.model)) return mac;
+  const chu = (viecList || []).map((v) => `${v.tieu_de || ''} ${v.ghi_chu || ''}`).join(' ');
+  return RE_VIEC_KHO.test(chu) ? { model: MODEL_VIEC_KHO, effort: cauHinh.effort, theo_loai: true } : mac;
+}
+
 // Việc mở, AI xếp nhóm Claude, chưa từng có lượt nào (lượt lỗi hay chờ duyệt thì để PM quyết định giao lại), hạn gần nhất trước.
-export async function chonViecTuDong(env, tc, soLuong = 1) {
+// loc: bỏ việc chưa đủ đầu vào (xem viecDuDauVao); việc bị bỏ chờ PM bổ sung tệp rồi giao tay.
+export async function chonViecTuDong(env, tc, soLuong = 1, { loc = false } = {}) {
   const { results } = await env.CSDL.prepare(
     `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.nhom, v.du_an_id, v.tin_nhan_id FROM viec v
      WHERE v.to_chuc_id = ?1 AND v.trang_thai = 'mo' AND v.nhom IN ('claude_tu_lam', 'claude_chuan_bi')
        AND NOT EXISTS (SELECT 1 FROM luot_claude l WHERE l.viec_id = v.id)
      ORDER BY v.han_ngay IS NULL, v.han_ngay, v.gio_hen IS NULL, v.gio_hen, v.id LIMIT ?2`,
-  ).bind(tc, soLuong).all();
-  return results;
+  ).bind(tc, loc ? Math.max(soLuong * 10, 30) : soLuong).all();
+  if (!loc) return results;
+  const ra = [];
+  for (const v of results) {
+    if (ra.length >= soLuong) break;
+    if ((await viecDuDauVao(env, tc, v)).du) ra.push(v);
+  }
+  return ra;
 }
 
 // Tạo lượt chạy ở máy. viecPhu: các việc làm chung một lượt (mỗi việc một dòng trỏ về lượt chính).
@@ -137,6 +177,7 @@ export async function timDinhKem(env, tc, idTin, { them = [], bo = [], gioiHan =
 export async function docDinhKem(env, rows) {
   const ra = [];
   for (const t of rows) {
+    if (laTepAmThanh(t)) { ra.push({ ten: t.ten, loai: t.loai, ghi_am: true }); continue; } // không tải về: Claude không chuyển chữ được
     if ((t.kich_thuoc || 0) > TOI_DA_BYTE_DINH_KEM) { ra.push({ ten: t.ten, bo_qua: 'tệp quá lớn' }); continue; }
     try {
       const vat = await env.TEP.get(t.r2_khoa);
@@ -167,7 +208,7 @@ export async function dsDinhKemTuDong(env, tc, viecList, hoi = null) {
   }
   // Luồng của thư chứa tệp (Đào tạo ngắn hạn, Kết nối doanh nghiệp, chung): tệp luồng Kết nối doanh nghiệp được bỏ chọn sẵn.
   const luong = hoi ? await phanLuongThu(env, tc, ra.map((t) => t.tin_nhan_id).filter(Boolean), hoi) : new Map();
-  return ra.map(({ tin_nhan_id: tin, ...t }) => ({ ...t, luong: luong.get(tin) || null, bo_san: luong.get(tin) === 'doanh_nghiep' }));
+  return ra.map(({ tin_nhan_id: tin, ...t }) => { const am = laTepAmThanh(t); return { ...t, ghi_am: am, luong: luong.get(tin) || null, bo_san: am || luong.get(tin) === 'doanh_nghiep' }; });
 }
 
 // Các lượt Claude trước trong cùng dự án (hoặc cùng việc), kèm đánh giá và lý do làm lại của PM (nằm trong lời dặn của lượt sau).
@@ -216,7 +257,7 @@ export function dungNguCanhMd({ viecList, duAn, tin, tins = null, ghiNho, dinhKe
   else d.push('## Tin gốc', 'Việc này do bạn tự thêm, không có tin gốc.', '');
   if (dinhKem?.length) {
     d.push('## Tệp đính kèm (thư mục dinh-kem/ cạnh tệp này)', '');
-    for (const t of dinhKem) d.push(t.bo_qua ? `- ${t.ten}: bỏ qua (${t.bo_qua})` : `- ${t.ten}`);
+    for (const t of dinhKem) d.push(t.bo_qua ? `- ${t.ten}: bỏ qua (${t.bo_qua})` : t.ghi_am ? `- ${t.ten}: tệp ghi âm, máy này không chuyển chữ được; PM mở bằng SonicRec (đừng đoán nội dung)` : `- ${t.ten}`);
     d.push('');
   }
   if (ghiNho?.length) {

@@ -9,9 +9,9 @@ import { join } from 'node:path';
 import { d1, dungCsdl } from './csdl-thu.js';
 import { chuanTen, goiYThuMuc, kiemThuMucKb, tenThuMuc, thuMucGocDuAn, thuMucLamViec } from '../src/kb.js';
 import { DAU_CAU_HOI as DAU_GOC } from '../src/claude-code.js';
-import { chonViecTuDong, chuanCauHinhTho, dauNgayVN, DAU_CAU_HOI, demTuDongHomNay, docCauHinhTho, dungLichSuMd, dungNguCanhMd, layDinhKem, layTinNguCanh, loiNhacTho, luuCauHinhTho, taoLuotMay } from '../src/tho-claude.js';
-import { giaoClaude } from '../src/claude-code.js';
-import { moThoClaude } from '../may-chu/tho-claude.js';
+import { chonModelChoViec, chonViecTuDong, chuanCauHinhTho, docDinhKem, laTepAmThanh, viecDuDauVao, dauNgayVN, DAU_CAU_HOI, demTuDongHomNay, docCauHinhTho, dungLichSuMd, dungNguCanhMd, layDinhKem, layTinNguCanh, loiNhacTho, luuCauHinhTho, taoLuotMay } from '../src/tho-claude.js';
+import { dsLuot, giaoClaude } from '../src/claude-code.js';
+import { duongDanChoClaude, moThoClaude } from '../may-chu/tho-claude.js';
 import { xuLyApi } from '../src/api.js';
 
 test('ghép dự án với thư mục KB: chuẩn tên, gợi ý, kiểm đường dẫn', () => {
@@ -31,15 +31,17 @@ test('ghép dự án với thư mục KB: chuẩn tên, gợi ý, kiểm đườ
 });
 
 test('cấu hình thợ Claude: mặc định theo PM, giới hạn giá trị', () => {
-  assert.deepEqual(chuanCauHinhTho(undefined), { bat: true, song_song: 2, toi_da_ngay: 10, model: 'claude-sonnet-5-5', effort: 'medium' });
+  assert.deepEqual(chuanCauHinhTho(undefined), { bat: true, song_song: 2, toi_da_ngay: 10, model: 'claude-sonnet-5-5', effort: 'medium', loc_dau_vao: true, model_theo_loai: true });
   assert.equal(chuanCauHinhTho({ song_song: 99, toi_da_ngay: -1, effort: 'x', model: 'a b' }).song_song, 2);
   assert.equal(chuanCauHinhTho({ song_song: 3, bat: false }).bat, false);
   assert.equal(dauNgayVN(new Date('2026-10-15T20:00:00Z')), '2026-10-15T17:00:00.000Z'); // 3h sáng 16/10 giờ VN: đầu ngày 16/10 VN = 17h UTC ngày 15
 });
 
-function moiTruong() {
+// loc: true giữ mặc định thật (thợ bỏ việc thiếu đầu vào); các bài kiểm cũ có việc không tin, không tệp nên tắt lọc để vẫn chạy.
+function moiTruong({ loc = false } = {}) {
   const db = dungCsdl();
   db.exec("INSERT INTO to_chuc (id, ten, tao_luc) VALUES ('tc1', 'T', '2026-01-01')");
+  if (!loc) db.exec(`INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES ('tc1', 'tho_claude', '{"loc_dau_vao":false}')`);
   db.exec("INSERT INTO du_an (id, to_chuc_id, ten, tao_luc, kb_thu_muc) VALUES (1, 'tc1', 'Demo Dự Án', '2026-01-01', '01_Projects/DemoDuAn')");
   return { db, env: { CSDL: d1(db) } };
 }
@@ -167,6 +169,7 @@ async function dungChayThu(cheDo = 'xong') {
   writeFileSync(claude, `#!/bin/bash
 LN=$(cat)
 echo "$@" > "$(dirname "$0")/doi-so.txt"
+echo "$PATH" > "$(dirname "$0")/duong-path.txt"
 THU=$(echo "$LN" | grep -m1 '^Dự án:' | sed 's/.*Thư mục làm việc: //; s#/$##')
 mkdir -p "$THU/ket-qua"
 ${cheDo === 'email' ? `mkdir -p "$THU/ket-qua"\ncat > "$THU/ket-qua/nhap-email.json" <<'JSON'\n{"chu_de": "Trả lời Khoa Khoa học Sức khỏe về lịch họp", "noi_dung": "Kính gửi Khoa,\\nBên em xác nhận lịch họp thứ Sáu.\\nTrân trọng."}\nJSON\necho '{"type":"result","subtype":"success","is_error":false,"result":"Đã soạn thư.","total_cost_usd":0.01,"num_turns":2}'` : cheDo === 'bao-cao' ? `echo '{"type":"result","subtype":"success","is_error":false,"result":"## Tóm tắt\\nĐúng việc 5/6.\\n\\n## Đề xuất\\n1. Thêm quy tắc về hạn.","total_cost_usd":0.03,"num_turns":2}'` : cheDo === 'loi' ? 'echo "{\\"type\\":\\"result\\",\\"is_error\\":true,\\"result\\":\\"hết hạn mức\\"}"; exit 1' : `echo "Báo cáo thử" > "$THU/ket-qua/bao-cao.md"
@@ -192,21 +195,23 @@ test('thợ chạy trọn một lượt: ngữ cảnh vào kho, kết quả lên
   assert.equal(l.tu_dong, 1);
   assert.match(l.ket_qua, /Giả định đã chọn/);
   assert.match(l.thu_muc_lam, /^01_Projects\/DemoDuAn\/Sonicplan\/\d{6}_Soan_Bao_Cao_Tuan_v1$/);
-  assert.match(l.drive_duong_dan, /^Sonicplan Claude\/Demo Dự Án\/\d{6}_Soan_Bao_Cao_Tuan_v1$/);
+  assert.equal(l.drive_duong_dan, null); // chỉ ghi khi PR đã gộp vào main (ở đây THO_KHONG_PR nên không mở PR)
   assert.ok(l.bat_dau_luc && l.ket_thuc_luc);
+  const [hien] = await dsLuot(env, 'tc1', 1); // giao diện cần thư mục KB, trạng thái về Drive và link Drive của dự án
+  assert.deepEqual([hien.thu_muc_lam, hien.drive_duong_dan, 'drive_link' in hien], [l.thu_muc_lam, null, true]);
   // Nhánh trên kho KB có ngữ cảnh, tệp đính kèm, kết quả; tệp ngoài phạm vi không lên.
   const nhanh = `sonicplan/luot-${l.id}`;
   const ds = git(kbNguon, 'ls-tree', '-r', '--name-only', nhanh).trim().split('\n');
   for (const can of ['NGU-CANH.md', 'LICH-SU.md', 'dinh-kem/so-lieu.csv', 'ket-qua/bao-cao.md', 'CAU-TRA-LOI.md']) assert.ok(ds.includes(`${l.thu_muc_lam}/${can}`), can);
   assert.ok(!ds.includes('ngoai-pham-vi.txt'));
   assert.match(git(kbNguon, 'show', `${nhanh}:${l.thu_muc_lam}/NGU-CANH.md`), /Anh làm giúp em báo cáo tuần/);
-  // Hộp thư cho tác vụ chép Drive.
-  const hop = join(goc, 'nha', 'drive-cho', `luot-${l.id}`);
-  assert.equal(readFileSync(join(hop, 'dich.txt'), 'utf8'), l.drive_duong_dan);
-  assert.ok(existsSync(join(hop, 'noi-dung', 'ket-qua', 'bao-cao.md')) && existsSync(join(hop, 'noi-dung', 'CAU-TRA-LOI.md')));
+  // Không còn bước chép riêng sang Drive: tệp về Drive nhờ thư mục KB trên Drive tự kéo main.
+  assert.ok(!existsSync(join(goc, 'nha', 'drive-cho', `luot-${l.id}`)));
   // Claude chạy không có máy chủ MCP nào (không có công cụ gửi thư), lời nhắc cấm gửi.
   const doiSo = readFileSync(join(goc, 'doi-so.txt'), 'utf8');
   assert.match(doiSo, /--strict-mcp-config/);
+  assert.match(doiSo, /--model claude-sonnet-5-5/); // việc báo cáo thường: model cấu hình
+  assert.ok(readFileSync(join(goc, 'duong-path.txt'), 'utf8').split(':').includes('/usr/local/bin')); // python3 có python-docx nằm ở đây
   assert.ok(!/mcp__/.test(doiSo) && !/Gmail|gmail/.test(doiSo));
   // Thông báo đẩy cho PM, worktree đã dọn.
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM thong_bao WHERE loai = 'claude'").get().n, 1);
@@ -620,4 +625,70 @@ test('lời nhắc tách việc có ba quy tắc rà soát đã duyệt 16/10/20
   const { loiNhacTachViec } = await import('../src/ai.js');
   const [he] = loiNhacTachViec([{ so: 1, nguon: 'zalo', noi_dung: 'x', thoi_diem: 't' }], '2026-10-16', 'Hải', [], [], [], [], []).map((m) => m.content ?? m);
   for (const can of ['13) CHỈ TÁCH VIỆC khi tin đặt việc lên người dùng', 'rủ ăn uống', 'chị mua nước cho cô giáo', '14) BẮT BUỘC có ít nhất một việc khi tin gọi đích danh', 'nom = 3'.replace('nom', 'nhom'), 'tối thiểu 4 từ', 'CÓ DẤU', 'KHÔNG sao chép nguyên lỗi', 'KHÔNG tạo việc đó']) assert.ok(he.includes(can), can);
+});
+
+
+// ---- Đợt 1 (17/10/2026): đầu vào, model theo loại việc, PATH python, tệp ghi âm ----
+
+const tin = (db, id, nguoi, noiDung, ma = 'hoi-thoai-1', thoiDiem = '2026-10-14T01:00:00Z') => db.prepare(`INSERT INTO tin_nhan (id, to_chuc_id, nguon, ma_goc, nguoi_gui, nhom, noi_dung, thoi_diem, tao_luc, ma_hoi_thoai) VALUES (?1, 'tc1', 'zalo', ?2, ?3, 'Nhóm A', ?4, ?5, ?5, ?6)`).run(id, `g${id}`, nguoi, noiDung, thoiDiem, ma);
+const tep = (db, id, tinId, ten, loai) => db.prepare(`INSERT INTO tep (id, to_chuc_id, tin_nhan_id, ten, loai, kich_thuoc, r2_khoa, tao_luc) VALUES (?1, 'tc1', ?2, ?3, ?4, 100, ?5, '2026-10-14')`).run(id, tinId, ten, loai, `k${id}`);
+
+test('đủ đầu vào: tệp đọc được, hoặc tin dài từ 300 ký tự; thiếu thì không tự chạy (E-Office chỉ trích yếu, ghi âm một mình, việc không có tin)', async () => {
+  const { db, env } = moiTruong({ loc: true });
+  const dai = 'Anh xem giúp em hồ sơ này và cho ý kiến trước thứ Sáu. '.repeat(8);
+  tin(db, 1, 'An', 'Ngắn.', 'a');
+  viec(db, 1, 'Tin ngắn không tệp', 'claude_chuan_bi', '2026-10-20', 1);
+  tin(db, 2, 'Bình', dai, 'b');
+  viec(db, 2, 'Tin dài', 'claude_chuan_bi', '2026-10-20', 2);
+  tin(db, 3, 'noreply-eoffice@thanglong.edu.vn', dai, 'c');
+  viec(db, 3, 'E-Office chỉ trích yếu', 'claude_chuan_bi', '2026-10-20', 3);
+  tin(db, 4, 'noreply-eoffice@thanglong.edu.vn', 'Trích yếu.', 'd');
+  tep(db, 1, 4, 'to-trinh.pdf', 'application/pdf');
+  viec(db, 4, 'E-Office có tệp', 'claude_chuan_bi', '2026-10-20', 4);
+  tin(db, 5, 'Chi', 'Ghi âm họp đây ạ.', 'e');
+  tep(db, 2, 5, 'SAP-1_1.m4a', 'audio/mp4');
+  viec(db, 5, 'Chỉ có ghi âm', 'claude_tu_lam', '2026-10-20', 5);
+  viec(db, 6, 'Việc tạo tay', 'claude_tu_lam', '2026-10-20');
+  const kq = Object.fromEntries(await Promise.all([1, 2, 3, 4, 5, 6].map(async (id) => [id, (await viecDuDauVao(env, 'tc1', db.prepare('SELECT * FROM viec WHERE id = ?1').get(id))).du])));
+  assert.deepEqual(kq, { 1: false, 2: true, 3: false, 4: true, 5: false, 6: false });
+  assert.deepEqual((await chonViecTuDong(env, 'tc1', 10, { loc: true })).map((v) => v.id), [2, 4]);
+  assert.equal((await chonViecTuDong(env, 'tc1', 10)).length, 6); // không bật lọc thì như cũ
+  assert.equal((await chonViecTuDong(env, 'tc1', 1, { loc: true })).length, 1); // lấy đủ số cần, không quá
+  assert.equal((await docCauHinhTho(env, 'tc1')).loc_dau_vao, true);
+  assert.equal(laTepAmThanh({ ten: 'a.M4A' }) && laTepAmThanh({ loai: 'audio/mpeg' }) && !laTepAmThanh({ ten: 'a.pdf', loai: 'application/pdf' }), true);
+});
+
+test('tệp ghi âm không tải về cho Claude, ghi chú để PM mở bằng SonicRec', async () => {
+  const { env } = moiTruong({ loc: true });
+  let daDoc = 0;
+  env.TEP = { get: async () => { daDoc++; return { arrayBuffer: async () => new ArrayBuffer(4) }; } };
+  const ra = await docDinhKem(env, [{ ten: 'SAP.m4a', loai: 'audio/mp4', kich_thuoc: 10, r2_khoa: 'k1' }, { ten: 'a.txt', loai: 'text/plain', kich_thuoc: 4, r2_khoa: 'k2' }]);
+  assert.equal(ra[0].ghi_am, true);
+  assert.equal(ra[0].byte, undefined);
+  assert.ok(ra[1].byte);
+  assert.equal(daDoc, 1);
+  const md = dungNguCanhMd({ viecList: [{ id: 1, tieu_de: 'x', nhom: 'claude_tu_lam' }], duAn: null, tin: { goc: null, quanh: [] }, ghiNho: [], dinhKem: ra });
+  assert.match(md, /SAP\.m4a: tệp ghi âm.*SonicRec/);
+});
+
+test('model theo loại việc: tờ trình, hợp đồng, pháp lý, phân tích dùng Opus; còn lại model cấu hình; tắt được', () => {
+  const ch = chuanCauHinhTho({});
+  const chon = (tieuDe, cauHinh = ch) => chonModelChoViec([{ tieu_de: tieuDe, ghi_chu: '' }], cauHinh);
+  assert.equal(chon('Xử lý tờ trình phê duyệt hợp tác').model, 'claude-opus-5-5');
+  assert.equal(chon('Xem bản Thỏa thuận hợp tác MOU PVcomBank').model, 'claude-opus-5-5');
+  assert.equal(chon('Xem lại bản NDA Ipsos đã chỉnh của Pháp chế').model, 'claude-opus-5-5');
+  assert.equal(chon('Phân tích số liệu tuyển sinh').model, 'claude-opus-5-5');
+  assert.equal(chon('Trả lời Hong Nguyen về việc chia sẻ thông tin').model, 'claude-sonnet-5-5');
+  assert.equal(chon('Điền tên CBCT vào link phân công coi thi').theo_loai, false);
+  assert.equal(chon('Xử lý tờ trình', chuanCauHinhTho({ model_theo_loai: false })).model, 'claude-sonnet-5-5');
+  assert.equal(chon('Xử lý tờ trình', chuanCauHinhTho({ model: 'claude-opus-5-5' })).theo_loai, false); // đã là Opus
+  assert.equal(chonModelChoViec([{ tieu_de: 'Việc nhẹ' }, { tieu_de: 'Soạn đề xuất gửi BGH' }], ch).model, 'claude-opus-5-5'); // lượt gộp: một việc khó là đủ
+});
+
+test('PATH cho Claude có python3 đủ thư viện: /usr/local/bin và bản python.org, không trùng, giữ PATH gốc', () => {
+  const p = duongDanChoClaude({ PYTHON_BIN: '/opt/py/bin/python3' }, '/usr/bin:/bin:/usr/local/bin').split(':');
+  assert.ok(p.includes('/usr/local/bin') && p.includes('/opt/homebrew/bin') && p.includes('/usr/bin'));
+  assert.equal(p[p.length - 1] === '/bin' || p.includes('/bin'), true);
+  assert.equal(new Set(p).size, p.length);
+  assert.ok(p.indexOf('/opt/py/bin') < p.indexOf('/usr/bin')); // bản python chỉ định đứng trước hệ thống
 });

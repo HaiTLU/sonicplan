@@ -9,7 +9,7 @@ import { docTichHop } from '../tich-hop.js';
 import { cat, json, loi, ngayVN } from '../tien-ich.js';
 import { themViec } from '../viec.js';
 import { laChu } from './chung.js';
-import { docCauHinhTho, dsDinhKemTuDong } from '../tho-claude.js';
+import { docCauHinhTho, dsDinhKemTuDong, NHOM_CLAUDE, viecDuDauVao } from '../tho-claude.js';
 import { hoiAi } from '../luong-thu.js';
 import { luuTep, TEP_TOI_DA } from '../hop-tin.js';
 
@@ -25,11 +25,20 @@ async function dsViec(env, tc, url) {
   const { results } = await env.CSDL.prepare(
     `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.trang_thai, v.tin_nhan_id, v.tao_luc, v.xong_luc,
        t.nguon AS tin_nguon, t.nguoi_gui AS tin_nguoi_gui, t.nhom AS tin_nhom,
-       v.du_an_id, v.nguon, v.mau, v.sao, v.do_nang, v.han_goc, v.so_lan_doi, d.ten AS du_an_ten, d.mau AS du_an_mau, d.icon AS du_an_icon, d.anh_khoa AS du_an_anh,
+       v.du_an_id, v.nhom, v.nguon, v.mau, v.sao, v.do_nang, v.han_goc, v.so_lan_doi, d.ten AS du_an_ten, d.mau AS du_an_mau, d.icon AS du_an_icon, d.anh_khoa AS du_an_anh,
        (SELECT CASE WHEN l.trang_thai = 'xong' AND l.cau_hoi IS NOT NULL AND l.danh_gia IS NULL THEN 'hoi' ELSE l.trang_thai END FROM luot_claude l WHERE l.to_chuc_id = v.to_chuc_id AND l.viec_id = v.id ORDER BY l.id DESC LIMIT 1) AS claude_trang_thai
      FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id LEFT JOIN du_an d ON d.id = v.du_an_id
      WHERE v.to_chuc_id = ?1 AND v.trang_thai = ?2 ORDER BY ${thuTu.replace(/\b(xong_luc|han_ngay|gio_hen|thu_tu|sao|id)\b/g, 'v.$1')} LIMIT 300`,
   ).bind(tc, trangThai).all();
+  // Việc nhóm Claude chưa có lượt mà thiếu đầu vào (không tệp đọc được, ít chữ): giao diện hiện "Cần thêm tệp", thợ không tự chạy.
+  if (trangThai === 'mo') {
+    let dem = 0;
+    for (const v of results) {
+      if (!NHOM_CLAUDE.includes(v.nhom) || v.claude_trang_thai || dem >= 40) continue;
+      dem++;
+      v.claude_can_tep = !(await viecDuDauVao(env, tc, v)).du;
+    }
+  }
   return { viec: results, hom_nay: ngayVN() };
 }
 

@@ -315,7 +315,8 @@ async function danhDauQuaHan(env, tc) {
 export async function dsLuot(env, tc, viecId) {
   await danhDauQuaHan(env, tc);
   const { results } = await env.CSDL.prepare(
-    `SELECT l.id, l.lo_id, l.trang_thai, l.dan, l.ket_qua, l.cau_hoi, l.nhanh, l.pr, l.nhat_ky, l.danh_gia, l.tao_luc, l.cap_nhat_luc,
+    `SELECT l.id, l.lo_id, l.trang_thai, l.dan, l.ket_qua, l.cau_hoi, l.nhanh, l.pr, l.nhat_ky, l.danh_gia, l.tao_luc, l.cap_nhat_luc, l.noi_chay, l.thu_muc_lam, l.drive_duong_dan,
+       (SELECT d.drive_link FROM viec v JOIN du_an d ON d.id = v.du_an_id WHERE v.id = l.viec_id) AS drive_link,
        (SELECT COUNT(*) FROM luot_claude k WHERE k.lo_id = COALESCE(l.lo_id, l.id)) + 1 AS so_viec_gop
      FROM luot_claude l WHERE l.to_chuc_id = ?1 AND l.viec_id = ?2 ORDER BY l.id DESC LIMIT 5`,
   ).bind(tc, viecId).all();
