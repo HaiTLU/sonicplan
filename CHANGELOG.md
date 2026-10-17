@@ -5,6 +5,7 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 ## [1.13.0] - 2026-10-16
 
 ### Sửa
+- Ngăn sửa việc quá hẹp, khó đọc kết quả Claude trên laptop: ngăn rộng 560 đến 760 px tùy màn hình, ô kết quả cao tới 60% màn hình và tự xuống dòng thay vì cuộn ngang.
 - Mục "Câu hỏi cho bạn" của lượt Claude nhận nhầm dòng "Nháp Gmail" hệ thống nối phía sau thành câu hỏi: bộ tách giờ dừng ở dòng tiêu đề khác.
 - Bảng ghép dự án với thư mục ThangLong_KB (thẻ Claude làm việc ở máy) bị các hàng đè lên nhau, ô chọn bị cắt: ô ghép giờ tự cao.
 - Nút, tab, tiêu đề, đồng hồ và số liệu không chọn được chữ, nên không hiện con trỏ nhấp nháy khi trình duyệt bật duyệt bằng con trỏ văn bản (Chrome F7). Nội dung tin và ô nhập liệu vẫn chọn được.

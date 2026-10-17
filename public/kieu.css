@@ -537,7 +537,7 @@ button.the-tep { font: inherit; color: inherit; text-align: left; cursor: pointe
 dialog { color: var(--chu); }
 dialog::backdrop { background: rgba(6, 9, 15, .6); }
 .ngan-keo {
-  margin: 0 0 0 auto; height: 100dvh; max-height: none; width: min(460px, 100vw); padding: 0; border: 0;
+  margin: 0 0 0 auto; height: 100dvh; max-height: none; width: min(clamp(560px, 46vw, 760px), 100vw); padding: 0; border: 0;
   background: var(--mat); box-shadow: var(--bong-noi); border-radius: 22px 0 0 22px;
 }
 .ngan-keo[open] { animation: keo-vao .32s var(--em); }
@@ -1103,7 +1103,7 @@ body.dang-keo-tha, body.dang-keo-tha * { user-select: none; -webkit-user-select:
 .luot-claude.dang_lam strong, .luot-claude.cho strong { color: var(--nhan); }
 .luot-claude.loi strong { color: var(--loi); }
 .luot-claude.xong strong { color: var(--on); }
-.luot-claude .ket-qua { white-space: pre-wrap; max-height: 260px; overflow: auto; padding: 10px 12px; border-radius: var(--r-nho); background: var(--mat); border: 1px solid var(--vach); font-size: 14px; line-height: 1.55; }
+.luot-claude .ket-qua { white-space: pre-wrap; overflow-wrap: anywhere; max-height: min(60dvh, 560px); overflow: auto; padding: 10px 12px; border-radius: var(--r-nho); background: var(--mat); border: 1px solid var(--vach); font-size: 14px; line-height: 1.55; }
 .luot-claude .lien-ket-luot { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; font-weight: 600; }
 .luot-claude .lien-ket-luot a { color: var(--nhan); }
 .the-viec .chan .nhan-claude { font-size: 12px; font-weight: 600; padding: 3px 7px; border-radius: 7px; background: var(--nhan-nhat, var(--mat-3)); color: var(--nhan); }
