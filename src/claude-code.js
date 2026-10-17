@@ -138,8 +138,13 @@ export function tachCauHoi(ketQua) {
   const chu = String(ketQua || '');
   const vt = chu.search(/C[ÂA]U H[ỎO]I CHO B[ẠA]N\s*:/i);
   if (vt < 0) return null;
-  const ds = chu.slice(vt).split('\n').slice(1)
-    .map((d) => d.trim())
+  // Chỉ lấy khối gạch đầu dòng ngay sau tiêu đề; gặp dòng tiêu đề khác (ví dụ "Nháp Gmail:") thì dừng, khỏi nhầm thành câu hỏi.
+  const dong = [];
+  for (const d of chu.slice(vt).split('\n').slice(1).map((x) => x.trim())) {
+    if (dong.length && /^[^-*•\d].*:$/.test(d)) break;
+    dong.push(d);
+  }
+  const ds = dong
     .filter((d) => /^([-*•]|\d+[.)])\s+/.test(d))
     .map((d) => d.replace(/^([-*•]|\d+[.)])\s+/, '').replace(/\*\*/g, '').trim().slice(0, 300))
     .filter(Boolean)

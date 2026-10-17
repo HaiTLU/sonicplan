@@ -95,6 +95,8 @@ test('hỏi trước: AI lỗi thì không hỏi, không chặn giao việc; câ
 test('tách câu hỏi cuối kết quả, lời dặn có luật hỏi lại', () => {
   assert.equal(tachCauHoi('Xong hết.'), null);
   assert.deepEqual(tachCauHoi('A\nCâu hỏi cho bạn:\n1. Một?\n- **Hai?**\n* Ba\n- Bốn'), ['Một?', 'Hai?', 'Ba']);
+  // Đoạn "Nháp Gmail:" hệ thống nối sau câu hỏi không được tính là câu hỏi.
+  assert.deepEqual(tachCauHoi('CÂU HỎI CHO BẠN:\n- Một?\n\nNháp Gmail:\n- nhap-email.json: đã tạo bản nháp'), ['Một?']);
   assert.match(loiNhacClaude({ tieu_de: 'A' }, 1), /CÂU HỎI CHO BẠN:/);
   assert.match(loiNhacClaude({ tieu_de: 'A' }, 1, null, { truoc: 'Kết quả cũ' }), /Kết quả lần trước[\s\S]*Kết quả cũ/);
 });

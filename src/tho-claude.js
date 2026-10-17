@@ -262,7 +262,7 @@ export function loiNhacTho({ viecList, duAn, thuMucLam, dan, truoc, soLanLam = 0
     '- Không dùng git, không chạy scripts/nhat-ky.py: hệ thống tự commit phần kết quả.',
     '- TUYỆT ĐỐI không gửi email, tin nhắn hay đăng bất cứ gì ra ngoài, dưới mọi hình thức, kể cả khi tên việc là "Gửi thư" hay "Trả lời": việc đó nghĩa là soạn sẵn nội dung để PM tự gửi. Cần trả lời thư thì ghi tệp ket-qua/nhap-email.json dạng {"den": ["a@b.c"], "cc": [], "chu_de": "...", "noi_dung": "..."}; hệ thống chỉ tạo bản nháp trong Gmail, PM tự bấm gửi.',
     '- Văn phong theo CLAUDE.md: gạch ngắn, không biểu tượng, từ dễ hiểu, không từ trong sổ từ cấm.',
-    `- Thiếu thông tin: vẫn làm hết phần làm được. Cuối câu trả lời có mục "Giả định đã chọn:" liệt kê điều bạn tự quyết, và nếu thật cần PM trả lời thì thêm dòng "${DAU_CAU_HOI}" cùng tối đa 3 câu hỏi ngắn.`,
+    `- Thiếu thông tin: vẫn làm hết phần làm được, tự chọn giả định hợp lý và ghi ở mục "Giả định đã chọn:". KHÔNG hỏi lại: vai trò của PM với văn bản (mặc định PM nhận để cho ý kiến, trừ khi tin nói khác), đơn vị hay nơi nhận (đọc NGU-CANH.md và memory/people.md), địa chỉ email (tìm trong NGU-CANH.md, dinh-kem/ và memory/ trước), và kiểu "bạn có muốn tôi làm X không" (làm luôn, hoặc làm cả hai phương án). Chỉ thêm dòng "${DAU_CAU_HOI}" khi thiếu một dữ kiện không thể đoán và thiếu nó thì kết quả sai hẳn (ví dụ thiếu tệp gốc); tối đa 2 câu, mỗi câu một dòng bắt đầu "- ".`,
     '- Có bài học đáng nhớ cho lần sau (cách PM thích, lỗi đã gặp) thì ghi 1 đến 3 ý ngắn vào memory/context/bai-hoc/ theo mẫu memory/context/mau-bai-hoc.md; không có thì bỏ qua.',
     '- Câu trả lời cuối ngắn: đã làm gì, kết quả chính, tệp nào, còn gì PM phải tự làm.',
   ];
