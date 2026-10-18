@@ -563,7 +563,13 @@ export async function huyViec(v) {
   const rut = rutGon(timDongViec(v.id));
   try {
     await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'huy' }) });
-    bao(`Đã hủy: ${v.tieu_de}`, { hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'mo' }) }); await napSauKhiDoi(); } } });
+    // Việc do AI tách: cho ghi lý do hủy ngay sau đó để AI học (không bắt buộc).
+    const ghiLyDo = v.nguon && v.nguon !== 'tay' ? async () => {
+      const lyDo = window.prompt('Vì sao hủy việc này? Ví dụ: chuyện riêng, không phải việc của tôi, trùng việc khác.');
+      if (!lyDo || !lyDo.trim()) return;
+      try { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'huy', ly_do: lyDo.trim() }) }); bao('Đã ghi lý do. AI sẽ học từ đây.'); } catch (e) { bao(e.message, { loi: true }); }
+    } : null;
+    bao(`Đã hủy: ${v.tieu_de}`, { hanhDong2: ghiLyDo ? { nhan: 'Ghi lý do', lam: ghiLyDo } : null, hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'mo' }) }); await napSauKhiDoi(); } } });
     await rut.xong;
   } catch (e) {
     rut.hoan();

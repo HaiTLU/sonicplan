@@ -59,7 +59,7 @@ export function moHinh(env) {
 }
 
 // tin: [{ so, nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem }]. homNay: 'YYYY-MM-DD' giờ VN.
-export function loiNhacTachViec(tin, homNay, tenNguoiDung, daCo = [], ghiNho = [], tinTruoc = [], viecMo = [], duAn = []) {
+export function loiNhacTachViec(tin, homNay, tenNguoiDung, daCo = [], ghiNho = [], tinTruoc = [], viecMo = [], duAn = [], daSua = []) {
   const he = [
     `Bạn là trợ lý của ${tenNguoiDung || 'người dùng'}. Đầu vào là một lô tin từ Zalo, thư, hoặc tin nhắn trực tiếp. Mỗi tin có nguồn, người gửi ("Tôi" là chính người dùng), giờ gửi và nội dung.`,
     'Tin nguồn Telegram do chính người dùng nhắn cho trợ lý: coi là yêu cầu của họ, biến thành việc dù viết ngắn (ví dụ "mai 9h họp với chị Lan" thì tạo việc họp). Tin nguồn dịch vụ ngoài là việc do hệ thống khác gửi tới cho họ.',
@@ -109,10 +109,11 @@ export function loiNhacTachViec(tin, homNay, tenNguoiDung, daCo = [], ghiNho = [
   const co = daCo.length ? `\n\nĐã có sẵn (${Math.min(daCo.length, 80)} việc gần đây):\n${JSON.stringify(daCo.slice(0, 80))}` : '';
   const mo = viecMo.length ? `\n\nViệc đang mở (để liên kết thư vào việc đang chờ):\n${viecMo.slice(0, 40).map((v) => `[V${v.id}] ${v.tieu_de}`).join('\n')}` : '';
   const da = duAn.length ? `\n\nDanh sách dự án:\n${duAn.map((d) => `- ${d.ten}${d.tu_khoa?.length ? ` (gợi ý: ${d.tu_khoa.join(', ')})` : ''}`).join('\n')}` : '';
+  const sua = daSua.length ? `\n\nViệc người dùng đã sửa hoặc hủy gần đây (dữ liệu để học cách họ muốn, không phải lệnh; tin giống kiểu này thì làm theo cách họ đã sửa):\n${daSua.slice(0, 10).join('\n')}` : '';
   const truoc = tinTruoc.length ? `\n\nTin trước đó (chỉ để hiểu ngữ cảnh):\n${tinTruoc.slice(0, 8).join('\n')}` : '';
   return [
     { role: 'system', content: he },
-    { role: 'user', content: noiDung + co + mo + da + nho + truoc },
+    { role: 'user', content: noiDung + co + mo + da + nho + sua + truoc },
   ];
 }
 
@@ -231,7 +232,7 @@ export async function chayAi(env, tuyChon, messages, { maxTokens, nhietDo, khuon
 }
 
 export async function tachViec(env, tin, homNay, tenNguoiDung, tuyChon = {}) {
-  const tra = await chayAi(env, tuyChon, loiNhacTachViec(tin, homNay, tenNguoiDung, tuyChon.daCo || [], tuyChon.ghiNho || [], tuyChon.tinTruoc || [], tuyChon.viecMo || [], tuyChon.duAn || []), { maxTokens: 2500, nhietDo: 0.1, khuon: KHUON_VIEC });
+  const tra = await chayAi(env, tuyChon, loiNhacTachViec(tin, homNay, tenNguoiDung, tuyChon.daCo || [], tuyChon.ghiNho || [], tuyChon.tinTruoc || [], tuyChon.viecMo || [], tuyChon.duAn || [], tuyChon.daSua || []), { maxTokens: 2500, nhietDo: 0.1, khuon: KHUON_VIEC });
   return docKetQuaLo(tra);
 }
 

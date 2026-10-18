@@ -2,6 +2,7 @@
 // Mỗi nhóm nhận (yeuCau, env, phien, url) và trả Response, hoặc null nếu địa chỉ không thuộc nhóm này.
 import { LOAI_GHI_NHO, TOI_DA_HO_SO, docHoSo, luuHoSo } from '../ghi-nho.js';
 import { json, loi } from '../tien-ich.js';
+import { docGoiYLoiDan, quyetGoiYLoiDan } from '../loi-dan-tuan.js';
 import { docTongHopCuoi, tongHopChoToChuc } from '../tong-hop.js';
 import { laChu } from './chung.js';
 
@@ -82,6 +83,13 @@ export async function xuLyGhiNho(yeuCau, env, phien, url) {
     if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức sửa được hồ sơ.');
     const e = await luuHoSo(env, tc, (await yeuCau.json().catch(() => ({}))).noi_dung);
     return e ? loi(400, e) : json({ noi_dung: await docHoSo(env, tc), toi_da: TOI_DA_HO_SO });
+  }
+  if (p === '/api/goi-y-loi-dan' && m === 'GET') return json(await docGoiYLoiDan(env, tc));
+  if (p === '/api/goi-y-loi-dan' && m === 'POST') {
+    if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức duyệt được lời dặn.');
+    const b = await yeuCau.json().catch(() => ({}));
+    const kq = await quyetGoiYLoiDan(env, tc, Number(b.chi_so), b.quyet);
+    return kq.loi ? loi(400, kq.loi) : json(kq);
   }
   if (p === '/api/ghi-nho' && m === 'GET') return json(await dsGhiNho(env, tc, url));
   if (p === '/api/ghi-nho' && m === 'POST') return taoGhiNho(env, tc, await yeuCau.json().catch(() => ({})));

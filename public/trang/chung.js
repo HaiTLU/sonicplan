@@ -73,11 +73,12 @@ export async function api(duongDan, tuyChon = {}) {
   return duLieu;
 }
 
-export function bao(noiDung, { loi = false, hanhDong } = {}) {
+export function bao(noiDung, { loi = false, hanhDong, hanhDong2 } = {}) {
   const el = h('div', { class: `bao${loi ? ' loi' : ''}` }, h('span', { text: noiDung }));
   if (hanhDong) el.append(h('button', { type: 'button', text: hanhDong.nhan, onclick: () => { hanhDong.lam(); el.remove(); } }));
+  if (hanhDong2) el.append(h('button', { type: 'button', text: hanhDong2.nhan, onclick: () => { hanhDong2.lam(); el.remove(); } }));
   document.getElementById('vung-bao').append(el);
-  setTimeout(() => el.remove(), hanhDong ? 6000 : 3500);
+  setTimeout(() => el.remove(), hanhDong ? (hanhDong2 ? 9000 : 6000) : 3500);
 }
 
 export function khungLoi(e, thuLai) {

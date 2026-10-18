@@ -42,13 +42,36 @@ export async function veGhiNho(goc) {
     nutHoSo.disabled = false;
   } }, 'Lưu hồ sơ');
   api('/api/ho-so').then((r) => { oHoSo.value = r.noi_dung || ''; capNhatDem(); }).catch(() => {});
+  // Khung mẫu: điền dần các mục để AI biết nhóm nào là việc, giờ nào hiểu sao, ai quan trọng.
+  const KHUNG_HO_SO = 'Vai trò: \nXưng hô (với cấp trên, với đồng nghiệp): \nNhóm Zalo là công việc: \nNhóm Zalo là bạn bè, gia đình, không tạo việc: \nNgười ưu tiên cao (việc họ giao làm trước): \nGiờ "5h30", "6h" không ghi sáng chiều thì hiểu là: \nDự án đang gấp: \nQuy tắc khác: ';
+  const nutKhung = h('button', { class: 'nut nut-phu', type: 'button', onclick: () => {
+    if (oHoSo.value.trim() && !confirm('Hồ sơ đang có chữ. Thêm khung mẫu xuống cuối?')) return;
+    oHoSo.value = `${oHoSo.value.trimEnd()}${oHoSo.value.trim() ? '\n\n' : ''}${KHUNG_HO_SO}`.slice(0, 2000);
+    capNhatDem();
+    oHoSo.focus();
+  } }, 'Chèn khung mẫu');
+  // Gợi ý lời dặn hàng tuần từ các lần sửa việc: duyệt thì nối vào hồ sơ, bỏ thì xóa.
+  const hopGoiY = h('section', { class: 'bang goi-y-loi-dan', hidden: true });
+  const napGoiY = () => api('/api/goi-y-loi-dan').then((r) => {
+    hopGoiY.replaceChildren();
+    hopGoiY.hidden = !r.ds.length;
+    if (!r.ds.length) return;
+    hopGoiY.append(h('h3', { text: 'AI gợi ý lời dặn mới' }), h('p', { class: 'mo-ta', text: 'AI đọc các lần bạn sửa hoặc hủy việc và đề xuất các quy tắc dưới đây. Duyệt thì quy tắc nối vào hồ sơ, bỏ thì xóa khỏi danh sách.' }));
+    r.ds.forEach((dong, i) => {
+      const lam = async (quyet) => {
+        try { await api('/api/goi-y-loi-dan', { method: 'POST', body: JSON.stringify({ chi_so: i, quyet }) }); if (quyet === 'duyet') api('/api/ho-so').then((x) => { oHoSo.value = x.noi_dung || ''; capNhatDem(); }); napGoiY(); } catch (err) { bao(err.message, { loi: true }); }
+      };
+      hopGoiY.append(h('div', { class: 'hang-nut' }, h('span', { text: dong }), h('button', { class: 'nut nut-chinh nut-nho', type: 'button', onclick: () => lam('duyet') }, 'Duyệt'), h('button', { class: 'nut nut-phu nut-nho', type: 'button', onclick: () => lam('bo') }, 'Bỏ')));
+    });
+  }).catch(() => {});
+  napGoiY();
   const theHoSo = h('section', { class: 'bang ho-so' },
     h('h3', { text: 'Hồ sơ của bạn' }),
     h('p', { class: 'mo-ta', text: 'Vài dòng giúp AI hiểu bạn là ai và ai là ai trong công việc. AI đọc hồ sơ này mỗi lần tách việc, gợi ý, lập kế hoạch ngày và trả lời trên Telegram. Không ghi mật khẩu hay số thẻ.' }),
     oHoSo,
-    h('div', { class: 'hang-nut' }, nutHoSo, demHoSo),
+    h('div', { class: 'hang-nut' }, nutHoSo, nutKhung, demHoSo),
   );
-  thay(goc, theHoSo, h('p', { class: 'tom-tat-phu', style: 'margin-bottom:14px', text: 'Hệ thống tự nhớ người, dự án và quyết định từ tin đến, rồi dùng lại khi đọc tin sau. Mục mới do AI thêm có nhãn chờ duyệt: bấm dấu tích nếu đúng, sửa hoặc xóa nếu sai.' }), form, dauMuc, ds);
+  thay(goc, theHoSo, hopGoiY, h('p', { class: 'tom-tat-phu', style: 'margin-bottom:14px', text: 'Hệ thống tự nhớ người, dự án và quyết định từ tin đến, rồi dùng lại khi đọc tin sau. Mục mới do AI thêm có nhãn chờ duyệt: bấm dấu tích nếu đúng, sửa hoặc xóa nếu sai.' }), form, dauMuc, ds);
 
   async function hanhDong(id, thanDu, thongBao) {
     try {

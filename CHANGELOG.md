@@ -6,6 +6,13 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 
 Memory của PM chuyển từ ThangLong_KB sang kho second-brain (18/10/2026). Không có migration.
 
+### Thêm
+- AI học từ việc anh sửa: mỗi lượt tách việc nạp tối đa 10 lần hủy, đổi tên, đổi dự án, đổi nhóm, sửa hạn gần đây (30 ngày, chỉ việc do AI tạo) vào lời nhắc.
+- Hủy việc do AI tách thì có nút "Ghi lý do" (`ly_do` trong PATCH `/api/viec/:id`), lý do lưu cùng sự kiện hủy.
+- Nút "Chèn khung mẫu" ở hồ sơ (Ghi nhớ): vai trò, nhóm Zalo công việc hoặc riêng, người ưu tiên, cách hiểu giờ "5h30".
+- Báo cáo tuần thứ Hai kèm gợi ý lời dặn do AI đề xuất từ các lần sửa; duyệt ở mục Ghi nhớ thì nối vào hồ sơ (`/api/goi-y-loi-dan`, khóa `goi_y_loi_dan`). Không tự đổi lời dặn.
+- Bộ tin mẫu `test/tin-mau/tach-viec.json` và `node scripts/thu-tach-viec.mjs` để chạy thử lời dặn bằng AI thật trên Mac mini sau mỗi lần sửa `src/ai.js`.
+
 ### Đổi
 - Ghi nhớ Sonicplan xuất vào `memory/projects/Sonicplan_GhiNho.md` của kho second-brain (`SB_REPO`, mặc định `HaiTLU/second-brain`), đẩy thẳng `main`, chỉ thư mục `memory/`, không mở PR. Bị từ chối vì `main` đã đổi thì nạp lại, rebase rồi đẩy lại tối đa 3 lần.
 - Kết quả việc của thợ Claude không còn đẩy `memory/` lên ThangLong_KB, chỉ đẩy thư mục làm việc của dự án.

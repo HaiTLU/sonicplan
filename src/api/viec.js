@@ -63,6 +63,7 @@ export function kiemViec(than, { batBuocTieuDe }) {
     if (!['mo', 'xong', 'huy'].includes(than.trang_thai)) return { loi: 'Trạng thái không hợp lệ.' };
     ra.trang_thai = than.trang_thai;
   }
+  if ('ly_do' in than) ra.ly_do = cat(String(than.ly_do || '').trim(), 150) || null;
   if ('du_an_id' in than) {
     const d = than.du_an_id;
     if (d !== null && d !== '' && !Number.isInteger(Number(d))) return { loi: 'Dự án không hợp lệ.' };
@@ -99,9 +100,11 @@ export async function sapXepViec(env, tc, than) {
   return json({ ok: true });
 }
 
-async function suaViec(env, tc, id, than) {
+export async function suaViec(env, tc, id, than) {
   const k = kiemViec(than, { batBuocTieuDe: false });
   if (k.loi) return loi(400, k.loi);
+  const lyDo = k.viec.ly_do; // lý do hủy: chỉ ghi vào lịch sử để AI học, không phải cột của việc
+  delete k.viec.ly_do;
   const cot = Object.keys(k.viec);
   if (!cot.length) return loi(400, 'Không có gì để sửa.');
   if (k.viec.du_an_id != null && !(await env.CSDL.prepare('SELECT 1 AS x FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(k.viec.du_an_id, tc).first())) return loi(400, 'Dự án không tồn tại.');
@@ -122,7 +125,12 @@ async function suaViec(env, tc, id, than) {
   if (truoc) {
     if (k.viec.trang_thai && k.viec.trang_thai !== truoc.trang_thai) {
       const loaiSk = k.viec.trang_thai === 'xong' ? 'xong' : k.viec.trang_thai === 'mo' ? 'mo_lai' : 'huy';
-      await ghiSuKien(env, tc, id, loaiSk, truoc.tieu_de).catch(() => {});
+      await ghiSuKien(env, tc, id, loaiSk, loaiSk === 'huy' && lyDo ? `${truoc.tieu_de} | lý do: ${lyDo}` : truoc.tieu_de).catch(() => {});
+    }
+    // Ghi lý do sau khi đã hủy (nút trên thông báo): gắn vào sự kiện hủy gần nhất thay vì ghi thêm sự kiện.
+    if (lyDo && k.viec.trang_thai === 'huy' && truoc.trang_thai === 'huy') {
+      await env.CSDL.prepare(`UPDATE viec_su_kien SET noi_dung = ?3 WHERE id = (SELECT MAX(id) FROM viec_su_kien WHERE to_chuc_id = ?1 AND viec_id = ?2 AND loai = 'huy') AND noi_dung NOT LIKE 'Gỡ vì%'`)
+        .bind(tc, id, `${truoc.tieu_de} | lý do: ${lyDo}`).run().catch(() => {});
     }
     if ('du_an_id' in k.viec && k.viec.du_an_id !== truoc.du_an_id) {
       const ten = k.viec.du_an_id ? (await env.CSDL.prepare('SELECT ten FROM du_an WHERE id = ?1').bind(k.viec.du_an_id).first())?.ten : null;
