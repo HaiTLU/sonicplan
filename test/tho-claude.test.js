@@ -165,6 +165,17 @@ async function dungChayThu(cheDo = 'xong') {
   git(lam, 'commit', '-q', '-m', 'khởi tạo');
   git(lam, 'remote', 'add', 'origin', kbNguon);
   git(lam, 'push', '-q', 'origin', 'main');
+  // Kho second-brain thử: nơi ghi nhớ Sonicplan được đẩy thẳng lên main.
+  const sbNguon = join(goc, 'sb.git');
+  const sbLam = join(goc, 'gieo-sb');
+  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', sbNguon]);
+  execFileSync('git', ['init', '-q', '-b', 'main', sbLam]);
+  execFileSync('mkdir', ['-p', join(sbLam, 'memory/projects')]);
+  writeFileSync(join(sbLam, 'memory/MEMORY.md'), '# Mục lục\n');
+  git(sbLam, 'add', '-A');
+  git(sbLam, 'commit', '-q', '-m', 'khởi tạo');
+  git(sbLam, 'remote', 'add', 'origin', sbNguon);
+  git(sbLam, 'push', '-q', 'origin', 'main');
   const claude = join(goc, 'claude-gia.sh');
   writeFileSync(claude, `#!/bin/bash
 LN=$(cat)
@@ -174,10 +185,11 @@ THU=$(echo "$LN" | grep -m1 '^Dự án:' | sed 's/.*Thư mục làm việc: //; 
 mkdir -p "$THU/ket-qua"
 ${cheDo === 'email' ? `mkdir -p "$THU/ket-qua"\ncat > "$THU/ket-qua/nhap-email.json" <<'JSON'\n{"chu_de": "Trả lời Khoa Khoa học Sức khỏe về lịch họp", "noi_dung": "Kính gửi Khoa,\\nBên em xác nhận lịch họp thứ Sáu.\\nTrân trọng."}\nJSON\necho '{"type":"result","subtype":"success","is_error":false,"result":"Đã soạn thư.","total_cost_usd":0.01,"num_turns":2}'` : cheDo === 'bao-cao' ? `echo '{"type":"result","subtype":"success","is_error":false,"result":"## Tóm tắt\\nĐúng việc 5/6.\\n\\n## Đề xuất\\n1. Thêm quy tắc về hạn.","total_cost_usd":0.03,"num_turns":2}'` : cheDo === 'loi' ? 'echo "{\\"type\\":\\"result\\",\\"is_error\\":true,\\"result\\":\\"hết hạn mức\\"}"; exit 1' : `echo "Báo cáo thử" > "$THU/ket-qua/bao-cao.md"
 echo "ghi chu ngoai pham vi" > ngoai-pham-vi.txt
+mkdir -p memory && echo "rac" > memory/Claude_tu_ghi.md
 echo '{"type":"result","subtype":"success","is_error":false,"result":"Đã soạn xong báo cáo.\\n\\nGiả định đã chọn:\\n- Dùng mẫu chuẩn.","total_cost_usd":0.02,"num_turns":4}'`}
 `);
   chmodSync(claude, 0o755);
-  return { goc, kbNguon, claude };
+  return { goc, kbNguon, sbNguon, claude };
 }
 
 test('thợ chạy trọn một lượt: ngữ cảnh vào kho, kết quả lên nhánh, hộp thư Drive, báo PM; hạn mức ngày được tôn trọng', async () => {
@@ -204,6 +216,7 @@ test('thợ chạy trọn một lượt: ngữ cảnh vào kho, kết quả lên
   const ds = git(kbNguon, 'ls-tree', '-r', '--name-only', nhanh).trim().split('\n');
   for (const can of ['NGU-CANH.md', 'LICH-SU.md', 'dinh-kem/so-lieu.csv', 'ket-qua/bao-cao.md', 'CAU-TRA-LOI.md']) assert.ok(ds.includes(`${l.thu_muc_lam}/${can}`), can);
   assert.ok(!ds.includes('ngoai-pham-vi.txt'));
+  assert.ok(!ds.includes('memory/Claude_tu_ghi.md')); // memory/ đã chuyển sang second-brain: kết quả việc không đẩy memory/ lên ThangLong_KB
   assert.match(git(kbNguon, 'show', `${nhanh}:${l.thu_muc_lam}/NGU-CANH.md`), /Anh làm giúp em báo cáo tuần/);
   // Không còn bước chép riêng sang Drive: tệp về Drive nhờ thư mục KB trên Drive tự kéo main.
   assert.ok(!existsSync(join(goc, 'nha', 'drive-cho', `luot-${l.id}`)));
@@ -354,23 +367,26 @@ test('máy khởi động lại giữa chừng: lượt đang làm xếp lại h
   assert.equal(db.prepare('SELECT trang_thai FROM luot_claude WHERE id = 1').get().trang_thai, 'loi');
 });
 
-test('đồng bộ ghi nhớ sang KB: tạo memory/projects/Sonicplan_GhiNho.md, không tạo nhánh khi nội dung không đổi', async () => {
+test('đồng bộ ghi nhớ sang second-brain: đẩy thẳng main memory/projects/Sonicplan_GhiNho.md, không PR, không đụng ThangLong_KB, không đẩy khi nội dung không đổi', async () => {
   const { db, env } = moiTruong();
   const them = db.prepare(`INSERT INTO ghi_nho (to_chuc_id, loai, tieu_de, noi_dung, ghim, tao_luc, cap_nhat_luc) VALUES ('tc1', ?1, ?2, ?3, ?4, '2026-10-01', '2026-10-01')`);
   them.run('nguoi', 'Bình', 'Trưởng phòng Hợp tác', 1);
   them.run('du_an', 'SonicRec', 'Ghi âm họp ra biên bản\nvòng 2 mở 24/10', 0);
   them.run('quyet_dinh', 'Dùng Sonnet', 'Mức medium, 10 việc mỗi ngày', 0);
-  const { goc, kbNguon, claude } = await dungChayThu();
-  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
+  const { goc, kbNguon, sbNguon, claude } = await dungChayThu();
+  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, SB_REMOTE: sbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
   const kq = await tho.dongBoGhiNho();
   assert.deepEqual([kq.so_ghi_nho, kq.doi], [3, true]);
-  const nhanh = git(kbNguon, 'branch', '--list', 'sonicplan/ghi-nho-*').trim().replace(/^\*?\s*/, '');
-  const nd = git(kbNguon, 'show', `${nhanh}:memory/projects/Sonicplan_GhiNho.md`);
+  const nd = git(sbNguon, 'show', 'main:memory/projects/Sonicplan_GhiNho.md');
+  assert.equal(git(sbNguon, 'branch', '--list').trim().replace(/^\*\s*/, ''), 'main'); // không tạo nhánh phụ
+  assert.equal(git(kbNguon, 'branch', '--list', 'sonicplan/*').trim(), ''); // ThangLong_KB không nhận gì
+  assert.deepEqual(git(sbNguon, 'diff', '--name-only', 'HEAD~1', 'HEAD').trim().split('\n'), ['memory/projects/Sonicplan_GhiNho.md']); // chỉ thư mục memory/
   for (const can of ['# Ghi nhớ từ Sonicplan', '## Người', '- **Bình** (ghim): Trưởng phòng Hợp tác', '## Dự án', 'Ghi âm họp ra biên bản vòng 2 mở 24/10', '## Quyết định']) assert.ok(nd.includes(can), can);
   assert.ok(!nd.includes('Sự thật'));
-  // PR được gộp (giả lập: đưa nhánh vào main): lần sau nội dung giống thì không có gì mới.
-  git(kbNguon, 'update-ref', 'refs/heads/main', `refs/heads/${nhanh}`);
+  // Đã ở main: lần sau nội dung giống thì không có gì mới.
+  const dauMain = git(sbNguon, 'rev-parse', 'main');
   const lai = await tho.dongBoGhiNho();
+  assert.equal(git(sbNguon, 'rev-parse', 'main'), dauMain);
   assert.equal(lai.doi, false);
   them.run('su_that', 'Mới thêm', 'Một sự thật mới', 0);
   assert.equal((await tho.dongBoGhiNho()).doi, true);
@@ -560,24 +576,21 @@ test('ghi nhớ KB về Sonicplan: đọc lại file, hợp nhất ba bên, Soni
   assert.deepEqual(hopNhatGhiNho({ base, ours: ds.slice(1), theirs: ds }).them, []);
 });
 
-test('đồng bộ ghi nhớ hai chiều với KB thật (kho git cục bộ): xuất, khớp, nhận điều KB sửa, giữ bản Sonicplan khi xung đột', async () => {
+test('đồng bộ ghi nhớ hai chiều với second-brain thật (kho git cục bộ): xuất, khớp, nhận điều KB sửa, giữ bản Sonicplan khi xung đột', async () => {
   const { db, env } = moiTruong();
   const them = db.prepare(`INSERT INTO ghi_nho (to_chuc_id, loai, tieu_de, noi_dung, ghim, tao_luc, cap_nhat_luc) VALUES ('tc1', ?1, ?2, ?3, ?4, '2026-10-01', '2026-10-01')`);
   them.run('nguoi', 'Bình', 'Trưởng phòng Hợp tác', 1);
   them.run('du_an', 'SonicRec', 'Ghi âm họp ra biên bản', 0);
   them.run('quyet_dinh', 'Dùng Sonnet', 'Mức medium', 0);
-  const { goc, kbNguon, claude } = await dungChayThu();
-  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
-  const nhanhMoi = () => git(kbNguon, 'branch', '--list', 'sonicplan/ghi-nho-*').trim().split('\n').map((x) => x.trim().replace(/^\*\s*/, '')).filter(Boolean).pop();
-  const gopVaoMain = (nhanh) => git(kbNguon, 'update-ref', 'refs/heads/main', `refs/heads/${nhanh}`);
+  const { goc, kbNguon, sbNguon, claude } = await dungChayThu();
+  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, SB_REMOTE: sbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
   assert.equal((await tho.dongBoGhiNho()).doi, true);
-  gopVaoMain(nhanhMoi());
   assert.equal((await tho.dongBoGhiNho()).doi, false); // đã khớp: lưu bản gốc
   assert.ok(db.prepare("SELECT gia_tri FROM cai_dat WHERE to_chuc_id = 'tc1' AND khoa = 'ghi_nho_kb_goc'").get());
 
   // PM sửa trực tiếp trong file ở KB: sửa Bình, sửa SonicRec, thêm mục mới; cùng lúc Sonicplan đã sửa SonicRec.
   const lam = join(goc, 'sua-kb');
-  git(goc, 'clone', '-q', kbNguon, lam);
+  git(goc, 'clone', '-q', sbNguon, lam);
   const tep = join(lam, 'memory/projects/Sonicplan_GhiNho.md');
   let nd = readFileSync(tep, 'utf8').replace('Trưởng phòng Hợp tác', 'Giám đốc Hợp tác').replace('Ghi âm họp ra biên bản', 'Bản của KB');
   nd = `${nd.trimEnd()}\n\n## Sự thật\n\n- **Mới từ KB**: PM ghi trực tiếp trong file\n- **Mật khẩu**: mật khẩu là 123456\n`;
@@ -593,7 +606,7 @@ test('đồng bộ ghi nhớ hai chiều với KB thật (kho git cục bộ): x
   assert.deepEqual(dong('Mới từ KB'), { noi_dung: 'PM ghi trực tiếp trong file', nguon: 'tay', da_duyet: 1, ghim: 0 });
   assert.equal(dong('SonicRec').noi_dung, 'Bản của Sonicplan'); // xung đột: Sonicplan thắng
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM ghi_nho WHERE tieu_de = 'Mật khẩu'").get().n, 0);
-  assert.equal(kq.doi, true); // bản của KB lệch Sonicplan (SonicRec, và mục chặn) nên đẩy PR chỉnh lại
+  assert.equal(kq.doi, true); // bản của KB lệch Sonicplan (SonicRec, và mục chặn) nên đẩy lại main
   await tho.dong();
 });
 
