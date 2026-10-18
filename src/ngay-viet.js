@@ -58,6 +58,7 @@ function ngayTuongDoi(t, homNay) {
 }
 
 // Giờ hẹn "HH:MM": 18:15, 18h15, 18h, 6 giờ chiều, 6h30 tối, 14 giờ.
+// Giờ 1-6 viết trống không ("a 5h30 nhé", "4h họp") là buổi chiều: hẹn 5 giờ sáng thì người ta ghi rõ "sáng".
 export function gioTuChu(chu) {
   const t = chuanHoa(chu).replace(/ gio /g, ' h ').replace(/(\d)\s*gio\b/g, '$1h');
   let m = String(chu).match(/(?:^|[^\d])([01]?\d|2[0-3])\s*:\s*([0-5]\d)(?!\d)/);
@@ -69,6 +70,7 @@ export function gioTuChu(chu) {
     g = Number(m[1]); p = m[2] ? Number(m[2]) : 0;
     if (m[3] && g < 12 && (m[3] === 'chieu' || m[3] === 'toi' || m[3] === 'dem') && g !== 0) g += 12;
     if (m[3] === 'trua' && g < 11) g += 12;
+    if (!m[3] && g >= 1 && g <= 6 && !/sáng/i.test(String(chu).normalize('NFC')) && !/\bsang (som|mai|nay)\b/.test(t)) g += 12;
   }
   return `${String(g).padStart(2, '0')}:${String(p).padStart(2, '0')}`;
 }
@@ -91,6 +93,11 @@ export function ngayChoGio(gio, mocGui = new Date()) {
   return g * 60 + p > phutNay ? homNay : congNgay(homNay, 1);
 }
 
+const gioCong12 = (gio) => {
+  const [g, p] = String(gio).split(':').map(Number);
+  return g >= 1 && g <= 11 ? `${g + 12}:${String(p).padStart(2, '0')}` : null;
+};
+
 // Điền hạn và giờ còn thiếu của một việc từ tiêu đề, ghi chú và tin gốc. Ngày ghi rõ dạng dd/mm trong tiêu đề thắng ngày AI đoán.
 export function boSungHan(viec, nguonChu = '', mocGui = new Date()) {
   const ra = { ...viec };
@@ -99,8 +106,11 @@ export function boSungHan(viec, nguonChu = '', mocGui = new Date()) {
   if (coDdMm && trongTieuDe.han_ngay) ra.han_ngay = trongTieuDe.han_ngay;
   // Chỉ đọc tiêu đề và tin gốc ngắn (chat). Thư dài và ghi chú AI nhắc nhiều ngày khác nhau nên dễ đọc nhầm.
   for (const chu of [viec.tieu_de, String(nguonChu || '').length <= 300 ? nguonChu : '']) {
-    if (!chu || (ra.han_ngay && ra.gio_hen)) continue;
+    if (!chu) continue;
     const d = docNgayGio(chu, mocGui);
+    // AI đọc "5h30" thành 05:30 trong khi chữ gốc là buổi chiều: lấy 17:30 theo chữ gốc.
+    if (ra.gio_hen && d.gio_hen && gioCong12(ra.gio_hen) === d.gio_hen) ra.gio_hen = d.gio_hen;
+    if (ra.han_ngay && ra.gio_hen) continue;
     if (!ra.han_ngay && d.han_ngay) ra.han_ngay = d.han_ngay;
     if (!ra.gio_hen && d.gio_hen) ra.gio_hen = d.gio_hen;
   }

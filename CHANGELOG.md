@@ -10,6 +10,10 @@ Memory của PM chuyển từ ThangLong_KB sang kho second-brain (18/10/2026). K
 - Ghi nhớ Sonicplan xuất vào `memory/projects/Sonicplan_GhiNho.md` của kho second-brain (`SB_REPO`, mặc định `HaiTLU/second-brain`), đẩy thẳng `main`, chỉ thư mục `memory/`, không mở PR. Bị từ chối vì `main` đã đổi thì nạp lại, rebase rồi đẩy lại tối đa 3 lần.
 - Kết quả việc của thợ Claude không còn đẩy `memory/` lên ThangLong_KB, chỉ đẩy thư mục làm việc của dự án.
 
+### Sửa
+- Lịch hẹn qua Zalo không lên Lịch: AI bỏ câu hẹn trong nhóm bạn bè như "a 5h30 nhé" vì coi là chuyện vặt. Lời nhắc thêm nguyên tắc 15: lịch hẹn có giờ của người dùng luôn là việc, kể cả việc riêng.
+- Giờ 1-6 viết trống không ("5h30", "4 giờ") hiểu là buổi chiều. Trước đây "a 5h30 nhé" gửi lúc 11:39 thành 05:30 sáng hôm sau. AI trả 05:30 trong khi chữ gốc là "5h30" thì code sửa thành 17:30.
+
 ## [1.14.0] - 2026-10-17
 
 Đợt 1 của kế hoạch "AI giải quyết được việc" (PM duyệt 17/10/2026). Không có migration.

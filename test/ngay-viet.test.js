@@ -58,3 +58,12 @@ test('việc "Đi siêu âm lúc 18:15 ngày 13/10": AI chỉ trả giờ vẫn 
   assert.equal(boSungHan({ tieu_de: 'Review tờ trình', ghi_chu: 'hội thảo ngày 28/10' }, 'x'.repeat(400) + ' 15/10 11:33', T2).han_ngay, undefined);
   assert.equal(boSungHan({ tieu_de: 'Họp', han_ngay: '2026-10-20', gio_hen: '09:00' }, '', T2).han_ngay, '2026-10-20');
 });
+
+test('giờ 1-6 viết trống không là buổi chiều: "a 5h30 nhé" gửi 11:39 là 17:30 hôm đó', () => {
+  const luc = '2026-10-18T04:39:00Z'; // 11:39 giờ Việt Nam
+  for (const [chu, gio] of [['a 5h30 nhé', '17:30'], ['4 giờ họp', '16:00'], ['6h sáng', '06:00'], ['sáng mai 5h', '05:00'], ['9h', '09:00'], ['0h', '00:00']]) assert.equal(gioTuChu(chu), gio, chu);
+  assert.deepEqual(boSungHan({ tieu_de: 'Qua tập với Văn' }, 'a 5h30 nhé', luc), { tieu_de: 'Qua tập với Văn', gio_hen: '17:30', han_ngay: '2026-10-18' });
+  // AI đọc thành 05:30 thì sửa theo chữ gốc, không đẩy sang 5h30 sáng mai.
+  assert.deepEqual(boSungHan({ tieu_de: 'Qua tập với Văn', gio_hen: '05:30' }, 'a 5h30 nhé', luc), { tieu_de: 'Qua tập với Văn', gio_hen: '17:30', han_ngay: '2026-10-18' });
+  assert.equal(boSungHan({ tieu_de: 'Chạy bộ', gio_hen: '05:30' }, '5h30 sáng mai chạy', luc).gio_hen, '05:30');
+});
