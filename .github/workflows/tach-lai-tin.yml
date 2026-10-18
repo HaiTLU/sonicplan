@@ -1,0 +1,26 @@
+# Bấm tay: đưa một hoặc vài tin về hàng chờ tách việc (da_tach = 0) trên Mac mini, để AI đọc lại bằng bản mã mới.
+# Lượt tách việc 5 phút một lần sẽ tự nhận các tin này. Chỉ đổi cột da_tach của đúng các tin được nêu.
+name: Tach lai tin
+on:
+  workflow_dispatch:
+    inputs:
+      tin_ids:
+        description: 'Mã tin, cách nhau bằng dấu phẩy (ví dụ 2359,2367)'
+        required: true
+permissions:
+  contents: read
+jobs:
+  tach-lai:
+    runs-on: [self-hosted, sonicplan-may]
+    timeout-minutes: 5
+    steps:
+      - name: Dua tin ve hang cho
+        env:
+          SONICPLAN_DIR: ${{ vars.SONICPLAN_DIR }}
+          TIN_IDS: ${{ inputs.tin_ids }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$TIN_IDS" =~ ^[0-9]+(,[0-9]+){0,19}$ ]]; then echo "Mã tin không hợp lệ: $TIN_IDS" >&2; exit 1; fi
+          DB="${SONICPLAN_DIR:-$HOME/sonicplan}/du-lieu/sonicplan.sqlite"
+          sqlite3 "$DB" "UPDATE tin_nhan SET da_tach = 0, tach_luc = NULL WHERE id IN ($TIN_IDS) AND an = 0;
+            SELECT id, nguoi_gui, substr(noi_dung, 1, 60), da_tach FROM tin_nhan WHERE id IN ($TIN_IDS);"
