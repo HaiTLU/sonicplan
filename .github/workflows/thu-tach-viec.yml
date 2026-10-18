@@ -1,0 +1,20 @@
+# Bấm tay: chạy bộ tin mẫu (test/tin-mau/tach-viec.json) qua AI thật trên Mac mini, in ĐÚNG hoặc SAI từng tin.
+# Dùng sau khi sửa lời dặn ở src/ai.js. Không ghi vào dữ liệu Sonicplan: chỉ gọi Claude Code một lượt cho mỗi tin.
+name: Thu tach viec
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  thu:
+    runs-on: [self-hosted, sonicplan-may]
+    timeout-minutes: 20
+    steps:
+      - name: Chay bo tin mau
+        env:
+          SONICPLAN_DIR: ${{ vars.SONICPLAN_DIR }}
+        run: |
+          set -euo pipefail
+          cd "${SONICPLAN_DIR:-$HOME/sonicplan}"
+          git log -1 --format='Bản đang chạy: %h %s'
+          node scripts/thu-tach-viec.mjs
