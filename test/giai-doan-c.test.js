@@ -96,5 +96,5 @@ test('việc mơ hồ (tên một chữ, hai chữ trơ trọi) không phải vi
 
 test('lời nhắc tách việc có đủ nguyên tắc nhận việc (lời nhờ, lời tự hứa, nhắc tiến độ, "ok" không xóa việc)', () => {
   const he = loiNhacTachViec([{ so: 1, nguon: 'zalo', noi_dung: 'x', thoi_diem: 't' }], '2026-10-12', 'Hải')[0].content;
-  for (const mau of [/NGUYÊN TẮC NHẬN VIỆC/, /Lời nhờ hoặc giao của người khác là việc của người dùng/, /Lời tự hứa của người dùng/, /nhắc tiến độ/, /KHÔNG làm việc biến mất/, /thứ ba/, /Không đặt tiêu đề trống ý/]) assert.match(he, mau);
+  for (const mau of [/NGUYÊN TẮC NHẬN VIỆC/, /Lời nhờ hoặc giao của người khác là việc của người dùng/, /Lời tự hứa của người dùng/, /nhắc tiến độ/, /KHÔNG làm việc biến mất/, /thứ ba/, /Không đặt tiêu đề trống ý/, /Lịch hẹn có giờ của người dùng LUÔN là việc/, /"5h30" thì 17:30/]) assert.match(he, mau);
 });
