@@ -1,0 +1,16 @@
+{
+  "ghi_chu": "Bộ tin mẫu viết tay để thử lời dặn tách việc. Thay dần bằng tin thật đã ẩn danh (bỏ tên, số điện thoại) kèm đáp án anh xác nhận. co_viec: AI phải tạo ít nhất một việc (true) hay không tạo việc nào (false). gio_hen: nếu có, việc đầu tiên phải đúng giờ này.",
+  "hom_nay": "2026-10-19",
+  "cac_tin": [
+    { "ten": "hẹn giờ ngắn trong nhóm riêng", "tin": { "nguon": "zalo", "nhom": "Nhà mình", "nguoi_gui": "Vợ", "noi_dung": "a 5h30 nhé", "thoi_diem": "2026-10-19 11:02" }, "co_viec": true },
+    { "ten": "nhờ làm việc cụ thể", "tin": { "nguon": "zalo", "nhom": "Đào tạo ngắn hạn", "nguoi_gui": "Chị Lan", "noi_dung": "Anh gửi em danh sách học viên khóa AI trước thứ Sáu nhé", "thoi_diem": "2026-10-19 09:15" }, "co_viec": true },
+    { "ten": "họp có giờ", "tin": { "nguon": "zalo", "nhom": "Ban dự án", "nguoi_gui": "Anh Minh", "noi_dung": "Mai 9h họp ở phòng 302 bàn kế hoạch quý IV", "thoi_diem": "2026-10-19 16:40" }, "co_viec": true, "gio_hen": "09:00" },
+    { "ten": "rủ ăn cơm lớp", "tin": { "nguon": "zalo", "nhom": "Lớp cao học", "nguoi_gui": "Bạn Hà", "noi_dung": "Tối nay mn đi ăn lẩu không?", "thoi_diem": "2026-10-19 10:20" }, "co_viec": false },
+    { "ten": "thông báo chung cả nhóm", "tin": { "nguon": "zalo", "nhom": "Lớp cao học", "nguoi_gui": "Lớp trưởng", "noi_dung": "@All 13h30 vào lớp nhé mn", "thoi_diem": "2026-10-19 12:00" }, "co_viec": false },
+    { "ten": "chào hỏi", "tin": { "nguon": "zalo", "nhom": "", "nguoi_gui": "Anh Nam", "noi_dung": "Chào anh, cuối tuần vui vẻ nhé", "thoi_diem": "2026-10-19 17:00" }, "co_viec": false },
+    { "ten": "xin báo giá", "tin": { "nguon": "zalo", "nhom": "", "nguoi_gui": "Chị Thu", "noi_dung": "Anh báo bên đối tác gửi lại báo giá khóa Marketing giúp em", "thoi_diem": "2026-10-19 14:10" }, "co_viec": true },
+    { "ten": "tự hứa trong tin của mình", "tin": { "nguon": "zalo", "nhom": "Ban dự án", "nguoi_gui": "Tôi", "noi_dung": "Tôi sẽ gửi bản kế hoạch cho anh Minh chiều mai", "thoi_diem": "2026-10-19 15:30" }, "co_viec": true },
+    { "ten": "tin cảm ơn", "tin": { "nguon": "zalo", "nhom": "Ban dự án", "nguoi_gui": "Anh Minh", "noi_dung": "OK, cảm ơn anh", "thoi_diem": "2026-10-19 15:45" }, "co_viec": false },
+    { "ten": "hẹn giờ chiều trong nhóm công việc", "tin": { "nguon": "zalo", "nhom": "Đào tạo ngắn hạn", "nguoi_gui": "Chị Lan", "noi_dung": "Chiều nay 3h gặp anh ở văn phòng nhé", "thoi_diem": "2026-10-19 08:30" }, "co_viec": true, "gio_hen": "15:00" }
+  ]
+}

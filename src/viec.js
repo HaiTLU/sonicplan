@@ -159,6 +159,23 @@ export async function ghiLienKet(env, toChucId, lienKet, tin, viecMoIds) {
   return so;
 }
 
+// Các lần người dùng sửa hoặc hủy việc do AI tách trong 30 ngày qua, viết thành dòng ngắn để AI học lần tách sau (tối đa 10 dòng).
+const TEN_SUA = { huy: 'Hủy việc', sua_ten: 'Sửa tên việc', doi_du_an: 'Đổi dự án', doi_nhom: 'Đổi nhóm', sua_han: 'Sửa hạn' };
+export async function docViecDaSua(env, toChucId, toiDa = 10) {
+  const { results } = await env.CSDL.prepare(
+    `SELECT e.loai, e.noi_dung, v.tieu_de, t.noi_dung AS tin FROM viec_su_kien e
+     JOIN viec v ON v.id = e.viec_id AND v.to_chuc_id = e.to_chuc_id LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id
+     WHERE e.to_chuc_id = ?1 AND e.luc >= ?2 AND e.loai IN ('huy', 'sua_ten', 'doi_du_an', 'doi_nhom', 'sua_han')
+       AND COALESCE(v.nguon, 'tay') <> 'tay' AND COALESCE(e.noi_dung, '') NOT LIKE 'Gỡ vì%' ORDER BY e.id DESC LIMIT ?3`,
+  ).bind(toChucId, new Date(Date.now() - 30 * 86400000).toISOString(), toiDa).all();
+  return results.map((r) => {
+    const [chinh, lyDo] = String(r.noi_dung || '').split(' | lý do: ');
+    const tin = r.tin ? ` (tin gốc: "${cat(String(r.tin).replace(/\s+/g, ' '), 100)}")` : '';
+    const chiTiet = r.loai === 'huy' ? `"${cat(chinh || r.tieu_de, 80)}"` : `${cat(chinh, 120)}`;
+    return `- ${TEN_SUA[r.loai]}: ${chiTiet}${lyDo ? `, lý do: ${cat(lyDo, 100)}` : ''}${tin}`;
+  });
+}
+
 // Lõi xử lý một lô tin: AI đọc cùng ghi nhớ, tạo việc, lưu ghi nhớ. Dùng cho tin trong hộp tin và cho tin nhắn trực tiếp.
 // tin: [{ id (hoặc null), nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem }]. Trả { soViec, viec: [{ id, tieu_de, han_ngay, gio_hen, trung }] }.
 async function chayLoTin(env, toChucId, tin, bayGio, khoa = null) {
@@ -192,6 +209,7 @@ async function chayLoTin(env, toChucId, tin, bayGio, khoa = null) {
       viecMo,
       duAn,
       ghiNho,
+      daSua: await docViecDaSua(env, toChucId).catch(() => []),
       baoLoi: (thongBao) => ghiTinHieu(env, toChucId, 'ai', `Dịch vụ AI ngoài lỗi, đã dùng AI có sẵn: ${thongBao}`),
     }));
   } catch (e) {

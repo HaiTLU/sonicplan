@@ -9,7 +9,7 @@ const CHI_CHU = [
   ['GET', '/api/du-lieu/xuat'], ['GET', '/api/du-lieu/truy-cap'],
   ['POST', '/api/viec/1/claude'], ['POST', '/api/claude/giao'],
   ['POST', '/api/du-an/1/drive-kho'], ['DELETE', '/api/du-an/1/drive-kho'], ['POST', '/api/du-an/1/drive-kho/dong-bo'],
-  ['PATCH', '/api/luong'], ['PUT', '/api/ho-so'], ['DELETE', '/api/ghi-nho'],
+  ['PATCH', '/api/luong'], ['PUT', '/api/ho-so'], ['POST', '/api/goi-y-loi-dan'], ['DELETE', '/api/ghi-nho'],
   ['POST', '/api/ket-noi/zalo'],
   ['POST', '/api/ket-noi/ai'], ['DELETE', '/api/ket-noi/ai'],
   ['POST', '/api/ket-noi/google'], ['DELETE', '/api/ket-noi/google'],
