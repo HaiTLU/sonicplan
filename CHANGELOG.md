@@ -2,6 +2,14 @@
 
 Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số theo [SemVer](https://semver.org/lang/vi/): số giữa tăng khi thêm tính năng, số cuối tăng khi sửa lỗi.
 
+## [Chưa phát hành]
+
+Memory của PM chuyển từ ThangLong_KB sang kho second-brain (18/10/2026). Không có migration.
+
+### Đổi
+- Ghi nhớ Sonicplan xuất vào `memory/projects/Sonicplan_GhiNho.md` của kho second-brain (`SB_REPO`, mặc định `HaiTLU/second-brain`), đẩy thẳng `main`, chỉ thư mục `memory/`, không mở PR. Bị từ chối vì `main` đã đổi thì nạp lại, rebase rồi đẩy lại tối đa 3 lần.
+- Kết quả việc của thợ Claude không còn đẩy `memory/` lên ThangLong_KB, chỉ đẩy thư mục làm việc của dự án.
+
 ## [1.14.0] - 2026-10-17
 
 Đợt 1 của kế hoạch "AI giải quyết được việc" (PM duyệt 17/10/2026). Không có migration.

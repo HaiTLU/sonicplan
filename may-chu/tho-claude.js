@@ -31,7 +31,8 @@ export function duongDanChoClaude(cfg = {}, goc = process.env.PATH) {
 
 const TOI_DA_PHUT = 30;
 const CONG_CU = ['Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'TodoWrite', 'Task', 'Skill', 'Bash(python3:*)', 'Bash(node:*)', 'Bash(ls:*)', 'Bash(cat:*)', 'Bash(mkdir:*)'];
-const THU_MUC_DUOC_DAY = (thuMucLam) => [thuMucLam, 'memory'];
+// Kết quả việc chỉ đẩy thư mục làm việc. memory/ đã chuyển sang kho second-brain (18/10/2026), không đẩy lên ThangLong_KB nữa.
+const THU_MUC_DUOC_DAY = (thuMucLam) => [thuMucLam];
 
 const chay = (lenh, doiSo, tuyChon = {}) => new Promise((xong, loi) => {
   execFile(lenh, doiSo, { maxBuffer: 20 * 1024 * 1024, timeout: 120000, ...tuyChon }, (e, out, err) => (e ? loi(Object.assign(e, { stderr: String(err || '').slice(0, 400) })) : xong(String(out))));
@@ -44,6 +45,10 @@ export function moThoClaude(env, cfg = {}) {
   const claudeBin = cfg.CLAUDE_BIN || join(homedir(), '.local', 'bin', 'claude');
   const kbRepo = cfg.KB_REPO || 'HaiTLU/ThangLong_KB';
   const kbNguon = cfg.KB_REMOTE || `https://github.com/${kbRepo}.git`; // thử nghiệm đặt đường dẫn kho cục bộ
+  // Kho second-brain: nơi ghi nhớ Sonicplan được xuất (memory/projects/Sonicplan_GhiNho.md), đẩy thẳng main, chỉ thư mục memory/.
+  const sbDir = resolve(cfg.SB_DIR || join(nha, 'second-brain'));
+  const sbRepo = cfg.SB_REPO || 'HaiTLU/second-brain';
+  const sbNguon = cfg.SB_REMOTE || `https://github.com/${sbRepo}.git`;
   const khongMoPr = cfg.THO_KHONG_PR === '1';
   const dangChay = new Map(); // luot id -> { tc, tien_trinh }
   let hen = null;
@@ -54,13 +59,13 @@ export function moThoClaude(env, cfg = {}) {
   let hangKb = Promise.resolve();
   const lanLuot = (f) => { const ra = hangKb.then(f, f); hangKb = ra.catch(() => {}); return ra; };
 
-  async function chuanBiKb() {
+  async function chuanBiKb(dir = kbDir, nguon = kbNguon) {
     await mkdir(nha, { recursive: true });
-    if (!existsSync(join(kbDir, '.git'))) await chay('git', ['clone', '--quiet', kbNguon, kbDir], { timeout: 600000 });
-    await git(['config', 'user.name', 'Sonicplan']);
-    await git(['config', 'user.email', 'sonicplan@users.noreply.github.com']);
-    await git(['fetch', '--quiet', 'origin', 'main'], kbDir, { timeout: 300000 });
-    await git(['worktree', 'prune']);
+    if (!existsSync(join(dir, '.git'))) await chay('git', ['clone', '--quiet', nguon, dir], { timeout: 600000 });
+    await git(['config', 'user.name', 'Sonicplan'], dir);
+    await git(['config', 'user.email', 'sonicplan@users.noreply.github.com'], dir);
+    await git(['fetch', '--quiet', 'origin', 'main'], dir, { timeout: 300000 });
+    await git(['worktree', 'prune'], dir);
   }
 
   async function lietKeThuMucKb() {
@@ -127,7 +132,8 @@ export function moThoClaude(env, cfg = {}) {
 
   // Commit các đường dẫn đã chọn trong worktree w, đẩy lên nhánh, mở PR và tự gộp khi kiểm tra tự động xong không lỗi (quy tắc kho KB).
   // Không có thay đổi thì không làm gì. Lỗi mạng hay quyền chỉ ghi log, không làm hỏng việc gọi. Trả { pr, nhanhUrl }.
-  async function dayLenKb(w, nhanh, duongDan, { tieuDe, than, nhan }) {
+  // thang: đẩy thẳng main (không PR), dùng cho kho second-brain; bị từ chối vì main đã đổi thì nạp main mới, rebase rồi đẩy lại.
+  async function dayLenKb(w, nhanh, duongDan, { tieuDe, than, nhan, thang = false }) {
     let pr = null;
     let nhanhUrl = null;
     let daGop = false;
@@ -135,6 +141,16 @@ export function moThoClaude(env, cfg = {}) {
       await git(['add', '-A', '--', ...duongDan], w);
       if (!(await git(['diff', '--cached', '--name-only'], w)).trim()) return { pr, nhanhUrl, daGop };
       await git(['commit', '-q', '-m', `${tieuDe}\n\n${than}\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`], w);
+      if (thang) {
+        for (let lan = 1; ; lan++) {
+          try { await git(['push', '-q', 'origin', `${nhanh}:main`], w, { timeout: 300000 }); break; } catch (e) {
+            if (lan >= 3) throw e;
+            await git(['fetch', '-q', 'origin', 'main'], w, { timeout: 300000 });
+            await git(['rebase', 'origin/main'], w, { timeout: 300000 });
+          }
+        }
+        return { pr, nhanhUrl, daGop: true };
+      }
       await git(['push', '-q', '--force', 'origin', `${nhanh}:${nhanh}`], w, { timeout: 300000 });
       nhanhUrl = khongMoPr ? null : `https://github.com/${kbRepo}/tree/${nhanh}`;
       if (khongMoPr) return { pr, nhanhUrl, daGop };
@@ -153,7 +169,7 @@ export function moThoClaude(env, cfg = {}) {
     return { pr, nhanhUrl, daGop };
   }
 
-  // Ghi nhớ trong Sonicplan (người, dự án, quyết định, sự thật) xuất sang memory/projects/Sonicplan_GhiNho.md của KB để Claude đọc ở mọi phiên.
+  // Ghi nhớ trong Sonicplan (người, dự án, quyết định, sự thật) xuất sang memory/projects/Sonicplan_GhiNho.md của kho second-brain để Claude đọc ở mọi phiên.
   // Chỉ tạo PR khi nội dung đổi so với bản đang có trên main. Trả { so_ghi_nho, doi, pr }.
   async function dongBoGhiNho() {
     const { results: dsTc } = await env.CSDL.prepare('SELECT id FROM to_chuc').all();
@@ -165,14 +181,14 @@ export function moThoClaude(env, cfg = {}) {
     for (const { id: tc } of dsTc) {
       const doc = async () => (await env.CSDL.prepare('SELECT loai, tieu_de, noi_dung, ghim, nguon FROM ghi_nho WHERE to_chuc_id = ?1 ORDER BY loai, ghim DESC, tieu_de').bind(tc).all()).results;
       let results = await doc();
-      // ThangLong_KB là kho của một tổ chức và chỉ có một tệp Sonicplan_GhiNho.md: tổ chức đầu tiên có ghi nhớ giữ tệp, tổ chức khác (và tổ chức chưa có ghi nhớ nào, chưa đồng bộ lần nào) bỏ qua để khỏi nhập nhầm.
+      // second-brain là kho của một tổ chức và chỉ có một tệp Sonicplan_GhiNho.md: tổ chức đầu tiên có ghi nhớ giữ tệp, tổ chức khác (và tổ chức chưa có ghi nhớ nào, chưa đồng bộ lần nào) bỏ qua để khỏi nhập nhầm.
       const coGoc = Boolean((await env.CSDL.prepare(`SELECT 1 AS x FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = 'ghi_nho_kb_goc'`).bind(tc).first()));
       if (daDungTep || (!results.length && !coGoc)) continue;
       daDungTep = true;
       const bayGio = new Date();
       const nhanh = `sonicplan/ghi-nho-${new Date(bayGio.getTime() + 7 * 3600000).toISOString().slice(2, 16).replace(/[-:T]/g, '')}`;
       const w = join(lamDir, `ghi-nho-${tc}`.slice(0, 60));
-      await lanLuot(async () => { await chuanBiKb(); await rm(w, { recursive: true, force: true }); await mkdir(lamDir, { recursive: true }); await git(['worktree', 'add', '-B', nhanh, w, 'origin/main']); });
+      await lanLuot(async () => { await chuanBiKb(sbDir, sbNguon); await rm(w, { recursive: true, force: true }); await mkdir(lamDir, { recursive: true }); await git(['worktree', 'add', '-B', nhanh, w, 'origin/main'], sbDir); });
       try {
         const tep = join(w, 'memory', 'projects', 'Sonicplan_GhiNho.md');
         const cu = existsSync(tep) ? await readFile(tep, 'utf8') : '';
@@ -206,10 +222,10 @@ export function moThoClaude(env, cfg = {}) {
         await mkdir(join(w, 'memory', 'projects'), { recursive: true });
         await writeFile(tep, moi);
         doi = true;
-        const kq = await dayLenKb(w, nhanh, ['memory/projects/Sonicplan_GhiNho.md'], { tieuDe: 'Sonicplan: cập nhật ghi nhớ trong memory/', than: `- ${results.length} ghi nhớ từ trang Ghi nhớ của Sonicplan (tự sinh, sửa ở Sonicplan hoặc trực tiếp trong file này, hệ thống hợp nhất mỗi đêm)`, nhan: 'ghi nhớ' });
+        const kq = await dayLenKb(w, nhanh, ['memory/projects/Sonicplan_GhiNho.md'], { thang: true, tieuDe: 'Sonicplan: cập nhật ghi nhớ trong memory/', than: `- ${results.length} ghi nhớ từ trang Ghi nhớ của Sonicplan (tự sinh, sửa ở Sonicplan hoặc trực tiếp trong file này, hệ thống hợp nhất mỗi đêm)`, nhan: 'ghi nhớ' });
         prCuoi = kq.pr || prCuoi;
       } finally {
-        await lanLuot(async () => { await git(['worktree', 'remove', '--force', w]).catch(() => {}); await git(['branch', '-D', nhanh]).catch(() => {}); }).catch(() => {});
+        await lanLuot(async () => { await git(['worktree', 'remove', '--force', w], sbDir).catch(() => {}); await git(['branch', '-D', nhanh], sbDir).catch(() => {}); }).catch(() => {});
       }
     }
     await env.CSDL.prepare(`INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES ('', 'ghi_nho_kb_luc', ?1) ON CONFLICT (to_chuc_id, khoa) DO UPDATE SET gia_tri = excluded.gia_tri`).bind(new Date().toISOString()).run().catch(() => {});
@@ -325,7 +341,7 @@ export function moThoClaude(env, cfg = {}) {
       if (ghiChuNhap) kq.chu = `${kq.chu}\n\n${ghiChuNhap}`;
       await writeFile(join(goc, 'CAU-TRA-LOI.md'), `# Câu trả lời của Claude (lượt ${luot.id})\n\nModel: ${kq.model}${mo.theo_loai ? ' (chọn theo loại việc)' : ''}\n\n${kq.chu}\n`);
 
-      // Đẩy kết quả: chỉ thư mục làm việc và memory/, các thay đổi khác của Claude bị bỏ.
+      // Đẩy kết quả: chỉ thư mục làm việc, các thay đổi khác của Claude (kể cả memory/) bị bỏ.
       const { pr, nhanhUrl, daGop } = await dayLenKb(w, nhanh, THU_MUC_DUOC_DAY(thuMucLam), {
         tieuDe: `Sonicplan lượt ${luot.id}: ${viecList[0].tieu_de.slice(0, 60)}`,
         than: `- Thư mục làm việc: ${thuMucLam}\n- Việc: ${viecList.map((v) => `v${v.id}`).join(', ')}`,
@@ -359,14 +375,14 @@ export function moThoClaude(env, cfg = {}) {
     dangChay.set(luot.id, { tc: luot.to_chuc_id, tien_trinh: null, xong });
   }
 
-  // Mỗi ngày sau 23h giờ Việt Nam (và chưa đồng bộ trong ngày) xuất ghi nhớ sang KB. Lỗi chỉ ghi log, ngày mai thử lại.
+  // Mỗi ngày sau 23h giờ Việt Nam (và chưa đồng bộ trong ngày) xuất ghi nhớ sang second-brain. Lỗi chỉ ghi log, ngày mai thử lại.
   async function ghiNhoHangNgay() {
     const vn = new Date(Date.now() + 7 * 3600000);
     if (vn.getUTCHours() < 23) return;
     const ngay = vn.toISOString().slice(0, 10);
     const luc = (await env.CSDL.prepare(`SELECT gia_tri FROM cai_dat WHERE to_chuc_id = '' AND khoa = 'ghi_nho_kb_luc'`).first())?.gia_tri;
     if (luc && new Date(Date.parse(luc) + 7 * 3600000).toISOString().slice(0, 10) === ngay) return;
-    try { await dongBoGhiNho(); } catch (e) { console.error('Đồng bộ ghi nhớ sang KB lỗi', e.message); }
+    try { await dongBoGhiNho(); } catch (e) { console.error('Đồng bộ ghi nhớ sang second-brain lỗi', e.message); }
   }
 
   async function vong() {
