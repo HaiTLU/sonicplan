@@ -300,20 +300,38 @@ export async function veKetNoi(goc, { moi = false } = {}) {
   if (ncc) {
     const chon = (_, coChung) => h('select', { 'aria-label': 'Nhà cung cấp AI' }, ...(coChung ? [h('option', { value: 'chung', text: 'Theo ô chung' })] : []), h('option', { value: 'claude', text: 'Claude' }), h('option', { value: 'fpt', text: 'FPT AI' }));
     const oChung = chon(); const oTach = chon(null, true); const oSoan = chon(null, true);
+    const oTat = h('input', { type: 'checkbox', 'aria-label': 'Tắt hẳn Claude' }); oTat.checked = Boolean(ncc.lua_chon.tat_claude);
     oChung.value = ncc.lua_chon.chung; oTach.value = ncc.lua_chon.tach_viec || 'chung'; oSoan.value = ncc.lua_chon.soan_prompt || 'chung';
     const nhan = (chu, o) => h('label', { class: 'hang-nhan' }, h('span', { text: chu }), o);
     khoiNcc = h('div', { class: 'khoi-api' },
       h('h3', { text: 'Nhà cung cấp AI' }),
-      h('p', { class: 'mo-ta', text: `Chọn Claude hoặc FPT AI cho AI tách việc, tóm tắt, ghi nhớ và soạn prompt. Có hiệu lực từ lượt gọi AI kế tiếp, không cần khởi động lại. ${ncc.co_fpt ? `FPT AI đã có khóa trên máy chủ.` : 'FPT AI chưa có khóa trên máy chủ (biến FPT_AI_API_KEY), chọn FPT lúc này sẽ tự dùng Claude.'}` }),
-      laChu ? h('div', { class: 'luoi-nhap' }, nhan('Chung', oChung), nhan('Tách việc', oTach), nhan('Soạn prompt', oSoan),
+      h('p', { class: 'mo-ta', text: `Chọn Claude hoặc FPT AI cho AI tách việc, tóm tắt, ghi nhớ và soạn prompt. Có hiệu lực từ lượt gọi AI kế tiếp, không cần khởi động lại. ${ncc.co_fpt ? `FPT AI đã có khóa (${ncc.khoa_fpt?.nguon === 'giao_dien' ? 'nhập ở đây' : 'từ biến môi trường trên máy chủ'}), việc thường dùng ${ncc.khoa_fpt?.model}, việc khó dùng ${ncc.khoa_fpt?.model_manh}.` : 'FPT AI chưa có khóa, chọn FPT lúc này sẽ tự dùng Claude. Nhập khóa ở ô bên dưới.'}` }),
+      laChu ? h('div', { class: 'luoi-nhap' }, nhan('Chung', oChung), nhan('Tách việc', oTach), nhan('Soạn prompt', oSoan), h('label', { class: 'hang-nhan' }, h('span', { text: 'Tắt hẳn Claude (chỉ dùng FPT AI, FPT lỗi thì báo lỗi, không quay về Claude)' }), oTat),
         h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
           ev.target.disabled = true;
           try {
-            await api('/api/ket-noi/nha-cung-cap-ai', { method: 'POST', body: JSON.stringify({ chung: oChung.value, tach_viec: oTach.value, soan_prompt: oSoan.value }) });
+            await api('/api/ket-noi/nha-cung-cap-ai', { method: 'POST', body: JSON.stringify({ chung: oChung.value, tach_viec: oTach.value, soan_prompt: oSoan.value, tat_claude: oTat.checked }) });
             bao('Đã đổi nhà cung cấp AI.');
             ve();
           } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
         } }, icon('ai'), 'Lưu lựa chọn')) : null,
+      laChu ? ((() => {
+        const oKhoa = h('input', { type: 'password', placeholder: 'Dán khóa FPT AI (chỉ hiện một lần, không hiện lại)', autocomplete: 'off', 'aria-label': 'Khóa FPT AI' });
+        const oDc = h('input', { type: 'url', placeholder: `Địa chỉ gateway (bỏ trống: ${ncc.khoa_fpt?.dia_chi || ''})`, autocomplete: 'off', 'aria-label': 'Địa chỉ gateway FPT AI' });
+        const oNhe = h('input', { type: 'text', placeholder: `Model việc thường (bỏ trống: ${ncc.khoa_fpt?.model || ''})`, autocomplete: 'off', 'aria-label': 'Model việc thường' });
+        const oManh = h('input', { type: 'text', placeholder: `Model việc khó (bỏ trống: ${ncc.khoa_fpt?.model_manh || ''})`, autocomplete: 'off', 'aria-label': 'Model việc khó' });
+        return h('div', { class: 'luoi-nhap', style: 'margin-top:12px' }, h('strong', { text: 'Khóa FPT AI' }), oKhoa, oDc, oNhe, oManh,
+          h('div', { class: 'hang-nut' },
+            h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
+              ev.target.disabled = true;
+              try {
+                await api('/api/ket-noi/khoa-fpt', { method: 'POST', body: JSON.stringify({ khoa: oKhoa.value, dia_chi: oDc.value, model: oNhe.value, model_manh: oManh.value }) });
+                bao('Đã kiểm khóa và lưu. Chọn FPT AI ở trên để dùng.');
+                ve();
+              } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
+            } }, icon('ai'), 'Kiểm tra và lưu khóa'),
+            ncc.khoa_fpt?.nguon === 'giao_dien' ? h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/khoa-fpt', { method: 'DELETE' }); bao('Đã gỡ khóa FPT AI.'); ve(); } }, 'Gỡ khóa') : null));
+      })()) : null,
     );
   }
 

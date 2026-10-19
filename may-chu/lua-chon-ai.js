@@ -12,6 +12,7 @@ export function chuanLuaChon(v, macDinh = 'claude') {
     const x = nha(v?.[p]);
     if (x && x !== kq.chung) kq[p] = x; // trùng ô chung thì bỏ, giữ tệp gọn
   }
+  if (v?.tat_claude === true) kq.tat_claude = true; // tắt hẳn Claude Code: không dùng Claude làm dự phòng
   return kq;
 }
 

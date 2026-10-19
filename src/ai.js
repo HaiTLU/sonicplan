@@ -271,7 +271,7 @@ export async function chayAi(env, tuyChon, messages, { maxTokens, nhietDo, khuon
     }
   }
   // Máy chủ trên Mac: Claude qua Claude Code gói Max (env.CLAUDE_CODE_AI, gắn ở may-chu/chay.js) đứng trước Workers AI.
-  if (env.CLAUDE_CODE_AI) {
+  if (env.CLAUDE_CODE_AI && !env.LUA_CHON_AI?.doc?.().tat_claude) {
     try {
       return await env.CLAUDE_CODE_AI.chay(messages, tuyChon?.model ? { model: tuyChon.model } : undefined);
     } catch (e) {
@@ -281,7 +281,7 @@ export async function chayAi(env, tuyChon, messages, { maxTokens, nhietDo, khuon
   }
   if (tuyChon) tuyChon.duPhong = true; // đã quay về Workers AI: ghi nhớ từ lượt này có độ tin cậy thấp
   // Máy chủ trên Mac không có Workers AI khi thiếu CF_AI_TOKEN: báo rõ thay vì lỗi "undefined".
-  if (!env.AI) throw new Error(ngoai || env.CLAUDE_CODE_AI ? 'AI lỗi và máy chủ không có Workers AI dự phòng' : 'Chưa nối AI, vào Kết nối > AI của bạn để dán khóa');
+  if (!env.AI) throw new Error(ngoai || env.CLAUDE_CODE_AI ? (env.LUA_CHON_AI?.doc?.().tat_claude ? 'AI lỗi, Claude đang tắt và máy chủ không có Workers AI dự phòng' : 'AI lỗi và máy chủ không có Workers AI dự phòng') : 'Chưa nối AI, vào Kết nối > AI của bạn để dán khóa');
   // Đã biết hết hạn mức ngày thì không gọi nữa tới lúc đặt lại, khỏi lặp lỗi 429 mỗi 5 phút.
   const tamDung = await docHetHanMuc(env);
   if (tamDung) throw new TamDungHanMuc(tamDung);
