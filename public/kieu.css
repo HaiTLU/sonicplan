@@ -1508,12 +1508,6 @@ details.bang-suc-khoe[open] > summary { padding-bottom: 0; }
 .bo-loc-viec > summary svg { width: 15px; height: 15px; }
 .bo-loc-viec[open] > summary { background: var(--mat-3); border-color: transparent; color: var(--chu); }
 .bo-loc-viec > .thanh-loc { margin-top: 10px; }
-/* Điện thoại: ô thêm nhanh chỉ hiện ô hạn và giờ khi đang gõ. */
-@media (max-width: 860px) {
-  .them-nhanh:not(:focus-within):has(input[name="tieu_de"]:placeholder-shown) input[name="han_ngay"],
-  .them-nhanh:not(:focus-within):has(input[name="tieu_de"]:placeholder-shown) input[name="gio_hen"],
-  .them-nhanh:not(:focus-within):has(input[name="tieu_de"]:placeholder-shown) button[type="submit"] { display: none; }
-}
 /* Hộp tin: hành động tách khỏi chip lọc. */
 .nut-hanh-dong { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; padding: 7px 10px; border: 0; background: none; color: var(--nhan); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; border-radius: 10px; }
 .nut-hanh-dong:hover { background: var(--mat-2); }
@@ -1572,3 +1566,6 @@ input, textarea, select, [contenteditable], pre, code, .oChep { user-select: tex
 .khung-han .truong input { padding: 8px 10px; }
 .khung-han .hang-nut { display: flex; justify-content: space-between; gap: 8px; }
 .khung-han .hang-nut button { height: 34px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--vach-2); font-size: 13px; font-weight: 600; cursor: pointer; }
+
+/* Ẩn nhãn trên thẻ việc: giữ ngày giờ, bỏ nguồn, dự án và nhãn Claude cho gọn. */
+.an-nhan .the-viec .chan .nguon, .an-nhan .the-viec .chan .nhan-du-an, .an-nhan .the-viec .chan .nhan-claude { display: none; }
