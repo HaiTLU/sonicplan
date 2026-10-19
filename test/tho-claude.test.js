@@ -198,6 +198,8 @@ test('thợ chạy trọn một lượt: ngữ cảnh vào kho, kết quả lên
   db.exec("INSERT INTO tep (to_chuc_id, tin_nhan_id, ten, loai, kich_thuoc, r2_khoa, tao_luc) VALUES ('tc1', 1, 'so-lieu.csv', 'csv', 5, 'k1', '2026-10-14')");
   env.TEP = { get: async () => ({ arrayBuffer: async () => new TextEncoder().encode('a,b\n1,2').buffer }) };
   viec(db, 1, 'Soạn báo cáo tuần', 'claude_chuan_bi', '2026-10-20', 1);
+  // Sáng thứ Hai vòng thợ tự rà soát tuần và thêm một thông báo: đánh dấu tuần này đã rà để test không phụ thuộc ngày chạy.
+  db.prepare("INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES ('', 'ra_soat_tuan', ?1)").run(new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10));
   const { goc, kbNguon, claude } = await dungChayThu();
   const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
   await tho.vongMotLan();
