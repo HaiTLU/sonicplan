@@ -567,7 +567,7 @@ function themHangCho(d, dong, phien) {
 function chayMotLan(loiNhac, { model, effort, cwd }) {
   return new Promise((xong, loi) => {
     mkdirSync(cwd, { recursive: true });
-    const con = spawn(CLAUDE, ['-p', '--output-format', 'json', '--model', model, '--effort', effort, '--tools', '', '--no-session-persistence'], { cwd, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, CLAUDECODE: '' } });
+    const con = spawn(CLAUDE, ['-p', '--output-format', 'json', '--model', model, '--effort', effort, '--tools', '', '--strict-mcp-config', '--setting-sources', 'local', '--disable-slash-commands', '--no-session-persistence'], { cwd, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, CLAUDECODE: '' } });
     let ra = '';
     let loiRa = '';
     const hen = setTimeout(() => { try { con.kill('SIGKILL'); } catch {} }, 5 * 60 * 1000);

@@ -176,6 +176,14 @@ export async function docViecDaSua(env, toChucId, toiDa = 10) {
   });
 }
 
+// Tin Zalo chỉ vài chữ không số, không "@" ("ok", "dạ", "được", "haha"): không thể là việc. Cả lô toàn tin loại này thì khỏi gọi AI.
+export function laTinVun(t) {
+  if (t?.nguon !== 'zalo' || t.tieu_de) return false;
+  const chu = String(t.noi_dung || '').trim();
+  if (/[\d@]/.test(chu)) return false;
+  return (chu.match(/\p{L}/gu) || []).length <= 5;
+}
+
 // Lõi xử lý một lô tin: AI đọc cùng ghi nhớ, tạo việc, lưu ghi nhớ. Dùng cho tin trong hộp tin và cho tin nhắn trực tiếp.
 // tin: [{ id (hoặc null), nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem }]. Trả { soViec, viec: [{ id, tieu_de, han_ngay, gio_hen, trung }] }.
 async function chayLoTin(env, toChucId, tin, bayGio, khoa = null) {
@@ -183,15 +191,15 @@ async function chayLoTin(env, toChucId, tin, bayGio, khoa = null) {
     `SELECT n.ten FROM thanh_vien v JOIN nguoi_dung n ON n.id = v.nguoi_dung_id WHERE v.to_chuc_id = ?1 AND v.vai_tro = 'chu' LIMIT 1`,
   ).bind(toChucId).first();
 
-  // Việc đang mở và việc vừa xong 3 ngày qua, đưa cho AI để khỏi trích lại việc đã có.
+  // Việc vừa xong 3 ngày qua (việc đang mở nằm ở viecMo bên dưới), đưa cho AI để khỏi trích lại việc đã có.
   const { results: daCoDong } = await env.CSDL.prepare(
     `SELECT tieu_de, han_ngay, trang_thai FROM viec
-     WHERE to_chuc_id = ?1 AND (trang_thai = 'mo' OR (trang_thai = 'xong' AND xong_luc >= ?2)) ORDER BY id DESC LIMIT 80`,
+     WHERE to_chuc_id = ?1 AND trang_thai = 'xong' AND xong_luc >= ?2 ORDER BY id DESC LIMIT 30`,
   ).bind(toChucId, new Date(Date.now() - 3 * 86400000).toISOString()).all();
   const daCo = daCoDong.map((v) => `${v.trang_thai === 'xong' ? '[đã xong] ' : ''}${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay})` : ''}`);
 
   const { results: viecMo } = await env.CSDL.prepare(
-    `SELECT id, tieu_de FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' ORDER BY id DESC LIMIT 40`,
+    `SELECT id, tieu_de, han_ngay FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' ORDER BY id DESC LIMIT 60`,
   ).bind(toChucId).all();
 
   const duAn = await docDuAn(env, toChucId).catch(() => []);
@@ -281,6 +289,15 @@ export async function tachViecChoToChuc(env, toChucId) {
     ).bind(toChucId, bayGio, dau.khoa).all();
     if (!tin.length) continue; // lượt chạy song song vừa nhận cuộc này
     tin.sort((a, b) => a.id - b.id);
+
+    if (tin.every(laTinVun)) {
+      await env.CSDL.prepare(
+        `UPDATE tin_nhan SET da_tach = 1 WHERE to_chuc_id = ?1 AND da_tach = 2 AND id IN (${tin.map((_, j) => `?${j + 2}`).join(',')})`,
+      ).bind(toChucId, ...tin.map((t) => t.id)).run();
+      tong.so_tin += tin.length;
+      tong.so_bo_qua = (tong.so_bo_qua || 0) + tin.length;
+      continue;
+    }
 
     const { soViec, soLienKet, viec, soAi, duPhong } = await chayLoTin(env, toChucId, tin, bayGio, dau.khoa);
     await env.CSDL.prepare(

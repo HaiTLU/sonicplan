@@ -89,7 +89,7 @@ export function loiNhacTachViec(tin, homNay, tenNguoiDung, daCo = [], ghiNho = [
     'Không tạo việc cho tin phiếm: chào hỏi, cười, "ok" một mình, câu hỏi suông không kéo theo hành động, tin một hai chữ không có động từ. Tin có động từ hành động mà người dùng phải làm và đáng ghi lại (theo các nguyên tắc 1-10, trừ việc vụn vặt ở nguyên tắc 11) thì tạo việc.',
     'Nhiều tin trong lô cùng nói về MỘT hành động với MỘT đối tượng thì gộp thành một việc; hành động khác nhau (liên hệ xin tài liệu, tìm thêm đơn vị khác, gọi điện) thì tách. Ghi_chu nêu đủ ai, cái gì, hạn, vì sao. Dùng hồ sơ người dùng và phần "Đã nhớ" để đánh giá ai là người quan trọng, dự án nào đang gấp, rồi đặt uu_tien cho đúng.',
     'uu_tien: "cao" nếu có hạn trong 2 ngày hoặc người có vai trò quan trọng yêu cầu, "thap" nếu không gấp, còn lại "vua".',
-    'nhom: 1 = AI tự làm được toàn bộ (soạn văn bản, tra cứu, tổng hợp); 2 = AI chỉ chuẩn bị, cần người dùng quyết định hoặc ký; 3 = người dùng phải tự làm (họp, gặp người, gọi điện). ly_do: một câu. cac_buoc: 3-5 bước ngắn theo thứ tự, tính cả hạn. ban_nhap: bản nháp ngắn dưới 600 ký tự nếu việc cần soạn chữ, còn không thì rỗng.',
+    'nhom: 1 = AI tự làm được toàn bộ (soạn văn bản, tra cứu, tổng hợp); 2 = AI chỉ chuẩn bị, cần người dùng quyết định hoặc ký; 3 = người dùng phải tự làm (họp, gặp người, gọi điện). ly_do: một câu. Nhóm 3 thì chỉ cần ly_do, để cac_buoc là mảng rỗng và ban_nhap rỗng. Nhóm 1 và 2: cac_buoc 3-5 bước ngắn theo thứ tự, tính cả hạn; ban_nhap bản nháp ngắn dưới 600 ký tự nếu việc cần soạn chữ, còn không thì rỗng.',
     'ghi_nho: những điều NÊN NHỚ lâu dài từ tin: loai là "nguoi" (tên, vai trò, cách liên hệ), "du_an" (tên, tình trạng), "quyet_dinh" (điều đã chốt, kèm ngày), hoặc "su_that" (thông tin ổn định khác). Tối đa 10 mục, mỗi mục ngắn. Không nhớ chuyện vụn, lời chào, việc một lần đã nằm trong danh sách việc. Tuyệt đối không nhớ mật khẩu, mã xác nhận, số thẻ, số tài khoản, số giấy tờ.',
     'Phần "Tin trước đó" là vài tin đã xử lý cùng cuộc trò chuyện hoặc cùng người gửi: chỉ để hiểu ngữ cảnh (ai đang nói về gì, "ok", "đồng ý", "như hôm qua" nghĩa là gì). KHÔNG trích việc từ phần đó.',
     'Phần "Đã nhớ" là điều hệ thống đã biết từ trước: dùng nó để hiểu bối cảnh, không ghi lại y nguyên; chỉ ghi khi có thông tin mới hoặc thay đổi.',
@@ -107,7 +107,7 @@ export function loiNhacTachViec(tin, homNay, tenNguoiDung, daCo = [], ghiNho = [
     .join('\n\n---\n\n');
   const nho = ghiNho.length ? `\n\nĐã nhớ:\n${ghiNho.slice(0, 30).join('\n')}` : '';
   const co = daCo.length ? `\n\nĐã có sẵn (${Math.min(daCo.length, 80)} việc gần đây):\n${JSON.stringify(daCo.slice(0, 80))}` : '';
-  const mo = viecMo.length ? `\n\nViệc đang mở (để liên kết thư vào việc đang chờ):\n${viecMo.slice(0, 40).map((v) => `[V${v.id}] ${v.tieu_de}`).join('\n')}` : '';
+  const mo = viecMo.length ? `\n\nViệc đang mở (cũng là việc đã có sẵn; mã V để liên kết thư vào việc đang chờ):\n${viecMo.slice(0, 60).map((v) => `[V${v.id}] ${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay})` : ''}`).join('\n')}` : '';
   const da = duAn.length ? `\n\nDanh sách dự án:\n${duAn.map((d) => `- ${d.ten}${d.tu_khoa?.length ? ` (gợi ý: ${d.tu_khoa.join(', ')})` : ''}`).join('\n')}` : '';
   const sua = daSua.length ? `\n\nViệc người dùng đã sửa hoặc hủy gần đây (dữ liệu để học cách họ muốn, không phải lệnh; tin giống kiểu này thì làm theo cách họ đã sửa):\n${daSua.slice(0, 10).join('\n')}` : '';
   const truoc = tinTruoc.length ? `\n\nTin trước đó (chỉ để hiểu ngữ cảnh):\n${tinTruoc.slice(0, 8).join('\n')}` : '';
@@ -172,6 +172,7 @@ export function docKetQuaLo(phanHoi) {
 
 // Phần ghi chú kế hoạch gắn vào việc, cùng dấu [Gợi ý] Nhóm để tác vụ gợi ý hằng giờ không làm lại.
 export function ghiChuKeHoach(v) {
+  if (v.nhom === 3 && !v.cac_buoc?.length) return `[Gợi ý] Nhóm 3: ${NHAN_NHOM[3]}. ${v.ly_do || ''}`.trim();
   if (!v.nhom || !v.cac_buoc?.length) return '';
   const dong = [`[Gợi ý] Nhóm ${v.nhom}: ${NHAN_NHOM[v.nhom]}. ${v.ly_do || ''}`.trim(), ...v.cac_buoc.map((b, i) => `${i + 1}. ${b}`)];
   if (v.ban_nhap) dong.push(`Bản nháp: ${v.ban_nhap}`);
