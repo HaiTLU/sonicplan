@@ -56,7 +56,7 @@ export async function veViec(goc) {
   const locDuAn = h('div', { class: 'thanh-loc loc-du-an', 'aria-label': 'Lọc theo dự án' });
   const chon = (khoa, nhan, ds) => h('label', { class: 'chon-loc' }, h('span', { text: nhan }), h('select', { 'aria-label': nhan, onchange: (e) => { v[khoa] = e.target.value; luuTuyChonViec(v); napViec(); } }, ...ds.map(([ma, ten]) => h('option', { value: ma, selected: v[khoa] === ma, text: ten }))));
   // Bộ lọc phụ gom vào nút "Lọc" kèm số bộ lọc đang bật; máy tính mở sẵn, điện thoại gập sẵn trừ khi đang lọc.
-  const soLoc = ['nguon', 'han', 'nang'].filter((k) => v[k] && v[k] !== 'tat-ca').length + (v.chiSao ? 1 : 0);
+  const soLoc = ['nguon', 'han', 'gio', 'nang', 'claude'].filter((k) => v[k] && v[k] !== 'tat-ca').length + (v.chiSao ? 1 : 0);
   if (v.moLoc === undefined) v.moLoc = !window.matchMedia?.('(max-width: 860px)').matches;
   const boLoc = (noiDung) => {
     const d = h('details', { class: 'bo-loc-viec', ...(v.moLoc || soLoc ? { open: true } : {}) },
@@ -67,11 +67,13 @@ export async function veViec(goc) {
   const locKhac = v.tab === 'mo' ? boLoc(h('div', { class: 'thanh-loc loc-khac', 'aria-label': 'Bộ lọc việc' },
     chon('nguon', 'Nguồn', [['tat-ca', 'Tất cả'], ['zalo', 'Zalo'], ['gmail', 'Gmail'], ['hop', 'Cuộc họp'], ['tay', 'Tự thêm']]),
     chon('han', 'Hạn', [['tat-ca', 'Tất cả'], ['qua-han', 'Quá hạn'], ['hom-nay', 'Hôm nay'], ['tuan', 'Tuần này'], ['khong', 'Chưa có hạn']]),
+    chon('gio', 'Giờ', [['tat-ca', 'Tất cả'], ['co-gio', 'Có giờ hẹn'], ['chua-gio', 'Chưa có giờ']]),
+    chon('claude', 'Claude', [['tat-ca', 'Tất cả'], ['chua-giao', 'Chưa giao'], ['dang-chay', 'Đang chạy'], ['hoi', 'Hỏi lại'], ['xong', 'Đã xong']]),
     chon('nang', 'Độ nặng', [['tat-ca', 'Tất cả'], ['nhe', 'Nhẹ'], ['vua', 'Vừa'], ['nang', 'Nặng'], ['rat_nang', 'Rất nặng']]),
     h('button', { class: 'chip chip-sao', type: 'button', 'aria-pressed': String(v.chiSao), onclick: () => { v.chiSao = !v.chiSao; luuTuyChonViec(v); veViec(goc); } }, icon('sao'), 'Có sao'),
   )) : null;
   const xem = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.xem === ma), onclick: () => { v.xem = ma; luuTuyChonViec(v); veViec(goc); } }, nhan);
-  thay(goc, form, h('div', { class: 'thanh-loc' }, tab('mo', 'Đang mở'), tab('xong', 'Đã xong'), v.tab === 'mo' ? h('span', { class: 'gian' }) : null, v.tab === 'mo' ? xem('han', 'Theo hạn') : null, v.tab === 'mo' ? xem('du-an', 'Theo dự án') : null, v.tab === 'mo' && v.xem === 'du-an' ? h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.anTrong), title: 'Ẩn các cột dự án chưa có việc', onclick: () => { v.anTrong = !v.anTrong; luuTuyChonViec(v); napViec(); } }, 'Ẩn cột trống') : null), locDuAn, locKhac, vung);
+  thay(goc, form, h('div', { class: 'thanh-loc' }, tab('mo', 'Đang mở'), tab('xong', 'Đã xong'), v.tab === 'mo' ? h('span', { class: 'gian' }) : null, v.tab === 'mo' ? chon('sapXep', 'Sắp xếp', [['tay', 'Thứ tự tay kéo'], ['han', 'Hạn và giờ'], ['moi', 'Mới thêm'], ['ten', 'Tên A-Z']]) : null, h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.anNhan), title: 'Ẩn nguồn, dự án và nhãn Claude trên thẻ', onclick: () => { v.anNhan = !v.anNhan; luuTuyChonViec(v); veViec(goc); } }, 'Ẩn nhãn'), v.tab === 'mo' ? xem('han', 'Theo hạn') : null, v.tab === 'mo' ? xem('du-an', 'Theo dự án') : null, v.tab === 'mo' && v.xem === 'du-an' ? h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.anTrong), title: 'Ẩn các cột dự án chưa có việc', onclick: () => { v.anTrong = !v.anTrong; luuTuyChonViec(v); napViec(); } }, 'Ẩn cột trống') : null), locDuAn, locKhac, vung);
   batKeoTha(vung, { khiTha: (d) => khiThaViec(d, v, napViec), nhanDuoc: (ma) => ma !== 'qua-han' && v.tab === 'mo',
     khiThaCot: async (ids) => {
       try { await api('/api/du-an/sap-xep', { method: 'POST', body: JSON.stringify({ ids }) }); bao('Đã lưu thứ tự dự án.'); } catch (err) { bao(err.message, { loi: true }); }
@@ -118,9 +120,11 @@ export async function veViec(goc) {
       const hn2 = hn;
       const hanKhop = { 'qua-han': (x) => x.han_ngay && x.han_ngay < hn2, 'hom-nay': (x) => x.han_ngay === hn2, tuan: (x) => x.han_ngay && x.han_ngay >= hn2 && x.han_ngay <= congNgay(hn2, 7), khong: (x) => !x.han_ngay }[v.han];
       const viec = tatCa.filter((x) => (v.duAn === 'tat-ca' || (v.duAn === 'khong' ? !x.du_an_id : x.du_an_id === v.duAn))
-        && (v.tab !== 'mo' || ((v.nguon === 'tat-ca' || nhanNguon(x).ma === v.nguon) && (!hanKhop || hanKhop(x)) && (v.nang === 'tat-ca' || x.do_nang === v.nang) && (!v.chiSao || x.sao))));
+        && (v.tab !== 'mo' || ((v.nguon === 'tat-ca' || nhanNguon(x).ma === v.nguon) && (!hanKhop || hanKhop(x)) && (v.nang === 'tat-ca' || x.do_nang === v.nang) && (v.gio === 'tat-ca' || (v.gio === 'co-gio' ? x.gio_hen : !x.gio_hen)) && (v.claude === 'tat-ca' || trangThaiClaude(x) === v.claude) && (!v.chiSao || x.sao))));
+      if (v.tab === 'mo') viec.sort(soSanhViec(v.sapXep));
       cacViec = new Map(tatCa.map((x) => [x.id, x]));
       homNayCuaViec = hn;
+      vung.classList.toggle('an-nhan', Boolean(v.anNhan));
       thay(vung, ...(v.tab === 'mo' ? (v.xem === 'du-an' ? cotTheoDuAn(viec, hn) : cotTheoHan(viec, hn)) : [cotXong(viec)]));
     } catch (e) {
       thay(vung, khungLoi(e, napViec));
@@ -128,6 +132,22 @@ export async function veViec(goc) {
   }
   S.napLaiViec = napViec;
   napViec();
+}
+
+// Nhóm trạng thái Claude của việc để lọc: chưa giao, đang chạy (chờ hoặc đang làm), hỏi lại, đã xong.
+function trangThaiClaude(x) {
+  const t = x.claude_trang_thai;
+  if (!t) return 'chua-giao';
+  if (t === 'cho' || t === 'dang_lam') return 'dang-chay';
+  return t === 'hoi' ? 'hoi' : t === 'xong' ? 'xong' : 'loi';
+}
+// Sắp xếp trong cột, việc có sao luôn lên trước. 'tay' giữ nguyên thứ tự máy chủ trả về (gồm cả thứ tự anh kéo thả).
+function soSanhViec(kieu) {
+  const sao = (a, b) => Number(Boolean(b.sao)) - Number(Boolean(a.sao));
+  if (kieu === 'han') return (a, b) => sao(a, b) || (a.han_ngay || '9999').localeCompare(b.han_ngay || '9999') || (a.gio_hen || '99:99').localeCompare(b.gio_hen || '99:99') || b.id - a.id;
+  if (kieu === 'moi') return (a, b) => sao(a, b) || b.id - a.id;
+  if (kieu === 'ten') return (a, b) => sao(a, b) || a.tieu_de.localeCompare(b.tieu_de, 'vi');
+  return () => 0;
 }
 
 function cotTheoHan(ds, hn) {
