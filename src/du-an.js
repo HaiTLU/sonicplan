@@ -26,7 +26,20 @@ export function chonDuAn(duAn, tenAi, chu) {
     const diem = [d.ten, ...d.kw].map(chuanHoa).filter((k) => k.length >= 2 && van.includes(` ${k} `)).length;
     if (diem && (!tot || diem > tot.diem)) tot = { id: d.id, diem };
   }
-  return tot ? tot.id : null;
+  if (tot) return tot.id;
+  // Không khớp cả tên: dò từ riêng của tên dự án ("CPG" trong "CPG - TLU"). Từ có ở tên hoặc từ khóa của từ 2 dự án trở lên ("TLU") thì bỏ.
+  const tuCua = (d) => new Set([d.ten, ...d.kw].flatMap((k) => chuanHoa(k).split(' ')).filter((t) => t.length >= 3));
+  const bo = ds.map((d) => ({ id: d.id, tu: tuCua(d) }));
+  const dem = new Map();
+  for (const b of bo) for (const t of b.tu) dem.set(t, (dem.get(t) || 0) + 1);
+  let rieng = null;
+  let nhieu = false;
+  for (const b of bo) {
+    const diem = [...b.tu].filter((t) => dem.get(t) === 1 && van.includes(` ${t} `)).length;
+    if (!diem) continue;
+    if (!rieng || diem > rieng.diem) { rieng = { id: b.id, diem }; nhieu = false; } else if (diem === rieng.diem) nhieu = true;
+  }
+  return rieng && !nhieu ? rieng.id : null;
 }
 
 // Gán dự án cho tệp chưa có dự án: theo từ khóa trong tên nhóm, thư mục và tên tệp; rồi theo dự án của việc

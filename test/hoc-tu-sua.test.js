@@ -64,9 +64,10 @@ test('bộ tin mẫu đúng khuôn và dựng được lời nhắc cho từng t
   const bo = JSON.parse(readFileSync('test/tin-mau/tach-viec.json', 'utf8'));
   assert.ok(bo.cac_tin.length >= 10);
   for (const c of bo.cac_tin) {
-    assert.ok(c.ten && c.tin.noi_dung && typeof c.co_viec === 'boolean', c.ten);
-    const [, nd] = loiNhacTachViec([{ ...c.tin, so: 1 }], bo.hom_nay, 'Hải');
-    assert.ok(nd.content.includes(c.tin.noi_dung));
+    const lo = c.lo || [c.tin];
+    assert.ok(c.ten && lo.every((t) => t.noi_dung) && typeof c.co_viec === 'boolean', c.ten);
+    const [, nd] = loiNhacTachViec(lo.map((t, i) => ({ ...t, so: i + 1 })), bo.hom_nay, 'Hải');
+    for (const t of lo) assert.ok(nd.content.includes(t.noi_dung));
   }
 });
 
