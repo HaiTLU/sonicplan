@@ -9,7 +9,7 @@ import { bam, maNgauNhien } from './tien-ich.js';
 
 const KHOA = 'tho_claude';
 export const DAU_CAU_HOI = 'CÂU HỎI CHO BẠN:'; // phải trùng với claude-code.js (có test)
-export const MAC_DINH = { bat: true, song_song: 2, toi_da_ngay: 10, model: 'claude-haiku-5-5', effort: 'medium', loc_dau_vao: true, model_theo_loai: true };
+export const MAC_DINH = { bat: true, tu_chay: false, song_song: 2, toi_da_ngay: 10, model: 'claude-haiku-5-5', effort: 'medium', loc_dau_vao: true, model_theo_loai: true };
 export const MODEL_VIEC_KHO = 'claude-sonnet-5-5';
 export const NGUONG_CHU_DAU_VAO = 300;
 export const NHOM_CLAUDE = ['claude_tu_lam', 'claude_chuan_bi'];
@@ -23,6 +23,7 @@ export function chuanCauHinhTho(x) {
   const o = x && typeof x === 'object' ? x : {};
   return {
     bat: typeof o.bat === 'boolean' ? o.bat : MAC_DINH.bat,
+    tu_chay: typeof o.tu_chay === 'boolean' ? o.tu_chay : MAC_DINH.tu_chay, // PM dặn 19/10/2026: mặc định không tự chạy, chỉ chạy khi bấm giao
     song_song: trong(o.song_song, 1, 4, MAC_DINH.song_song),
     toi_da_ngay: trong(o.toi_da_ngay, 0, 50, MAC_DINH.toi_da_ngay),
     model: /^[\w.-]{3,60}$/.test(String(o.model || '')) ? o.model : MAC_DINH.model,

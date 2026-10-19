@@ -390,8 +390,11 @@ export function moThoClaude(env, cfg = {}) {
     dangVong = true;
     try {
       await ghiNhoHangNgay();
-      await raSoatHangTuan();
       const { results: dsTc } = await env.CSDL.prepare('SELECT id FROM to_chuc').all();
+      // Rà soát tuần dùng Claude nên chỉ tự chạy khi có tổ chức bật tự chạy; không thì PM bấm "Rà soát tách việc ngay".
+      let coTuChay = false;
+      for (const { id: tc } of dsTc) if ((await docCauHinhTho(env, tc)).tu_chay) coTuChay = true;
+      if (coTuChay) await raSoatHangTuan();
       for (const { id: tc } of dsTc) {
         const cauHinh = await docCauHinhTho(env, tc);
         if (!cauHinh.bat) continue;
@@ -400,7 +403,7 @@ export function moThoClaude(env, cfg = {}) {
         if (ranh <= 0) continue;
         const { results: cho } = await env.CSDL.prepare(`SELECT id, to_chuc_id, viec_id, dan, tiep_luot, tep_tuy FROM luot_claude WHERE to_chuc_id = ?1 AND noi_chay = 'may' AND trang_thai = 'cho' AND lo_id IS NULL ORDER BY id LIMIT ?2`).bind(tc, ranh).all();
         for (const l of cho) { await batDauLuot(l); ranh--; }
-        if (ranh <= 0) continue;
+        if (ranh <= 0 || !cauHinh.tu_chay) continue; // lượt PM đã bấm giao chạy ở trên; việc mới tự nhặt chỉ khi bật tự chạy
         if ((await demLoiTuDongGanDay(env, tc)) >= 2) continue; // cầu dao: 2 lượt tự chạy lỗi trong 2 giờ qua
         const daChay = await demTuDongHomNay(env, tc, new Date());
         const conLai = Math.min(ranh, cauHinh.toi_da_ngay - daChay);

@@ -31,17 +31,17 @@ test('ghép dự án với thư mục KB: chuẩn tên, gợi ý, kiểm đườ
 });
 
 test('cấu hình thợ Claude: mặc định theo PM, giới hạn giá trị', () => {
-  assert.deepEqual(chuanCauHinhTho(undefined), { bat: true, song_song: 2, toi_da_ngay: 10, model: 'claude-haiku-5-5', effort: 'medium', loc_dau_vao: true, model_theo_loai: true });
+  assert.deepEqual(chuanCauHinhTho(undefined), { bat: true, tu_chay: false, song_song: 2, toi_da_ngay: 10, model: 'claude-haiku-5-5', effort: 'medium', loc_dau_vao: true, model_theo_loai: true });
   assert.equal(chuanCauHinhTho({ song_song: 99, toi_da_ngay: -1, effort: 'x', model: 'a b' }).song_song, 2);
   assert.equal(chuanCauHinhTho({ song_song: 3, bat: false }).bat, false);
   assert.equal(dauNgayVN(new Date('2026-10-15T20:00:00Z')), '2026-10-15T17:00:00.000Z'); // 3h sáng 16/10 giờ VN: đầu ngày 16/10 VN = 17h UTC ngày 15
 });
 
 // loc: true giữ mặc định thật (thợ bỏ việc thiếu đầu vào); các bài kiểm cũ có việc không tin, không tệp nên tắt lọc để vẫn chạy.
-function moiTruong({ loc = false } = {}) {
+function moiTruong({ loc = false, tuChay = true } = {}) {
   const db = dungCsdl();
   db.exec("INSERT INTO to_chuc (id, ten, tao_luc) VALUES ('tc1', 'T', '2026-01-01')");
-  if (!loc) db.exec(`INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES ('tc1', 'tho_claude', '{"loc_dau_vao":false}')`);
+  db.prepare("INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES ('tc1', 'tho_claude', ?1)").run(JSON.stringify({ ...(loc ? {} : { loc_dau_vao: false }), tu_chay: tuChay }));
   db.exec("INSERT INTO du_an (id, to_chuc_id, ten, tao_luc, kb_thu_muc) VALUES (1, 'tc1', 'Demo Dự Án', '2026-01-01', '01_Projects/DemoDuAn')");
   return { db, env: { CSDL: d1(db) } };
 }
@@ -706,4 +706,14 @@ test('PATH cho Claude có python3 đủ thư viện: /usr/local/bin và bản py
   assert.equal(p[p.length - 1] === '/bin' || p.includes('/bin'), true);
   assert.equal(new Set(p).size, p.length);
   assert.ok(p.indexOf('/opt/py/bin') < p.indexOf('/usr/bin')); // bản python chỉ định đứng trước hệ thống
+});
+
+test('mặc định thợ không tự nhặt việc: vòng chạy không tạo lượt mới, chỉ chạy lượt PM đã bấm giao', async () => {
+  const { db, env } = moiTruong({ tuChay: false });
+  viec(db, 1, 'Soạn báo cáo tuần', 'claude_chuan_bi', '2026-10-20', 1);
+  const { goc, kbNguon, claude } = await dungChayThu();
+  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
+  await tho.vongMotLan();
+  await tho.doiXong();
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM luot_claude').get().n, 0);
 });
