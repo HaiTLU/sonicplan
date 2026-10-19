@@ -98,3 +98,8 @@ test('lời nhắc tách việc có đủ nguyên tắc nhận việc (lời nh�
   const he = loiNhacTachViec([{ so: 1, nguon: 'zalo', noi_dung: 'x', thoi_diem: 't' }], '2026-10-12', 'Hải')[0].content;
   for (const mau of [/NGUYÊN TẮC NHẬN VIỆC/, /Lời nhờ hoặc giao của người khác là việc của người dùng/, /Lời tự hứa của người dùng/, /nhắc tiến độ/, /KHÔNG làm việc biến mất/, /thứ ba/, /Không đặt tiêu đề trống ý/, /Lịch hẹn có giờ của người dùng LUÔN là việc/, /"5h30" thì 17:30/]) assert.match(he, mau);
 });
+
+test('lời nhắc có nguyên tắc 18: hẹn gặp chưa có giờ, chờ người khác báo giờ vẫn là việc, không bỏ theo nguyên tắc 7 và 13', () => {
+  const he = loiNhacTachViec([{ so: 1, nguon: 'zalo', noi_dung: 'x', thoi_diem: 't' }], '2026-10-19', 'Hải')[0].content;
+  for (const mau of [/18\) Hẹn gặp, đi gặp chưa có giờ/, /KHÔNG PHẢI việc của người khác để bỏ/, /Gặp anh Hùng Vụ KHTC \(chờ cô liên hệ, giờ chưa chốt\)/, /gio_hen để null khi chưa có giờ/, /chua_chac loại "gio"/, /đưa vào phan_van, đừng bỏ/, /trừ lịch hẹn gặp ở nguyên tắc 18/, /11, 13, 16 hoặc 18/]) assert.match(he, mau);
+});
