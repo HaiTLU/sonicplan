@@ -25,7 +25,7 @@ export function noiDungThoClaude({ h, api, bao, tho, kb, laChu, ve }) {
     return h('label', { class: 'chon-loc' }, h('span', { text: nhan }), o);
   };
   goc.append(
-    h('p', { class: 'mo-ta', text: 'Việc AI xếp vào nhóm "Claude làm được" và đủ tệp hoặc nội dung thì tự chạy ngay trên máy này, trong bản sao ThangLong_KB; việc thiếu tệp chờ bạn thêm. Kết quả nằm trong thư mục dự án của KB và về Google Drive khi PR gộp vào main; model Opus cho tờ trình, hợp đồng, phân tích, còn lại Sonnet; việc sang "chờ duyệt" kèm thông báo đẩy.' }),
+    h('p', { class: 'mo-ta', text: 'Việc AI xếp vào nhóm "Claude làm được" và đủ tệp hoặc nội dung thì tự chạy ngay trên máy này, trong bản sao ThangLong_KB; việc thiếu tệp chờ bạn thêm. Kết quả nằm trong thư mục dự án của KB và về Google Drive khi PR gộp vào main; model Sonnet cho tờ trình, hợp đồng, phân tích, còn lại Haiku; việc sang "chờ duyệt" kèm thông báo đẩy.' }),
     h('label', { class: 'hang-cong-tac' }, bat, h('span', { text: 'Tự chạy việc nhóm Claude' })),
     h('div', { class: 'hang-nut' }, chon('Cùng lúc', 'song_song', [1, 2, 3, 4], c.song_song), chon('Tối đa mỗi ngày', 'toi_da_ngay', [0, 5, 10, 15, 20, 30, 50], c.toi_da_ngay)),
     h('p', { class: 'ghi-nho-kn', text: `Hôm nay đã tự chạy ${tho.hom_nay}/${c.toi_da_ngay} việc. ${tho.hang_cho ? `${tho.hang_cho} lượt đang chờ. ` : ''}${tho.dang_lam.length ? `Đang làm: ${tho.dang_lam.map((d) => `${d.tieu_de} (từ ${luc(d.bat_dau_luc)})`).join('; ')}.` : 'Chưa có việc nào đang làm.'}` }),

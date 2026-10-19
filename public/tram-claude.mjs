@@ -587,7 +587,7 @@ function chayMotLan(loiNhac, { model, effort, cwd }) {
 }
 
 export async function ghiNhanh(d, { yeuCau, traLoi, phien }, chay = chayMotLan) {
-  const dau = await chay(loiNhacGhiNhanh(yeuCau, traLoi, docTep(tepBoNho(d))), { model: 'sonnet', effort: 'low', cwd: d });
+  const dau = await chay(loiNhacGhiNhanh(yeuCau, traLoi, docTep(tepBoNho(d))), { model: 'haiku', effort: 'low', cwd: d });
   const dong = docGhiNhanh(dau);
   if (dong.length) await trongKhoa(d, () => themHangCho(d, dong, phien));
   return dong.length;
