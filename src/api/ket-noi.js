@@ -1,6 +1,5 @@
 // API giao diện: Trang Kết nối: AI, Google, Drive kho, họp, GitHub, webhook, Telegram, mã nhận.
 // Mỗi nhóm nhận (yeuCau, env, phien, url) và trả Response, hoặc null nếu địa chỉ không thuộc nhóm này.
-import { caiWorkflow } from '../claude-code.js';
 import { datThuMucHop, goKetNoiHop, hoanTatDangNhapHop, quetHop, taoDiaChiDangNhapHop } from '../ghi-am-hop.js';
 import { kiemCauHinhGithub, thuGithub } from '../github.js';
 import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from '../google.js';
@@ -229,17 +228,6 @@ export async function xuLyKetNoi(yeuCau, env, phien, url) {
       await thuGithub(cauHinh);
       await luuTichHop(env, tc, 'github', cauHinh);
       return json({ repo: cauHinh.repo, nhan: cauHinh.nhan });
-    } catch (e) {
-      return loi(400, e.message);
-    }
-  }
-  if (p === '/api/ket-noi/github/cai-claude' && m === 'POST') {
-    if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
-    const cauHinh = await docTichHop(env, tc, 'github');
-    if (!cauHinh) return loi(400, 'Nối GitHub trước.');
-    try {
-      await caiWorkflow(cauHinh);
-      return json({ ok: true });
     } catch (e) {
       return loi(400, e.message);
     }

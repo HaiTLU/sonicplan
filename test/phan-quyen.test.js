@@ -7,7 +7,7 @@ import { xuLyApi } from '../src/api.js';
 
 const CHI_CHU = [
   ['GET', '/api/du-lieu/xuat'], ['GET', '/api/du-lieu/truy-cap'],
-  ['POST', '/api/viec/1/claude'], ['POST', '/api/claude/giao'],
+  ['POST', '/api/claude/soan-prompt'],
   ['POST', '/api/du-an/1/drive-kho'], ['DELETE', '/api/du-an/1/drive-kho'], ['POST', '/api/du-an/1/drive-kho/dong-bo'],
   ['PATCH', '/api/luong'], ['PUT', '/api/ho-so'], ['POST', '/api/goi-y-loi-dan'], ['DELETE', '/api/ghi-nho'],
   ['POST', '/api/ket-noi/zalo'],
@@ -16,10 +16,10 @@ const CHI_CHU = [
   ['GET', '/api/google/bat-dau'], ['GET', '/api/google/goi-lai'],
   ['GET', '/api/kho-drive/bat-dau'], ['POST', '/api/kho-drive/luu-ngay'], ['DELETE', '/api/ket-noi/kho-drive'],
   ['GET', '/api/hop/bat-dau'], ['POST', '/api/ket-noi/hop'], ['POST', '/api/hop/quet-ngay'], ['DELETE', '/api/ket-noi/hop'],
-  ['POST', '/api/ket-noi/github'], ['POST', '/api/ket-noi/github/cai-claude'], ['DELETE', '/api/ket-noi/github'],
+  ['POST', '/api/ket-noi/github'], ['DELETE', '/api/ket-noi/github'],
   ['POST', '/api/ket-noi/nhan-viec'], ['DELETE', '/api/ket-noi/nhan-viec'],
   ['POST', '/api/ket-noi/webhook'], ['DELETE', '/api/ket-noi/webhook'], ['POST', '/api/ket-noi/webhook/thu'],
-  ['PUT', '/api/tho-claude'], ['POST', '/api/tho-claude/chay-ngay'], ['PUT', '/api/kb/du-an/1'], ['POST', '/api/tho-claude/dong-bo-ghi-nho'], ['POST', '/api/tho-claude/ra-soat-ngay'],
+  ['PUT', '/api/kb/du-an/1'], ['POST', '/api/tho-claude/dong-bo-ghi-nho'], ['POST', '/api/tho-claude/ra-soat-ngay'],
 ];
 
 function moi(vaiTro) {

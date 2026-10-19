@@ -1,7 +1,7 @@
-// API giao diện: Việc cần làm và việc giao cho Claude.
+// API giao diện: Việc cần làm và soạn prompt cho Claude.
 // Mỗi nhóm nhận (yeuCau, env, phien, url) và trả Response, hoặc null nếu địa chỉ không thuộc nhóm này.
 import { chayAi } from '../ai.js';
-import { danhGiaLuot, dsLuot, giaoClaude, hoiTruoc } from '../claude-code.js';
+import { dsPrompt, soanPrompt } from '../soan-prompt.js';
 import { ghiSuKien } from '../du-an.js';
 import { docHoSo } from '../ghi-nho.js';
 import { chuanMau } from '../mau.js';
@@ -9,7 +9,7 @@ import { docTichHop } from '../tich-hop.js';
 import { cat, json, loi, ngayVN } from '../tien-ich.js';
 import { themViec } from '../viec.js';
 import { laChu } from './chung.js';
-import { docCauHinhTho, dsDinhKemTuDong, NHOM_CLAUDE, viecDuDauVao } from '../tho-claude.js';
+import { chuanTepTuy, dsDinhKemTuDong } from '../tho-claude.js';
 import { hoiAi } from '../luong-thu.js';
 import { luuTep, TEP_TOI_DA } from '../hop-tin.js';
 
@@ -25,20 +25,10 @@ async function dsViec(env, tc, url) {
   const { results } = await env.CSDL.prepare(
     `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.trang_thai, v.tin_nhan_id, v.tao_luc, v.xong_luc,
        t.nguon AS tin_nguon, t.nguoi_gui AS tin_nguoi_gui, t.nhom AS tin_nhom,
-       v.du_an_id, v.nhom, v.nguon, v.mau, v.sao, v.do_nang, v.han_goc, v.so_lan_doi, d.ten AS du_an_ten, d.mau AS du_an_mau, d.icon AS du_an_icon, d.anh_khoa AS du_an_anh,
-       (SELECT CASE WHEN l.trang_thai = 'xong' AND l.cau_hoi IS NOT NULL AND l.danh_gia IS NULL THEN 'hoi' ELSE l.trang_thai END FROM luot_claude l WHERE l.to_chuc_id = v.to_chuc_id AND l.viec_id = v.id ORDER BY l.id DESC LIMIT 1) AS claude_trang_thai
+       v.du_an_id, v.nhom, v.nguon, v.mau, v.sao, v.do_nang, v.han_goc, v.so_lan_doi, d.ten AS du_an_ten, d.mau AS du_an_mau, d.icon AS du_an_icon, d.anh_khoa AS du_an_anh
      FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id LEFT JOIN du_an d ON d.id = v.du_an_id
      WHERE v.to_chuc_id = ?1 AND v.trang_thai = ?2 ORDER BY ${thuTu.replace(/\b(xong_luc|han_ngay|gio_hen|thu_tu|sao|id)\b/g, 'v.$1')} LIMIT 300`,
   ).bind(tc, trangThai).all();
-  // Việc nhóm Claude chưa có lượt mà thiếu đầu vào (không tệp đọc được, ít chữ): giao diện hiện "Cần thêm tệp", thợ không tự chạy.
-  if (trangThai === 'mo') {
-    let dem = 0;
-    for (const v of results) {
-      if (!NHOM_CLAUDE.includes(v.nhom) || v.claude_trang_thai || dem >= 40) continue;
-      dem++;
-      v.claude_can_tep = !(await viecDuDauVao(env, tc, v)).du;
-    }
-  }
   return { viec: results, hom_nay: ngayVN() };
 }
 
@@ -155,11 +145,15 @@ export async function xuLyViec(yeuCau, env, phien, url) {
   if (p === '/api/viec' && m === 'GET') return json(await dsViec(env, tc, url));
   if (p === '/api/viec/sap-xep' && m === 'POST') return sapXepViec(env, tc, await yeuCau.json().catch(() => ({})));
   if (p === '/api/viec' && m === 'POST') return taoViec(env, tc, await yeuCau.json().catch(() => ({})));
-  if ((khop = p.match(/^\/api\/viec\/(\d+)\/claude$/)) && m === 'GET') return json({ luot: await dsLuot(env, tc, Number(khop[1])), da_noi: Boolean(await docTichHop(env, tc, 'github')) || Boolean(env.THO_CLAUDE && (await docCauHinhTho(env, tc)).bat) });
-  if (((khop = p.match(/^\/api\/viec\/(\d+)\/claude$/)) || p === '/api/claude/giao') && m === 'POST') {
-    if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức giao việc cho Claude được.');
+  // Thợ Claude chỉ soạn prompt (PM dặn 19/10/2026): mỗi lần bấm một lần gọi AI, prompt lưu lại để sao chép lại. Không có đường nào tự soạn.
+  if ((khop = p.match(/^\/api\/viec\/(\d+)\/prompt$/)) && m === 'GET') return json({ prompt: await dsPrompt(env, tc, Number(khop[1])) });
+  if (p === '/api/claude/soan-prompt' && m === 'POST') {
+    if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức soạn prompt được.');
     const b = await yeuCau.json().catch(() => ({}));
-    const r = await giaoClaude(env, tc, khop ? [Number(khop[1])] : b.viec_ids, { dan: b.dan, traLoi: b.tra_loi, cach: b.cach, tiepLuot: b.tiep_luot, tepTuy: { them: b.tep_them, bo: b.tep_bo, da_chon: b.tep_da_chon === true } }, url.origin);
+    const tuy = { ngoai: await docTichHop(env, tc, 'ai'), hoSo: await docHoSo(env, tc) };
+    const r = await soanPrompt(env, tc, b.viec_ids, {
+      dan: b.dan, goc: url.origin, tepTuy: chuanTepTuy({ them: b.tep_them, bo: b.tep_bo, da_chon: b.tep_da_chon === true }),
+    }, (messages, opts, mo) => chayAi(env, { ...tuy, model: mo.model }, messages, opts));
     return r.loi ? loi(r.ma, r.loi) : json(r, 201);
   }
   // Tệp đi kèm khi giao Claude: liệt kê tệp tự tìm được quanh các việc, và nhận tệp người dùng tự thêm (lưu ở kho tệp, nguon 'giao-claude').
@@ -183,15 +177,6 @@ export async function xuLyViec(yeuCau, env, phien, url) {
       ra.push({ id, ten: t.name || 'tep', kich_thuoc: t.size });
     }
     return json({ tep: ra }, 201);
-  }
-  if (p === '/api/claude/hoi-truoc' && m === 'POST') {
-    const b = await yeuCau.json().catch(() => ({}));
-    const r = await hoiTruoc(env, tc, b.viec_ids, chayAi, { ngoai: await docTichHop(env, tc, 'ai'), hoSo: await docHoSo(env, tc) });
-    return r.loi ? loi(r.ma, r.loi) : json(r);
-  }
-  if ((khop = p.match(/^\/api\/claude\/(\d+)\/danh-gia$/)) && m === 'POST') {
-    const r = await danhGiaLuot(env, tc, Number(khop[1]), (await yeuCau.json().catch(() => ({}))).danh_gia);
-    return r.loi ? loi(r.ma, r.loi) : json(r);
   }
   // Một việc theo mã: trang mở thẳng việc khi bấm thông báo.
   if ((khop = p.match(/^\/api\/viec\/(\d+)$/)) && m === 'GET') {

@@ -15,10 +15,10 @@ export function moAiClaudeCode({ claudeBin, model = 'claude-haiku-5-5', effort =
   const xinLuot = () => (dangChay < toiDaCungLuc ? (dangChay++, Promise.resolve()) : new Promise((r) => hangCho.push(r)));
   const traLuot = () => { const r = hangCho.shift(); if (r) r(); else dangChay--; };
 
-  function goi(he, hoi) {
+  function goi(he, hoi, mo = model) {
     return new Promise((xong, loi) => {
       const doiSo = ['-p', '--strict-mcp-config', '--tools', '', '--setting-sources', 'local', '--disable-slash-commands', '--no-session-persistence',
-        '--output-format', 'json', '--model', model, '--effort', effort, ...(he ? ['--system-prompt', he] : [])];
+        '--output-format', 'json', '--model', mo, '--effort', effort, ...(he ? ['--system-prompt', he] : [])];
       const con = spawnHam(claudeBin, doiSo, {
         cwd: thuMuc,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -46,7 +46,7 @@ export function moAiClaudeCode({ claudeBin, model = 'claude-haiku-5-5', effort =
         if (kq && typeof kq.result === 'string' && !kq.is_error) {
           // Một dòng nhật ký mỗi lần gọi để biết token thật: vào, ghi cache, đọc cache, ra, số giây.
           const u = kq.usage || {};
-          console.log(`Token Claude Code ${model}: vào ${u.input_tokens ?? '?'}, ghi cache ${u.cache_creation_input_tokens ?? 0}, đọc cache ${u.cache_read_input_tokens ?? 0}, ra ${u.output_tokens ?? '?'}, ${Math.round((kq.duration_ms || 0) / 100) / 10} giây`);
+          console.log(`Token Claude Code ${mo}: vào ${u.input_tokens ?? '?'}, ghi cache ${u.cache_creation_input_tokens ?? 0}, đọc cache ${u.cache_read_input_tokens ?? 0}, ra ${u.output_tokens ?? '?'}, ${Math.round((kq.duration_ms || 0) / 100) / 10} giây`);
           return ket(xong, kq.result);
         }
         ket(loi, new Error(kq?.result ? `Claude Code báo lỗi: ${String(kq.result).slice(0, 200)}` : `Claude Code dừng với mã ${ma}. ${(err.trim() || out.trim()).slice(-200)}`));
@@ -59,13 +59,13 @@ export function moAiClaudeCode({ claudeBin, model = 'claude-haiku-5-5', effort =
   return {
     ten: `Claude Code (${model}, ${effort})`,
     // messages: [{ role: 'system'|'user'|'assistant', content }]. Trả về chuỗi trả lời.
-    async chay(messages) {
+    async chay(messages, tuyChon = {}) {
       const he = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
       const hoi = messages.filter((m) => m.role !== 'system');
       const noiDung = hoi.length === 1 ? String(hoi[0].content) : hoi.map((m) => `${m.role === 'assistant' ? 'Trợ lý' : 'Người dùng'}: ${m.content}`).join('\n\n');
       await xinLuot();
       try {
-        return await goi(he, noiDung);
+        return await goi(he, noiDung, /^[\w.-]{3,60}$/.test(String(tuyChon?.model || '')) ? tuyChon.model : model);
       } finally {
         traLuot();
       }

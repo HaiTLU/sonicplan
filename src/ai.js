@@ -246,7 +246,7 @@ export async function chayAi(env, tuyChon, messages, { maxTokens, nhietDo, khuon
   // Máy chủ trên Mac: Claude qua Claude Code gói Max (env.CLAUDE_CODE_AI, gắn ở may-chu/chay.js) đứng trước Workers AI.
   if (env.CLAUDE_CODE_AI) {
     try {
-      return await env.CLAUDE_CODE_AI.chay(messages);
+      return await env.CLAUDE_CODE_AI.chay(messages, tuyChon?.model ? { model: tuyChon.model } : undefined);
     } catch (e) {
       console.error('Claude Code lỗi, dùng Workers AI', e);
       if (baoLoi) await baoLoi(String(e.message || e).slice(0, 150));

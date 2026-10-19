@@ -1,40 +1,24 @@
-// Giao diện Sonicplan, thẻ "Claude làm việc ở máy": bật tắt thợ Claude, hạn mức, hàng đợi và ghép dự án với thư mục ThangLong_KB.
+// Giao diện Sonicplan, thẻ "Claude trên máy riêng": đồng bộ ghi nhớ, rà soát tách việc và ghép dự án với thư mục ThangLong_KB. Thợ Claude không làm việc trực tiếp nữa, chỉ soạn prompt.
 import { luc } from './chung.js';
 
 export function trangThaiThoClaude(tho) {
   if (!tho) return { den: 'xam', chu: 'Không đọc được' };
   if (!tho.co_may) return { den: 'xam', chu: 'Chỉ có trên máy riêng' };
-  if (!tho.cau_hinh.bat) return { den: 'vang', chu: 'Đang tắt' };
-  if (tho.dang_lam.length) return { den: 'xanh', chu: `Đang làm ${tho.dang_lam.length} việc` };
-  return { den: 'xanh', chu: `Sẵn sàng, hôm nay ${tho.hom_nay}/${tho.cau_hinh.toi_da_ngay}` };
+  return { den: 'xanh', chu: 'Sẵn sàng' };
 }
 
 export function noiDungThoClaude({ h, api, bao, tho, kb, laChu, ve }) {
   const goc = h('div', { class: 'khoi-tho-claude' });
+  goc.append(h('p', { class: 'mo-ta', text: 'Thợ Claude không tự làm việc trong Sonicplan. Ở mỗi việc, bấm "Soạn prompt" để Sonicplan viết sẵn một prompt (bối cảnh, tệp liên quan, yêu cầu, tiêu chí xong), rồi bấm "Copy prompt" và dán sang Claude khác. Chỉ soạn khi bạn bấm.' }));
   if (!tho?.co_may) {
-    goc.append(h('p', { class: 'mo-ta', text: 'Thợ Claude chỉ chạy trên máy chủ riêng (Mac mini). Máy chủ này không bật tính năng đó.' }));
+    goc.append(h('p', { class: 'mo-ta', text: 'Phần đồng bộ ghi nhớ và rà soát tách việc chỉ chạy trên máy chủ riêng (Mac mini). Máy chủ này không bật tính năng đó.' }));
     return goc;
   }
-  const c = tho.cau_hinh;
-  const luu = async (d) => { try { await api('/api/tho-claude', { method: 'PUT', body: JSON.stringify(d) }); bao('Đã lưu.'); ve(); } catch (e) { bao(e.message, { loi: true }); ve(); } };
-  const bat = h('input', { type: 'checkbox', checked: c.tu_chay, disabled: !laChu });
-  bat.addEventListener('change', () => luu({ tu_chay: bat.checked }));
-  const chon = (nhan, khoa, ds, gt) => {
-    const o = h('select', { 'aria-label': nhan, disabled: !laChu }, ...ds.map((x) => h('option', { value: String(x), selected: x === gt, text: String(x) })));
-    o.addEventListener('change', () => luu({ [khoa]: Number(o.value) }));
-    return h('label', { class: 'chon-loc' }, h('span', { text: nhan }), o);
-  };
   goc.append(
-    h('p', { class: 'mo-ta', text: 'Mặc định thợ Claude chỉ chạy khi bạn bấm Claude ở việc. Bật "Tự chạy việc nhóm Claude" thì việc AI xếp vào nhóm "Claude làm được" và đủ tệp hoặc nội dung sẽ tự chạy ngay trên máy này, trong bản sao ThangLong_KB; việc thiếu tệp chờ bạn thêm. Kết quả nằm trong thư mục dự án của KB và về Google Drive khi PR gộp vào main; model Sonnet cho tờ trình, hợp đồng, phân tích, còn lại Haiku; việc sang "chờ duyệt" kèm thông báo đẩy.' }),
-    h('label', { class: 'hang-cong-tac' }, bat, h('span', { text: 'Tự chạy việc nhóm Claude' })),
-    h('div', { class: 'hang-nut' }, chon('Cùng lúc', 'song_song', [1, 2, 3, 4], c.song_song), chon('Tối đa mỗi ngày', 'toi_da_ngay', [0, 5, 10, 15, 20, 30, 50], c.toi_da_ngay)),
-    h('p', { class: 'ghi-nho-kn', text: `Hôm nay đã tự chạy ${tho.hom_nay}/${c.toi_da_ngay} việc. ${tho.hang_cho ? `${tho.hang_cho} lượt đang chờ. ` : ''}${tho.dang_lam.length ? `Đang làm: ${tho.dang_lam.map((d) => `${d.tieu_de} (từ ${luc(d.bat_dau_luc)})`).join('; ')}.` : 'Chưa có việc nào đang làm.'}` }),
     h('div', { class: 'hang-nut' },
-      h('button', { class: 'nut nut-phu', type: 'button', disabled: !laChu, onclick: async () => { try { await api('/api/tho-claude/chay-ngay', { method: 'POST' }); bao('Đã gọi thợ Claude kiểm hàng đợi.'); setTimeout(ve, 1500); } catch (e) { bao(e.message, { loi: true }); } } }, 'Kiểm hàng đợi ngay'),
       h('button', { class: 'nut nut-phu', type: 'button', disabled: !laChu, onclick: async () => { try { const r = await api('/api/tho-claude/ra-soat-ngay', { method: 'POST' }); bao(r.ghi_chu); } catch (e) { bao(e.message, { loi: true }); } } }, 'Rà soát tách việc ngay'),
       h('button', { class: 'nut nut-phu', type: 'button', disabled: !laChu, onclick: async (ev) => { ev.currentTarget.disabled = true; try { const r = await api('/api/tho-claude/dong-bo-ghi-nho', { method: 'POST' }); bao(r.doi ? `Đã đưa ${r.so_ghi_nho} ghi nhớ sang second-brain.` : 'Ghi nhớ trong second-brain đã khớp, không có gì mới.'); } catch (e) { bao(e.message, { loi: true }); } ve(); } }, 'Đồng bộ ghi nhớ sang second-brain')),
-    h('p', { class: 'ghi-nho-kn', text: tho.nhap_gmail ? 'Nháp Gmail: đã cấp quyền. Claude chỉ tạo bản nháp trong mục Thư nháp, không bao giờ gửi; bạn tự xem và bấm gửi.' : 'Nháp Gmail: chưa cấp quyền. Muốn Claude soạn sẵn thư trả lời vào mục Thư nháp, đăng nhập lại Google ở thẻ Google và tick quyền soạn thư. Claude không bao giờ gửi thư.' }),
-    h('p', { class: 'ghi-nho-kn', text: tho.ra_soat ? `Báo cáo rà soát tách việc gần nhất: ${luc(tho.ra_soat.luc)}, ${tho.ra_soat.so_mau} tin mẫu, trong ThangLong_KB: ${tho.ra_soat.tep}. Tự chạy sáng thứ Hai khi bật tự chạy, hoặc bấm Rà soát tách việc ngay.` : 'Chưa có báo cáo rà soát tách việc nào; tự chạy sáng thứ Hai.' }),
+    h('p', { class: 'ghi-nho-kn', text: tho.ra_soat ? `Báo cáo rà soát tách việc gần nhất: ${luc(tho.ra_soat.luc)}, ${tho.ra_soat.so_mau} tin mẫu, trong ThangLong_KB: ${tho.ra_soat.tep}. Bấm Rà soát tách việc ngay để chạy lại.` : 'Chưa có báo cáo rà soát tách việc nào; tự chạy sáng thứ Hai.' }),
     h('p', { class: 'ghi-nho-kn', text: tho.ghi_nho_kb_luc ? `Ghi nhớ sang KB lần cuối: ${luc(tho.ghi_nho_kb_luc)}. Tự chạy mỗi đêm sau 23h.` : 'Ghi nhớ chưa được đồng bộ sang KB lần nào; tự chạy mỗi đêm sau 23h.' }),
   );
   if (tho.kb) goc.append(h('p', { class: 'ghi-nho-kn', text: tho.kb.da_clone ? `ThangLong_KB trên máy: bản mới nhất ${tho.kb.ban_moi_nhat || 'chưa tải'}.` : 'ThangLong_KB chưa tải về máy, sẽ tự tải ở lượt chạy đầu tiên.' }));

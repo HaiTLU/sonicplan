@@ -74,22 +74,14 @@ async function tongQuan(env, tc, phien) {
        FROM du_an d LEFT JOIN viec v ON v.du_an_id = d.id AND v.to_chuc_id = d.to_chuc_id
        WHERE d.to_chuc_id = ?1 GROUP BY d.id ORDER BY mo DESC, qua_han DESC, d.ten`,
     ).bind(tc, homNay, congNgayIso(homNay, 7), tuanTruoc),
-    // Claude: lượt 7 ngày và việc đang chờ người dùng (hỏi lại hoặc xong chưa duyệt).
-    env.CSDL.prepare(
-      `SELECT
-        (SELECT COUNT(*) FROM luot_claude WHERE to_chuc_id = ?1 AND lo_id IS NULL AND tao_luc >= ?2) AS luot_7,
-        (SELECT COUNT(*) FROM luot_claude WHERE to_chuc_id = ?1 AND lo_id IS NULL AND tao_luc >= ?2 AND trang_thai = 'xong') AS xong_7,
-        (SELECT COUNT(*) FROM luot_claude WHERE to_chuc_id = ?1 AND lo_id IS NULL AND tao_luc >= ?2 AND trang_thai = 'loi') AS loi_7,
-        (SELECT COUNT(*) FROM luot_claude WHERE to_chuc_id = ?1 AND trang_thai IN ('cho', 'dang_lam')) AS dang_chay,
-        (SELECT COUNT(*) FROM viec v JOIN luot_claude l ON l.id = (SELECT MAX(id) FROM luot_claude k WHERE k.viec_id = v.id AND k.to_chuc_id = v.to_chuc_id)
-           WHERE v.to_chuc_id = ?1 AND v.trang_thai = 'mo' AND l.trang_thai = 'xong' AND l.danh_gia IS NULL) AS cho_ban`,
-    ).bind(tc, tuanTruoc),
+    // Claude: số prompt đã soạn trong 7 ngày (thợ Claude chỉ soạn prompt, không chạy lượt nào).
+    env.CSDL.prepare('SELECT COUNT(*) AS prompt_7 FROM prompt_claude WHERE to_chuc_id = ?1 AND tao_luc >= ?2').bind(tc, tuanTruoc),
     env.CSDL.prepare('SELECT gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = ?2').bind(tc, `tq_bo_cuc:${phien?.nguoi_dung?.id || ''}`),
-    // Đề xuất giao Claude: việc AI xếp "Claude tự làm" được, chưa giao lượt nào. Bạn bấm mới giao.
+    // Đề xuất soạn prompt: việc AI xếp "Claude tự làm" được, chưa soạn prompt nào. Bạn bấm mới soạn.
     env.CSDL.prepare(
       `SELECT v.id, v.tieu_de, v.han_ngay, v.gio_hen, v.ghi_chu, COUNT(*) OVER () AS tong FROM viec v
        WHERE v.to_chuc_id = ?1 AND v.trang_thai = 'mo' AND v.nhom = 'claude_tu_lam' AND v.github_issue IS NULL
-         AND NOT EXISTS (SELECT 1 FROM luot_claude l WHERE l.to_chuc_id = v.to_chuc_id AND l.viec_id = v.id)
+         AND NOT EXISTS (SELECT 1 FROM prompt_claude l WHERE l.to_chuc_id = v.to_chuc_id AND (l.viec_id = v.id OR l.viec_ids LIKE '%,' || v.id || ',%'))
        ORDER BY v.han_ngay IS NULL, v.han_ngay, v.id DESC LIMIT 6`,
     ).bind(tc),
   ]);

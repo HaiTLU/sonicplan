@@ -4,7 +4,12 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 
 ## [Chưa phát hành]
 
-Memory của PM chuyển từ ThangLong_KB sang kho second-brain (18/10/2026). Có migration 0034 (bảng `cau_hoi_ai`) và 0035 (cột `de_xuat`, `tin_nhan_id`).
+Memory của PM chuyển từ ThangLong_KB sang kho second-brain (18/10/2026). Có migration 0034 (bảng `cau_hoi_ai`), 0035 (cột `de_xuat`, `tin_nhan_id`) và 0036 (bảng `prompt_claude`).
+
+### Đổi lớn
+- Thợ Claude chỉ còn soạn prompt (PM dặn 19/10/2026), không làm việc trực tiếp trong Sonicplan. Nút "Soạn prompt" ở thẻ việc, ngăn sửa việc, đầu cột dự án và khối Đề xuất: một lần bấm là một lần gọi AI (Haiku 5.5 effort medium; tờ trình, hợp đồng, phân tích dùng Sonnet 5.5; không Opus). Prompt gồm bối cảnh (việc, hạn, dự án, tin gốc và người gửi, cuộc trò chuyện, liên kết tệp đính kèm và thư Gmail, ghi nhớ liên quan), phần yêu cầu do AI viết (đầu ra mong muốn, tiêu chí xong, các bước nên làm, giả định) và quy tắc (chỉ soạn nháp, không gửi gì ra ngoài). Lưu ở bảng `prompt_claude` để mở lại và "Copy prompt" mà không tốn thêm AI. Không có đường nào tự soạn.
+- Đã gỡ: giao Claude chạy trên GitHub Actions (luồng `sonicplan-claude.yml`, `/nhan/claude`, nút "Cài luồng Claude"), hàng đợi và tự chạy của thợ ở Mac mini, hạn mức lượt, hỏi lại trước khi giao, đánh giá Đạt hoặc Làm lại, nháp Gmail từ kết quả của Claude, nhãn trạng thái "Claude đang làm" trên thẻ việc. Mac mini còn đồng bộ ghi nhớ hằng đêm và "Rà soát tách việc ngay" (chỉ chạy khi bấm). Lượt cũ đang chờ hoặc đang làm được đóng thành lỗi; dữ liệu lượt cũ giữ nguyên trong bảng `luot_claude`.
+- Bảng ghép dự án với thư mục ThangLong_KB (`kb_thu_muc`) vẫn còn nhưng thợ không còn ghi kết quả vào KB.
 
 ### Thêm
 - Trang Việc: ô thêm nhanh luôn hiện ô hạn và giờ (trước đây điện thoại ẩn khi chưa gõ); thêm chọn "Sắp xếp" (thứ tự tay kéo, hạn và giờ, mới thêm, tên A-Z; việc có sao luôn lên trước), nút "Ẩn nhãn" (ẩn nguồn, dự án, nhãn Claude trên thẻ, vẫn giữ ngày giờ) và hai bộ lọc mới trong "Lọc": Giờ (có giờ hẹn, chưa có giờ) và Claude (chưa giao, đang chạy, hỏi lại, đã xong). Tất cả được nhớ trên trình duyệt. Chỉ sửa giao diện, không đổi model AI, không thêm lần gọi AI.
