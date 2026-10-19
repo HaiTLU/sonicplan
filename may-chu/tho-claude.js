@@ -105,7 +105,7 @@ export function moThoClaude(env, cfg = {}) {
   // Chạy Claude Code, trả { ok, chu, chi_phi, so_luot } hoặc ném lỗi.
   function chayClaude(cwd, loiNhac, cauHinh, luotId) {
     return new Promise((xong, loi) => {
-      const doiSo = ['-p', '--output-format', 'json', '--model', cauHinh.model, '--effort', cauHinh.effort, '--permission-mode', 'acceptEdits', '--permission-prompts', 'none', '--strict-mcp-config', '--allowedTools', ...CONG_CU];
+      const doiSo = ['-p', '--output-format', 'json', '--model', cauHinh.model, '--effort', cauHinh.effort, '--max-turns', '60', '--permission-mode', 'acceptEdits', '--permission-prompts', 'none', '--strict-mcp-config', '--allowedTools', ...CONG_CU];
       // --strict-mcp-config: không nạp máy chủ MCP nào (kể cả Gmail, Slack...), nên Claude không có công cụ gửi gì ra ngoài. PM dặn 16/10/2026: không tự gửi thư.
       const con = spawn(claudeBin, doiSo, { cwd, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, PATH: duongDanChoClaude(cfg), CLAUDECODE: '' } });
       dangChay.get(luotId).tien_trinh = con;

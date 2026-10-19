@@ -43,7 +43,12 @@ export function moAiClaudeCode({ claudeBin, model = 'claude-haiku-5-5', effort =
           const dong = out.trim().split('\n').filter(Boolean);
           kq = JSON.parse(dong[dong.length - 1]);
         } catch { /* không phải JSON */ }
-        if (kq && typeof kq.result === 'string' && !kq.is_error) return ket(xong, kq.result);
+        if (kq && typeof kq.result === 'string' && !kq.is_error) {
+          // Một dòng nhật ký mỗi lần gọi để biết token thật: vào, ghi cache, đọc cache, ra, số giây.
+          const u = kq.usage || {};
+          console.log(`Token Claude Code ${model}: vào ${u.input_tokens ?? '?'}, ghi cache ${u.cache_creation_input_tokens ?? 0}, đọc cache ${u.cache_read_input_tokens ?? 0}, ra ${u.output_tokens ?? '?'}, ${Math.round((kq.duration_ms || 0) / 100) / 10} giây`);
+          return ket(xong, kq.result);
+        }
         ket(loi, new Error(kq?.result ? `Claude Code báo lỗi: ${String(kq.result).slice(0, 200)}` : `Claude Code dừng với mã ${ma}. ${(err.trim() || out.trim()).slice(-200)}`));
       });
       con.stdin.on('error', () => {}); // tiến trình chết sớm thì bỏ qua lỗi ghi stdin, lỗi thật báo ở 'close'
