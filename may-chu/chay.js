@@ -13,7 +13,7 @@ import { moR2 } from './lop-r2.js';
 import { moTinh } from './lop-tinh.js';
 import { moAi } from './lop-ai.js';
 import { moAiClaudeCode } from './ai-claude-code.js';
-import { moAiFpt } from './ai-fpt.js';
+import { moKhoaFpt } from './khoa-fpt.js';
 import { moLuaChonAi } from './lua-chon-ai.js';
 import { batHenGio } from './lich.js';
 import { moTram } from './lop-tram.js';
@@ -127,11 +127,11 @@ export function taoMayChu(cauHinh = {}) {
     });
   }
 
-  // FPT AI Marketplace: chỉ mở khi có FPT_AI_API_KEY (khóa chỉ nằm trong biến môi trường). Chọn dùng Claude hay FPT ở trang Kết nối; mặc định theo AI_NHA_CUNG_CAP (claude hoặc fpt, mặc định claude).
+  // FPT AI Marketplace: khóa nhập ở trang Kết nối (lưu mã hóa, du-lieu/khoa-fpt.enc) hoặc đặt ở biến môi trường FPT_AI_API_KEY. Chọn dùng Claude hay FPT ở trang Kết nối; mặc định theo AI_NHA_CUNG_CAP (claude hoặc fpt, mặc định claude).
   env.LUA_CHON_AI = moLuaChonAi(resolve(thuMucDuLieu, 'nha-cung-cap-ai.json'), cfg.AI_NHA_CUNG_CAP === 'fpt' ? 'fpt' : 'claude');
-  const aiFpt = moAiFpt({ khoa: cfg.FPT_AI_API_KEY, diaChi: cfg.FPT_AI_BASE_URL || undefined, modelNhe: cfg.FPT_AI_MODEL || undefined, modelManh: cfg.FPT_AI_MODEL_MANH || undefined });
-  if (aiFpt) env.FPT_AI = aiFpt;
-  else if (env.LUA_CHON_AI.doc().chung === 'fpt') console.error('Đang chọn FPT AI nhưng chưa có FPT_AI_API_KEY, tạm dùng Claude');
+  env.KHOA_FPT = moKhoaFpt({ tep: resolve(thuMucDuLieu, 'khoa-fpt.enc'), cfg, env });
+  Object.defineProperty(env, 'FPT_AI', { get: () => env.KHOA_FPT.lay(), enumerable: true });
+  env.KHOA_FPT.khoiDong.then(() => { if (!env.FPT_AI && env.LUA_CHON_AI.doc().chung === 'fpt') console.error('Đang chọn FPT AI nhưng chưa có khóa FPT, tạm dùng Claude'); });
 
   const dangCho = new Set();
   const ctx = {

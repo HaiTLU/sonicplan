@@ -84,3 +84,47 @@ test('chayAi: chọn FPT thì gọi FPT, không gọi Claude; FPT lỗi hoặc t
   await chayAi({ LUA_CHON_AI: { doc: () => ({ chung: 'claude' }) }, FPT_AI: fpt, CLAUDE_CODE_AI: claude }, {}, [{ role: 'user', content: 'x' }], {});
   assert.deepEqual(goi, ['claude']);
 });
+
+test('khóa FPT nhập từ giao diện: kiểm trước khi lưu, mã hóa trên đĩa, nhớ sau khi khởi động lại, gỡ thì về biến môi trường', async () => {
+  const { moKhoaFpt } = await import('../may-chu/khoa-fpt.js');
+  const { readFileSync } = await import('node:fs');
+  const env = { KHOA_MA_HOA: Buffer.alloc(32, 7).toString('base64') };
+  const tep = join(mkdtempSync(join(tmpdir(), 'sp-kf-')), 'khoa-fpt.enc');
+  const khoa = 'khoa-fpt-thu-nghiem-rat-bi-mat-123';
+  const dung = (c) => moAiFpt({ ...c, fetchHam: async () => tra('ok') });
+  const kf = moKhoaFpt({ tep, cfg: { FPT_AI_API_KEY: 'khoa-moi-truong-thu-nghiem-123' }, env, moAi: dung });
+  await kf.khoiDong;
+  assert.equal(kf.thongTin().nguon, 'bien_moi_truong');
+  await assert.rejects(kf.ghi({ khoa: 'ngan' }), /không đúng/);
+  await assert.rejects(kf.ghi({ khoa, dia_chi: 'http://localhost/v1' }), /https|nội bộ/);
+  await kf.ghi({ khoa, model: 'm-nhe' });
+  assert.equal(kf.thongTin().nguon, 'giao_dien');
+  assert.equal(kf.thongTin().model, 'm-nhe');
+  assert.ok(kf.lay());
+  assert.ok(!readFileSync(tep, 'utf8').includes(khoa)); // không lưu chữ thường
+  assert.ok(!JSON.stringify(kf.thongTin()).includes(khoa)); // không trả khóa ra ngoài
+  const kf2 = moKhoaFpt({ tep, cfg: {}, env, moAi: dung });
+  await kf2.khoiDong;
+  assert.equal(kf2.thongTin().nguon, 'giao_dien');
+  kf2.xoa();
+  assert.equal(kf2.lay(), undefined);
+  const kf3 = moKhoaFpt({ tep, cfg: {}, env, moAi: dung });
+  await kf3.khoiDong;
+  assert.equal(kf3.lay(), undefined); // tệp đã gỡ nên không còn khóa
+  // khóa sai (401) thì không lưu
+  const hong = moKhoaFpt({ tep: join(mkdtempSync(join(tmpdir(), 'sp-kf-')), 'k.enc'), cfg: {}, env, moAi: (c) => moAiFpt({ ...c, fetchHam: async () => loi(401, { message: 'x' }) }) });
+  await assert.rejects(hong.ghi({ khoa }), /401/);
+  assert.equal(hong.lay(), undefined);
+});
+
+test('tắt hẳn Claude: FPT lỗi thì không gọi Claude, báo lỗi rõ', async () => {
+  const lc = { doc: () => ({ chung: 'fpt', tat_claude: true }) };
+  let claudeGoi = 0;
+  const claude = { chay: async () => { claudeGoi++; return 'x'; } };
+  const hong = { chay: async () => { throw new Error('FPT hỏng'); } };
+  await assert.rejects(chayAi({ LUA_CHON_AI: lc, FPT_AI: hong, CLAUDE_CODE_AI: claude }, {}, [{ role: 'user', content: 'x' }], {}), /Claude đang tắt/);
+  assert.equal(claudeGoi, 0);
+  const { chuanLuaChon } = await import('../may-chu/lua-chon-ai.js');
+  assert.equal(chuanLuaChon({ chung: 'fpt', tat_claude: true }).tat_claude, true);
+  assert.equal(chuanLuaChon({ chung: 'fpt', tat_claude: 'x' }).tat_claude, undefined);
+});
