@@ -191,7 +191,7 @@ test('đo chất lượng tách việc: tự tính 5 chỉ số từ thao tác c
   assert.equal((await r.json()).ky, 7);
 });
 
-test('rà soát tách việc hằng tuần: lấy mẫu cả tin có và không sinh việc, Claude chấm, báo cáo vào KB, báo PM', async () => {
+test('rà soát lấy mẫu đúng nhưng không được gọi Claude Code để chấm', async () => {
   const { layMauRaSoat, dungMauRaSoatMd } = await import('../src/danh-gia-tach-viec.js');
   const { db, env } = moiTruong();
   const gan = (gio) => new Date(Date.now() - gio * 3600000).toISOString();
@@ -211,15 +211,8 @@ test('rà soát tách việc hằng tuần: lấy mẫu cả tin có và không 
   const { goc, kbNguon, claude } = await dungChayThu('bao-cao');
   const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
   const [kq] = await tho.raSoatTachViec();
-  assert.equal(kq.so_mau, 11, JSON.stringify(kq));
-  const nhanh = git(kbNguon, 'branch', '--list', 'sonicplan/ra-soat-*').trim().replace(/^\*?\s*/, '');
-  const ds = git(kbNguon, 'ls-tree', '-r', '--name-only', nhanh).trim().split('\n').filter((x) => x.includes('DanhGia_TachViec'));
-  for (const t of ['mau-tin.md', 'chi-so.md', 'BAO-CAO.md']) assert.ok(ds.some((x) => x.endsWith(`_RaSoatTuan/${t}`)), t);
-  const bc = git(kbNguon, 'show', `${nhanh}:${ds.find((x) => x.endsWith('BAO-CAO.md'))}`);
-  assert.match(bc, /Đúng việc 5\/6/);
-  assert.match(git(kbNguon, 'show', `${nhanh}:${ds.find((x) => x.endsWith('chi-so.md'))}`), /Đúng việc/);
-  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM thong_bao WHERE loai = 'claude' AND tieu_de LIKE 'Báo cáo rà soát%'").get().n, 1);
-  assert.equal(JSON.parse(db.prepare("SELECT gia_tri FROM cai_dat WHERE khoa = 'ra_soat_tach_viec'").get().gia_tri).so_mau, 11);
+  assert.match(kq.loi, /không được sử dụng Claude Code hoặc gói Max/);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM thong_bao WHERE loai = 'claude' AND tieu_de LIKE 'Báo cáo rà soát%'").get().n, 0);
   await tho.dong();
 });
 

@@ -17,7 +17,6 @@ Máy chủ Node chạy nguyên mã Worker trong `src/`, thay D1 bằng SQLite, R
 | `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` | Lấy mặc định từ `wrangler.jsonc`; Cloudflare Access phải còn đứng trước tên miền |
 | `KHOA_MA_HOA` | Khóa mã hóa token kết nối; không có thì Google, Zalo, Telegram không giải mã được |
 | `CF_ACCOUNT_ID`, `CF_AI_TOKEN` | Muốn có AI: gọi Workers AI qua REST. Thiếu thì chạy không AI |
-| `AI_CLAUDE_CODE=0` | Tắt AI qua Claude Code gói Max. Mặc định bật khi có lệnh `claude` (`CLAUDE_BIN`): mọi tác vụ AI gọi `claude -p` trước, lỗi thì quay về Workers AI. Tổ chức đã dán khóa AI riêng ở trang Kết nối thì khóa đó vẫn đứng trước. Đổi mô hình, mức suy nghĩ bằng `AI_CLAUDE_CODE_MODEL` (mặc định `claude-haiku-5-5`), `AI_CLAUDE_CODE_EFFORT` (mặc định `medium`). Dùng chung hạn mức gói Max với thợ Claude và các phiên Claude Code của PM |
 | `DU_LIEU`, `DB_FILE`, `TEP_DIR` | Thư mục dữ liệu (mặc định `du-lieu/`) |
 | `HEN_GIO=0` | Tắt hẹn giờ |
 | `KHOA_MA_HOA_CU` | Chỉ khi đang xoay khóa: khóa cũ, để đọc được dữ liệu chưa mã hóa lại. Cách xoay: dừng máy chủ, sao lưu, chạy `KHOA_MA_HOA_CU=<cũ> KHOA_MA_HOA=<mới> DB_FILE=<đường dẫn> node may-chu/xoay-khoa.js`, đặt khóa mới vào `.env`, gỡ biến này |
@@ -65,3 +64,5 @@ Từ 19/10/2026 thợ Claude KHÔNG làm việc trực tiếp trong Sonicplan v�
 - **Drive:** tiến trình node không với tới Google Drive (treo khi đọc thư mục Drive dưới launchd), nên thợ xếp kết quả vào `~/.sonicplan-tho/drive-cho/` và tác vụ bash `may-chu/dong-bo-drive.sh` chép sang Drive mỗi phút. Cài một lần: `bash may-chu/cai-dong-bo-drive.sh`.
 - **Biến môi trường (tùy chọn):** `THO_CLAUDE=0` tắt hẳn; `THO_DIR` (mặc định `~/.sonicplan-tho`), `KB_DIR` (bản sao KB, mặc định `$THO_DIR/ThangLong_KB`), `KB_REPO` (mặc định `HaiTLU/ThangLong_KB`), `SB_DIR` (bản sao second-brain, mặc định `$THO_DIR/second-brain`), `SB_REPO` (mặc định `HaiTLU/second-brain`), `CLAUDE_BIN` (mặc định `~/.local/bin/claude`), `DRIVE_CHO`, `DRIVE_GOC` (script chép Drive).
 - **Cần có sẵn:** Claude Code đã đăng nhập, `gh auth login` (quyền repo), git. Cả ba đã kiểm chạy được dưới launchd.
+
+Sonicplan không sử dụng Claude Code hoặc gói Max. Các biến AI_CLAUDE_CODE và THO_CLAUDE cũ không bật lại được các chức năng này. AI chỉ dùng API đã lưu và Workers AI dự phòng.

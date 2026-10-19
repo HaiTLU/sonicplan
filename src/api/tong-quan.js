@@ -155,16 +155,13 @@ async function tinhKetNoi(env, tc, khoa, tinHieu) {
   if (th.kho) ds.push({ loai: 'kho', trang_thai: th.kho.ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th.kho.ghi_chu?.startsWith('Lỗi') ? th.kho.ghi_chu.slice(0, 120) : `Lưu ${gioTruoc(th.kho.lan_cuoi)}`, cap_nhat_luc: th.kho.lan_cuoi });
   if (env.TEP) ds.push({ loai: 'tep', trang_thai: 'dang_chay', mo_ta: 'Kho R2 sẵn sàng' });
   if (coKhoa.lich) ds.push({ loai: 'lich', trang_thai: 'dang_chay', mo_ta: coKhoa.lich.dung_luc ? `Lịch đọc ${gioTruoc(coKhoa.lich.dung_luc)}` : 'Chờ ứng dụng lịch đọc lần đầu' });
-  if (env.AI || env.CLAUDE_CODE_AI) {
+  if (env.AI) {
     const loiAi = await env.CSDL.prepare(`SELECT COUNT(*) AS n FROM tin_nhan WHERE to_chuc_id = ?1 AND da_tach = 3 AND tao_luc >= ?2`)
       .bind(tc, new Date(Date.now() - 86400000).toISOString())
       .first();
-    const sanSang = env.CLAUDE_CODE_AI ? `${env.CLAUDE_CODE_AI.ten} sẵn sàng${env.AI ? ', dự phòng Workers AI' : ''}` : 'Workers AI sẵn sàng';
-    // Hết hạn mức ngày (gói miễn phí): tin được giữ ở hàng chờ, hiện rõ để biết Workers AI chạy lại lúc nào.
-    // Đã có Claude Code làm AI chính thì Workers AI hết hạn mức chỉ là cảnh báo dự phòng, không phải lỗi.
-    const hetHanMuc = env.AI ? await docHetHanMuc(env) : null;
-    if (hetHanMuc && env.CLAUDE_CODE_AI) ds.push({ loai: 'ai', trang_thai: 'dang_chay', mo_ta: `${sanSang}; Workers AI dự phòng hết hạn mức ngày, chạy lại lúc ${moTaLucDatLai(hetHanMuc)}` });
-    else if (hetHanMuc) ds.push({ loai: 'ai', trang_thai: 'loi', mo_ta: `Workers AI hết hạn mức ngày, tin được giữ lại, tự chạy lại lúc ${moTaLucDatLai(hetHanMuc)}` });
+    const sanSang = 'Workers AI sẵn sàng';
+    const hetHanMuc = await docHetHanMuc(env);
+    if (hetHanMuc) ds.push({ loai: 'ai', trang_thai: 'loi', mo_ta: `Workers AI hết hạn mức ngày, tin được giữ lại, tự chạy lại lúc ${moTaLucDatLai(hetHanMuc)}` });
     else ds.push(loiAi.n ? { loai: 'ai', trang_thai: 'loi', mo_ta: `${loiAi.n} tin không tách được trong 24 giờ` } : { loai: 'ai', trang_thai: 'dang_chay', mo_ta: sanSang });
   }
   if (await docCaiDat(env, tc, 'telegram_chat_id')) ds.push({ loai: 'telegram', trang_thai: 'dang_chay', mo_ta: th.telegram ? `Gửi lần cuối ${gioTruoc(th.telegram.lan_cuoi)}` : 'Đã nối' });

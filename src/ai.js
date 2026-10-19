@@ -1,7 +1,7 @@
 // Tách việc từ tin nhắn và tóm tắt tin. Mặc định dùng Workers AI của Cloudflare, không cần khóa.
 // Tổ chức dán khóa Claude hoặc loại tương thích OpenAI ở trang Kết nối thì dùng dịch vụ đó,
 // lỗi thì tự quay về Workers AI. Đổi mô hình mặc định bằng biến AI_MODEL trong wrangler.jsonc.
-// Máy chủ trên Mac còn có Claude Code gói Max đứng trước Workers AI (may-chu/ai-claude-code.js).
+// Không sử dụng Claude Code hoặc hạn mức gói Max.
 
 import { chuanHoaGhiNho } from './ghi-nho.js';
 import { chayAiNgoai } from './tich-hop.js';
@@ -223,7 +223,7 @@ export function ghiChuKeHoach(v) {
   return dong.join('\n');
 }
 
-// Chạy AI theo thứ tự: dịch vụ ngoài của tổ chức (ngoai), Claude Code gói Max của máy chủ trên Mac, Workers AI.
+// Chạy API đã cấu hình, rồi Workers AI; không gọi Claude Code.
 // Bước nào lỗi thì gọi baoLoi(thongBao) rồi sang bước sau.
 export function themHoSo(messages, hoSo) {
   const ho = String(hoSo || '').trim();
@@ -243,18 +243,9 @@ export async function chayAi(env, tuyChon, messages, { maxTokens, nhietDo, khuon
       if (baoLoi) await baoLoi(String(e.message || e).slice(0, 150));
     }
   }
-  // Máy chủ trên Mac: Claude qua Claude Code gói Max (env.CLAUDE_CODE_AI, gắn ở may-chu/chay.js) đứng trước Workers AI.
-  if (env.CLAUDE_CODE_AI) {
-    try {
-      return await env.CLAUDE_CODE_AI.chay(messages, tuyChon?.model ? { model: tuyChon.model } : undefined);
-    } catch (e) {
-      console.error('Claude Code lỗi, dùng Workers AI', e);
-      if (baoLoi) await baoLoi(String(e.message || e).slice(0, 150));
-    }
-  }
   if (tuyChon) tuyChon.duPhong = true; // đã quay về Workers AI: ghi nhớ từ lượt này có độ tin cậy thấp
   // Máy chủ trên Mac không có Workers AI khi thiếu CF_AI_TOKEN: báo rõ thay vì lỗi "undefined".
-  if (!env.AI) throw new Error(ngoai || env.CLAUDE_CODE_AI ? 'AI lỗi và máy chủ không có Workers AI dự phòng' : 'Chưa nối AI, vào Kết nối > AI của bạn để dán khóa');
+  if (!env.AI) throw new Error(ngoai ? 'AI lỗi và máy chủ không có Workers AI dự phòng' : 'Chưa nối AI, vào Kết nối > AI của bạn để dán khóa');
   // Đã biết hết hạn mức ngày thì không gọi nữa tới lúc đặt lại, khỏi lặp lỗi 429 mỗi 5 phút.
   const tamDung = await docHetHanMuc(env);
   if (tamDung) throw new TamDungHanMuc(tamDung);

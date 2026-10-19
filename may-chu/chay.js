@@ -2,7 +2,6 @@
 // Chạy: node may-chu/chay.js   (cấu hình qua biến môi trường hoặc tệp may-chu/.env, xem may-chu/README.md)
 import { createServer } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Readable } from 'node:stream';
@@ -12,10 +11,8 @@ import { chayMigration } from './migrate.js';
 import { moR2 } from './lop-r2.js';
 import { moTinh } from './lop-tinh.js';
 import { moAi } from './lop-ai.js';
-import { moAiClaudeCode } from './ai-claude-code.js';
 import { batHenGio } from './lich.js';
 import { moTram } from './lop-tram.js';
-import { moThoClaude } from './tho-claude.js';
 import { batTay, boc } from './lop-ws.js';
 import { xacDinhPhien } from '../src/phien.js';
 import { taoThongBao } from '../src/thong-bao.js';
@@ -110,21 +107,9 @@ export function taoMayChu(cauHinh = {}) {
   // Phòng chat của trang Claude: chạy ngay trong tiến trình này, lưu ở du-lieu/tram/.
   const tram = moTram(resolve(thuMucDuLieu, 'tram'), { baoNguoi: (tc, tb) => taoThongBao(env, tc, { loai: 'claude', ...tb }) });
   env.TRAM_NOI_BO = tram;
-  // Thợ Claude: Claude Code tự làm việc nhóm Claude trong bản sao ThangLong_KB. THO_CLAUDE=0 để tắt hẳn; vòng chạy chỉ bắt đầu cùng hẹn giờ.
-  if (cfg.THO_CLAUDE !== '0') env.THO_CLAUDE = moThoClaude(env, cfg);
+  // Không khởi tạo thợ Claude Code: Sonicplan không sử dụng gói Max.
   const ai = moAi({ taiKhoan: cfg.CF_ACCOUNT_ID, token: cfg.CF_AI_TOKEN });
   if (ai) env.AI = ai;
-  // AI qua Claude Code gói Max, đứng trước Workers AI. Mặc định bật khi có lệnh claude; AI_CLAUDE_CODE=0 để tắt.
-  const claudeBin = cfg.CLAUDE_BIN || join(homedir(), '.local', 'bin', 'claude');
-  if (cfg.AI_CLAUDE_CODE !== '0' && existsSync(claudeBin)) {
-    env.CLAUDE_CODE_AI = moAiClaudeCode({
-      claudeBin,
-      model: cfg.AI_CLAUDE_CODE_MODEL || 'claude-haiku-5-5',
-      effort: cfg.AI_CLAUDE_CODE_EFFORT || 'medium',
-      thuMuc: join(tmpdir(), 'sonicplan-ai-claude-code'), // thư mục rỗng, ngoài mọi kho: không nạp CLAUDE.md hay cài đặt dự án nào
-    });
-  }
-
   const dangCho = new Set();
   const ctx = {
     waitUntil: (p) => {
@@ -222,7 +207,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const cong = Number(m.cfg.PORT || 8787);
   const may = m.cfg.HOST || '127.0.0.1';
   m.maychu.listen(cong, may, () => {
-    console.log(`Sonicplan chạy ở ${may}:${cong}${m.cfg.PUBLIC_ORIGIN ? ` (địa chỉ công khai ${m.cfg.PUBLIC_ORIGIN})` : ''}${m.env.CLAUDE_CODE_AI ? `, AI: ${m.env.CLAUDE_CODE_AI.ten}${m.env.AI ? ', dự phòng Workers AI' : ''}` : m.env.AI ? ', có AI' : ', không có AI'}`);
+    console.log(`Sonicplan chạy ở ${may}:${cong}${m.cfg.PUBLIC_ORIGIN ? ` (địa chỉ công khai ${m.cfg.PUBLIC_ORIGIN})` : ''}${m.env.AI ? ', có Workers AI' : ', dùng API đã cấu hình'}`);
     if (m.cfg.HEN_GIO !== '0') m.batHenGio();
   });
   for (const tin of ['SIGINT', 'SIGTERM']) process.on(tin, () => m.dong().finally(() => process.exit(0)));

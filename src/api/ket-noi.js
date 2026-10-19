@@ -62,7 +62,7 @@ async function layKetNoi(env, tc, url, phien) {
       duong_dan: bot ? `https://t.me/${bot.ten}?start=${maNoi}` : null,
       lan_cuoi: th.telegram || null,
     },
-    ai: { co: Boolean(env.AI || env.CLAUDE_CODE_AI) },
+    ai: { co: Boolean(env.AI) },
     tep: { co: Boolean(env.TEP) },
   };
 }

@@ -1,7 +1,7 @@
 // Phần Claude chạy trên máy chủ riêng (Mac mini). Thợ Claude KHÔNG còn nhận hay tự làm việc của người dùng (PM dặn 19/10/2026):
 // việc chỉ được soạn thành prompt ở src/soan-prompt.js. Ở đây còn lại hai việc bảo trì: đồng bộ ghi nhớ sang second-brain (tự chạy mỗi đêm)
 // và rà soát chất lượng tách việc (chỉ chạy khi PM bấm). Mỗi lần chạy Claude Code dùng một git worktree riêng của ThangLong_KB.
-import { execFile, spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -26,8 +26,6 @@ export function duongDanChoClaude(cfg = {}, goc = process.env.PATH) {
   return [...new Set([...dau, ...String(goc || '/usr/bin:/bin').split(':').filter(Boolean)])].join(':');
 }
 
-const TOI_DA_PHUT = 30;
-const CONG_CU = ['Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'TodoWrite', 'Task', 'Skill', 'Bash(python3:*)', 'Bash(node:*)', 'Bash(ls:*)', 'Bash(cat:*)', 'Bash(mkdir:*)'];
 // Kết quả việc chỉ đẩy thư mục làm việc. memory/ đã chuyển sang kho second-brain (18/10/2026), không đẩy lên ThangLong_KB nữa.
 const THU_MUC_DUOC_DAY = (thuMucLam) => [thuMucLam];
 
@@ -39,7 +37,6 @@ export function moThoClaude(env, cfg = {}) {
   const nha = resolve(cfg.THO_DIR || join(homedir(), '.sonicplan-tho'));
   const kbDir = resolve(cfg.KB_DIR || join(nha, 'ThangLong_KB'));
   const lamDir = join(nha, 'lam');
-  const claudeBin = cfg.CLAUDE_BIN || join(homedir(), '.local', 'bin', 'claude');
   const kbRepo = cfg.KB_REPO || 'HaiTLU/ThangLong_KB';
   const kbNguon = cfg.KB_REMOTE || `https://github.com/${kbRepo}.git`; // thử nghiệm đặt đường dẫn kho cục bộ
   // Kho second-brain: nơi ghi nhớ Sonicplan được xuất (memory/projects/Sonicplan_GhiNho.md), đẩy thẳng main, chỉ thư mục memory/.
@@ -80,32 +77,9 @@ export function moThoClaude(env, cfg = {}) {
     return { thu_muc: kbDir, da_clone: co, ban_moi_nhat: ban };
   }
 
-  // Chạy Claude Code, trả { ok, chu, chi_phi, so_luot } hoặc ném lỗi.
-  function chayClaude(cwd, loiNhac, cauHinh, luotId) {
-    return new Promise((xong, loi) => {
-      const doiSo = ['-p', '--output-format', 'json', '--model', cauHinh.model, '--effort', cauHinh.effort, '--max-turns', '60', '--permission-mode', 'acceptEdits', '--permission-prompts', 'none', '--strict-mcp-config', '--allowedTools', ...CONG_CU];
-      // --strict-mcp-config: không nạp máy chủ MCP nào (kể cả Gmail, Slack...), nên Claude không có công cụ gửi gì ra ngoài. PM dặn 16/10/2026: không tự gửi thư.
-      const con = spawn(claudeBin, doiSo, { cwd, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, PATH: duongDanChoClaude(cfg), CLAUDECODE: '' } });
-      dangChay.get(luotId).tien_trinh = con;
-      let out = '';
-      let err = '';
-      const gioHan = setTimeout(() => { con.kill('SIGTERM'); setTimeout(() => con.kill('SIGKILL'), 5000); loi(new Error(`Claude làm quá ${TOI_DA_PHUT} phút, đã dừng.`)); }, TOI_DA_PHUT * 60000);
-      con.stdout.on('data', (b) => { out += b; });
-      con.stderr.on('data', (b) => { err += b; });
-      con.on('error', (e) => { clearTimeout(gioHan); loi(new Error(`Không chạy được Claude Code: ${e.message}`)); });
-      con.on('close', (ma) => {
-        clearTimeout(gioHan);
-        let kq = null;
-        try {
-          const dong = out.trim().split('\n').filter(Boolean);
-          const j = JSON.parse(dong[dong.length - 1]);
-          kq = Array.isArray(j) ? j.findLast?.((x) => x.type === 'result') : j;
-        } catch { /* không phải JSON */ }
-        if (kq && typeof kq.result === 'string' && !kq.is_error) return xong({ chu: kq.result, chi_phi: kq.total_cost_usd, so_luot: kq.num_turns });
-        loi(new Error(kq?.result ? `Claude báo lỗi: ${String(kq.result).slice(0, 300)}` : `Claude dừng với mã ${ma}. ${err.trim().slice(-300) || out.trim().slice(-300)}`));
-      });
-      con.stdin.end(loiNhac);
-    });
+  // Chặn cả các bên gọi cũ: không còn đường khởi chạy Claude Code.
+  function chayClaude() {
+    throw new Error('Sonicplan không được sử dụng Claude Code hoặc gói Max.');
   }
 
   // Commit các đường dẫn đã chọn trong worktree w, đẩy lên nhánh, mở PR và tự gộp khi kiểm tra tự động xong không lỗi (quy tắc kho KB).
