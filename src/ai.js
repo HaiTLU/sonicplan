@@ -1,7 +1,8 @@
 // Tách việc từ tin nhắn và tóm tắt tin. Mặc định dùng Workers AI của Cloudflare, không cần khóa.
 // Tổ chức dán khóa Claude hoặc loại tương thích OpenAI ở trang Kết nối thì dùng dịch vụ đó,
 // lỗi thì tự quay về Workers AI. Đổi mô hình mặc định bằng biến AI_MODEL trong wrangler.jsonc.
-// Máy chủ trên Mac còn có Claude Code gói Max đứng trước Workers AI (may-chu/ai-claude-code.js).
+// Máy chủ trên Mac còn có Claude Code gói Max đứng trước Workers AI (may-chu/ai-claude-code.js),
+// và có thể chọn FPT AI Marketplace thay Claude (may-chu/ai-fpt.js) bằng ô "Nhà cung cấp AI" ở trang Kết nối.
 
 import { chuanHoaGhiNho } from './ghi-nho.js';
 import { chayAiNgoai } from './tich-hop.js';
@@ -223,8 +224,17 @@ export function ghiChuKeHoach(v) {
   return dong.join('\n');
 }
 
-// Chạy AI theo thứ tự: dịch vụ ngoài của tổ chức (ngoai), Claude Code gói Max của máy chủ trên Mac, Workers AI.
-// Bước nào lỗi thì gọi baoLoi(thongBao) rồi sang bước sau.
+// Nhà cung cấp AI cho một phần việc (tach_viec, soan_prompt, khac): 'claude' hoặc 'fpt'. Lựa chọn đặt ở env.LUA_CHON_AI (máy chủ trên Mac), không có thì Claude.
+export function chonNhaCungCap(env, phan = 'khac') {
+  const lc = env.LUA_CHON_AI?.doc?.();
+  const rieng = lc?.[phan];
+  return rieng === 'claude' || rieng === 'fpt' ? rieng : lc?.chung === 'fpt' ? 'fpt' : 'claude';
+}
+
+let daBaoThieuKhoaFpt = false;
+
+// Chạy AI theo thứ tự: dịch vụ ngoài của tổ chức (ngoai), FPT AI nếu đã chọn, Claude Code gói Max của máy chủ trên Mac, Workers AI.
+// Bước nào lỗi thì gọi baoLoi(thongBao) rồi sang bước sau. Thiếu khóa FPT hoặc FPT lỗi thì dùng Claude, không làm hỏng việc đang chạy.
 export function themHoSo(messages, hoSo) {
   const ho = String(hoSo || '').trim();
   if (!ho || messages[0]?.role !== 'system') return messages;
@@ -232,7 +242,7 @@ export function themHoSo(messages, hoSo) {
   return [{ ...messages[0], content: messages[0].content + them }, ...messages.slice(1)];
 }
 
-export async function chayAi(env, tuyChon, messages, { maxTokens, nhietDo, khuon }) {
+export async function chayAi(env, tuyChon, messages, { maxTokens, nhietDo, khuon, phan }) {
   const { ngoai, baoLoi } = tuyChon;
   messages = themHoSo(messages, tuyChon?.hoSo);
   if (ngoai) {
@@ -241,6 +251,23 @@ export async function chayAi(env, tuyChon, messages, { maxTokens, nhietDo, khuon
     } catch (e) {
       console.error('AI ngoài lỗi, dùng AI có sẵn', e);
       if (baoLoi) await baoLoi(String(e.message || e).slice(0, 150));
+    }
+  }
+  if (chonNhaCungCap(env, phan) === 'fpt') {
+    if (!env.FPT_AI) {
+      // Báo một lần cho mỗi lần chạy máy chủ, khỏi lặp mỗi lượt tách việc.
+      if (!daBaoThieuKhoaFpt) {
+        daBaoThieuKhoaFpt = true;
+        console.error('Đã chọn FPT AI nhưng máy chủ chưa có FPT_AI_API_KEY, tạm dùng Claude');
+        if (baoLoi) await baoLoi('Đã chọn FPT AI nhưng máy chủ chưa có khóa FPT_AI_API_KEY, đang dùng Claude');
+      }
+    } else {
+      try {
+        return await env.FPT_AI.chay(messages, { model: tuyChon?.model, maxTokens, nhietDo, khuon });
+      } catch (e) {
+        console.error('FPT AI lỗi, dùng Claude', e);
+        if (baoLoi) await baoLoi(String(e.message || e).slice(0, 150));
+      }
     }
   }
   // Máy chủ trên Mac: Claude qua Claude Code gói Max (env.CLAUDE_CODE_AI, gắn ở may-chu/chay.js) đứng trước Workers AI.
@@ -277,7 +304,7 @@ export async function chayAi(env, tuyChon, messages, { maxTokens, nhietDo, khuon
 }
 
 export async function tachViec(env, tin, homNay, tenNguoiDung, tuyChon = {}) {
-  const tra = await chayAi(env, tuyChon, loiNhacTachViec(tin, homNay, tenNguoiDung, tuyChon.daCo || [], tuyChon.ghiNho || [], tuyChon.tinTruoc || [], tuyChon.viecMo || [], tuyChon.duAn || [], tuyChon.daSua || []), { maxTokens: 2500, nhietDo: 0.1, khuon: KHUON_VIEC });
+  const tra = await chayAi(env, tuyChon, loiNhacTachViec(tin, homNay, tenNguoiDung, tuyChon.daCo || [], tuyChon.ghiNho || [], tuyChon.tinTruoc || [], tuyChon.viecMo || [], tuyChon.duAn || [], tuyChon.daSua || []), { maxTokens: 2500, nhietDo: 0.1, khuon: KHUON_VIEC, phan: 'tach_viec' });
   return docKetQuaLo(tra);
 }
 
