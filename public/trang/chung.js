@@ -81,8 +81,10 @@ export function bao(noiDung, { loi = false, hanhDong, hanhDong2 } = {}) {
   setTimeout(() => el.remove(), hanhDong ? (hanhDong2 ? 9000 : 6000) : 3500);
 }
 
+// Lỗi kiểu "Cannot read properties of undefined" thường do tab còn giữ mã cũ trong khi máy chủ đã lên bản mới: thử lại chỉ chạy lại mã cũ, nên tải lại trang để lấy mã mới.
 export function khungLoi(e, thuLai) {
-  return h('div', { class: 'bao-loi-trang', role: 'alert' }, h('span', { text: e.message }), h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: 'Thử lại', onclick: thuLai }));
+  const maCu = e instanceof TypeError && /Cannot read|is not a function|undefined/.test(e.message);
+  return h('div', { class: 'bao-loi-trang', role: 'alert' }, h('span', { text: e.message }), h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: maCu ? 'Tải lại trang' : 'Thử lại', onclick: maCu ? () => location.reload() : thuLai }));
 }
 
 // ---------- Khung giải thích khi rê chuột ----------
