@@ -14,6 +14,7 @@ Memory của PM chuyển từ ThangLong_KB sang kho second-brain (18/10/2026). K
 - Bộ tin mẫu `test/tin-mau/tach-viec.json` và `node scripts/thu-tach-viec.mjs` để chạy thử lời dặn bằng AI thật trên Mac mini sau mỗi lần sửa `src/ai.js`.
 
 ### Đổi
+- Mọi chỗ dùng Claude Code đổi sang Haiku 5.5 (AI tách việc effort medium, thợ Claude mặc định, ghi nhanh của Trạm) và Sonnet 5.5 cho việc khó của thợ (tờ trình, hợp đồng, phân tích), thay Opus.
 - Ghi nhớ Sonicplan xuất vào `memory/projects/Sonicplan_GhiNho.md` của kho second-brain (`SB_REPO`, mặc định `HaiTLU/second-brain`), đẩy thẳng `main`, chỉ thư mục `memory/`, không mở PR. Bị từ chối vì `main` đã đổi thì nạp lại, rebase rồi đẩy lại tối đa 3 lần.
 - Kết quả việc của thợ Claude không còn đẩy `memory/` lên ThangLong_KB, chỉ đẩy thư mục làm việc của dự án.
 

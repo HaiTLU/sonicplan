@@ -9,8 +9,8 @@ import { bam, maNgauNhien } from './tien-ich.js';
 
 const KHOA = 'tho_claude';
 export const DAU_CAU_HOI = 'CÂU HỎI CHO BẠN:'; // phải trùng với claude-code.js (có test)
-export const MAC_DINH = { bat: true, song_song: 2, toi_da_ngay: 10, model: 'claude-sonnet-5-5', effort: 'medium', loc_dau_vao: true, model_theo_loai: true };
-export const MODEL_VIEC_KHO = 'claude-opus-5-5';
+export const MAC_DINH = { bat: true, song_song: 2, toi_da_ngay: 10, model: 'claude-haiku-5-5', effort: 'medium', loc_dau_vao: true, model_theo_loai: true };
+export const MODEL_VIEC_KHO = 'claude-sonnet-5-5';
 export const NGUONG_CHU_DAU_VAO = 300;
 export const NHOM_CLAUDE = ['claude_tu_lam', 'claude_chuan_bi'];
 export const TOI_DA_TIN = 40;
@@ -82,11 +82,11 @@ export async function viecDuDauVao(env, tc, viec) {
   return { du: false, ly_do: coAm ? 'chi_co_ghi_am' : 'it_chu' };
 }
 
-// Model theo loại việc (PM chọn 17/10/2026): tờ trình, hợp đồng, thỏa thuận, pháp lý, phân tích, đề xuất gửi BGH hay đối tác dùng Opus; thư, tóm tắt, bảng dùng model cấu hình.
+// Model theo loại việc (PM chọn 17/10/2026): tờ trình, hợp đồng, thỏa thuận, pháp lý, phân tích, đề xuất gửi BGH hay đối tác dùng Sonnet; thư, tóm tắt, bảng dùng model cấu hình.
 const RE_VIEC_KHO = /t[ờơ]\s*tr[ìi]nh|h[ợo]p\s*[đd][ồo]ng|th[ỏo]a\s*thu[ậa]n|\bmou\b|\bnda\b|ph[áa]p\s*l[ýy]|ph[áa]p\s*ch[ếe]|ph[âa]n\s*t[íi]ch|[đd][ềe]\s*xu[ấa]t|\bbgh\b|ban\s*gi[áa]m\s*hi[ệe]u|[đd][ốo]i\s*t[áa]c/i;
 export function chonModelChoViec(viecList, cauHinh) {
   const mac = { model: cauHinh.model, effort: cauHinh.effort, theo_loai: false };
-  if (!cauHinh.model_theo_loai || /opus/i.test(cauHinh.model)) return mac;
+  if (!cauHinh.model_theo_loai || /sonnet/i.test(cauHinh.model)) return mac;
   const chu = (viecList || []).map((v) => `${v.tieu_de || ''} ${v.ghi_chu || ''}`).join(' ');
   return RE_VIEC_KHO.test(chu) ? { model: MODEL_VIEC_KHO, effort: cauHinh.effort, theo_loai: true } : mac;
 }

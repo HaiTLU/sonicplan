@@ -31,7 +31,7 @@ test('ghép dự án với thư mục KB: chuẩn tên, gợi ý, kiểm đườ
 });
 
 test('cấu hình thợ Claude: mặc định theo PM, giới hạn giá trị', () => {
-  assert.deepEqual(chuanCauHinhTho(undefined), { bat: true, song_song: 2, toi_da_ngay: 10, model: 'claude-sonnet-5-5', effort: 'medium', loc_dau_vao: true, model_theo_loai: true });
+  assert.deepEqual(chuanCauHinhTho(undefined), { bat: true, song_song: 2, toi_da_ngay: 10, model: 'claude-haiku-5-5', effort: 'medium', loc_dau_vao: true, model_theo_loai: true });
   assert.equal(chuanCauHinhTho({ song_song: 99, toi_da_ngay: -1, effort: 'x', model: 'a b' }).song_song, 2);
   assert.equal(chuanCauHinhTho({ song_song: 3, bat: false }).bat, false);
   assert.equal(dauNgayVN(new Date('2026-10-15T20:00:00Z')), '2026-10-15T17:00:00.000Z'); // 3h sáng 16/10 giờ VN: đầu ngày 16/10 VN = 17h UTC ngày 15
@@ -198,6 +198,8 @@ test('thợ chạy trọn một lượt: ngữ cảnh vào kho, kết quả lên
   db.exec("INSERT INTO tep (to_chuc_id, tin_nhan_id, ten, loai, kich_thuoc, r2_khoa, tao_luc) VALUES ('tc1', 1, 'so-lieu.csv', 'csv', 5, 'k1', '2026-10-14')");
   env.TEP = { get: async () => ({ arrayBuffer: async () => new TextEncoder().encode('a,b\n1,2').buffer }) };
   viec(db, 1, 'Soạn báo cáo tuần', 'claude_chuan_bi', '2026-10-20', 1);
+  // Sáng thứ Hai vòng thợ tự rà soát tuần và thêm một thông báo: đánh dấu tuần này đã rà để test không phụ thuộc ngày chạy.
+  db.prepare("INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES ('', 'ra_soat_tuan', ?1)").run(new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10));
   const { goc, kbNguon, claude } = await dungChayThu();
   const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
   await tho.vongMotLan();
@@ -223,7 +225,7 @@ test('thợ chạy trọn một lượt: ngữ cảnh vào kho, kết quả lên
   // Claude chạy không có máy chủ MCP nào (không có công cụ gửi thư), lời nhắc cấm gửi.
   const doiSo = readFileSync(join(goc, 'doi-so.txt'), 'utf8');
   assert.match(doiSo, /--strict-mcp-config/);
-  assert.match(doiSo, /--model claude-sonnet-5-5/); // việc báo cáo thường: model cấu hình
+  assert.match(doiSo, /--model claude-haiku-5-5/); // việc báo cáo thường: model cấu hình
   assert.ok(readFileSync(join(goc, 'duong-path.txt'), 'utf8').split(':').includes('/usr/local/bin')); // python3 có python-docx nằm ở đây
   assert.ok(!/mcp__/.test(doiSo) && !/Gmail|gmail/.test(doiSo));
   // Thông báo đẩy cho PM, worktree đã dọn.
@@ -684,18 +686,18 @@ test('tệp ghi âm không tải về cho Claude, ghi chú để PM mở bằng 
   assert.match(md, /SAP\.m4a: tệp ghi âm.*SonicRec/);
 });
 
-test('model theo loại việc: tờ trình, hợp đồng, pháp lý, phân tích dùng Opus; còn lại model cấu hình; tắt được', () => {
+test('model theo loại việc: tờ trình, hợp đồng, pháp lý, phân tích dùng Sonnet; còn lại model cấu hình; tắt được', () => {
   const ch = chuanCauHinhTho({});
   const chon = (tieuDe, cauHinh = ch) => chonModelChoViec([{ tieu_de: tieuDe, ghi_chu: '' }], cauHinh);
-  assert.equal(chon('Xử lý tờ trình phê duyệt hợp tác').model, 'claude-opus-5-5');
-  assert.equal(chon('Xem bản Thỏa thuận hợp tác MOU PVcomBank').model, 'claude-opus-5-5');
-  assert.equal(chon('Xem lại bản NDA Ipsos đã chỉnh của Pháp chế').model, 'claude-opus-5-5');
-  assert.equal(chon('Phân tích số liệu tuyển sinh').model, 'claude-opus-5-5');
-  assert.equal(chon('Trả lời Hong Nguyen về việc chia sẻ thông tin').model, 'claude-sonnet-5-5');
+  assert.equal(chon('Xử lý tờ trình phê duyệt hợp tác').model, 'claude-sonnet-5-5');
+  assert.equal(chon('Xem bản Thỏa thuận hợp tác MOU PVcomBank').model, 'claude-sonnet-5-5');
+  assert.equal(chon('Xem lại bản NDA Ipsos đã chỉnh của Pháp chế').model, 'claude-sonnet-5-5');
+  assert.equal(chon('Phân tích số liệu tuyển sinh').model, 'claude-sonnet-5-5');
+  assert.equal(chon('Trả lời Hong Nguyen về việc chia sẻ thông tin').model, 'claude-haiku-5-5');
   assert.equal(chon('Điền tên CBCT vào link phân công coi thi').theo_loai, false);
-  assert.equal(chon('Xử lý tờ trình', chuanCauHinhTho({ model_theo_loai: false })).model, 'claude-sonnet-5-5');
-  assert.equal(chon('Xử lý tờ trình', chuanCauHinhTho({ model: 'claude-opus-5-5' })).theo_loai, false); // đã là Opus
-  assert.equal(chonModelChoViec([{ tieu_de: 'Việc nhẹ' }, { tieu_de: 'Soạn đề xuất gửi BGH' }], ch).model, 'claude-opus-5-5'); // lượt gộp: một việc khó là đủ
+  assert.equal(chon('Xử lý tờ trình', chuanCauHinhTho({ model_theo_loai: false })).model, 'claude-haiku-5-5');
+  assert.equal(chon('Xử lý tờ trình', chuanCauHinhTho({ model: 'claude-sonnet-5-5' })).theo_loai, false); // đã là Sonnet
+  assert.equal(chonModelChoViec([{ tieu_de: 'Việc nhẹ' }, { tieu_de: 'Soạn đề xuất gửi BGH' }], ch).model, 'claude-sonnet-5-5'); // lượt gộp: một việc khó là đủ
 });
 
 test('PATH cho Claude có python3 đủ thư viện: /usr/local/bin và bản python.org, không trùng, giữ PATH gốc', () => {
