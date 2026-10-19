@@ -153,7 +153,7 @@ export async function xuLyViec(yeuCau, env, phien, url) {
     const tuy = { ngoai: await docTichHop(env, tc, 'ai'), hoSo: await docHoSo(env, tc) };
     const r = await soanPrompt(env, tc, b.viec_ids, {
       dan: b.dan, goc: url.origin, tepTuy: chuanTepTuy({ them: b.tep_them, bo: b.tep_bo, da_chon: b.tep_da_chon === true }),
-    }, (messages, opts, mo) => chayAi(env, { ...tuy, model: mo.model }, messages, opts));
+    }, (messages, opts, mo) => chayAi(env, { ...tuy, model: mo.model }, messages, { ...opts, phan: 'soan_prompt' }));
     return r.loi ? loi(r.ma, r.loi) : json(r, 201);
   }
   // Tệp đi kèm khi giao Claude: liệt kê tệp tự tìm được quanh các việc, và nhận tệp người dùng tự thêm (lưu ở kho tệp, nguon 'giao-claude').

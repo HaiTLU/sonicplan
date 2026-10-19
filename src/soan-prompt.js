@@ -92,7 +92,7 @@ async function gomTep(env, tc, tins, tepTuy) {
 }
 
 // Soạn và lưu một prompt cho một hoặc nhiều việc. Một lần gọi AI; AI lỗi thì dùng phần yêu cầu mặc định, prompt vẫn dùng được.
-export async function soanPrompt(env, tc, viecIds, { dan = '', tepTuy = null, goc = '' } = {}, ai = (messages, opts, mo) => chayAi(env, { model: mo.model }, messages, opts)) {
+export async function soanPrompt(env, tc, viecIds, { dan = '', tepTuy = null, goc = '' } = {}, ai = (messages, opts, mo) => chayAi(env, { model: mo.model }, messages, { ...opts, phan: 'soan_prompt' })) {
   const ids = [...new Set((Array.isArray(viecIds) ? viecIds : [viecIds]).map(Number).filter((x) => Number.isInteger(x) && x > 0))];
   if (!ids.length) return { ma: 400, loi: 'Chọn ít nhất một việc.' };
   if (ids.length > TOI_DA_VIEC_PROMPT) return { ma: 400, loi: `Mỗi lần soạn tối đa ${TOI_DA_VIEC_PROMPT} việc.` };
