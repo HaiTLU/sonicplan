@@ -1,12 +1,12 @@
 // Giao diện Sonicplan, Mục Tổng quan.
-import { moKhungGiaoClaude } from '../claude.js';
+import { moKhungSoanPrompt } from '../claude.js';
 import { dongHieuSuat } from '../hieu-suat.js';
 import { oChonMau } from '../mau.js';
 import { dongTrinhDon, moTrinhDon } from '../trinh-don.js';
 import { trichTin } from '../zalo-tin.js';
 import { ICON_TP, KET_QUA, S, TEN_DEN, TEN_MUC, api, bao, capNhatDem, congNgay, fmt, h, homNay, icon, lienKet, locTin, locViec, luc, meo, ngayHienThi, s, tenNhom, thay, trang, xuong } from './chung.js';
 import { moMuc } from './dieu-huong.js';
-import { giaoClaudeNhanh, moNganViec, saoViec } from './viec.js';
+import { moNganViec, saoViec, soanPromptNhanh } from './viec.js';
 
 // =====================================================================
 // Tổng quan
@@ -14,7 +14,7 @@ import { giaoClaudeNhanh, moNganViec, saoViec } from './viec.js';
 // Các khối của Tổng quan: tên hiện trong Tinh chỉnh và độ rộng (day: cả hàng, nua: nửa hàng).
 const KHOI_TQ = {
   'can-lam': { ten: 'Cần xử lý ngay', rong: 'day' },
-  'de-xuat-claude': { ten: 'Đề xuất giao Claude', rong: 'day' },
+  'de-xuat-claude': { ten: 'Đề xuất soạn prompt', rong: 'day' },
   'chi-so': { ten: 'Chỉ số chính', rong: 'day' },
   'du-an': { ten: 'Theo dự án', rong: 'nua' },
   'viec-toi': { ten: 'Việc sắp tới', rong: 'nua' },
@@ -95,15 +95,14 @@ function khoiCanLam(sl, cl) {
     h('span', { class: 'o-can-nhan', text: nhan }),
     h('b', { class: 'o-can-so', text: fmt.so.format(so || 0) }),
     h('small', { text: phu }));
-  const tong = (sl.viec_qua_han || 0) + (sl.viec_hom_nay || 0) + (cl?.cho_ban || 0) + (sl.tin_chua_xem || 0);
+  const tong = (sl.viec_qua_han || 0) + (sl.viec_hom_nay || 0) + (sl.tin_chua_xem || 0);
   return h('section', { class: 'bang can-lam', 'aria-labelledby': 'tq-can-lam' },
     h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-can-lam' }, 'Cần xử lý ngay'),
       h('span', { class: 'mo-ta', text: tong ? 'Bấm vào ô để mở danh sách' : 'Không có gì cần xử lý ngay' })),
-    tong ? null : h('p', { class: 'can-lam-trong', text: `Không có việc quá hạn, việc tới hạn hôm nay, kết quả Claude chờ duyệt hay tin chưa xem. ${sl.xong_hom_nay ? `Đã xong ${sl.xong_hom_nay} việc hôm nay.` : ''}`.trim() }),
+    tong ? null : h('p', { class: 'can-lam-trong', text: `Không có việc quá hạn, việc tới hạn hôm nay hay tin chưa xem. ${sl.xong_hom_nay ? `Đã xong ${sl.xong_hom_nay} việc hôm nay.` : ''}`.trim() }),
     tong ? h('div', { class: 'luoi-can' },
       o('Quá hạn', sl.viec_qua_han, 'do', 'viec', locViec('mo'), 'Việc còn mở có hạn trước hôm nay. Bấm để xem, các việc này nằm ở cột Quá hạn.', 'việc trễ hạn'),
       o('Tới hạn hôm nay', sl.viec_hom_nay, 'cam', 'viec', locViec('mo'), 'Việc còn mở có hạn đúng hôm nay. Bấm để xem ở cột Hôm nay.', `${sl.xong_hom_nay} việc đã xong hôm nay`),
-      o('Claude chờ bạn', cl?.cho_ban, 'tim', 'viec', locViec('mo'), 'Việc Claude đã làm xong hoặc đang hỏi lại, chờ bạn xem và bấm "Đạt, đóng việc" hoặc trả lời. Bấm để mở trang Việc.', cl?.dang_chay ? `${cl.dang_chay} lượt đang chạy` : 'kết quả chờ duyệt'),
       o('Tin chưa xem', sl.tin_chua_xem, 'xanh', 'hop-tin', locTin('chua-xem'), 'Tin Zalo và thư chưa mở đọc. Bấm để xem riêng các tin này.', `${sl.tin_hom_nay} tin đến hôm nay`),
     ) : null,
   );
@@ -141,8 +140,8 @@ function khoiChiSo(kq) {
       o({ ten: 'viec', nhan: 'Việc đang mở', so: sl.viec_mo, ss: h('span', { class: 'ss-ky', text: `hôm nay thêm ${nd.viec[7]}, xong ${nd.xong[7]}` }), hash: 'viec', dat: locViec('mo'),
         giai: 'Việc chưa xong và chưa hủy, gồm cả việc chưa có hạn. Bấm để xem theo hạn.',
         ghi: sl.viec_qua_han ? `${sl.viec_qua_han} quá hạn` : 'không việc nào trễ' }),
-      o({ ten: 'ai', nhan: 'Claude 7 ngày', so: cl.luot_7, ss: h('span', { class: 'ss-ky', text: `${cl.xong_7 || 0} xong, ${cl.loi_7 || 0} lỗi` }), hash: 'viec', dat: locViec('mo'),
-        giai: 'Số lượt giao Claude trong 7 ngày qua (một lượt gộp nhiều việc tính là một). Kết quả hiện trong từng việc.' }),
+      o({ ten: 'ai', nhan: 'Prompt 7 ngày', so: cl.prompt_7, hash: 'viec', dat: locViec('mo'),
+        giai: 'Số prompt đã soạn cho Claude trong 7 ngày qua. Chỉ soạn khi bạn bấm Soạn prompt, mỗi lần bấm một lần gọi AI.' }),
       o({ ten: 'tep', nhan: 'Tệp 7 ngày', so: sl.tep_tuan, ss: soSanhKy(sl.tep_tuan, sl.tep_tuan_truoc, '7 ngày trước'), hash: 'tep', dat: () => { trang.tep.q = ''; },
         giai: 'Tệp đính kèm từ tin Zalo và thư được lưu vào kho trong 7 ngày qua, so với 7 ngày trước đó. Bấm để mở trang Tệp.' }),
     ),
@@ -388,19 +387,19 @@ function nhanNgay(k, hn) {
   return h('span', { class: 'nhan', text: ngayHienThi(k) });
 }
 
-// Đề xuất giao Claude: việc AI thấy Claude tự làm được. Không tự giao, bạn bấm mới giao.
+// Đề xuất soạn prompt: việc AI thấy Claude tự làm được. Không tự soạn, bạn bấm mới soạn.
 function khoiDeXuatClaude(dx, hn) {
   const ds = dx?.viec || [];
   const tong = dx?.tong || 0;
-  const giao = (cac) => moKhungGiaoClaude(cac, { h, api, bao, icon, sauKhiGiao: () => moMuc() });
+  const giao = (cac) => moKhungSoanPrompt(cac, { h, api, bao, icon, sauKhiSoan: () => moMuc() });
   const goc = h('section', { class: 'bang de-xuat-claude', 'aria-labelledby': 'tq-de-xuat' },
-    h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-de-xuat' }, icon('ai'), 'Đề xuất giao Claude'),
+    h('div', { class: 'bang-dau' }, h('h2', { id: 'tq-de-xuat' }, icon('ai'), 'Đề xuất soạn prompt'),
       ds.length > 1
-        ? h('button', { class: 'nut nut-phu nut-nho', type: 'button', ...meo('Mở khung giao Claude cho các việc đang hiện, bạn chọn gộp một lượt hay từng việc.'), onclick: () => giao(ds) }, icon('ai'), `Giao cả ${ds.length} việc`)
-        : h('span', { class: 'mo-ta', text: ds.length ? 'Thêm tệp rồi bấm Giao Claude' : 'Chưa có đề xuất' })),
+        ? h('button', { class: 'nut nut-phu nut-nho', type: 'button', ...meo('Soạn một prompt cho các việc đang hiện để dán sang Claude khác.'), onclick: () => giao(ds) }, icon('ai'), `Soạn cho cả ${ds.length} việc`)
+        : h('span', { class: 'mo-ta', text: ds.length ? 'Bấm Soạn prompt cho việc cần' : 'Chưa có đề xuất' })),
   );
   if (!ds.length) {
-    goc.append(h('p', { class: 'mo-ta', style: 'padding:0 20px 18px', text: 'Khi AI tách việc từ tin nhắn và thấy Claude tự làm được (soạn nháp, tra cứu, tóm tắt), việc đó hiện ở đây. Việc đủ tệp hoặc nội dung thì thợ Claude tự chạy theo hạn mức mỗi ngày; việc thiếu tệp thì chờ bạn thêm tệp rồi bấm giao.' }));
+    goc.append(h('p', { class: 'mo-ta', style: 'padding:0 20px 18px', text: 'Khi AI tách việc từ tin nhắn và thấy Claude tự làm được (soạn nháp, tra cứu, tóm tắt), việc đó hiện ở đây. Sonicplan không tự làm: bạn bấm Soạn prompt, copy rồi dán sang Claude khác.' }));
     return goc;
   }
   const ul = h('ul', { class: 'dong-thoi-gian' });
@@ -409,7 +408,7 @@ function khoiDeXuatClaude(dx, hn) {
       h('button', { class: 'ten-viec', type: 'button', text: v.tieu_de, onclick: () => moNganViec(v) }),
       h('span', { class: 'de-xuat-nut' },
         v.han_ngay ? nhanNgay(v.han_ngay < hn ? 'qua' : v.han_ngay, hn) : null,
-        h('button', { class: 'nut nut-phu nut-nho', type: 'button', 'aria-label': `Giao Claude: ${v.tieu_de}`, onclick: () => giao([v]) }, icon('ai'), 'Giao Claude'),
+        h('button', { class: 'nut nut-phu nut-nho', type: 'button', 'aria-label': `Soạn prompt: ${v.tieu_de}`, onclick: () => giao([v]) }, icon('ai'), 'Soạn prompt'),
         h('button', { class: 'nut nut-phu nut-nho', type: 'button', 'aria-label': `Để tôi tự làm: ${v.tieu_de}`, ...meo('Bỏ khỏi đề xuất, việc vẫn ở trang Việc như việc bạn tự làm.'), onclick: () => suaNhanh(v, { nhom: 'anh_tu_lam' }, `Đã bỏ khỏi đề xuất: ${v.tieu_de}`) }, 'Để tôi làm')),
     );
     dong._viec = v;
@@ -472,7 +471,7 @@ export async function mucTrinhDonViec(v) {
   const coTin = Boolean(v.tin_nhan_id);
   const muc = [
     { nhan: 'Mở chi tiết', lam: () => moNganViec(v) },
-    ...(xong || ['cho', 'dang_lam'].includes(v.claude_trang_thai) ? [] : [{ nhan: 'Giao Claude', lam: () => giaoClaudeNhanh([v]) }]),
+    ...(xong ? [] : [{ nhan: 'Soạn prompt cho Claude', lam: () => soanPromptNhanh([v]) }]),
     xong ? { nhan: 'Mở lại việc', lam: () => doiXong(v, false) } : { nhan: 'Đánh dấu xong', lam: () => doiXong(v, true) },
     { nhan: v.sao ? 'Bỏ sao' : 'Gắn sao', lam: () => saoViec(v, !v.sao) },
   ];

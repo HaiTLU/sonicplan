@@ -1,8 +1,6 @@
-// API giao diện: Claude làm việc ở máy riêng (thợ Claude) và ghép dự án với thư mục ThangLong_KB.
+// API giao diện: phần Claude trên máy riêng (đồng bộ ghi nhớ, rà soát tách việc) và ghép dự án với thư mục ThangLong_KB.
 // Mỗi nhóm nhận (yeuCau, env, phien, url) và trả Response, hoặc null nếu địa chỉ không thuộc nhóm này.
 import { GOC_DU_AN, goiYThuMuc, kiemThuMucKb } from '../kb.js';
-import { demTuDongHomNay, docCauHinhTho, luuCauHinhTho } from '../tho-claude.js';
-import { docTichHop } from '../tich-hop.js';
 import { json, loi } from '../tien-ich.js';
 import { laChu } from './chung.js';
 
@@ -13,33 +11,12 @@ export async function xuLyClaudeMay(yeuCau, env, phien, url) {
   let khop;
 
   if (p === '/api/tho-claude' && m === 'GET') {
-    const cau = await docCauHinhTho(env, tc);
-    const [dangLam, hangCho] = await Promise.all([
-      env.CSDL.prepare(`SELECT l.id, v.tieu_de, l.bat_dau_luc FROM luot_claude l JOIN viec v ON v.id = l.viec_id WHERE l.to_chuc_id = ?1 AND l.noi_chay = 'may' AND l.trang_thai = 'dang_lam' AND l.lo_id IS NULL`).bind(tc).all(),
-      env.CSDL.prepare(`SELECT COUNT(*) AS n FROM luot_claude WHERE to_chuc_id = ?1 AND noi_chay = 'may' AND trang_thai = 'cho' AND lo_id IS NULL`).bind(tc).first(),
-    ]);
     return json({
       co_may: Boolean(env.THO_CLAUDE),
-      cau_hinh: cau,
-      hom_nay: await demTuDongHomNay(env, tc, new Date()),
-      dang_lam: dangLam.results,
-      hang_cho: hangCho?.n || 0,
       kb: env.THO_CLAUDE?.thongTinKb ? await env.THO_CLAUDE.thongTinKb() : null,
-      nhap_gmail: Boolean((await docTichHop(env, tc, 'google').catch(() => null))?.co_nhap),
       ra_soat: JSON.parse((await env.CSDL.prepare(`SELECT gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = 'ra_soat_tach_viec'`).bind(tc).first())?.gia_tri || 'null'),
       ghi_nho_kb_luc: (await env.CSDL.prepare(`SELECT gia_tri FROM cai_dat WHERE to_chuc_id = '' AND khoa = 'ghi_nho_kb_luc'`).first())?.gia_tri || null,
     });
-  }
-  if (p === '/api/tho-claude' && m === 'PUT') {
-    if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức chỉnh được thợ Claude.');
-    if (!env.THO_CLAUDE) return loi(400, 'Máy chủ này không chạy thợ Claude (chỉ có trên máy riêng).');
-    return json({ cau_hinh: await luuCauHinhTho(env, tc, await yeuCau.json().catch(() => ({}))) });
-  }
-  if (p === '/api/tho-claude/chay-ngay' && m === 'POST') {
-    if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
-    if (!env.THO_CLAUDE) return loi(400, 'Máy chủ này không chạy thợ Claude.');
-    env.THO_CLAUDE.chayNgay?.();
-    return json({ ok: true });
   }
 
   if (p === '/api/tho-claude/dong-bo-ghi-nho' && m === 'POST') {

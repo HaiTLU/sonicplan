@@ -1,5 +1,5 @@
-// Thợ Claude: ghép dự án với KB, hàng đợi và hạn mức, gói ngữ cảnh, lời nhắc, và chạy trọn một lượt
-// với Claude giả và kho git cục bộ (không gọi mạng). Chạy: npm test
+// Phần Claude trên máy riêng: ghép dự án với KB, đồng bộ ghi nhớ, rà soát tách việc, model theo loại việc.
+// Thợ không còn chạy lượt việc nào (chỉ soạn prompt, xem test/soan-prompt.test.js). Chạy: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -8,9 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { d1, dungCsdl } from './csdl-thu.js';
 import { chuanTen, goiYThuMuc, kiemThuMucKb, tenThuMuc, thuMucGocDuAn, thuMucLamViec } from '../src/kb.js';
-import { DAU_CAU_HOI as DAU_GOC } from '../src/claude-code.js';
-import { chonModelChoViec, chonViecTuDong, chuanCauHinhTho, docDinhKem, laTepAmThanh, viecDuDauVao, dauNgayVN, DAU_CAU_HOI, demTuDongHomNay, docCauHinhTho, dungLichSuMd, dungNguCanhMd, layDinhKem, layTinNguCanh, loiNhacTho, luuCauHinhTho, taoLuotMay } from '../src/tho-claude.js';
-import { dsLuot, giaoClaude } from '../src/claude-code.js';
+import { chonModelChoViec, chuanCauHinhTho, docCauHinhTho, layTinNguCanh } from '../src/tho-claude.js';
 import { duongDanChoClaude, moThoClaude } from '../may-chu/tho-claude.js';
 import { xuLyApi } from '../src/api.js';
 
@@ -27,72 +25,22 @@ test('ghép dự án với thư mục KB: chuẩn tên, gợi ý, kiểm đườ
   assert.equal(thuMucGocDuAn('01_Projects/SonicRec', 'X'), '01_Projects/SonicRec/Sonicplan');
   assert.equal(thuMucGocDuAn(null, 'Cá nhân'), '_INBOX/Sonicplan/Ca_Nhan');
   assert.equal(thuMucLamViec('01_Projects/SonicRec', 'X', { id: 7, tieu_de: 'Soạn báo cáo tuần' }, new Date('2026-10-15T12:00:00Z')), '01_Projects/SonicRec/Sonicplan/261015_Soan_Bao_Cao_Tuan_v7');
-  assert.equal(DAU_CAU_HOI, DAU_GOC);
 });
 
 test('cấu hình thợ Claude: mặc định theo PM, giới hạn giá trị', () => {
-  assert.deepEqual(chuanCauHinhTho(undefined), { bat: true, tu_chay: false, song_song: 2, toi_da_ngay: 10, model: 'claude-haiku-5-5', effort: 'medium', loc_dau_vao: true, model_theo_loai: true });
-  assert.equal(chuanCauHinhTho({ song_song: 99, toi_da_ngay: -1, effort: 'x', model: 'a b' }).song_song, 2);
-  assert.equal(chuanCauHinhTho({ song_song: 3, bat: false }).bat, false);
-  assert.equal(dauNgayVN(new Date('2026-10-15T20:00:00Z')), '2026-10-15T17:00:00.000Z'); // 3h sáng 16/10 giờ VN: đầu ngày 16/10 VN = 17h UTC ngày 15
+  // PM dặn 19/10/2026: thợ không tự chạy và không có hạn mức lượt; chỉ còn model cho phần soạn prompt và rà soát.
+  assert.deepEqual(chuanCauHinhTho(undefined), { model: 'claude-haiku-5-5', effort: 'medium', model_theo_loai: true });
+  assert.deepEqual(chuanCauHinhTho({ tu_chay: true, song_song: 4, toi_da_ngay: 50 }), { model: 'claude-haiku-5-5', effort: 'medium', model_theo_loai: true });
+  assert.equal(chuanCauHinhTho({ effort: 'x', model: 'a b' }).effort, 'medium');
 });
 
-// loc: true giữ mặc định thật (thợ bỏ việc thiếu đầu vào); các bài kiểm cũ có việc không tin, không tệp nên tắt lọc để vẫn chạy.
-function moiTruong({ loc = false, tuChay = true } = {}) {
+function moiTruong() {
   const db = dungCsdl();
   db.exec("INSERT INTO to_chuc (id, ten, tao_luc) VALUES ('tc1', 'T', '2026-01-01')");
-  db.prepare("INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES ('tc1', 'tho_claude', ?1)").run(JSON.stringify({ ...(loc ? {} : { loc_dau_vao: false }), tu_chay: tuChay }));
   db.exec("INSERT INTO du_an (id, to_chuc_id, ten, tao_luc, kb_thu_muc) VALUES (1, 'tc1', 'Demo Dự Án', '2026-01-01', '01_Projects/DemoDuAn')");
   return { db, env: { CSDL: d1(db) } };
 }
 const viec = (db, id, tieuDe, nhom, han = null, tin = null) => db.prepare(`INSERT INTO viec (id, to_chuc_id, tieu_de, trang_thai, nhom, han_ngay, du_an_id, tin_nhan_id, tao_luc, cap_nhat_luc) VALUES (?1, 'tc1', ?2, 'mo', ?3, ?4, 1, ?5, '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z')`).run(id, tieuDe, nhom, han, tin);
-
-test('hàng đợi tự động: chỉ việc mở nhóm Claude chưa có lượt, hạn gần trước; hạn mức theo ngày', async () => {
-  const { db, env } = moiTruong();
-  viec(db, 1, 'Làm sau', 'claude_chuan_bi', '2026-11-01');
-  viec(db, 2, 'Làm trước', 'claude_tu_lam', '2026-10-20');
-  viec(db, 3, 'Anh tự làm', 'anh_tu_lam', '2026-10-16');
-  viec(db, 4, 'Không hạn', 'claude_chuan_bi');
-  viec(db, 5, 'Đã có lượt', 'claude_tu_lam', '2026-10-10');
-  db.exec("INSERT INTO luot_claude (to_chuc_id, viec_id, ma_bam, tao_luc, cap_nhat_luc) VALUES ('tc1', 5, 'x', '2026-10-10', '2026-10-10')");
-  const ds = await chonViecTuDong(env, 'tc1', 10);
-  assert.deepEqual(ds.map((v) => v.id), [2, 1, 4]);
-  const id = await taoLuotMay(env, 'tc1', ds[0], { tuDong: true, viecPhu: [ds[1]] });
-  const dong = db.prepare('SELECT noi_chay, tu_dong, lo_id, trang_thai FROM luot_claude WHERE id = ?1 OR lo_id = ?1 ORDER BY id').all(id);
-  assert.deepEqual(dong.map((x) => [x.noi_chay, x.tu_dong, x.lo_id]), [['may', 1, null], ['may', 0, id]]);
-  assert.equal(await demTuDongHomNay(env, 'tc1', new Date()), 1);
-  assert.equal((await chonViecTuDong(env, 'tc1', 10)).length, 1); // việc 2 và 1 đã có lượt, còn việc 4
-  await luuCauHinhTho(env, 'tc1', { toi_da_ngay: 5, song_song: 1 });
-  assert.deepEqual([(await docCauHinhTho(env, 'tc1')).toi_da_ngay, (await docCauHinhTho(env, 'tc1')).song_song], [5, 1]);
-});
-
-test('gói ngữ cảnh: tin gốc, tin cùng hội thoại trong 3 ngày, tệp đính kèm, lịch sử lượt trước', async () => {
-  const { db, env } = moiTruong();
-  const them = db.prepare(`INSERT INTO tin_nhan (id, to_chuc_id, nguon, ma_goc, nguoi_gui, nhom, noi_dung, thoi_diem, tao_luc, ma_hoi_thoai) VALUES (?1, 'tc1', 'zalo', ?2, ?3, 'Nhóm A', ?4, ?5, ?5, ?6)`);
-  them.run(1, 'a', 'An', 'Anh gửi giúp em bảng giá nhé', '2026-10-14T01:00:00Z', 'h1');
-  them.run(2, 'b', 'Bình', 'Mình cần trước thứ Sáu', '2026-10-14T02:00:00Z', 'h1');
-  them.run(3, 'c', 'Cường', 'Tin của nhóm khác', '2026-10-14T02:30:00Z', 'h2');
-  them.run(4, 'd', 'An', 'Tin quá cũ cùng nhóm', '2026-09-01T02:30:00Z', 'h1');
-  db.exec("INSERT INTO tep (to_chuc_id, tin_nhan_id, ten, loai, kich_thuoc, r2_khoa, tao_luc) VALUES ('tc1', 1, 'bang-gia.xlsx', 'xlsx', 8, 'k1', '2026-10-14'), ('tc1', 1, 'qua-lon.pdf', 'pdf', 99999999, 'k2', '2026-10-14')");
-  env.TEP = { get: async (k) => (k === 'k1' ? { arrayBuffer: async () => new TextEncoder().encode('du lieu').buffer } : null) };
-  viec(db, 10, 'Gửi bảng giá', 'claude_chuan_bi', '2026-10-16', 1);
-  const v = db.prepare('SELECT * FROM viec WHERE id = 10').get();
-  const tin = await layTinNguCanh(env, 'tc1', v);
-  assert.equal(tin.goc.id, 1);
-  assert.deepEqual(tin.quanh.map((t) => t.id), [1, 2]);
-  const dk = await layDinhKem(env, 'tc1', tin.quanh.map((t) => t.id));
-  assert.equal(new TextDecoder().decode(dk[0].byte), 'du lieu');
-  assert.match(dk[1].bo_qua, /quá lớn/);
-  db.exec("INSERT INTO luot_claude (id, to_chuc_id, viec_id, trang_thai, dan, ket_qua, danh_gia, ma_bam, tao_luc, cap_nhat_luc) VALUES (1, 'tc1', 10, 'xong', 'Lần trước chưa đạt vì thiếu cột VAT', 'Đã soạn bảng giá', 'lam_lai', 'x', '2026-10-14T05:00:00Z', '2026-10-14T05:00:00Z')");
-  const md = dungNguCanhMd({ viecList: [v], duAn: { ten: 'Demo Dự Án' }, tin, ghiNho: [{ loai: 'nguoi', tieu_de: 'Bình', noi_dung: 'Trưởng phòng' }], dinhKem: dk });
-  for (const can of ['Gửi bảng giá', 'Anh gửi giúp em bảng giá', 'Mình cần trước thứ Sáu', '(TIN GỐC)', 'bang-gia.xlsx', 'qua-lon.pdf: bỏ qua', 'Trưởng phòng', 'Claude chuẩn bị']) assert.ok(md.includes(can), can);
-  assert.ok(!md.includes('Tin của nhóm khác') && !md.includes('Tin quá cũ'));
-  const ls = dungLichSuMd(await (await import('../src/tho-claude.js')).layLichSuLuot(env, 'tc1', v));
-  assert.match(ls, /CHƯA ĐẠT, làm lại/);
-  assert.match(ls, /thiếu cột VAT/);
-  const nhac = loiNhacTho({ viecList: [v], duAn: { ten: 'Demo Dự Án' }, thuMucLam: '01_Projects/DemoDuAn/Sonicplan/261015_Gui_Bang_Gia_v10', dan: 'Làm gọn', truoc: 'Bản cũ' });
-  for (const can of ['01_Projects/DemoDuAn/Sonicplan/261015_Gui_Bang_Gia_v10/NGU-CANH.md', 'LICH-SU.md', 'nhap-email.json', 'TUYỆT ĐỐI không gửi email', 'kể cả khi tên việc là "Gửi thư"', 'Giả định đã chọn', DAU_CAU_HOI, 'Claude chuẩn bị', 'Làm gọn', 'Bản cũ', 'Không dùng git']) assert.ok(nhac.includes(can), can);
-});
 
 const phien = (vt) => ({ email: 'a@b.c', nguoi_dung: { id: 'nd' }, to_chuc: { id: 'tc1', vai_tro: vt }, cac_to_chuc: [{ id: 'tc1' }] });
 const goi = (env, vt, pt, duong, than) => {
@@ -103,14 +51,13 @@ const goi = (env, vt, pt, duong, than) => {
 test('API thợ Claude và ghép dự án: đọc, lưu, chặn thành viên và đường dẫn lạ', async () => {
   const { db, env } = moiTruong();
   db.exec("INSERT INTO du_an (id, to_chuc_id, ten, tao_luc) VALUES (2, 'tc1', 'Đào tạo Ngắn hạn', '2026-01-01')");
-  env.THO_CLAUDE = { lietKeThuMucKb: async () => ['DaoTao_NganHan', 'SonicRec'], thongTinKb: async () => ({ da_clone: true, ban_moi_nhat: 'abc' }), chayNgay: () => {} };
+  env.THO_CLAUDE = { lietKeThuMucKb: async () => ['DaoTao_NganHan', 'SonicRec'], thongTinKb: async () => ({ da_clone: true, ban_moi_nhat: 'abc' }) };
   const doc = await (await goi(env, 'thanh_vien', 'GET', '/api/tho-claude')).json();
   assert.equal(doc.co_may, true);
-  assert.equal(doc.cau_hinh.song_song, 2);
-  assert.equal((await goi(env, 'thanh_vien', 'PUT', '/api/tho-claude', { bat: false })).status, 403);
-  assert.equal((await goi(env, 'thanh_vien', 'POST', '/api/tho-claude/chay-ngay')).status, 403);
-  assert.equal((await goi(env, 'chu', 'PUT', '/api/tho-claude', { bat: false, song_song: 3 })).status, 200);
-  assert.deepEqual([(await docCauHinhTho(env, 'tc1')).bat, (await docCauHinhTho(env, 'tc1')).song_song], [false, 3]);
+  assert.equal(doc.kb.da_clone, true);
+  // Không còn đường nào chạy lượt việc hay tự chạy: đổi cấu hình và chạy ngay đều không tồn tại.
+  assert.equal((await goi(env, 'chu', 'PUT', '/api/tho-claude', { tu_chay: true })).status, 404);
+  assert.equal((await goi(env, 'chu', 'POST', '/api/tho-claude/chay-ngay')).status, 404);
   const kb = await (await goi(env, 'chu', 'GET', '/api/kb/du-an')).json();
   assert.equal(kb.du_an.find((d) => d.id === 2).goi_y, '01_Projects/DaoTao_NganHan');
   assert.deepEqual(kb.thu_muc_kb, ['01_Projects/DaoTao_NganHan', '01_Projects/SonicRec']);
@@ -120,22 +67,6 @@ test('API thợ Claude và ghép dự án: đọc, lưu, chặn thành viên và
   assert.deepEqual({ ...db.prepare('SELECT kb_thu_muc, kb_duyet FROM du_an WHERE id = 2').get() }, { kb_thu_muc: '01_Projects/SonicRec', kb_duyet: 1 });
   const khong = moiTruong().env;
   assert.equal((await (await goi(khong, 'chu', 'GET', '/api/tho-claude')).json()).co_may, false);
-  assert.equal((await goi(khong, 'chu', 'PUT', '/api/tho-claude', { bat: false })).status, 400);
-});
-
-test('Giao Claude bấm tay: có thợ ở máy thì xếp hàng đợi, không cần GitHub; thợ tắt thì đòi GitHub', async () => {
-  const { db, env } = moiTruong();
-  viec(db, 1, 'Việc một', 'claude_tu_lam');
-  viec(db, 2, 'Việc hai', 'claude_tu_lam');
-  env.THO_CLAUDE = {};
-  const kq = await giaoClaude(env, 'tc1', [1, 2], { dan: 'Làm gọn', cach: 'gop' }, 'https://plan.vi-du.vn');
-  assert.ok(kq.luot, JSON.stringify(kq));
-  const ds = db.prepare('SELECT viec_id, noi_chay, trang_thai, lo_id, dan, tu_dong FROM luot_claude ORDER BY id').all();
-  assert.deepEqual(ds.map((x) => [x.viec_id, x.noi_chay, x.trang_thai, x.lo_id, x.tu_dong]), [[1, 'may', 'cho', null, 0], [2, 'may', 'cho', kq.luot, 0]]);
-  assert.equal(ds[0].dan, 'Làm gọn');
-  await luuCauHinhTho(env, 'tc1', { bat: false });
-  const tat = await giaoClaude(env, 'tc1', [1], {}, 'https://plan.vi-du.vn');
-  assert.match(tat.loi, /Chưa nối GitHub|đang làm/);
 });
 
 test('sửa việc ghi sự kiện: đổi nhóm, đổi tên, sửa hạn', async () => {
@@ -192,153 +123,6 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"Đã soạ
   return { goc, kbNguon, sbNguon, claude };
 }
 
-test('thợ chạy trọn một lượt: ngữ cảnh vào kho, kết quả lên nhánh, hộp thư Drive, báo PM; hạn mức ngày được tôn trọng', async () => {
-  const { db, env } = moiTruong();
-  db.prepare(`INSERT INTO tin_nhan (id, to_chuc_id, nguon, ma_goc, nguoi_gui, nhom, noi_dung, thoi_diem, tao_luc, ma_hoi_thoai) VALUES (1, 'tc1', 'zalo', 'a', 'An', 'Nhóm A', 'Anh làm giúp em báo cáo tuần', '2026-10-14T01:00:00Z', '2026-10-14T01:00:00Z', 'h1')`).run();
-  db.exec("INSERT INTO tep (to_chuc_id, tin_nhan_id, ten, loai, kich_thuoc, r2_khoa, tao_luc) VALUES ('tc1', 1, 'so-lieu.csv', 'csv', 5, 'k1', '2026-10-14')");
-  env.TEP = { get: async () => ({ arrayBuffer: async () => new TextEncoder().encode('a,b\n1,2').buffer }) };
-  viec(db, 1, 'Soạn báo cáo tuần', 'claude_chuan_bi', '2026-10-20', 1);
-  // Sáng thứ Hai vòng thợ tự rà soát tuần và thêm một thông báo: đánh dấu tuần này đã rà để test không phụ thuộc ngày chạy.
-  db.prepare("INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES ('', 'ra_soat_tuan', ?1)").run(new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10));
-  const { goc, kbNguon, claude } = await dungChayThu();
-  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
-  await tho.vongMotLan();
-  await tho.doiXong();
-  const l = db.prepare('SELECT * FROM luot_claude WHERE viec_id = 1').get();
-  assert.equal(l.trang_thai, 'xong', l.ket_qua);
-  assert.equal(l.tu_dong, 1);
-  assert.match(l.ket_qua, /Giả định đã chọn/);
-  assert.match(l.thu_muc_lam, /^01_Projects\/DemoDuAn\/Sonicplan\/\d{6}_Soan_Bao_Cao_Tuan_v1$/);
-  assert.equal(l.drive_duong_dan, null); // chỉ ghi khi PR đã gộp vào main (ở đây THO_KHONG_PR nên không mở PR)
-  assert.ok(l.bat_dau_luc && l.ket_thuc_luc);
-  const [hien] = await dsLuot(env, 'tc1', 1); // giao diện cần thư mục KB, trạng thái về Drive và link Drive của dự án
-  assert.deepEqual([hien.thu_muc_lam, hien.drive_duong_dan, 'drive_link' in hien], [l.thu_muc_lam, null, true]);
-  // Nhánh trên kho KB có ngữ cảnh, tệp đính kèm, kết quả; tệp ngoài phạm vi không lên.
-  const nhanh = `sonicplan/luot-${l.id}`;
-  const ds = git(kbNguon, 'ls-tree', '-r', '--name-only', nhanh).trim().split('\n');
-  for (const can of ['NGU-CANH.md', 'LICH-SU.md', 'dinh-kem/so-lieu.csv', 'ket-qua/bao-cao.md', 'CAU-TRA-LOI.md']) assert.ok(ds.includes(`${l.thu_muc_lam}/${can}`), can);
-  assert.ok(!ds.includes('ngoai-pham-vi.txt'));
-  assert.ok(!ds.includes('memory/Claude_tu_ghi.md')); // memory/ đã chuyển sang second-brain: kết quả việc không đẩy memory/ lên ThangLong_KB
-  assert.match(git(kbNguon, 'show', `${nhanh}:${l.thu_muc_lam}/NGU-CANH.md`), /Anh làm giúp em báo cáo tuần/);
-  // Không còn bước chép riêng sang Drive: tệp về Drive nhờ thư mục KB trên Drive tự kéo main.
-  assert.ok(!existsSync(join(goc, 'nha', 'drive-cho', `luot-${l.id}`)));
-  // Claude chạy không có máy chủ MCP nào (không có công cụ gửi thư), lời nhắc cấm gửi.
-  const doiSo = readFileSync(join(goc, 'doi-so.txt'), 'utf8');
-  assert.match(doiSo, /--strict-mcp-config/);
-  assert.match(doiSo, /--model claude-haiku-5-5/); // việc báo cáo thường: model cấu hình
-  assert.ok(readFileSync(join(goc, 'duong-path.txt'), 'utf8').split(':').includes('/usr/local/bin')); // python3 có python-docx nằm ở đây
-  assert.ok(!/mcp__/.test(doiSo) && !/Gmail|gmail/.test(doiSo));
-  // Thông báo đẩy cho PM, worktree đã dọn.
-  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM thong_bao WHERE loai = 'claude'").get().n, 1);
-  assert.ok(!existsSync(join(goc, 'nha', 'lam', `luot-${l.id}`)));
-  // Việc đã có lượt thì vòng sau không chạy lại; hạn mức 0 thì không chạy việc mới.
-  viec(db, 2, 'Việc hai', 'claude_tu_lam', '2026-10-21');
-  await luuCauHinhTho(env, 'tc1', { toi_da_ngay: 1 });
-  await tho.vongMotLan();
-  await tho.doiXong();
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM luot_claude WHERE viec_id = 2').get().n, 0);
-  await luuCauHinhTho(env, 'tc1', { toi_da_ngay: 2 });
-  await tho.vongMotLan();
-  await tho.doiXong();
-  assert.equal(db.prepare("SELECT trang_thai FROM luot_claude WHERE viec_id = 2").get().trang_thai, 'xong');
-  await tho.dong();
-});
-
-test('thợ chạy lượt gộp nhiều việc: tin gốc và tệp của từng việc, tệp người dùng thêm, tệp bỏ chọn không lên kho', async () => {
-  const { db, env } = moiTruong();
-  const them = (id, hoi, nhom, nd) => db.prepare(`INSERT INTO tin_nhan (id, to_chuc_id, nguon, ma_goc, nguoi_gui, nhom, noi_dung, thoi_diem, tao_luc, ma_hoi_thoai) VALUES (?1, 'tc1', 'zalo', ?2, 'An', ?3, ?4, '2026-10-14T01:00:00Z', '2026-10-14T01:00:00Z', ?5)`).run(id, `g${id}`, nhom, nd, hoi);
-  them(1, 'nhom:A', 'Nhóm A', 'Làm giúp em báo cáo tuần');
-  them(2, 'nhom:B', 'Nhóm B', 'Xem giúp em kịch bản Marcom');
-  const tep = (id, tinId, ten, nguon, khoa) => db.prepare(`INSERT INTO tep (id, to_chuc_id, tin_nhan_id, ten, loai, kich_thuoc, r2_khoa, nguon, tao_luc) VALUES (?1, 'tc1', ?2, ?3, 'csv', 4, ?4, ?5, '2026-10-14')`).run(id, tinId, ten, khoa, nguon);
-  tep(1, 1, 'so-lieu-a.csv', 'zalo', 'kA');
-  tep(2, 2, 'kich-ban-b.csv', 'zalo', 'kB');
-  tep(3, 2, 'bo-chon.csv', 'zalo', 'kX');
-  tep(4, null, 'tu-them.csv', 'giao-claude', 'kT');
-  env.TEP = { get: async (k) => ({ arrayBuffer: async () => new TextEncoder().encode(`noi-dung-${k}`).buffer }) };
-  viec(db, 1, 'Soạn báo cáo tuần', 'claude_chuan_bi', '2026-10-20', 1);
-  viec(db, 2, 'Xem kịch bản Marcom', 'claude_chuan_bi', '2026-10-21', 2);
-  const id = await taoLuotMay(env, 'tc1', { id: 1 }, { viecPhu: [{ id: 2 }], tepTuy: { them: [4], bo: [3] } });
-  const { goc, kbNguon, claude } = await dungChayThu();
-  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
-  await tho.vongMotLan();
-  await tho.doiXong();
-  const l = db.prepare('SELECT * FROM luot_claude WHERE id = ?').get(id);
-  assert.equal(l.trang_thai, 'xong', l.ket_qua);
-  const ds = git(kbNguon, 'ls-tree', '-r', '--name-only', `sonicplan/luot-${id}`).trim().split('\n');
-  const dk = ds.filter((x) => x.includes('/dinh-kem/')).map((x) => x.split('/').pop()).sort();
-  assert.deepEqual(dk, ['kich-ban-b.csv', 'so-lieu-a.csv', 'tu-them.csv']);
-  const nguCanh = git(kbNguon, 'show', `sonicplan/luot-${id}:${l.thu_muc_lam}/NGU-CANH.md`);
-  assert.match(nguCanh, /Làm giúp em báo cáo tuần/);
-  assert.match(nguCanh, /Xem giúp em kịch bản Marcom/);
-});
-
-test('thợ: lượt tự động bỏ tệp thư luồng Kết nối doanh nghiệp, lượt qua khung giao (PM đã chọn) giữ đúng lựa chọn', async () => {
-  const { db, env } = moiTruong();
-  const thu = (id, gui, tieuDe) => db.prepare(`INSERT INTO tin_nhan (id, to_chuc_id, nguon, ma_goc, nguoi_gui, tieu_de, noi_dung, thoi_diem, tao_luc) VALUES (?1, 'tc1', 'gmail', ?2, ?3, ?4, 'Nội dung thư', '2026-10-14T01:00:00Z', '2026-10-14T01:00:00Z')`).run(id, `m${id}`, gui, tieuDe);
-  thu(1, 'Công ty B <b@congty.vn>', 'Đề xuất tài trợ học bổng');
-  thu(2, 'Khoa A <a@thanglong.edu.vn>', 'Mở lớp ngắn hạn');
-  db.exec("INSERT INTO tep (id, to_chuc_id, tin_nhan_id, ten, loai, kich_thuoc, r2_khoa, nguon, tao_luc) VALUES (1, 'tc1', 1, 'hop-dong-tai-tro.csv', 'csv', 4, 'k1', 'gmail', '2026-10-14'), (2, 'tc1', 2, 'danh-sach-lop.csv', 'csv', 4, 'k2', 'gmail', '2026-10-14')");
-  env.TEP = { get: async () => ({ arrayBuffer: async () => new TextEncoder().encode('abcd').buffer }) };
-  env.CLAUDE_CODE_AI = { chay: async () => '[{"id":1,"luong":"doanh_nghiep"},{"id":2,"luong":"dao_tao"}]' };
-  viec(db, 1, 'Xử lý đề xuất tài trợ', 'claude_chuan_bi', '2026-10-20', 1);
-  viec(db, 2, 'Mở lớp Excel', 'claude_chuan_bi', '2026-10-21', 2);
-  const tuDong = await taoLuotMay(env, 'tc1', { id: 1 }, { tuDong: true, viecPhu: [{ id: 2 }] });
-  const { goc, kbNguon, claude } = await dungChayThu();
-  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
-  await tho.vongMotLan();
-  await tho.doiXong();
-  const dsTep = (id) => git(kbNguon, 'ls-tree', '-r', '--name-only', `sonicplan/luot-${id}`).trim().split('\n').filter((x) => x.includes('/dinh-kem/')).map((x) => x.split('/').pop()).sort();
-  assert.equal(db.prepare('SELECT trang_thai FROM luot_claude WHERE id = ?').get(tuDong).trang_thai, 'xong');
-  assert.deepEqual(dsTep(tuDong), ['danh-sach-lop.csv']);
-  assert.equal(db.prepare('SELECT luong FROM tin_nhan WHERE id = 1').get().luong, 'doanh_nghiep');
-  // PM đã xem danh sách ở khung giao và tự tích lại tệp luồng doanh nghiệp: giữ đúng, không lọc lại.
-  db.exec("UPDATE viec SET trang_thai = 'mo'");
-  const chon = await taoLuotMay(env, 'tc1', { id: 1 }, { viecPhu: [{ id: 2 }], tepTuy: { them: [], bo: [], da_chon: true } });
-  await tho.vongMotLan();
-  await tho.doiXong();
-  assert.deepEqual(dsTep(chon), ['danh-sach-lop.csv', 'hop-dong-tai-tro.csv']);
-});
-
-test('thợ: hai lượt bắt đầu cùng lúc, lần đầu chưa có bản sao KB, đều xong (không tranh nhau clone)', async () => {
-  const { db, env } = moiTruong();
-  env.TEP = { get: async () => null };
-  viec(db, 1, 'Việc một', 'claude_tu_lam', '2026-10-20');
-  viec(db, 2, 'Việc hai', 'claude_tu_lam', '2026-10-21');
-  const { goc, kbNguon, claude } = await dungChayThu();
-  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
-  await tho.vongMotLan();
-  await tho.doiXong();
-  assert.deepEqual(db.prepare('SELECT trang_thai FROM luot_claude ORDER BY id').all().map((x) => x.trang_thai), ['xong', 'xong']);
-  const ds = git(kbNguon, 'branch', '--list', 'sonicplan/*').trim().split('\n').map((x) => x.trim()).sort();
-  assert.equal(ds.length, 2);
-  await tho.dong();
-});
-
-test('thợ: Claude lỗi thì lượt báo lỗi kèm lý do, không treo hàng đợi', async () => {
-  const { db, env } = moiTruong();
-  env.TEP = { get: async () => null };
-  viec(db, 1, 'Việc sẽ lỗi', 'claude_tu_lam', '2026-10-20');
-  const { goc, kbNguon, claude } = await dungChayThu('loi');
-  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
-  await tho.vongMotLan();
-  await tho.doiXong();
-  const l = db.prepare('SELECT trang_thai, ket_qua FROM luot_claude WHERE viec_id = 1').get();
-  assert.equal(l.trang_thai, 'loi');
-  assert.match(l.ket_qua, /hết hạn mức/);
-  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM thong_bao WHERE loai = 'claude' AND tieu_de LIKE '%lỗi%'").get().n, 1);
-  // Cầu dao: sau 2 lượt tự chạy lỗi thì ngừng xếp việc mới, khỏi đốt hạn mức và dội thông báo.
-  await luuCauHinhTho(env, 'tc1', { song_song: 1 });
-  viec(db, 2, 'Việc lỗi hai', 'claude_tu_lam', '2026-10-21');
-  viec(db, 3, 'Việc ba', 'claude_tu_lam', '2026-10-22');
-  await tho.vongMotLan();
-  await tho.doiXong();
-  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM luot_claude WHERE trang_thai = 'loi'").get().n, 2);
-  await tho.vongMotLan();
-  await tho.doiXong();
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM luot_claude WHERE viec_id = 3').get().n, 0);
-  await tho.dong();
-});
-
 test('không có đường nào trong mã để tự gửi thư: không gọi API gửi của Gmail, không SMTP', async () => {
   const { readdirSync } = await import('node:fs');
   const quet = (thuMuc) => readdirSync(thuMuc, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? quet(join(thuMuc, d.name)) : /\.m?js$/.test(d.name) ? [join(thuMuc, d.name)] : []));
@@ -346,27 +130,6 @@ test('không có đường nào trong mã để tự gửi thư: không gọi AP
   const loi = [];
   for (const f of [...quet('src'), ...quet('may-chu')]) if (cam.test(readFileSync(f, 'utf8'))) loi.push(f);
   assert.deepEqual(loi, []);
-});
-
-test('máy khởi động lại giữa chừng: lượt đang làm xếp lại hàng đợi tối đa 2 lần, quá thì báo lỗi, không mất việc', async () => {
-  const { db, env } = moiTruong();
-  viec(db, 1, 'Việc bị ngắt', 'claude_tu_lam', '2026-10-20');
-  viec(db, 2, 'Việc gộp phụ', 'claude_tu_lam', '2026-10-21');
-  db.exec("INSERT INTO luot_claude (id, to_chuc_id, viec_id, trang_thai, ma_bam, tao_luc, cap_nhat_luc, noi_chay, bo_do) VALUES (1, 'tc1', 1, 'dang_lam', 'x', '2026-10-16', '2026-10-16', 'may', 0)");
-  db.exec("INSERT INTO luot_claude (id, to_chuc_id, viec_id, lo_id, trang_thai, ma_bam, tao_luc, cap_nhat_luc, noi_chay) VALUES (2, 'tc1', 2, 1, 'dang_lam', '', '2026-10-16', '2026-10-16', 'may')");
-  const mo = () => moThoClaude(env, { THO_DIR: join(mkdtempSync(join(tmpdir(), 'tho-')), 'nha'), CLAUDE_BIN: '/khong/co' });
-  for (const lan of [1, 2]) {
-    const tho = mo();
-    await tho.bat(3600000);
-    await tho.dong();
-    assert.deepEqual(db.prepare('SELECT trang_thai, bo_do FROM luot_claude WHERE id = 1').get() && { ...db.prepare('SELECT trang_thai, bo_do FROM luot_claude WHERE id = 1').get() }, { trang_thai: 'cho', bo_do: lan });
-    assert.equal(db.prepare('SELECT trang_thai FROM luot_claude WHERE id = 2').get().trang_thai, 'cho');
-    db.exec("UPDATE luot_claude SET trang_thai = 'dang_lam' WHERE noi_chay = 'may'"); // giả lập lại: lượt được nhận rồi máy lại khởi động
-  }
-  const tho = mo();
-  await tho.bat(3600000);
-  await tho.dong();
-  assert.equal(db.prepare('SELECT trang_thai FROM luot_claude WHERE id = 1').get().trang_thai, 'loi');
 });
 
 test('đồng bộ ghi nhớ sang second-brain: đẩy thẳng main memory/projects/Sonicplan_GhiNho.md, không PR, không đụng ThangLong_KB, không đẩy khi nội dung không đổi', async () => {
@@ -532,27 +295,6 @@ test('nháp Gmail: tạo đúng một nháp trong luồng thư gốc, gửi cho 
   } finally { ga.tra(); }
 });
 
-test('thợ Claude: Claude ghi nhap-email.json thì hệ thống tạo nháp Gmail, ghi vào câu trả lời, không gửi', async () => {
-  const { db, env } = moiTruong();
-  env.TEP = { get: async () => null };
-  await noiGoogle(env, true);
-  db.prepare(`INSERT INTO tin_nhan (id, to_chuc_id, nguon, ma_goc, nguoi_gui, tieu_de, noi_dung, thoi_diem, tao_luc) VALUES (1, 'tc1', 'gmail', 'goc@khoa.vn', 'Khoa KHSK', 'Lịch họp', 'Nhờ anh xác nhận lịch họp thứ Sáu', '2026-10-15T01:00:00Z', '2026-10-15T01:00:00Z')`).run();
-  viec(db, 1, 'Gửi thư cho Khoa khoa học sức khỏe', 'claude_chuan_bi', '2026-10-20', 1);
-  const { goc, kbNguon, claude } = await dungChayThu('email');
-  const ga = gaGiaGoogle(env);
-  try {
-    const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
-    await tho.vongMotLan();
-    await tho.doiXong();
-    const l = db.prepare('SELECT trang_thai, ket_qua FROM luot_claude WHERE viec_id = 1').get();
-    assert.equal(l.trang_thai, 'xong', l.ket_qua);
-    assert.match(l.ket_qua, /Nháp Gmail:\n- nhap-email\.json: đã tạo bản nháp trong Gmail.*đúng luồng thư gốc.*Chưa gửi/s);
-    assert.equal(ga.goi.filter((g) => g.method === 'POST').length, 1);
-    assert.ok(!ga.goi.some((g) => /send/i.test(g.url)));
-    await tho.dong();
-  } finally { ga.tra(); }
-});
-
 test('ghi nhớ KB về Sonicplan: đọc lại file, hợp nhất ba bên, Sonicplan thắng khi cùng sửa, không xóa vì file thiếu', async () => {
   const { docGhiNhoMd, dungGhiNhoMd, hopNhatGhiNho } = await import('../src/tho-claude.js');
   const ds = [
@@ -612,30 +354,6 @@ test('đồng bộ ghi nhớ hai chiều với second-brain thật (kho git cụ
   await tho.dong();
 });
 
-test('dự án chưa ghép: khớp tên thì dùng thư mục có sẵn, dự án thật không khớp tạo 01_Projects/<Tên>, nhóm chung vào _INBOX', async () => {
-  const { laDuAnChung } = await import('../src/kb.js');
-  assert.deepEqual(['Khác', 'Cá nhân', 'Chưa xếp dự án', 'IPSOS', 'Hợp tác và Sự kiện'].map(laDuAnChung), [true, true, true, false, false]);
-  const { db, env } = moiTruong();
-  env.TEP = { get: async () => null };
-  db.exec("INSERT INTO du_an (id, to_chuc_id, ten, tao_luc) VALUES (2, 'tc1', 'DemoDuAn', '2026-01-01'), (3, 'tc1', 'IPSOS', '2026-01-01'), (4, 'tc1', 'Khác', '2026-01-01')");
-  db.prepare("INSERT INTO viec (id, to_chuc_id, tieu_de, trang_thai, nhom, du_an_id, tao_luc, cap_nhat_luc) VALUES (?1, 'tc1', ?2, 'mo', 'claude_tu_lam', ?3, '2026-10-01', '2026-10-01')");
-  for (const [id, du] of [[1, 2], [2, 3], [3, 4]]) db.prepare("INSERT INTO viec (id, to_chuc_id, tieu_de, trang_thai, nhom, du_an_id, han_ngay, tao_luc, cap_nhat_luc) VALUES (?1, 'tc1', ?2, 'mo', 'claude_tu_lam', ?3, ?4, '2026-10-01', '2026-10-01')").run(id, `Việc ${id}`, du, `2026-10-2${id}`);
-  const { goc, kbNguon, claude } = await dungChayThu();
-  await luuCauHinhTho(env, 'tc1', { song_song: 3 });
-  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
-  await tho.vongMotLan();
-  await tho.doiXong();
-  const duAn = Object.fromEntries(db.prepare('SELECT ten, kb_thu_muc, kb_duyet FROM du_an WHERE id > 1').all().map((d) => [d.ten, { ...d }]));
-  assert.deepEqual([duAn.DemoDuAn.kb_thu_muc, duAn.DemoDuAn.kb_duyet], ['01_Projects/DemoDuAn', 0]); // khớp thư mục có sẵn
-  assert.deepEqual([duAn.IPSOS.kb_thu_muc, duAn.IPSOS.kb_duyet], ['01_Projects/IPSOS', 0]); // dự án thật chưa có thư mục: tạo mới
-  assert.equal(duAn['Khác'].kb_thu_muc, null); // nhóm chung: không tự ghép
-  const thuMuc = Object.fromEntries(db.prepare('SELECT viec_id, thu_muc_lam FROM luot_claude').all().map((l) => [l.viec_id, l.thu_muc_lam]));
-  assert.match(thuMuc[1], /^01_Projects\/DemoDuAn\/Sonicplan\//);
-  assert.match(thuMuc[2], /^01_Projects\/IPSOS\/Sonicplan\//);
-  assert.match(thuMuc[3], /^_INBOX\/Sonicplan\/Khac\//);
-  await tho.dong();
-});
-
 test('lời nhắc tách việc có ba quy tắc rà soát đã duyệt 16/10/2026', async () => {
   const { loiNhacTachViec } = await import('../src/ai.js');
   const [he] = loiNhacTachViec([{ so: 1, nguon: 'zalo', noi_dung: 'x', thoi_diem: 't' }], '2026-10-16', 'Hải', [], [], [], [], []).map((m) => m.content ?? m);
@@ -647,44 +365,6 @@ test('lời nhắc tách việc có ba quy tắc rà soát đã duyệt 16/10/20
 
 const tin = (db, id, nguoi, noiDung, ma = 'hoi-thoai-1', thoiDiem = '2026-10-14T01:00:00Z') => db.prepare(`INSERT INTO tin_nhan (id, to_chuc_id, nguon, ma_goc, nguoi_gui, nhom, noi_dung, thoi_diem, tao_luc, ma_hoi_thoai) VALUES (?1, 'tc1', 'zalo', ?2, ?3, 'Nhóm A', ?4, ?5, ?5, ?6)`).run(id, `g${id}`, nguoi, noiDung, thoiDiem, ma);
 const tep = (db, id, tinId, ten, loai) => db.prepare(`INSERT INTO tep (id, to_chuc_id, tin_nhan_id, ten, loai, kich_thuoc, r2_khoa, tao_luc) VALUES (?1, 'tc1', ?2, ?3, ?4, 100, ?5, '2026-10-14')`).run(id, tinId, ten, loai, `k${id}`);
-
-test('đủ đầu vào: tệp đọc được, hoặc tin dài từ 300 ký tự; thiếu thì không tự chạy (E-Office chỉ trích yếu, ghi âm một mình, việc không có tin)', async () => {
-  const { db, env } = moiTruong({ loc: true });
-  const dai = 'Anh xem giúp em hồ sơ này và cho ý kiến trước thứ Sáu. '.repeat(8);
-  tin(db, 1, 'An', 'Ngắn.', 'a');
-  viec(db, 1, 'Tin ngắn không tệp', 'claude_chuan_bi', '2026-10-20', 1);
-  tin(db, 2, 'Bình', dai, 'b');
-  viec(db, 2, 'Tin dài', 'claude_chuan_bi', '2026-10-20', 2);
-  tin(db, 3, 'noreply-eoffice@thanglong.edu.vn', dai, 'c');
-  viec(db, 3, 'E-Office chỉ trích yếu', 'claude_chuan_bi', '2026-10-20', 3);
-  tin(db, 4, 'noreply-eoffice@thanglong.edu.vn', 'Trích yếu.', 'd');
-  tep(db, 1, 4, 'to-trinh.pdf', 'application/pdf');
-  viec(db, 4, 'E-Office có tệp', 'claude_chuan_bi', '2026-10-20', 4);
-  tin(db, 5, 'Chi', 'Ghi âm họp đây ạ.', 'e');
-  tep(db, 2, 5, 'SAP-1_1.m4a', 'audio/mp4');
-  viec(db, 5, 'Chỉ có ghi âm', 'claude_tu_lam', '2026-10-20', 5);
-  viec(db, 6, 'Việc tạo tay', 'claude_tu_lam', '2026-10-20');
-  const kq = Object.fromEntries(await Promise.all([1, 2, 3, 4, 5, 6].map(async (id) => [id, (await viecDuDauVao(env, 'tc1', db.prepare('SELECT * FROM viec WHERE id = ?1').get(id))).du])));
-  assert.deepEqual(kq, { 1: false, 2: true, 3: false, 4: true, 5: false, 6: false });
-  assert.deepEqual((await chonViecTuDong(env, 'tc1', 10, { loc: true })).map((v) => v.id), [2, 4]);
-  assert.equal((await chonViecTuDong(env, 'tc1', 10)).length, 6); // không bật lọc thì như cũ
-  assert.equal((await chonViecTuDong(env, 'tc1', 1, { loc: true })).length, 1); // lấy đủ số cần, không quá
-  assert.equal((await docCauHinhTho(env, 'tc1')).loc_dau_vao, true);
-  assert.equal(laTepAmThanh({ ten: 'a.M4A' }) && laTepAmThanh({ loai: 'audio/mpeg' }) && !laTepAmThanh({ ten: 'a.pdf', loai: 'application/pdf' }), true);
-});
-
-test('tệp ghi âm không tải về cho Claude, ghi chú để PM mở bằng SonicRec', async () => {
-  const { env } = moiTruong({ loc: true });
-  let daDoc = 0;
-  env.TEP = { get: async () => { daDoc++; return { arrayBuffer: async () => new ArrayBuffer(4) }; } };
-  const ra = await docDinhKem(env, [{ ten: 'SAP.m4a', loai: 'audio/mp4', kich_thuoc: 10, r2_khoa: 'k1' }, { ten: 'a.txt', loai: 'text/plain', kich_thuoc: 4, r2_khoa: 'k2' }]);
-  assert.equal(ra[0].ghi_am, true);
-  assert.equal(ra[0].byte, undefined);
-  assert.ok(ra[1].byte);
-  assert.equal(daDoc, 1);
-  const md = dungNguCanhMd({ viecList: [{ id: 1, tieu_de: 'x', nhom: 'claude_tu_lam' }], duAn: null, tin: { goc: null, quanh: [] }, ghiNho: [], dinhKem: ra });
-  assert.match(md, /SAP\.m4a: tệp ghi âm.*SonicRec/);
-});
 
 test('model theo loại việc: tờ trình, hợp đồng, pháp lý, phân tích dùng Sonnet; còn lại model cấu hình; tắt được', () => {
   const ch = chuanCauHinhTho({});
@@ -708,12 +388,3 @@ test('PATH cho Claude có python3 đủ thư viện: /usr/local/bin và bản py
   assert.ok(p.indexOf('/opt/py/bin') < p.indexOf('/usr/bin')); // bản python chỉ định đứng trước hệ thống
 });
 
-test('mặc định thợ không tự nhặt việc: vòng chạy không tạo lượt mới, chỉ chạy lượt PM đã bấm giao', async () => {
-  const { db, env } = moiTruong({ tuChay: false });
-  viec(db, 1, 'Soạn báo cáo tuần', 'claude_chuan_bi', '2026-10-20', 1);
-  const { goc, kbNguon, claude } = await dungChayThu();
-  const tho = moThoClaude(env, { THO_DIR: join(goc, 'nha'), KB_REMOTE: kbNguon, CLAUDE_BIN: claude, THO_KHONG_PR: '1' });
-  await tho.vongMotLan();
-  await tho.doiXong();
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM luot_claude').get().n, 0);
-});

@@ -57,12 +57,10 @@ Nạp một lần: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/vn.s
 - Ollama thay Workers AI: chưa hỗ trợ.
 
 
-## Thợ Claude (Claude Code tự làm việc ở máy)
+## Thợ Claude (chỉ soạn prompt) và việc nền ở máy
 
-Việc AI xếp nhóm "Claude làm được" (và lượt "Giao Claude" bấm tay khi thợ bật) chạy ngay trên máy này, trong bản sao ThangLong_KB, không qua GitHub Actions.
+Từ 19/10/2026 thợ Claude KHÔNG làm việc trực tiếp trong Sonicplan và không tự chạy lượt nào. Ở mỗi việc (hoặc cả cột dự án), bấm "Soạn prompt": Sonicplan gọi AI một lần để viết phần yêu cầu, ghép với bối cảnh có sẵn (tin gốc, người, dự án, hạn, liên kết tệp), lưu lại và hiện nút "Copy prompt" để dán sang Claude khác. Code ở `src/soan-prompt.js`, bảng `prompt_claude`. Phần dưới đây là các việc nền còn lại trên máy này.
 
-- **Bật tắt, hạn mức:** thẻ "Claude làm việc ở máy" ở trang Kết nối. Mặc định bật, 2 việc cùng lúc, 10 việc tự chạy mỗi ngày, Sonnet 5.5 mức medium. Hai lượt tự chạy lỗi trong 2 giờ thì ngừng tự xếp việc mới.
-- **Mỗi lượt:** tạo git worktree riêng từ `origin/main` của ThangLong_KB, ghi `NGU-CANH.md`, `LICH-SU.md` và `dinh-kem/` vào thư mục làm việc của dự án, chạy `claude -p` trong worktree, commit chỉ thư mục làm việc (không đẩy `memory/`, bộ nhớ nay ở kho second-brain) lên nhánh `sonicplan/luot-N`, mở PR (tự gộp khi kiểm tra tự động xong không lỗi), rồi báo PM bằng thông báo đẩy và Telegram. Việc sang "chờ duyệt": bấm Đạt hoặc Làm lại ở thẻ việc.
 - **Ghi nhớ:** mỗi đêm sau 23h (giờ Việt Nam) thợ xuất trang Ghi nhớ vào `memory/projects/Sonicplan_GhiNho.md` của kho second-brain (bản sao ở `$THO_DIR/second-brain`), commit chỉ thư mục `memory/` và đẩy thẳng `main`, không PR; cùng lúc nhận lại điều PM hoặc Claude sửa trong tệp đó. Máy cần quyền ghi vào `HaiTLU/second-brain` (cùng `gh auth` ở dưới).
 - **Drive:** tiến trình node không với tới Google Drive (treo khi đọc thư mục Drive dưới launchd), nên thợ xếp kết quả vào `~/.sonicplan-tho/drive-cho/` và tác vụ bash `may-chu/dong-bo-drive.sh` chép sang Drive mỗi phút. Cài một lần: `bash may-chu/cai-dong-bo-drive.sh`.
 - **Biến môi trường (tùy chọn):** `THO_CLAUDE=0` tắt hẳn; `THO_DIR` (mặc định `~/.sonicplan-tho`), `KB_DIR` (bản sao KB, mặc định `$THO_DIR/ThangLong_KB`), `KB_REPO` (mặc định `HaiTLU/ThangLong_KB`), `SB_DIR` (bản sao second-brain, mặc định `$THO_DIR/second-brain`), `SB_REPO` (mặc định `HaiTLU/second-brain`), `CLAUDE_BIN` (mặc định `~/.local/bin/claude`), `DRIVE_CHO`, `DRIVE_GOC` (script chép Drive).

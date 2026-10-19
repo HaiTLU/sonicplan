@@ -8,7 +8,7 @@ export const GIU_NGAY = 30;
 
 // Các bảng có cột to_chuc_id. Thêm bảng mới có cột này thì thêm vào đây (test/xoa-to-chuc.test.js kiểm đủ).
 export const BANG_CUA_TO_CHUC = [
-  'viec_su_kien', 'luot_claude', 'nguon_chan', 'nhat_ky_truy_cap', 'kho_da_luu', 'ghi_nho', 'cau_hoi_ai', 'tep', 'viec', 'du_an',
+  'viec_su_kien', 'luot_claude', 'prompt_claude', 'nguon_chan', 'nhat_ky_truy_cap', 'kho_da_luu', 'ghi_nho', 'cau_hoi_ai', 'tep', 'viec', 'du_an',
   'tin_nhan', 'cai_dat', 'lenh_cho', 'khoa_truy_cap', 'ket_noi', 'tin_hieu', 'nhat_ky_chay', 'thanh_vien', 'thong_bao', 'dang_ky_day', 'anh_dai_dien', 'zalo_gui',
 ];
 

@@ -18,7 +18,7 @@ Tiến độ và quyết định: `LO_TRINH.md`. Kế hoạch đầy đủ nằm
 | `src/lich-ics.js` | Đường dẫn lịch .ics cho Google, Apple, Outlook |
 | `src/telegram.js` | Bot Telegram: báo tin, lệnh /tomtat, nút trả lời nhanh |
 | `src/hoi-y-kien.js` | Ô hỏi ý kiến khi AI chưa chắc hoặc phân vân có thêm việc không: tạo, áp câu trả lời, ghi nhớ |
-| `src/claude-code.js`, `public/claude.js` | Giao việc cho Claude Code chạy trên GitHub Actions, nhận kết quả về `/nhan/claude`, hiện trong ngăn sửa việc |
+| `src/soan-prompt.js`, `public/claude.js` | Soạn prompt cho Claude (bấm "Soạn prompt", một lần gọi AI), lưu ở bảng `prompt_claude`, nút "Copy prompt" trong ngăn sửa việc. Không chạy Claude trực tiếp |
 | `src/tram-claude.js`, `public/tram.js`, `public/tram-claude.mjs` | Trang Claude: phòng chat (Durable Object) giữa trình duyệt và trạm Claude trên máy Mac; trạm gọi Claude Code, đưa chữ về từng đoạn |
 | `public/tram-claude.mjs` (mục Bộ nhớ dự án) | Bộ nhớ `memory.md` của từng dự án: nạp vào lời dặn, ghi nhanh sau mỗi lượt, gộp hằng đêm, tự cập nhật trạm |
 | `src/phien.js` | Xác định người dùng và tổ chức đang làm việc |

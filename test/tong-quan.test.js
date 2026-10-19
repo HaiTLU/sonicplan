@@ -31,7 +31,7 @@ test('Tổng quan trả số theo ngày, theo dự án và lưu bố cục theo 
   assert.equal(kq.theo_ngay.viec.length, 8);
   assert.equal(kq.theo_ngay.viec[7], 2);
   assert.deepEqual(kq.du_an.map((d) => [d.ten, d.mo, d.qua_han, d.sap_han]), [['Dự án A', 2, 1, 1]]);
-  assert.equal(kq.claude.cho_ban, 0);
+  assert.equal(kq.claude.prompt_7, 0);
   assert.deepEqual(kq.bo_cuc.an, []);
 
   const luu = await goi(env, '/api/tong-quan/bo-cuc', { method: 'PUT', body: JSON.stringify({ thu_tu: ['tin-moi'], an: ['he-thong'] }) });
@@ -54,7 +54,7 @@ test('số đếm nhẹ: chỉ trả tin chưa xem và việc mở, khớp với
   assert.equal(dem.tin_chua_xem, tq.so_lieu.tin_chua_xem);
 });
 
-test('Đề xuất giao Claude: chỉ việc mở nhóm Claude tự làm, chưa giao; "Để tôi làm" bỏ khỏi danh sách', async () => {
+test('Đề xuất soạn prompt: chỉ việc mở nhóm Claude tự làm, chưa soạn prompt; "Để tôi làm" bỏ khỏi danh sách', async () => {
   const db = dungCsdl();
   const env = { CSDL: d1(db) };
   const bay = new Date().toISOString();
@@ -64,7 +64,7 @@ test('Đề xuất giao Claude: chỉ việc mở nhóm Claude tự làm, chưa 
   them.run('Đã đẩy GitHub', 'mo', 'claude_tu_lam', 12, bay);
   them.run('Gọi điện', 'mo', 'anh_tu_lam', null, bay);
   them.run('Đã xong', 'xong', 'claude_tu_lam', null, bay);
-  db.prepare("INSERT INTO luot_claude (to_chuc_id, viec_id, trang_thai, ma_bam, tao_luc, cap_nhat_luc) VALUES ('tc', ?1, 'xong', 'x', ?2, ?2)").run(daGiao, bay);
+  db.prepare("INSERT INTO prompt_claude (to_chuc_id, viec_id, viec_ids, noi_dung, tao_luc) VALUES ('tc', ?1, ?2, 'x', ?3)").run(daGiao, `,${daGiao},`, bay);
   const kq = await goi(env, '/api/tong-quan');
   assert.equal(kq.de_xuat_claude.tong, 1);
   assert.deepEqual(kq.de_xuat_claude.viec.map((v) => v.id), [deXuat]);

@@ -1,19 +1,16 @@
-// Thợ Claude trên máy chủ riêng: lấy việc nhóm Claude (và lượt "Giao Claude" bấm tay) từ hàng đợi, chạy Claude Code
-// trong bản sao ThangLong_KB, đẩy kết quả lên nhánh sonicplan/luot-N và mở PR và tự gộp. Tệp về Drive nhờ thư mục ThangLong_KB trên Drive tự kéo main.
-// Logic hàng đợi và lời nhắc ở src/tho-claude.js. Mỗi lượt chạy trong một git worktree riêng nên hai lượt chạy song song không đụng nhau.
+// Phần Claude chạy trên máy chủ riêng (Mac mini). Thợ Claude KHÔNG còn nhận hay tự làm việc của người dùng (PM dặn 19/10/2026):
+// việc chỉ được soạn thành prompt ở src/soan-prompt.js. Ở đây còn lại hai việc bảo trì: đồng bộ ghi nhớ sang second-brain (tự chạy mỗi đêm)
+// và rà soát chất lượng tách việc (chỉ chạy khi PM bấm). Mỗi lần chạy Claude Code dùng một git worktree riêng của ThangLong_KB.
 import { execFile, spawn } from 'node:child_process';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { hoanTatLuot } from '../src/claude-code.js';
-import { hoiAi, locTepTheoLuong } from '../src/luong-thu.js';
-import { taoNhapGmail } from '../src/google.js';
-import { GOC_DU_AN, goiYThuMuc, laDuAnChung, tenThuMuc } from '../src/kb.js';
+import { GOC_DU_AN } from '../src/kb.js';
 import { nhayCam } from '../src/ghi-nho.js';
 import { khoangNgay, dungChiSoMd, dungMauRaSoatMd, layMauRaSoat, loiNhacRaSoat, tinhChatLuongTachViec } from '../src/danh-gia-tach-viec.js';
 import { taoThongBao } from '../src/thong-bao.js';
-import { chonModelChoViec, chonViecTuDong, docGhiNhoMd, dungGhiNhoMd, hopNhatGhiNho, demLoiTuDongGanDay, demTuDongHomNay, docCauHinhTho, dungLichSuMd, dungNguCanhMd, docDinhKem, timDinhKem, TOI_DA_DINH_KEM, layGhiNhoSonicplan, TOI_DA_DINH_KEM_GOP, layLichSuLuot, layTinNguCanh, loiNhacTho, taoLuotMay, thuMucLamViec } from '../src/tho-claude.js';
+import { docGhiNhoMd, dungGhiNhoMd, hopNhatGhiNho, docCauHinhTho } from '../src/tho-claude.js';
 
 // PATH cho Claude Code. python3 phải là bản có python-docx và openpyxl (bản cài từ python.org, thường ở /usr/local/bin hoặc /Library/Frameworks):
 // dịch vụ chạy dưới launchd nên PATH rất ngắn, rơi về python3 3.9 của hệ thống thì không tạo được Word và Excel (lượt 16/10 chỉ ra được tệp .md).
@@ -81,25 +78,6 @@ export function moThoClaude(env, cfg = {}) {
     let ban = null;
     if (co) { try { ban = (await git(['log', '-1', '--format=%h %cr', 'origin/main'])).trim(); } catch { /* chưa fetch */ } }
     return { thu_muc: kbDir, da_clone: co, ban_moi_nhat: ban };
-  }
-
-  async function viecCuaLuot(luot) {
-    const { results } = await env.CSDL.prepare(
-      `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.nhom, v.du_an_id, v.tin_nhan_id FROM viec v
-       WHERE v.to_chuc_id = ?1 AND v.id IN (SELECT viec_id FROM luot_claude WHERE id = ?2 OR lo_id = ?2) ORDER BY v.id`,
-    ).bind(luot.to_chuc_id, luot.id).all();
-    return results;
-  }
-
-  async function thuMucKbCuaDuAn(duAn) {
-    if (!duAn) return null;
-    if (duAn.kb_thu_muc) return duAn.kb_thu_muc;
-    // Khớp tên với thư mục có sẵn; không khớp mà là dự án thật thì tạo thư mục mới 01_Projects/<Tên> (PM đổi được ở thẻ Kết nối); nhóm chung (Khác, Cá nhân) dùng _INBOX.
-    const goiY = goiYThuMuc(duAn.ten, await lietKeThuMucKb());
-    const dich = goiY ? `${GOC_DU_AN}/${goiY}` : laDuAnChung(duAn.ten) ? null : `${GOC_DU_AN}/${tenThuMuc(duAn.ten, 40)}`;
-    if (!dich) return null;
-    await env.CSDL.prepare('UPDATE du_an SET kb_thu_muc = ?1, kb_duyet = 0 WHERE id = ?2 AND kb_thu_muc IS NULL').bind(dich, duAn.id).run();
-    return dich;
   }
 
   // Chạy Claude Code, trả { ok, chu, chi_phi, so_luot } hoặc ném lỗi.
@@ -272,109 +250,6 @@ export function moThoClaude(env, cfg = {}) {
     return ra;
   }
 
-  // Thứ Hai từ 8h giờ Việt Nam, mỗi tuần một lần (đánh dấu theo tuần), khi thợ còn rảnh.
-  async function raSoatHangTuan() {
-    const vn = new Date(Date.now() + 7 * 3600000);
-    if (vn.getUTCDay() !== 1 || vn.getUTCHours() < 8 || dangChay.size >= 2) return;
-    const tuan = new Date(vn.getTime() - 3 * 86400000).toISOString().slice(0, 10); // ngày thứ Hai mở đầu tuần: đủ để phân biệt tuần
-    const da = (await env.CSDL.prepare(`SELECT gia_tri FROM cai_dat WHERE to_chuc_id = '' AND khoa = 'ra_soat_tuan'`).first())?.gia_tri;
-    if (da === vn.toISOString().slice(0, 10) || da === tuan) return;
-    await env.CSDL.prepare(`INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES ('', 'ra_soat_tuan', ?1) ON CONFLICT (to_chuc_id, khoa) DO UPDATE SET gia_tri = excluded.gia_tri`).bind(vn.toISOString().slice(0, 10)).run();
-    raSoatTachViec().catch((e) => console.error('Rà soát tuần lỗi', e.message));
-  }
-
-  // Claude ghi ket-qua/nhap-email*.json thì tạo bản nháp trong Gmail (không gửi). Trả đoạn chữ thêm vào câu trả lời, rỗng nếu không có nháp.
-  async function taoNhapTuKetQua(tc, goc, tinGoc) {
-    const ds = (await readdir(join(goc, 'ket-qua')).catch(() => [])).filter((t) => /^nhap-email.*\.json$/i.test(t)).sort().slice(0, 5);
-    const dong = [];
-    for (const t of ds) {
-      let x;
-      try { x = JSON.parse(await readFile(join(goc, 'ket-qua', t), 'utf8')); } catch { dong.push(`- ${t}: không đọc được JSON, chưa tạo nháp.`); continue; }
-      const r = await taoNhapGmail(env, tc, x, { tinGoc }).catch((e) => ({ ok: false, ly_do: String(e.message).slice(0, 120) }));
-      dong.push(r.ok ? `- ${t}: đã tạo bản nháp trong Gmail (mục Thư nháp)${r.trong_luong_thu ? ', nằm trong đúng luồng thư gốc' : ''}. Chưa gửi: bạn tự xem và bấm gửi.` : `- ${t}: chưa tạo được nháp: ${r.ly_do}`);
-    }
-    return dong.length ? `Nháp Gmail:\n${dong.join('\n')}` : '';
-  }
-
-  async function lamMotLuot(luot) {
-    const viecList = await viecCuaLuot(luot);
-    if (!viecList.length) throw new Error('Không còn việc nào của lượt này.');
-    const cauHinh = await docCauHinhTho(env, luot.to_chuc_id);
-    const duAn = viecList[0].du_an_id ? await env.CSDL.prepare('SELECT id, ten, kb_thu_muc FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(viecList[0].du_an_id, luot.to_chuc_id).first() : null;
-    const kbThuMuc = await thuMucKbCuaDuAn(duAn);
-    const thuMucLam = thuMucLamViec(kbThuMuc, duAn?.ten, viecList[0]);
-    const nhanh = `sonicplan/luot-${luot.id}`;
-    const w = join(lamDir, `luot-${luot.id}`);
-    await lanLuot(async () => {
-      await chuanBiKb();
-      await rm(w, { recursive: true, force: true });
-      await mkdir(lamDir, { recursive: true });
-      await git(['worktree', 'add', '-B', nhanh, w, 'origin/main']);
-    });
-    try {
-      const goc = join(w, thuMucLam);
-      await mkdir(join(goc, 'ket-qua'), { recursive: true });
-      await mkdir(join(goc, 'dinh-kem'), { recursive: true });
-      // Ngữ cảnh của TỪNG việc trong lượt (giao cả dự án thì mọi việc, không chỉ việc đầu), tệp của mọi việc cộng tệp người dùng tự thêm, trừ tệp đã bỏ chọn.
-      const tins = [];
-      for (const v of viecList) tins.push(await layTinNguCanh(env, luot.to_chuc_id, v));
-      const tin = tins[0];
-      let tuyTep = null;
-      try { tuyTep = luot.tep_tuy ? JSON.parse(luot.tep_tuy) : null; } catch { /* bỏ qua */ }
-      let tepRows = await timDinhKem(env, luot.to_chuc_id, [...new Set(tins.flatMap((t) => t.quanh.map((x) => x.id)))], { ...(tuyTep || {}), gioiHan: 100 });
-      // PM phụ trách Đào tạo ngắn hạn: lượt chưa qua khung giao (tự động) bỏ tệp của luồng Kết nối doanh nghiệp. Khung giao đã cho PM tự chọn thì giữ đúng lựa chọn.
-      if (!tuyTep?.da_chon) tepRows = await locTepTheoLuong(env, luot.to_chuc_id, tepRows, hoiAi(env, luot.to_chuc_id));
-      const dinhKem = await docDinhKem(env, tepRows.slice(0, viecList.length > 1 ? TOI_DA_DINH_KEM_GOP : TOI_DA_DINH_KEM));
-      for (const t of dinhKem) if (t.byte) await writeFile(join(goc, 'dinh-kem', `${t.ten.replace(/[\\/:*?"<>|\0]/g, '_').slice(0, 120)}`), t.byte);
-      const ghiNho = await layGhiNhoSonicplan(env, luot.to_chuc_id, duAn?.ten);
-      await writeFile(join(goc, 'NGU-CANH.md'), dungNguCanhMd({ viecList, duAn, tin, tins, ghiNho, dinhKem }));
-      await writeFile(join(goc, 'LICH-SU.md'), dungLichSuMd((await layLichSuLuot(env, luot.to_chuc_id, viecList[0])).filter((l) => l.id !== luot.id)));
-      const truoc = luot.tiep_luot ? (await env.CSDL.prepare('SELECT ket_qua FROM luot_claude WHERE id = ?1 AND to_chuc_id = ?2').bind(luot.tiep_luot, luot.to_chuc_id).first())?.ket_qua : null;
-      const soLanLam = (await env.CSDL.prepare("SELECT COUNT(*) AS n FROM luot_claude WHERE to_chuc_id = ?1 AND viec_id = ?2 AND danh_gia = 'lam_lai'").bind(luot.to_chuc_id, viecList[0].id).first())?.n || 0;
-      const loiNhac = loiNhacTho({ viecList, duAn, thuMucLam, dan: luot.dan, truoc, soLanLam });
-      await env.CSDL.prepare('UPDATE luot_claude SET thu_muc_lam = ?1 WHERE id = ?2 OR lo_id = ?2').bind(thuMucLam, luot.id).run();
-
-      const mo = chonModelChoViec(viecList, cauHinh);
-      const kq = await chayClaude(w, loiNhac, { ...cauHinh, model: mo.model, effort: mo.effort }, luot.id);
-      kq.model = mo.model;
-      const ghiChuNhap = await taoNhapTuKetQua(luot.to_chuc_id, goc, tin.goc);
-      if (ghiChuNhap) kq.chu = `${kq.chu}\n\n${ghiChuNhap}`;
-      await writeFile(join(goc, 'CAU-TRA-LOI.md'), `# Câu trả lời của Claude (lượt ${luot.id})\n\nModel: ${kq.model}${mo.theo_loai ? ' (chọn theo loại việc)' : ''}\n\n${kq.chu}\n`);
-
-      // Đẩy kết quả: chỉ thư mục làm việc, các thay đổi khác của Claude (kể cả memory/) bị bỏ.
-      const { pr, nhanhUrl, daGop } = await dayLenKb(w, nhanh, THU_MUC_DUOC_DAY(thuMucLam), {
-        tieuDe: `Sonicplan lượt ${luot.id}: ${viecList[0].tieu_de.slice(0, 60)}`,
-        than: `- Thư mục làm việc: ${thuMucLam}\n- Việc: ${viecList.map((v) => `v${v.id}`).join(', ')}`,
-        nhan: `lượt ${luot.id}`,
-      });
-
-      // Tệp nằm trong thư mục dự án của KB; thư mục ThangLong_KB trên Drive tự kéo main nên tệp về Drive khi PR đã gộp (PM chọn 17/10/2026, thay cho bước chép sang "Sonicplan Claude").
-      // drive_duong_dan chỉ ghi khi PR đã gộp: giao diện dựa vào đó để báo "đã về Drive" hay "chờ gộp PR".
-      await env.CSDL.prepare('UPDATE luot_claude SET drive_duong_dan = ?1, ket_thuc_luc = ?2 WHERE id = ?3 OR lo_id = ?3').bind(daGop ? thuMucLam : null, new Date().toISOString(), luot.id).run();
-
-      await hoanTatLuot(env, { id: luot.id, to_chuc_id: luot.to_chuc_id, viec_id: luot.viec_id, tieu_de: viecList[0].tieu_de }, { trang_thai: 'xong', ket_qua: kq.chu.slice(0, 20000), nhanh: nhanhUrl, pr });
-    } finally {
-      await lanLuot(async () => {
-        await git(['worktree', 'remove', '--force', w]).catch(() => {});
-        await git(['branch', '-D', nhanh]).catch(() => {});
-      }).catch(() => {});
-    }
-  }
-
-  async function batDauLuot(luot) {
-    const r = await env.CSDL.prepare(`UPDATE luot_claude SET trang_thai = 'dang_lam', bat_dau_luc = ?1, cap_nhat_luc = ?1 WHERE id = ?2 AND trang_thai = 'cho'`).bind(new Date().toISOString(), luot.id).run();
-    if (!r.meta.changes) return;
-    await env.CSDL.prepare(`UPDATE luot_claude SET trang_thai = 'dang_lam', cap_nhat_luc = ?1 WHERE lo_id = ?2`).bind(new Date().toISOString(), luot.id).run();
-    const xong = lamMotLuot(luot)
-      .catch(async (e) => {
-        console.error('Thợ Claude lỗi lượt', luot.id, e.message);
-        const tieuDe = (await env.CSDL.prepare('SELECT tieu_de FROM viec WHERE id = ?1').bind(luot.viec_id).first())?.tieu_de || 'việc';
-        await hoanTatLuot(env, { id: luot.id, to_chuc_id: luot.to_chuc_id, viec_id: luot.viec_id, tieu_de: tieuDe }, { trang_thai: 'loi', ket_qua: String(e.message).slice(0, 1500) }).catch((e2) => console.error('Không ghi được lỗi lượt', e2));
-      })
-      .finally(() => { dangChay.delete(luot.id); });
-    dangChay.set(luot.id, { tc: luot.to_chuc_id, tien_trinh: null, xong });
-  }
-
   // Mỗi ngày sau 23h giờ Việt Nam (và chưa đồng bộ trong ngày) xuất ghi nhớ sang second-brain. Lỗi chỉ ghi log, ngày mai thử lại.
   async function ghiNhoHangNgay() {
     const vn = new Date(Date.now() + 7 * 3600000);
@@ -385,34 +260,12 @@ export function moThoClaude(env, cfg = {}) {
     try { await dongBoGhiNho(); } catch (e) { console.error('Đồng bộ ghi nhớ sang second-brain lỗi', e.message); }
   }
 
+  // Vòng nền chỉ còn đồng bộ ghi nhớ hằng đêm (PM dặn 19/10/2026: thợ không tự làm việc, không tự chạy Claude).
   async function vong() {
     if (dangVong || dung) return;
     dangVong = true;
     try {
       await ghiNhoHangNgay();
-      const { results: dsTc } = await env.CSDL.prepare('SELECT id FROM to_chuc').all();
-      // Rà soát tuần dùng Claude nên chỉ tự chạy khi có tổ chức bật tự chạy; không thì PM bấm "Rà soát tách việc ngay".
-      let coTuChay = false;
-      for (const { id: tc } of dsTc) if ((await docCauHinhTho(env, tc)).tu_chay) coTuChay = true;
-      if (coTuChay) await raSoatHangTuan();
-      for (const { id: tc } of dsTc) {
-        const cauHinh = await docCauHinhTho(env, tc);
-        if (!cauHinh.bat) continue;
-        const dangCua = [...dangChay.values()].filter((x) => x.tc === tc).length;
-        let ranh = cauHinh.song_song - dangCua;
-        if (ranh <= 0) continue;
-        const { results: cho } = await env.CSDL.prepare(`SELECT id, to_chuc_id, viec_id, dan, tiep_luot, tep_tuy FROM luot_claude WHERE to_chuc_id = ?1 AND noi_chay = 'may' AND trang_thai = 'cho' AND lo_id IS NULL ORDER BY id LIMIT ?2`).bind(tc, ranh).all();
-        for (const l of cho) { await batDauLuot(l); ranh--; }
-        if (ranh <= 0 || !cauHinh.tu_chay) continue; // lượt PM đã bấm giao chạy ở trên; việc mới tự nhặt chỉ khi bật tự chạy
-        if ((await demLoiTuDongGanDay(env, tc)) >= 2) continue; // cầu dao: 2 lượt tự chạy lỗi trong 2 giờ qua
-        const daChay = await demTuDongHomNay(env, tc, new Date());
-        const conLai = Math.min(ranh, cauHinh.toi_da_ngay - daChay);
-        if (conLai <= 0) continue;
-        for (const v of await chonViecTuDong(env, tc, conLai, { loc: cauHinh.loc_dau_vao })) {
-          const id = await taoLuotMay(env, tc, v, { tuDong: true });
-          await batDauLuot({ id, to_chuc_id: tc, viec_id: v.id, dan: null, tiep_luot: null });
-        }
-      }
     } catch (e) {
       console.error('Vòng thợ Claude lỗi', e.message);
     } finally {
@@ -421,16 +274,10 @@ export function moThoClaude(env, cfg = {}) {
   }
 
   return {
-    // Máy khởi động lại giữa chừng (triển khai bản mới, mất điện) thì lượt đang làm bị bỏ dở: xếp lại hàng đợi, tối đa 2 lần; quá thì báo lỗi.
     async bat(tick = 60000) {
-      const bayGio = new Date().toISOString();
-      await env.CSDL.prepare(`UPDATE luot_claude SET trang_thai = 'cho', bo_do = bo_do + 1, cap_nhat_luc = ?1 WHERE noi_chay = 'may' AND trang_thai = 'dang_lam' AND bo_do < 2`).bind(bayGio).run().catch(() => {});
-      await env.CSDL.prepare(`UPDATE luot_claude SET trang_thai = 'loi', ket_qua = 'Máy chủ khởi động lại giữa chừng nhiều lần, lượt này bị bỏ dở. Giao lại.', cap_nhat_luc = ?1 WHERE noi_chay = 'may' AND trang_thai = 'dang_lam'`).bind(bayGio).run().catch(() => {});
-      await env.CSDL.prepare(`UPDATE luot_claude SET trang_thai = 'cho' WHERE noi_chay = 'may' AND lo_id IS NOT NULL AND trang_thai = 'dang_lam' AND lo_id IN (SELECT id FROM luot_claude WHERE trang_thai = 'cho')`).run().catch(() => {});
       hen = setInterval(vong, tick);
       setTimeout(vong, 5000);
     },
-    chayNgay: () => { vong(); },
     raSoatTachViec,
     dongBoGhiNho: () => lanLuot(async () => {}).then(() => dongBoGhiNho()),
     vongMotLan: vong,

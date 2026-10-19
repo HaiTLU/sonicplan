@@ -345,20 +345,10 @@ export async function veKetNoi(goc, { moi = false } = {}) {
   const oTokenGh = h('input', { type: 'password', placeholder: 'Token GitHub (github_pat_…)', autocomplete: 'off', 'aria-label': 'Token GitHub' });
   const oKhoGh = h('input', { type: 'text', placeholder: 'Kho làm việc, ví dụ ten-ban/sonicplan-viec', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Kho GitHub' });
   const khoiGit = h('div', { class: 'khoi-api' },
-    h('h3', { text: 'Claude Code làm việc thay bạn' }),
-    h('p', { class: 'mo-ta', text: gh ? `Đã nối kho ${gh.repo}. Mở một việc, bấm "Giao Claude", kết quả hiện ngay trong việc đó. ${gh.lan_cuoi ? `Lần giao issue gần nhất: ${gh.lan_cuoi.ghi_chu}, ${luc(gh.lan_cuoi.lan_cuoi)}.` : ''}` : 'Claude Code chạy trên GitHub của bạn để làm việc bạn giao, rồi gửi kết quả về đây. Tạo token ở github.com/settings/personal-access-tokens, chọn đúng một kho, cấp quyền đọc ghi: Actions, Contents, Issues, Pull requests, Workflows.' }),
-    laChu && gh ? h('ol', { class: 'mo-ta buoc-claude' },
-      h('li', {}, 'Bấm "Cài luồng Claude" bên dưới (làm một lần).'),
-      h('li', {}, 'Trên máy tính có Claude Code, chạy lệnh ', h('code', { text: 'claude setup-token' }), ', chép mã hiện ra.'),
-      h('li', {}, 'Mở ', h('a', { href: `https://github.com/${gh.repo}/settings/secrets/actions/new`, target: '_blank', rel: 'noopener', text: 'trang Secrets của kho' }), ', đặt tên CLAUDE_CODE_OAUTH_TOKEN, dán mã, bấm Add secret.'),
-    ) : null,
+    h('h3', { text: 'Kho GitHub' }),
+    h('p', { class: 'mo-ta', text: gh ? `Đã nối kho ${gh.repo}. ${gh.lan_cuoi ? `Lần gần nhất: ${gh.lan_cuoi.ghi_chu}, ${luc(gh.lan_cuoi.lan_cuoi)}.` : ''} Claude không còn chạy trên kho này: nút "Soạn prompt" ở việc chỉ soạn prompt để bạn dán sang Claude khác.` : 'Nối kho GitHub để Sonicplan tạo issue cho việc cần theo dõi. Tạo token ở github.com/settings/personal-access-tokens, chọn đúng một kho, cấp quyền đọc ghi Issues.' }),
     laChu ? (gh
       ? h('div', { class: 'hang-nut' },
-        h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
-          ev.target.disabled = true;
-          try { await api('/api/ket-noi/github/cai-claude', { method: 'POST' }); bao('Đã cài luồng Claude vào kho.'); } catch (e) { bao(e.message, { loi: true }); }
-          ev.target.disabled = false;
-        } }, 'Cài luồng Claude'),
         h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/github', { method: 'DELETE' }); bao('Đã gỡ GitHub.'); ve(); } }, 'Gỡ GitHub'))
       : h('div', { class: 'luoi-nhap' }, oKhoGh, oTokenGh, h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
         ev.target.disabled = true;
