@@ -10,6 +10,7 @@ import { moCsdl } from './lop-d1.js';
 import { chayMigration } from './migrate.js';
 import { moR2 } from './lop-r2.js';
 import { moTinh } from './lop-tinh.js';
+import { moSecondBrain } from './second-brain.js';
 import { moAi } from './lop-ai.js';
 import { batHenGio } from './lich.js';
 import { moTram } from './lop-tram.js';
@@ -108,6 +109,7 @@ export function taoMayChu(cauHinh = {}) {
   const tram = moTram(resolve(thuMucDuLieu, 'tram'), { baoNguoi: (tc, tb) => taoThongBao(env, tc, { loai: 'claude', ...tb }) });
   env.TRAM_NOI_BO = tram;
   // Không khởi tạo thợ Claude Code: Sonicplan không sử dụng gói Max.
+  env.SECOND_BRAIN = moSecondBrain({ thuMuc: cfg.SECOND_BRAIN_DIR, toChucId: cfg.SECOND_BRAIN_TO_CHUC });
   const ai = moAi({ taiKhoan: cfg.CF_ACCOUNT_ID, token: cfg.CF_AI_TOKEN });
   if (ai) env.AI = ai;
   const dangCho = new Set();

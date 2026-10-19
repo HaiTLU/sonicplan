@@ -18,6 +18,7 @@ echo "Đang ở bản: $(git log -1 --format='%h %s')"
 
 # Máy chủ chỉ dùng thư viện có sẵn của Node, không cần npm install.
 node may-chu/migrate.js
+node scripts/cau-hinh-dashboard.mjs
 
 if launchctl print "gui/$(id -u)/$NHAN" >/dev/null 2>&1; then
   launchctl kickstart -k "gui/$(id -u)/$NHAN"

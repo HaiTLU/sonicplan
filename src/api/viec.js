@@ -64,6 +64,10 @@ export function kiemViec(than, { batBuocTieuDe }) {
     if (m === undefined) return { loi: 'Màu không hợp lệ.' };
     ra.mau = m;
   }
+  if ('uu_tien' in than) {
+    if (!['cao', 'vua', 'thap'].includes(than.uu_tien)) return { loi: 'Mức ưu tiên không hợp lệ.' };
+    ra.uu_tien = than.uu_tien;
+  }
   if ('sao' in than) ra.sao = than.sao ? 1 : 0;
   if ('nhom' in than) {
     if (than.nhom !== null && !['claude_tu_lam', 'claude_chuan_bi', 'anh_tu_lam'].includes(than.nhom)) return { loi: 'Nhóm việc không hợp lệ.' };

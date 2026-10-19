@@ -66,3 +66,14 @@ Từ 19/10/2026 thợ Claude KHÔNG làm việc trực tiếp trong Sonicplan v�
 - **Cần có sẵn:** Claude Code đã đăng nhập, `gh auth login` (quyền repo), git. Cả ba đã kiểm chạy được dưới launchd.
 
 Sonicplan không sử dụng Claude Code hoặc gói Max. Các biến AI_CLAUDE_CODE và THO_CLAUDE cũ không bật lại được các chức năng này. AI chỉ dùng API đã lưu và Workers AI dự phòng.
+
+## Trung tâm điều hành
+
+Trang mở đầu là Tổng quan. Dùng `?tongquan=cu#tong-quan` để mở bản cũ; không xóa bố cục hoặc đề xuất.
+Bố cục dashboard lưu theo tài khoản, có thứ tự, khối ẩn và kích thước; khối việc và chỉ số lọc theo dự án, tình trạng toàn hệ thống không bị lọc.
+Biểu đồ dùng Chart.js 4.5.1 (MIT) đóng gói tại public/vendor/chartjs, nguồn npm chính thức, không tải CDN.
+
+Nguồn second-brain chỉ đọc cần `SECOND_BRAIN_DIR` và `SECOND_BRAIN_TO_CHUC` trong may-chu/.env.
+Khi triển khai, scripts/cau-hinh-dashboard.mjs tìm hai vị trí kho đã dùng trên Mac và xác minh chủ `hainnam@gmail.com` thuộc tổ chức `tc_namhai` trước khi cấu hình; không tự chọn tổ chức khác. Có thể đặt rõ hai biến để chọn nguồn, nhưng vẫn phải qua xác minh chủ.
+Chỉ chủ tổ chức được đọc nguồn này. Chỉ hai cây memory/projects và memory/context/bai-hoc được quét, cache 60 giây; không ghi tệp, không gọi Claude Code, không chạy Git.
+Đề xuất bài học lưu trong dashboard_de_xuat, có bản trước/sau và phiên bản nguồn; duyệt chỉ đổi trạng thái đề xuất, không thay second-brain. Có trong xuất dữ liệu và bản sao lưu thường lệ.

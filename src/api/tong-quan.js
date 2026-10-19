@@ -11,10 +11,22 @@ import { tinhTinhTrang } from '../tinh-trang.js';
 // Các khối của trang Tổng quan, người dùng ẩn hiện và đổi thứ tự được (lưu theo từng người).
 export const KHOI_TONG_QUAN = ['can-lam', 'de-xuat-claude', 'chi-so', 'du-an', 'viec-toi', 'nhip', 'hieu-suat', 'tong-hop', 'tin-moi', 'he-thong'];
 
+export const KHOI_DASHBOARD = ['viec', 'su-co', 'van-hanh', 'tri-nho', 'xu-huong'];
+export function chuanBoCucDashboard(x) {
+  const hop = (v) => [...new Set((Array.isArray(v) ? v : []).filter(k => KHOI_DASHBOARD.includes(k)))];
+  const doi = { 'can-lam': 'viec', 'viec-toi': 'viec', 'he-thong': 'su-co', nhip: 'xu-huong' };
+  const laMacDinhCu = !x?.dashboard && JSON.stringify(x?.thu_tu) === JSON.stringify(KHOI_TONG_QUAN) && !(x?.an || []).length;
+  const thu = hop((x?.dashboard?.thu_tu || (laMacDinhCu ? KHOI_DASHBOARD : x?.thu_tu) || []).map(k => doi[k] || k));
+  return { phien_ban: 2, thu_tu: [...thu, ...KHOI_DASHBOARD.filter(k => !thu.includes(k))],
+    an: hop(x?.dashboard?.an || (x?.an || []).map(k => doi[k] || k)),
+    kich_thuoc: Object.fromEntries(KHOI_DASHBOARD.map(k => [k, ['nho','vua','rong'].includes(x?.dashboard?.kich_thuoc?.[k]) ? x.dashboard.kich_thuoc[k] : ({viec:'vua','su-co':'nho','van-hanh':'rong','tri-nho':'vua','xu-huong':'nho'})[k]])) };
+}
 export function chuanBoCuc(x) {
   const hop = (ds) => [...new Set((Array.isArray(ds) ? ds : []).filter((k) => KHOI_TONG_QUAN.includes(k)))];
   const thuTu = hop(x?.thu_tu);
-  return { thu_tu: [...thuTu, ...KHOI_TONG_QUAN.filter((k) => !thuTu.includes(k))], an: hop(x?.an) };
+  const cu = { thu_tu: [...thuTu, ...KHOI_TONG_QUAN.filter((k) => !thuTu.includes(k))], an: hop(x?.an) };
+  if (x?.dashboard) cu.dashboard = chuanBoCucDashboard(x);
+  return cu;
 }
 
 async function tongQuan(env, tc, phien) {
@@ -155,13 +167,14 @@ async function tinhKetNoi(env, tc, khoa, tinHieu) {
   if (th.kho) ds.push({ loai: 'kho', trang_thai: th.kho.ghi_chu?.startsWith('Lỗi') ? 'loi' : 'dang_chay', mo_ta: th.kho.ghi_chu?.startsWith('Lỗi') ? th.kho.ghi_chu.slice(0, 120) : `Lưu ${gioTruoc(th.kho.lan_cuoi)}`, cap_nhat_luc: th.kho.lan_cuoi });
   if (env.TEP) ds.push({ loai: 'tep', trang_thai: 'dang_chay', mo_ta: 'Kho R2 sẵn sàng' });
   if (coKhoa.lich) ds.push({ loai: 'lich', trang_thai: 'dang_chay', mo_ta: coKhoa.lich.dung_luc ? `Lịch đọc ${gioTruoc(coKhoa.lich.dung_luc)}` : 'Chờ ứng dụng lịch đọc lần đầu' });
-  if (env.AI) {
+  const coApi = Boolean(await docCaiDat(env, tc, 'tich_hop_ai'));
+  if (env.AI || coApi) {
     const loiAi = await env.CSDL.prepare(`SELECT COUNT(*) AS n FROM tin_nhan WHERE to_chuc_id = ?1 AND da_tach = 3 AND tao_luc >= ?2`)
       .bind(tc, new Date(Date.now() - 86400000).toISOString())
       .first();
-    const sanSang = 'Workers AI sẵn sàng';
+    const sanSang = coApi ? `Đã cấu hình AI API${env.AI ? ', dự phòng Workers AI' : ''}` : 'Workers AI sẵn sàng';
     const hetHanMuc = await docHetHanMuc(env);
-    if (hetHanMuc) ds.push({ loai: 'ai', trang_thai: 'loi', mo_ta: `Workers AI hết hạn mức ngày, tin được giữ lại, tự chạy lại lúc ${moTaLucDatLai(hetHanMuc)}` });
+    if (hetHanMuc && !coApi) ds.push({ loai: 'ai', trang_thai: 'loi', mo_ta: `Workers AI hết hạn mức ngày, tin được giữ lại, tự chạy lại lúc ${moTaLucDatLai(hetHanMuc)}` });
     else ds.push(loiAi.n ? { loai: 'ai', trang_thai: 'loi', mo_ta: `${loiAi.n} tin không tách được trong 24 giờ` } : { loai: 'ai', trang_thai: 'dang_chay', mo_ta: sanSang });
   }
   if (await docCaiDat(env, tc, 'telegram_chat_id')) ds.push({ loai: 'telegram', trang_thai: 'dang_chay', mo_ta: th.telegram ? `Gửi lần cuối ${gioTruoc(th.telegram.lan_cuoi)}` : 'Đã nối' });
@@ -184,7 +197,12 @@ export async function xuLyTongQuan(yeuCau, env, phien, url) {
 
   if (p === '/api/tong-quan' && m === 'GET') return json(await tongQuan(env, tc, phien));
   if (p === '/api/tong-quan/bo-cuc' && m === 'PUT') {
-    const bc = chuanBoCuc(await yeuCau.json().catch(() => null));
+    const body = await yeuCau.json().catch(() => null);
+    let old = null;
+    if (body?.dashboard && !body.thu_tu) {
+      try { old = JSON.parse(await docCaiDat(env, tc, `tq_bo_cuc:${phien.nguoi_dung.id}`) || 'null'); } catch {}
+    }
+    const bc = chuanBoCuc(body?.dashboard && !body.thu_tu ? { ...old, dashboard: body.dashboard } : body);
     await ghiCaiDat(env, tc, `tq_bo_cuc:${phien.nguoi_dung.id}`, JSON.stringify(bc));
     return json({ bo_cuc: bc });
   }
