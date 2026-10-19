@@ -49,3 +49,24 @@ test('lời nhắc tách việc kèm tối đa 80 việc đã có', () => {
   assert.match(nd.content, /Việc 79/);
   assert.doesNotMatch(nd.content, /Việc 80"/);
 });
+
+test('việc đang mở chỉ nằm một chỗ, kèm mã V và hạn', () => {
+  const [, nd] = loiNhacTachViec([{ so: 1, nguon: 'zalo', noi_dung: 'x', thoi_diem: 't' }], '2026-10-11', 'Hải', ['[đã xong] Việc cũ'], [], [], [{ id: 7, tieu_de: 'Gửi báo giá', han_ngay: '2026-10-12' }]);
+  assert.match(nd.content, /\[V7\] Gửi báo giá \(hạn 2026-10-12\)/);
+  assert.match(nd.content, /Đã có sẵn \(1 việc/);
+});
+
+test('nhóm 3 không cần bước và bản nháp nhưng vẫn có dấu gợi ý để khỏi gọi AI lần nữa', async () => {
+  const { ghiChuKeHoach } = await import('../src/ai.js');
+  const g = ghiChuKeHoach({ nhom: 3, ly_do: 'Phải gặp trực tiếp', cac_buoc: [] });
+  assert.match(g, /^\[Gợi ý\] Nhóm 3: .*Phải gặp trực tiếp$/);
+  assert.equal(ghiChuKeHoach({ nhom: 1, ly_do: 'x', cac_buoc: [] }), '');
+});
+
+test('tin Zalo vài chữ không số không gọi AI, tin có giờ hay có "@" thì gọi', async () => {
+  const { laTinVun } = await import('../src/viec.js');
+  for (const c of ['ok', 'Dạ', 'được', 'haha']) assert.equal(laTinVun({ nguon: 'zalo', noi_dung: c }), true, c);
+  for (const c of ['a 5h30 nhé', '@Hải gửi file', 'Gửi báo giá cho chị Lan']) assert.equal(laTinVun({ nguon: 'zalo', noi_dung: c }), false, c);
+  assert.equal(laTinVun({ nguon: 'telegram', noi_dung: 'ok' }), false);
+  assert.equal(laTinVun({ nguon: 'zalo', tieu_de: 'Biên bản', noi_dung: 'ok' }), false);
+});

@@ -17,7 +17,7 @@ Memory của PM chuyển từ ThangLong_KB sang kho second-brain (18/10/2026). K
 - Thợ Claude mặc định không tự chạy (`tu_chay: false`) để tiết kiệm token: chỉ chạy lượt PM bấm giao; rà soát tách việc hằng tuần cũng chỉ tự chạy khi bật. Bật lại bằng ô "Tự chạy việc nhóm Claude" ở trang Claude. Trạm Claude không đổi.
 - Mọi chỗ dùng Claude Code đổi sang Haiku 5.5 (AI tách việc effort medium, thợ Claude mặc định, ghi nhanh của Trạm) và Sonnet 5.5 cho việc khó của thợ (tờ trình, hợp đồng, phân tích), thay Opus.
 - Ghi nhớ Sonicplan xuất vào `memory/projects/Sonicplan_GhiNho.md` của kho second-brain (`SB_REPO`, mặc định `HaiTLU/second-brain`), đẩy thẳng `main`, chỉ thư mục `memory/`, không mở PR. Bị từ chối vì `main` đã đổi thì nạp lại, rebase rồi đẩy lại tối đa 3 lần.
-- Tiết kiệm token: lượt "ghi nhanh" và "gộp" bộ nhớ của Trạm Claude không còn nạp cài đặt người dùng, kỹ năng, MCP (thêm `--setting-sources local`, `--strict-mcp-config`, `--disable-slash-commands`); thợ Claude dừng ở 60 lượt (`--max-turns 60`); mỗi lần AI nền gọi Claude Code ghi một dòng nhật ký token (vào, cache, ra, số giây).
+- Tiết kiệm token: tách việc không nạp trùng việc đang mở (một danh sách có mã V và hạn), bỏ qua AI khi cả lô chỉ có tin Zalo vài chữ không số không "@", nhóm 3 không viết bước và bản nháp; lượt "ghi nhanh" và "gộp" bộ nhớ của Trạm Claude không còn nạp cài đặt người dùng, kỹ năng, MCP (thêm `--setting-sources local`, `--strict-mcp-config`, `--disable-slash-commands`); thợ Claude dừng ở 60 lượt (`--max-turns 60`); mỗi lần AI nền gọi Claude Code ghi một dòng nhật ký token (vào, cache, ra, số giây).
 - Kết quả việc của thợ Claude không còn đẩy `memory/` lên ThangLong_KB, chỉ đẩy thư mục làm việc của dự án.
 
 ### Thêm
