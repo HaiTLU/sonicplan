@@ -1415,7 +1415,7 @@ details.bang-suc-khoe[open] > summary { padding-bottom: 0; }
 .the-noi-dung { display: grid; gap: 5px; min-width: 0; }
 .the-ten { font-size: 16px; overflow-wrap: anywhere; }
 .the-so { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--phu); font-variant-numeric: tabular-nums; }
-.the-so .qua-han { font-style: normal; font-size: 12px; font-weight: 600; color: #b3261e; background: rgba(220, 33, 39, .12); padding: 1px 7px; border-radius: 999px; }
+.the-so .qua-han { font-style: normal; font-size: 12px; font-weight: 600; color: var(--loi); background: rgba(220, 33, 39, .12); padding: 1px 7px; border-radius: 999px; }
 .tien-do { display: block; height: 6px; border-radius: 99px; background: var(--mat-3); overflow: hidden; }
 .tien-do i { display: block; height: 100%; border-radius: inherit; background: var(--mau, var(--nhan)); transition: width .3s ease; }
 .the-phu { font-size: 12px; color: var(--mo); }
