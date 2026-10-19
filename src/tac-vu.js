@@ -296,6 +296,7 @@ export const CAC_TAC_VU = {
           env.CSDL.prepare('SELECT * FROM nguon_chan WHERE to_chuc_id = ?1').bind(tc.id),
         ]);
         const banSao = {
+          dashboard_de_xuat: (await env.CSDL.prepare('SELECT * FROM dashboard_de_xuat WHERE to_chuc_id = ?1').bind(tc.id).all()).results,
           to_chuc: tc, luc: bayGio, viec: viec.results, tin_nhan: tin.results, tep: tep.results, cai_dat: caiDat.results, ghi_nho: ghiNho.results,
           du_an: duAn.results, viec_su_kien: suKien.results, luot_claude: luotClaude.results, nguon_chan: chanTin.results,
         };

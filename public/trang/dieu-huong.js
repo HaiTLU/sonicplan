@@ -8,6 +8,7 @@ import { veDaChan, veHopTin } from './hop-tin.js';
 import { veKetNoi } from './ket-noi.js';
 import { chayNgay, veNhatKy } from './nhat-ky.js';
 import { veTep } from './tep.js';
+import { veDashboard } from './dashboard.js';
 import { itChuyenDong, veTongQuan } from './tong-quan.js';
 import { driveDuAn, moNganViec, mucTrinhDonDuAn, veViec } from './viec.js';
 import { veZalo } from './zalo.js';
@@ -113,7 +114,7 @@ function veNutXoa() {
   );
 }
 
-const VE = { 'tong-quan': veTongQuan, 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'hieu-suat': (goc) => veHieuSuat(goc, { h, icon, api, bao, thay, khungLoi, xuong }), 'du-an': veDuAnTrang, claude: (goc, thamSo) => veTram(goc, { h, icon, api, bao, thay, meo, oChep, kichThuoc, luc, laChu: trang.toi?.to_chuc?.vai_tro === 'chu' }, thamSo), 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy, 'du-lieu': veDuLieu, 'da-chan': veDaChan };
+const VE = { 'tong-quan': (goc) => new URLSearchParams(location.search).get('tongquan') === 'cu' ? veTongQuan(goc) : veDashboard(goc), 'hop-tin': veHopTin, zalo: veZalo, viec: veViec, 'hieu-suat': (goc) => veHieuSuat(goc, { h, icon, api, bao, thay, khungLoi, xuong }), 'du-an': veDuAnTrang, claude: (goc, thamSo) => veTram(goc, { h, icon, api, bao, thay, meo, oChep, kichThuoc, luc, laChu: trang.toi?.to_chuc?.vai_tro === 'chu' }, thamSo), 'ghi-nho': veGhiNho, tep: veTep, luong: veLuongTrang, 'ket-noi': veKetNoi, 'nhat-ky': veNhatKy, 'du-lieu': veDuLieu, 'da-chan': veDaChan };
 let mucTruoc = null;
 
 // Mở một chỗ trong trang theo đường dẫn của thông báo. "#viec/<mã>" thì sang trang Việc và mở luôn ngăn việc đó.
@@ -133,7 +134,7 @@ export async function moDuongDan(duongDan) {
 }
 
 export async function moMuc() {
-  const [ma, thamSo] = (location.hash.slice(1) || 'viec').split('/');
+  const [ma, thamSo] = (location.hash.slice(1) || 'tong-quan').split('/');
   if (ma === 'viec' && /^\d+$/.test(thamSo || '')) {
     history.replaceState(null, '', '#viec');
     moDuongDan(`#viec/${thamSo}`);

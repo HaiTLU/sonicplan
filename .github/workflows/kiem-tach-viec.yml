@@ -1,4 +1,4 @@
-# Bấm tay, chỉ đọc: xem trên Mac mini một số tin đã tách việc thế nào, và máy chủ có gọi được Claude không.
+# Bấm tay, chỉ đọc: xem trên Mac mini một số tin đã tách việc thế nào, và tình trạng xử lý AI qua API.
 # In ra: trạng thái các tin được nêu, việc sinh ra từ chúng, ghi chú tín hiệu AI, và các dòng lỗi AI gần nhất trong nhật ký máy chủ.
 name: Kiem tach viec
 on:
@@ -67,6 +67,4 @@ jobs:
           sqlite3 -readonly -header -column "$DB" "SELECT nguon, lan_cuoi, ghi_chu FROM tin_hieu WHERE nguon = 'ai';"
           echo "== Nhat ky may chu: loi AI gan day =="
           grep -a "Claude Code lỗi\|AI ngoài lỗi\|Tách việc lỗi\|Not logged in\|Workers AI" "$GOC/du-lieu/may-chu.log" 2>/dev/null | tail -8 || true
-          echo "== Dang nhap Claude cua tai khoan chay may chu =="
-          # Chỉ hỏi trạng thái, không gửi nội dung nào.
-          "$HOME/.local/bin/claude" -p "ok" --tools "" --no-session-persistence --output-format json 2>&1 | tail -c 300 || true
+          echo "Sonicplan chỉ dùng API; không kiểm tra bằng Claude Code hoặc gói Max."
