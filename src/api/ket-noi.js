@@ -62,9 +62,7 @@ async function layKetNoi(env, tc, url, phien) {
       duong_dan: bot ? `https://t.me/${bot.ten}?start=${maNoi}` : null,
       lan_cuoi: th.telegram || null,
     },
-    ai: { co: Boolean(env.AI || env.CLAUDE_CODE_AI || env.FPT_AI) },
-    // Nhà cung cấp AI của máy chủ: lựa chọn hiện tại và FPT đã có khóa chưa (khóa không bao giờ gửi ra trình duyệt).
-    nha_cung_cap_ai: env.LUA_CHON_AI ? { lua_chon: env.LUA_CHON_AI.doc(), co_fpt: Boolean(env.FPT_AI), ten_fpt: env.FPT_AI?.ten || null, co_claude: Boolean(env.CLAUDE_CODE_AI), khoa_fpt: env.KHOA_FPT ? env.KHOA_FPT.thongTin() : null } : null,
+    ai: { co: Boolean(env.AI || env.CLAUDE_CODE_AI) },
     tep: { co: Boolean(env.TEP) },
   };
 }
@@ -110,40 +108,6 @@ export async function xuLyKetNoi(yeuCau, env, phien, url) {
     // Mã Zalo làm luồng nhận tin cả tổ chức đứt nếu bị đổi, và trả về chính mã đó: chỉ chủ được tạo.
     if (khop[1] === 'zalo' && !laChu(phien)) return loi(403, 'Chỉ chủ tổ chức tạo được mã Zalo.');
     return taoKhoa(env, tc, khop[1], url);
-  }
-  if (p === '/api/ket-noi/nha-cung-cap-ai' && m === 'POST') {
-    if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức đổi được nhà cung cấp AI.');
-    if (!env.LUA_CHON_AI) return loi(400, 'Máy chủ này không đổi được nhà cung cấp AI.');
-    const b = await yeuCau.json().catch(() => ({}));
-    const moi = {};
-    for (const k of ['chung', 'tach_viec', 'soan_prompt']) {
-      if (b[k] === undefined || b[k] === 'chung') continue;
-      if (b[k] !== 'claude' && b[k] !== 'fpt') return loi(400, 'Chọn Claude hoặc FPT AI.');
-      moi[k] = b[k];
-    }
-    if (!moi.chung) return loi(400, 'Chọn nhà cung cấp chung.');
-    if (b.tat_claude === true) {
-      if (!env.FPT_AI) return loi(400, 'Chưa có khóa FPT AI nên chưa tắt Claude được, nhập khóa FPT trước.');
-      if (moi.chung !== 'fpt' || Object.values(moi).includes('claude')) return loi(400, 'Tắt Claude thì mọi phần phải chọn FPT AI.');
-      moi.tat_claude = true;
-    }
-    if (Object.values(moi).includes('fpt') && !env.FPT_AI) return loi(400, 'Máy chủ chưa có khóa FPT_AI_API_KEY nên chưa chọn FPT AI được. Đặt khóa trên máy chạy Sonicplan rồi khởi động lại dịch vụ.');
-    return json({ lua_chon: env.LUA_CHON_AI.ghi(moi) });
-  }
-  if (p === '/api/ket-noi/khoa-fpt' && m === 'POST') {
-    if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức nhập được khóa FPT AI.');
-    if (!env.KHOA_FPT) return loi(400, 'Máy chủ này không nhập được khóa FPT AI.');
-    try {
-      await env.KHOA_FPT.ghi(await yeuCau.json().catch(() => ({})));
-      return json({ khoa_fpt: env.KHOA_FPT.thongTin() });
-    } catch (e) {
-      return loi(400, e.message);
-    }
-  }
-  if (p === '/api/ket-noi/khoa-fpt' && m === 'DELETE') {
-    if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
-    env.KHOA_FPT?.xoa();
-    return json({ ok: true });
   }
   if (p === '/api/ket-noi/ai' && m === 'POST') {
     if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức nối được dịch vụ AI.');
