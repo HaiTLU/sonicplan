@@ -1563,3 +1563,12 @@ button, summary, legend, th, nav, h1, h2, h3, dt, dd, [role="tab"], [role="img"]
 .nut, .nut-icon, .chip, .thanh-loc, .dieu-huong, .tab-con, .ds-tin, .ds-zalo, .o-so, .so-lon, .the-so, .huy-hieu, .dem,
 [class^="hs-"], [class*=" hs-"] { user-select: none; -webkit-user-select: none; }
 input, textarea, select, [contenteditable], pre, code, .oChep { user-select: text; -webkit-user-select: text; }
+
+/* Sửa nhanh ngày giờ ngay trên thẻ việc */
+.the-viec .chan span.sua-han { cursor: pointer; }
+.the-viec .chan span.sua-han:hover, .the-viec .chan span.sua-han:focus-visible { background: var(--mat-3); color: var(--chu); outline: none; }
+.the-viec .chan span.chua-han { background: transparent; border: 1px dashed var(--vach-2); color: var(--mo); }
+.khung-han { gap: 10px; padding: 12px; width: 280px; max-width: calc(100vw - 16px); }
+.khung-han .truong input { padding: 8px 10px; }
+.khung-han .hang-nut { display: flex; justify-content: space-between; gap: 8px; }
+.khung-han .hang-nut button { height: 34px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--vach-2); font-size: 13px; font-weight: 600; cursor: pointer; }
