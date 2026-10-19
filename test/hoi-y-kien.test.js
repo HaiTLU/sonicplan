@@ -2,8 +2,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { d1, dungCsdl } from './csdl-thu.js';
-import { docChuaChac } from '../src/ai.js';
-import { apDungTraLoi, chonLuaChon, docCauHoiMoi, dungTinHoi, nutHoi, phanTichNutHoi, taoCauHoi, TOI_DA_DANG_CHO } from '../src/hoi-y-kien.js';
+import { docChuaChac, docPhanVan } from '../src/ai.js';
+import { apDungTraLoi, chonLuaChon, docCauHoiMoi, dungTinHoi, nutHoi, phanTichNutHoi, taoCauHoi, taoCauHoiThem, TOI_DA_DANG_CHO } from '../src/hoi-y-kien.js';
 import { docViecDaSua } from '../src/viec.js';
 import { tachViecChoToChuc } from '../src/viec.js';
 import { guiCauHoiMoi } from '../src/telegram.js';
@@ -148,4 +148,77 @@ test('luồng đủ: AI báo chưa chắc thì tạo việc kèm ô hỏi, tối
   const dong = db.prepare('SELECT boi_canh, loai FROM cau_hoi_ai').all();
   assert.equal(dong.length, 3);
   assert.equal(dong[0].boi_canh, 'Nhóm A');
+});
+
+// Ô "Có thêm việc này không?": AI phân vân, chưa tạo việc cho tới khi bấm Thêm.
+const themTin = (db, id, noiDung = 'Mn ơi ai đặt giúp 10 ly trà sữa chiều mai nhé', nhom = 'Lớp AI K5') => db.prepare(
+  `INSERT INTO tin_nhan (id, to_chuc_id, nguon, ma_goc, nguoi_gui, nhom, noi_dung, thoi_diem, tao_luc, ma_hoi_thoai, da_tach) VALUES (?, 'tc1','zalo',?,'Lan',?,?,'2026-10-19T01:00:00Z','2026-10-19T01:00:00Z',?,0)`,
+).run(id, `m${id}`, nhom, noiDung, `nhom:${id}`);
+const deXuat = { tieu_de: 'Đặt 10 ly trà sữa cho lớp', han_ngay: '2026-10-20', gio_hen: null, ghi_chu: 'Nhóm Lớp AI K5', nhom: null, uu_tien: 'thap', du_an_id: 1, nguon: 'zalo' };
+
+test('docPhanVan: cần tiêu đề từ 2 chữ, tối đa 2, ngày giờ sai dạng thì bỏ', () => {
+  assert.deepEqual(docPhanVan(null), []);
+  const ra = docPhanVan([{ tieu_de: 'Đặt trà sữa', han_ngay: 'mai', gio_hen: '25:00', tin_so: 1 }, { tieu_de: 'x' }, { tieu_de: 'Gửi hoa chị Lan' }, { tieu_de: 'Việc thứ ba nữa' }]);
+  assert.equal(ra.length, 2);
+  assert.deepEqual([ra[0].han_ngay, ra[0].gio_hen], [null, null]);
+});
+
+test('ô thêm việc: hiện đề xuất kèm nút Thêm / Không, mỗi tin hỏi một lần', async () => {
+  const { db, env } = moiTruong();
+  themTin(db, 7);
+  const id = await taoCauHoiThem(env, 'tc1', { tinNhanId: 7, deXuat, boiCanh: 'Lớp AI K5', tinTrich: 'Mn ơi ai đặt giúp 10 ly trà sữa' });
+  assert.ok(id);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM viec').get().n, 0, 'chưa tạo việc');
+  assert.equal(await taoCauHoiThem(env, 'tc1', { tinNhanId: 7, deXuat }), null, 'một tin chỉ hỏi một lần');
+  assert.equal(await taoCauHoiThem(env, 'tc1', { tinNhanId: null, deXuat }), null);
+  const [r] = await docCauHoiMoi(env, 'tc1');
+  const tin = dungTinHoi(r);
+  assert.match(tin, /phân vân[\s\S]*trà sữa[\s\S]*Nếu thêm: Đặt 10 ly trà sữa cho lớp \(20\/10\)[\s\S]*Có thêm việc này không/);
+  assert.deepEqual(nutHoi(r).flat().map((n) => n.text), ['Thêm', 'Không']);
+});
+
+test('bấm Thêm: tạo việc từ đề xuất và nhớ; bấm Không: không tạo, vẫn nhớ; không trả lời hai lần', async () => {
+  const { db, env } = moiTruong();
+  themTin(db, 7);
+  themTin(db, 8, 'Gửi hoa chúc mừng thầy Hùng', 'Lớp AI K5');
+  const a = await taoCauHoiThem(env, 'tc1', { tinNhanId: 7, deXuat, boiCanh: 'Lớp AI K5', tinTrich: 'Mn ơi ai đặt giúp 10 ly trà sữa' });
+  const b = await taoCauHoiThem(env, 'tc1', { tinNhanId: 8, deXuat: { ...deXuat, tieu_de: 'Gửi hoa chúc mừng thầy Hùng' }, boiCanh: 'Lớp AI K5', tinTrich: 'Gửi hoa chúc mừng thầy Hùng' });
+  db.prepare("UPDATE cau_hoi_ai SET trang_thai = 'cho'").run();
+  assert.match((await apDungTraLoi(env, 'tc1', a, { chi_so: 0 })).thongbao, /Đã thêm việc: Đặt 10 ly trà sữa cho lớp/);
+  const v = db.prepare('SELECT tieu_de, han_ngay, du_an_id, tin_nhan_id, nguon FROM viec').all();
+  assert.equal(v.length, 1);
+  assert.deepEqual([v[0].han_ngay, v[0].du_an_id, v[0].tin_nhan_id, v[0].nguon], ['2026-10-20', 1, 7, 'zalo']);
+  assert.match((await apDungTraLoi(env, 'tc1', b, { chu: 'không' })).thongbao, /Đã bỏ qua tin này/);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM viec').get().n, 1, 'Không thì không tạo việc');
+  assert.equal(await apDungTraLoi(env, 'tc1', a, { chi_so: 1 }), null);
+  const nho = db.prepare("SELECT noi_dung FROM ghi_nho WHERE tieu_de LIKE 'Anh trả lời ô hỏi có thêm việc không%'").get();
+  assert.match(nho.noi_dung, /trà sữa.*anh chọn THÊM việc/);
+  assert.match(nho.noi_dung, /thầy Hùng.*KHÔNG thêm/);
+});
+
+test('trả lời bằng chữ lạ thì giữ ô hỏi mở', async () => {
+  const { db, env } = moiTruong();
+  themTin(db, 7);
+  const id = await taoCauHoiThem(env, 'tc1', { tinNhanId: 7, deXuat, boiCanh: 'Lớp AI K5' });
+  db.prepare("UPDATE cau_hoi_ai SET trang_thai = 'cho'").run();
+  assert.match((await apDungTraLoi(env, 'tc1', id, { chu: 'để xem đã' })).loi, /Thêm hoặc Không/);
+  assert.match((await apDungTraLoi(env, 'tc1', id, { chu: 'có' })).thongbao, /Đã thêm việc/);
+});
+
+test('luồng đủ: AI trả phan_van thì không tạo việc, chỉ hỏi; tin vụn và việc đã tạo thì không hỏi', async () => {
+  const { db, env } = moiTruong();
+  themTin(db, 1);
+  env.AI = { run: async () => ({ response: JSON.stringify({
+    viec: [{ tieu_de: 'Gọi lại thầy Khẩn về lịch dạy', han_ngay: '2026-10-25', tin_so: 1 }],
+    phan_van: [{ tieu_de: 'Đặt 10 ly trà sữa cho lớp', tin_so: 1 }, { tieu_de: 'Gọi lại thầy Khẩn về lịch dạy', tin_so: 1 }],
+  }) }) };
+  const kq = await tachViecChoToChuc(env, 'tc1');
+  assert.equal(kq.so_viec, 1);
+  assert.equal(kq.so_cau_hoi, 1, 'trùng với việc đã tạo thì không hỏi');
+  const dong = db.prepare("SELECT loai, tin_nhan_id, de_xuat FROM cau_hoi_ai").all();
+  assert.equal(dong.length, 1);
+  assert.equal(dong[0].loai, 'them');
+  assert.equal(dong[0].tin_nhan_id, 1);
+  assert.equal(JSON.parse(dong[0].de_xuat).tieu_de, 'Đặt 10 ly trà sữa cho lớp');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM viec').get().n, 1);
 });

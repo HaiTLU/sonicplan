@@ -11,7 +11,7 @@ import { boSungHan, ngayChoGio } from './ngay-viet.js';
 import { cat, chuanHoa, doGiong, ngayVN } from './tien-ich.js';
 import { chonDuAn, docDuAn, ghiSuKien } from './du-an.js';
 import { moTaViec, taoThongBao } from './thong-bao.js';
-import { TOI_DA_MOI_LUOT as TOI_DA_HOI, taoCauHoi } from './hoi-y-kien.js';
+import { TOI_DA_MOI_LUOT as TOI_DA_HOI, taoCauHoi, taoCauHoiThem } from './hoi-y-kien.js';
 
 // Tiêu đề giống từ 80% với một việc đang mở trong 60 ngày (hoặc vừa xong 3 ngày) thì coi là trùng.
 export const NGUONG_TRUNG = 0.8;
@@ -265,6 +265,22 @@ async function chayLoTin(env, toChucId, tin, bayGio, khoa = null) {
         : { loai: 'viec_moi', tieu_de: `Việc mới: ${v.tieu_de}`, noi_dung: moTaViec(v, nguon), duong_dan: `#viec/${r.id}`, viec_id: r.id });
     }
     viecRa.push({ id: r.id, tieu_de: v.tieu_de, han_ngay: v.han_ngay || null, gio_hen: v.gio_hen || null, trung: r.trung });
+  }
+  // Việc AI phân vân: không tự tạo, hỏi anh trên Telegram. Chỉ với tin trong hộp tin (tin Telegram là anh tự nhắn nên không phân vân).
+  const daTao = new Set(viecRa.map((x) => chuanHoa(x.tieu_de)));
+  for (const p of ketQua.phan_van || []) {
+    if (soCauHoi >= TOI_DA_HOI || daTao.has(chuanHoa(p.tieu_de))) continue;
+    try {
+      const g = timTinNguon(p, tin);
+      if (!g?.id || g.nguon === 'telegram') continue;
+      const dx = boSungHan(p, g.noi_dung || '', g.thoi_diem || bayGio);
+      const boiCanh = g.nhom || g.tieu_de || g.nguoi_gui || '';
+      const duAnId = chonDuAn(duAn, null, `${p.tieu_de} ${g.nhom || ''} ${g.nguoi_gui || ''} ${g.tieu_de || ''} ${String(g.noi_dung || '').slice(0, 300)}`);
+      const deXuat = { tieu_de: dx.tieu_de, han_ngay: dx.han_ngay || null, gio_hen: dx.gio_hen || null, ghi_chu: p.ghi_chu || null, nhom: null, uu_tien: 'thap', du_an_id: duAnId, nguon: g.nguon || null };
+      if (await taoCauHoiThem(env, toChucId, { tinNhanId: g.id, deXuat, boiCanh, tinTrich: g.noi_dung })) soCauHoi++;
+    } catch (e) {
+      console.error('Tạo ô thêm việc lỗi', e);
+    }
   }
   // Thư trả lời việc đang chờ: ghi tiến độ và tệp đính kèm vào việc đó, không tạo việc trùng.
   let soLienKet = 0;

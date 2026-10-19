@@ -4,9 +4,10 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 
 ## [Chưa phát hành]
 
-Memory của PM chuyển từ ThangLong_KB sang kho second-brain (18/10/2026). Có migration 0034 (bảng `cau_hoi_ai`).
+Memory của PM chuyển từ ThangLong_KB sang kho second-brain (18/10/2026). Có migration 0034 (bảng `cau_hoi_ai`) và 0035 (cột `de_xuat`, `tin_nhan_id`).
 
 ### Thêm
+- Ô hỏi "Có thêm việc này không?" trên Telegram: tin AI phân vân có nên thành việc (trà sữa, hoa, rủ ăn uống, chuyển tệp, nhờ vặt) thì AI ghi vào mảng `phan_van` ngay trong lượt tách việc (không gọi thêm AI) thay vì tự bỏ. Bot hỏi kèm nút Thêm / Không, hoặc nhắn "có" / "không". Thêm thì tạo việc luôn; cả hai câu trả lời gộp vào mục Ghi nhớ theo nhóm Zalo hoặc người gửi để lần sau AI làm theo. Cùng giới hạn với các ô hỏi khác (3 ô mỗi lượt, 8 ô chưa trả lời, hết hạn sau 3 ngày), mỗi tin hỏi một lần, tối đa 2 việc phân vân mỗi lượt. Tin vụn ("ok", "dạ") và tin Telegram anh tự nhắn vẫn không hỏi.
 - Lời dặn tách việc có thêm hai loại việc trước đây bị bỏ: việc chung của nhóm phát sinh từ cuộc bàn (hưởng ứng sự kiện, mời trà sữa, tặng hoa, lên kinh phí, tìm đầu mối, hạn "ngày mai") thành một việc gộp của anh khi anh đề xuất, được hỏi hoặc giao khâu; và tài liệu anh chuyển cho người khác xin ý kiến thành việc theo dõi. Nguyên nhân trước đó: nguyên tắc 11 và 13 cấm việc ăn uống, quà, đặt đồ, và bộ lọc `laViecVanVat` xóa tiêu đề có "trà sữa", "hoa quả". Bộ lọc nay giữ việc có sự kiện, kinh phí, đầu mối. Không thêm lần gọi AI.
 - Nhận dự án theo từ riêng của tên dự án ("bên CPG" khớp "CPG - TLU"), bỏ từ có ở từ 2 dự án trở lên; còn lẫn thì AI hỏi qua Telegram. Thêm 3 tin mẫu cho `thu-tach-viec` (bộ nhiều tin dùng khóa `lo`).
 - Ô hỏi ý kiến trên Telegram: khi AI chưa chắc giờ hẹn, hạn, tên người, dự án, loại việc hoặc có phải việc thật không, AI đánh dấu `chua_chac` ngay trong lượt tách việc (không gọi thêm AI) và bot gửi tin kèm nút bấm; anh cũng có thể nhắn trả lời đúng tin đó. Trả lời sửa luôn việc, ghi một lần sửa vào lịch sử (để AI học như các lần anh sửa tay và để báo cáo tuần đề xuất lời dặn) và gộp một dòng vào mục Ghi nhớ cùng bối cảnh (nhóm Zalo hoặc người gửi). Hỏi tối đa 3 ô mỗi lượt, tối đa 8 ô chưa trả lời, không hỏi lại một việc, ô quá 3 ngày tự hết hạn.

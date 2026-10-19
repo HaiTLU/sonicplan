@@ -13,8 +13,8 @@ export const TOI_DA_MOI_LUOT = 3; // ô hỏi tối đa cho một lượt tách 
 export const TOI_DA_DANG_CHO = 8; // chưa trả lời quá số này thì không hỏi thêm
 const HET_HAN_NGAY = 3;
 
-export const TEN_LOAI = { gio: 'giờ hẹn', han: 'hạn', nguoi: 'tên người', du_an: 'dự án', nhom: 'loại việc', viec: 'có phải việc không' };
-const CO_DINH = { viec: ['Đúng là việc', 'Không phải việc'], nhom: ['Claude tự làm', 'Claude chuẩn bị', 'Tôi tự làm'] };
+export const TEN_LOAI = { gio: 'giờ hẹn', han: 'hạn', nguoi: 'tên người', du_an: 'dự án', nhom: 'loại việc', viec: 'có phải việc không', them: 'có thêm việc không' };
+const CO_DINH = { viec: ['Đúng là việc', 'Không phải việc'], nhom: ['Claude tự làm', 'Claude chuẩn bị', 'Tôi tự làm'], them: ['Thêm', 'Không'] };
 const GIO = /^([01]\d|2[0-3]):[0-5]\d$/;
 const NGAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -34,14 +34,10 @@ export function chonLuaChon(chuaChac, tenDuAn = []) {
 // Ghi một ô hỏi mới (chờ gửi). Trả id, hoặc null nếu đã hỏi việc này, đang chờ quá nhiều, hoặc câu hỏi không hợp lệ.
 export async function taoCauHoi(env, tc, { viecId, chuaChac, tenDuAn = [], boiCanh = '', tinTrich = '' }, bayGio = new Date().toISOString()) {
   if (!chuaChac?.cau_hoi || !TEN_LOAI[chuaChac.loai]) return null;
+  if (chuaChac.loai === 'them') return null; // ô thêm việc đi đường taoCauHoiThem
   const luaChon = chonLuaChon(chuaChac, tenDuAn);
   if (['gio', 'han', 'du_an'].includes(chuaChac.loai) && !luaChon.length) return null;
-  await env.CSDL.prepare(`UPDATE cau_hoi_ai SET trang_thai = 'het_han' WHERE to_chuc_id = ?1 AND trang_thai = 'cho' AND tao_luc < ?2`)
-    .bind(tc, new Date(Date.parse(bayGio) - HET_HAN_NGAY * 86400000).toISOString()).run();
-  await env.CSDL.prepare(`UPDATE cau_hoi_ai SET trang_thai = 'bo' WHERE to_chuc_id = ?1 AND trang_thai = 'moi' AND tao_luc < ?2`)
-    .bind(tc, new Date(Date.parse(bayGio) - 86400000).toISOString()).run();
-  const dang = await env.CSDL.prepare(`SELECT COUNT(*) AS n FROM cau_hoi_ai WHERE to_chuc_id = ?1 AND trang_thai IN ('moi', 'cho')`).bind(tc).first();
-  if ((dang?.n || 0) >= TOI_DA_DANG_CHO) return null;
+  if (!(await conCho(env, tc, bayGio))) return null;
   const trung = await env.CSDL.prepare('SELECT 1 AS x FROM cau_hoi_ai WHERE to_chuc_id = ?1 AND viec_id = ?2 AND loai = ?3').bind(tc, viecId, chuaChac.loai).first();
   if (trung) return null;
   const dong = await env.CSDL.prepare(
@@ -50,25 +46,55 @@ export async function taoCauHoi(env, tc, { viecId, chuaChac, tenDuAn = [], boiCa
   return dong.id;
 }
 
+// Dọn ô quá hạn rồi cho biết còn được hỏi thêm không (chưa trả lời quá TOI_DA_DANG_CHO thì thôi).
+async function conCho(env, tc, bayGio) {
+  await env.CSDL.prepare(`UPDATE cau_hoi_ai SET trang_thai = 'het_han' WHERE to_chuc_id = ?1 AND trang_thai = 'cho' AND tao_luc < ?2`)
+    .bind(tc, new Date(Date.parse(bayGio) - HET_HAN_NGAY * 86400000).toISOString()).run();
+  await env.CSDL.prepare(`UPDATE cau_hoi_ai SET trang_thai = 'bo' WHERE to_chuc_id = ?1 AND trang_thai = 'moi' AND tao_luc < ?2`)
+    .bind(tc, new Date(Date.parse(bayGio) - 86400000).toISOString()).run();
+  const dang = await env.CSDL.prepare(`SELECT COUNT(*) AS n FROM cau_hoi_ai WHERE to_chuc_id = ?1 AND trang_thai IN ('moi', 'cho')`).bind(tc).first();
+  return (dang?.n || 0) < TOI_DA_DANG_CHO;
+}
+
+// Ô "Có thêm việc này không?": AI phân vân một tin trong hộp tin. Chưa tạo việc; đề xuất giữ trong de_xuat tới khi bấm Thêm.
+// Mỗi tin chỉ hỏi một lần, kể cả khi đã trả lời hay bỏ qua. Trả id, hoặc null khi không hỏi.
+export async function taoCauHoiThem(env, tc, { tinNhanId, deXuat, boiCanh = '', tinTrich = '' }, bayGio = new Date().toISOString()) {
+  if (!tinNhanId || !deXuat?.tieu_de) return null;
+  if (!(await conCho(env, tc, bayGio))) return null;
+  const trung = await env.CSDL.prepare(`SELECT 1 AS x FROM cau_hoi_ai WHERE to_chuc_id = ?1 AND loai = 'them' AND tin_nhan_id = ?2`).bind(tc, tinNhanId).first();
+  if (trung) return null;
+  const dong = await env.CSDL.prepare(
+    `INSERT INTO cau_hoi_ai (to_chuc_id, viec_id, loai, cau_hoi, lua_chon, boi_canh, tin_trich, tao_luc, de_xuat, tin_nhan_id) VALUES (?1, 0, 'them', 'Có thêm việc này không?', ?2, ?3, ?4, ?5, ?6, ?7) RETURNING id`,
+  ).bind(tc, JSON.stringify(CO_DINH.them), cat(boiCanh, 80), cat(String(tinTrich || '').replace(/\s+/g, ' '), 200), bayGio, JSON.stringify(deXuat), tinNhanId).first();
+  return dong.id;
+}
+
+const docDeXuat = (chu) => { try { const d = JSON.parse(chu); return d && typeof d === 'object' ? d : {}; } catch { return {}; } };
 const docLuaChon = (chu) => { try { const d = JSON.parse(chu); return Array.isArray(d) ? d : []; } catch { return []; } };
 
 // Các ô hỏi chờ gửi kèm việc liên quan, cũ nhất trước.
 export async function docCauHoiMoi(env, tc) {
   const { results } = await env.CSDL.prepare(
-    `SELECT c.id, c.loai, c.cau_hoi, c.lua_chon, v.tieu_de, v.han_ngay, v.gio_hen FROM cau_hoi_ai c JOIN viec v ON v.id = c.viec_id AND v.to_chuc_id = c.to_chuc_id
-     WHERE c.to_chuc_id = ?1 AND c.trang_thai = 'moi' ORDER BY c.id LIMIT ?2`,
+    `SELECT c.id, c.loai, c.cau_hoi, c.lua_chon, c.tin_trich, c.de_xuat, v.tieu_de, v.han_ngay, v.gio_hen FROM cau_hoi_ai c LEFT JOIN viec v ON v.id = c.viec_id AND v.to_chuc_id = c.to_chuc_id
+     WHERE c.to_chuc_id = ?1 AND c.trang_thai = 'moi' AND (c.loai = 'them' OR v.id IS NOT NULL) ORDER BY c.id LIMIT ?2`,
   ).bind(tc, TOI_DA_MOI_LUOT).all();
-  return results.map((r) => ({ ...r, lua_chon: docLuaChon(r.lua_chon) }));
+  return results.map((r) => {
+    if (r.loai !== 'them') return { ...r, lua_chon: docLuaChon(r.lua_chon) };
+    const dx = docDeXuat(r.de_xuat);
+    return { ...r, lua_chon: docLuaChon(r.lua_chon), tieu_de: dx.tieu_de || '', han_ngay: dx.han_ngay || null, gio_hen: dx.gio_hen || null };
+  });
 }
 
 export function dungTinHoi(r) {
   const han = [r.gio_hen, r.han_ngay ? ddmm(r.han_ngay) : ''].filter(Boolean).join(' ');
+  if (r.loai === 'them') return ['Em phân vân tin này có phải việc không:', r.tin_trich ? `"${r.tin_trich}"` : '', `Nếu thêm: ${r.tieu_de}${han ? ` (${han})` : ''}`, r.cau_hoi, 'Bấm một nút, hoặc nhắn trả lời tin này.'].filter(Boolean).join('\n');
   return [`Em chưa chắc về ${TEN_LOAI[r.loai]}:`, `${r.tieu_de}${han ? ` (${han})` : ''}`, r.cau_hoi, 'Bấm một nút, hoặc nhắn trả lời tin này.'].join('\n');
 }
 
 // Dữ liệu nút dạng "h:<id>:<số thứ tự lựa chọn>" hoặc "h:<id>:bo", đủ ngắn so với giới hạn 64 byte của Telegram.
 export function nutHoi(r) {
   const hang = r.lua_chon.map((x, i) => ({ text: nhanLuaChon(r.loai, x), callback_data: `h:${r.id}:${i}` }));
+  if (r.loai === 'them') return [hang]; // Thêm / Không, không thêm nút Bỏ qua
   return [...(hang.length ? [hang] : []), [{ text: 'Bỏ qua', callback_data: `h:${r.id}:bo` }]];
 }
 
@@ -98,7 +124,9 @@ function khopLuaChon(chu, ds) {
 
 // Gom các lần trả lời cùng loại, cùng bối cảnh (nhóm Zalo hoặc người gửi) vào một mục Ghi nhớ, giữ 3 lần mới nhất.
 async function luuBaiHoc(env, tc, r, tra, khac, bayGio) {
-  const dong = `- Tin kiểu "${cat(r.tin_trich, 80)}": AI băn khoăn "${cat(r.cau_hoi, 100)}", anh chọn "${cat(tra, 80)}"${khac === false ? ' (đúng như AI đoán)' : ''}`;
+  const dong = r.loai === 'them'
+    ? `- Tin kiểu "${cat(r.tin_trich, 80)}" (AI phân vân việc "${cat(docDeXuat(r.de_xuat).tieu_de, 80)}"): anh chọn ${khac ? 'THÊM việc' : 'KHÔNG thêm'}`
+    : `- Tin kiểu "${cat(r.tin_trich, 80)}": AI băn khoăn "${cat(r.cau_hoi, 100)}", anh chọn "${cat(tra, 80)}"${khac === false ? ' (đúng như AI đoán)' : ''}`;
   if (nhayCam(dong)) return;
   const tieuDe = cat(`Anh trả lời ô hỏi ${TEN_LOAI[r.loai]}: ${r.boi_canh || 'chung'}`, 120);
   const cu = await env.CSDL.prepare(`SELECT noi_dung FROM ghi_nho WHERE to_chuc_id = ?1 AND loai = 'quyet_dinh' AND tieu_de = ?2`).bind(tc, tieuDe).first();
@@ -150,6 +178,19 @@ export async function apDungTraLoi(env, tc, id, tra, bayGio = new Date().toISOSt
       if (khac) await env.CSDL.prepare('DELETE FROM nhac_da_gui WHERE viec_id = ?1').bind(r.viec_id).run();
     }
     thongbao = khac === false ? 'Đã ghi nhớ, giữ nguyên.' : r.loai === 'gio' ? `Đã đặt giờ ${gio}.` : `Đã đặt hạn ${ddmm(han)}.`;
+  } else if (r.loai === 'them') {
+    const lc = chon ?? khopLuaChon(chu, CO_DINH.them) ?? (/^(co|ok|dong y|duoc)$/.test(chuanHoa(chu)) ? CO_DINH.them[0] : /^(ko|k)$/.test(chuanHoa(chu)) ? CO_DINH.them[1] : null);
+    if (!lc) return { loi: 'Anh bấm Thêm hoặc Không, hoặc nhắn "có" / "không" giúp em nhé.' };
+    dapAn = lc;
+    khac = lc === CO_DINH.them[0];
+    if (khac) {
+      const dx = docDeXuat(r.de_xuat);
+      const { themViec } = await import('./viec.js'); // viec.js nạp file này nên nạp lúc dùng
+      const kq = await themViec(env, tc, dx, { tinNhanId: r.tin_nhan_id, duAnId: dx.du_an_id ?? null, nguon: dx.nguon || null });
+      thongbao = kq.trung ? 'Việc này đã có sẵn nên em không thêm lại.' : `Đã thêm việc: ${dx.tieu_de}.`;
+    } else {
+      thongbao = 'Đã bỏ qua tin này.';
+    }
   } else if (r.loai === 'viec') {
     const lc = chon ?? khopLuaChon(chu, CO_DINH.viec);
     if (lc) dapAn = lc;
