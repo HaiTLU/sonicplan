@@ -103,3 +103,13 @@ test('lời nhắc có nguyên tắc 18: hẹn gặp chưa có giờ, chờ ngư
   const he = loiNhacTachViec([{ so: 1, nguon: 'zalo', noi_dung: 'x', thoi_diem: 't' }], '2026-10-19', 'Hải')[0].content;
   for (const mau of [/18\) Hẹn gặp, đi gặp chưa có giờ/, /KHÔNG PHẢI việc của người khác để bỏ/, /Gặp anh Hùng Vụ KHTC \(chờ cô liên hệ, giờ chưa chốt\)/, /gio_hen để null khi chưa có giờ/, /chua_chac loại "gio"/, /đưa vào phan_van, đừng bỏ/, /trừ lịch hẹn gặp ở nguyên tắc 18/, /11, 13, 16 hoặc 18/]) assert.match(he, mau);
 });
+
+test('lời nhắc có nguyên tắc 19: văn phòng gửi lịch xe có giờ thì thành việc, anh chỉ cảm ơn vẫn không bỏ', () => {
+  const tin = [
+    { so: 1, nguon: 'zalo', nguoi_gui: 'Văn phòng Trường', tieu_de: 'Văn phòng Trường', noi_dung: 'Văn phòng Trường xin gửi thông tin xe ngày 19/10/2026\n- Lái xe: Trần Việt Hùng\n- Địa điểm đến: Bộ Giáo dục và Đào tạo\n- Thời gian đi: 14.45 đến khi xong việc.', thoi_diem: '2026-10-19 14:17' },
+    { so: 2, nguon: 'zalo', nguoi_gui: 'Tôi', tieu_de: 'Văn phòng Trường', noi_dung: 'e cảm ơn ạ', thoi_diem: '2026-10-19 14:18' },
+  ];
+  const [he, nd] = loiNhacTachViec(tin, '2026-10-19', 'Hải');
+  for (const mau of [/19\) Thông tin lịch di chuyển, công tác, đưa đón/, /KHÔNG áp nguyên tắc 5, 11, 13/, /"14\.45" nghĩa là 14:45/, /không vào ghi_nho/, /ở nguyên tắc 18 và thông tin lịch di chuyển ở nguyên tắc 19/]) assert.match(he.content, mau);
+  assert.match(nd.content, /Địa điểm đến: Bộ Giáo dục và Đào tạo/);
+});
