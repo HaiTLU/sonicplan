@@ -26,7 +26,7 @@ test('chống trùng việc: bỏ dấu, giống từ 80% là trùng', () => {
   assert.equal(timTrung('Họp với đối tác về hợp đồng', ds), null);
 });
 
-const KHONG_KE_HOACH = { du_an: null, uu_tien: null, nhom: null, ly_do: '', cac_buoc: [], ban_nhap: '' };
+const KHONG_KE_HOACH = { du_an: null, uu_tien: null, nhom: null, ly_do: '', cac_buoc: [], ban_nhap: '', chua_chac: null };
 
 test('đọc kết quả AI: chịu được chữ thừa quanh JSON và bỏ giá trị sai dạng', () => {
   const ra = docKetQuaViec({ response: 'Đây là kết quả: {"viec":[{"tieu_de":" Nộp hồ sơ ","han_ngay":"2026-10-15","gio_hen":"14:00","tin_so":2},{"tieu_de":"Gọi lại","han_ngay":"thứ 6","gio_hen":"25:00"},{"tieu_de":""}]} xong' });

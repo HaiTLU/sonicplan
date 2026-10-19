@@ -6,6 +6,7 @@ import { traLoiTuBoNho } from './ai.js';
 import { goiNgoai } from './goi-ngoai.js';
 import { tongHopChoToChuc } from './tong-hop.js';
 import { chonGhiNho, docHoSo, nhayCam } from './ghi-nho.js';
+import { apDungTraLoi, boCauHoi, danhDauDaGui, docCauHoiMoi, dungTinHoi, nutHoi, phanTichNutHoi, timCauHoiTheoTin } from './hoi-y-kien.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { giaiMaEnv, maHoa } from './ma-hoa.js';
 import { docTichHop } from './tich-hop.js';
@@ -121,6 +122,27 @@ export async function apDungNutViec(env, tc, { viec_id: id, hanh_dong: hanhDong 
   return `Đã dời sang ${moi.slice(8, 10)}/${moi.slice(5, 7)}.`;
 }
 
+// Gửi các ô hỏi ý kiến đang chờ của tổ chức (AI chưa chắc, xem src/hoi-y-kien.js). Chưa nối Telegram thì bỏ, không để dồn lại.
+export async function guiCauHoiMoi(env, tc) {
+  const ds = await docCauHoiMoi(env, tc);
+  if (!ds.length) return 0;
+  const chat = (await layBot(env)) && (await docCaiDat(env, tc, 'telegram_chat_id'));
+  if (!chat) { await boCauHoi(env, tc, ds.map((r) => r.id)); return 0; }
+  let so = 0;
+  for (const r of ds) {
+    try {
+      const tin = await goiBot(env, 'sendMessage', { chat_id: chat, text: dungTinHoi(r).slice(0, 3900), reply_markup: { inline_keyboard: nutHoi(r) } });
+      await danhDauDaGui(env, r.id, tin.message_id);
+      so++;
+    } catch (e) {
+      console.error('Gửi ô hỏi ý kiến lỗi', e);
+      await boCauHoi(env, tc, [r.id]);
+    }
+  }
+  if (so) await ghiTinHieu(env, tc, 'telegram', `Gửi ${so} ô hỏi ý kiến`);
+  return so;
+}
+
 // Đăng ký lại địa chỉ nhận tin của Telegram để nhận cả lượt bấm nút (callback_query). Giữ nguyên địa chỉ đang dùng.
 export async function bamNutDuocChua(env) {
   const bot = await layBot(env);
@@ -194,22 +216,36 @@ async function lenhHoi(env, tc, cauHoi) {
 }
 
 // Nhắn thường: AI đọc như một tin, thấy việc thì tạo việc và báo lại.
-async function nhanTinThuong(env, tc, van, tenNguoi) {
+async function nhanTinThuong(env, tc, van, tenNguoi, chat) {
   const kq = await xuLyVanBanTrucTiep(env, tc, { nguon: 'telegram', nguoi_gui: tenNguoi || 'Tôi', noi_dung: van });
   if (kq.tat) return 'Khâu đọc tin và tách việc đang tắt ở trang Luồng nên em chưa tạo việc được.';
   if (!kq.viec.length) return 'Em chưa thấy việc nào trong tin này. Muốn em nhớ điều gì thì gõ /nho, muốn hỏi thì gõ /hoi.';
   const moi = kq.viec.filter((v) => !v.trung);
   const trung = kq.viec.length - moi.length;
-  return [moi.length ? `Đã thêm ${moi.length} việc:\n${moi.map(dongViecTelegram).join('\n')}` : '', trung ? `${trung} việc đã có sẵn nên không thêm lại.` : ''].filter(Boolean).join('\n');
+  const phanHoi = [moi.length ? `Đã thêm ${moi.length} việc:\n${moi.map(dongViecTelegram).join('\n')}` : '', trung ? `${trung} việc đã có sẵn nên không thêm lại.` : ''].filter(Boolean).join('\n');
+  if (!kq.co_cau_hoi) return phanHoi;
+  // AI chưa chắc: báo kết quả trước, rồi mới tới các ô hỏi, để tin hiện đúng thứ tự.
+  await goiBot(env, 'sendMessage', { chat_id: chat, text: phanHoi });
+  await guiCauHoiMoi(env, tc);
+  return '';
 }
 
 async function luotBamNut(env, ctx, cb) {
   const chat = String(cb.message?.chat?.id || '');
-  const nut = phanTichNut(cb.data);
+  const nutH = phanTichNutHoi(cb.data);
+  const nut = nutH ? null : phanTichNut(cb.data);
   const toChuc = chat && (await env.CSDL.prepare(`SELECT to_chuc_id FROM cai_dat WHERE khoa = 'telegram_chat_id' AND gia_tri = ?1`).bind(chat).first());
   const bot = await layBot(env);
   const tra = (van) => ctx.waitUntil(goiTelegram(bot.token, 'answerCallbackQuery', { callback_query_id: cb.id, text: van }).catch(() => {}));
-  if (!nut || !toChuc) { tra('Nút này không còn dùng được.'); return new Response('ok'); }
+  if (!(nut || nutH) || !toChuc) { tra('Nút này không còn dùng được.'); return new Response('ok'); }
+  if (nutH) {
+    let ketQua;
+    if (nutH.chon === 'bo') { await boCauHoi(env, toChuc.to_chuc_id, [nutH.cau_hoi_id]); ketQua = { thongbao: 'Đã bỏ qua.' }; }
+    else ketQua = await apDungTraLoi(env, toChuc.to_chuc_id, nutH.cau_hoi_id, { chi_so: nutH.chon });
+    tra(ketQua?.thongbao || ketQua?.loi || 'Câu hỏi này đã được trả lời rồi.');
+    if (ketQua?.thongbao) ctx.waitUntil(goiTelegram(bot.token, 'editMessageText', { chat_id: chat, message_id: cb.message.message_id, text: `${cb.message.text}\n${ketQua.thongbao}` }).catch(() => {}));
+    return new Response('ok');
+  }
   const ketQua = await apDungNutViec(env, toChuc.to_chuc_id, nut);
   tra(ketQua || 'Không tìm thấy việc này nữa.');
   if (ketQua) {
@@ -276,7 +312,7 @@ export async function nhanWebhook(yeuCau, env, ctx) {
     return new Response('ok');
   }
 
-  const lam = (viec) => ctx.waitUntil(Promise.resolve().then(viec).then(tra, (e) => { console.error('Lệnh Telegram lỗi', e); tra(`Em chưa làm được: ${String(e.message || e).slice(0, 150)}`); }));
+  const lam = (viec) => ctx.waitUntil(Promise.resolve().then(viec).then((nd) => nd && tra(nd), (e) => { console.error('Lệnh Telegram lỗi', e); tra(`Em chưa làm được: ${String(e.message || e).slice(0, 150)}`); }));
   if (lenh === 'viec') { lam(() => lenhViec(env, toChuc.to_chuc_id)); return new Response('ok'); }
   if (lenh === 'tonghop') {
     lam(async () => {
@@ -296,9 +332,21 @@ export async function nhanWebhook(yeuCau, env, ctx) {
     tra('Đã nhớ. Xem hoặc sửa ở trang Ghi nhớ.');
     return new Response('ok');
   }
+  // Nhắn trả lời đúng tin của một ô hỏi ý kiến: lấy chữ đó làm câu trả lời.
+  if (!lenh && tin.reply_to_message?.message_id && String(doiSo).trim()) {
+    const hoiId = await timCauHoiTheoTin(env, toChuc.to_chuc_id, tin.reply_to_message.message_id);
+    if (hoiId) {
+      lam(async () => {
+        const kq = await apDungTraLoi(env, toChuc.to_chuc_id, hoiId, { chu: doiSo });
+        if (kq?.thongbao) goiBot(env, 'editMessageText', { chat_id: chat, message_id: tin.reply_to_message.message_id, text: `${tin.reply_to_message.text || ''}\n${kq.thongbao}` }).catch(() => {});
+        return kq?.thongbao || kq?.loi || 'Câu hỏi này đã được trả lời rồi.';
+      });
+      return new Response('ok');
+    }
+  }
   if (!lenh && String(doiSo).trim().length >= 4) {
     await ghiTinHieu(env, toChuc.to_chuc_id, 'telegram', 'Nhận tin nhắn');
-    lam(() => nhanTinThuong(env, toChuc.to_chuc_id, doiSo, [tin.from?.first_name, tin.from?.last_name].filter(Boolean).join(' ')));
+    lam(() => nhanTinThuong(env, toChuc.to_chuc_id, doiSo, [tin.from?.first_name, tin.from?.last_name].filter(Boolean).join(' '), chat));
     return new Response('ok');
   }
 

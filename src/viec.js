@@ -11,6 +11,7 @@ import { boSungHan, ngayChoGio } from './ngay-viet.js';
 import { cat, chuanHoa, doGiong, ngayVN } from './tien-ich.js';
 import { chonDuAn, docDuAn, ghiSuKien } from './du-an.js';
 import { moTaViec, taoThongBao } from './thong-bao.js';
+import { TOI_DA_MOI_LUOT as TOI_DA_HOI, taoCauHoi } from './hoi-y-kien.js';
 
 // Tiêu đề giống từ 80% với một việc đang mở trong 60 ngày (hoặc vừa xong 3 ngày) thì coi là trùng.
 export const NGUONG_TRUNG = 0.8;
@@ -231,6 +232,7 @@ async function chayLoTin(env, toChucId, tin, bayGio, khoa = null) {
   }
 
   let soViec = 0;
+  let soCauHoi = 0;
   const viecRa = [];
   // Lớp kiểm tra bằng code: ngày giờ viết trong tiêu đề, ghi chú hoặc tin gốc luôn được đọc, kể cả khi AI bỏ sót.
   const viecDay = ketQua.viec.map((x) => {
@@ -244,6 +246,15 @@ async function chayLoTin(env, toChucId, tin, bayGio, khoa = null) {
     const duAnId = chonDuAn(duAn, v.du_an, `${v.tieu_de} ${nguon?.nhom || ''} ${nguon?.nguoi_gui || ''} ${nguon?.tieu_de || ''} ${String(nguon?.noi_dung || '').slice(0, 300)}`);
     const r = await themViec(env, toChucId, { ...v, ghi_chu: ghiChu }, { tinNhanId: nguon ? nguon.id : null, duAnId, nguon: (nguon || nguonChung(tin))?.nguon || null });
     if (!r.trung) soViec++;
+    // AI chưa chắc một chi tiết: ghi ô hỏi để gửi Telegram. Lỗi ở đây không được làm hỏng việc đã tạo.
+    if (!r.trung && v.chua_chac && soCauHoi < TOI_DA_HOI) {
+      try {
+        const boiCanh = nguon?.nguon === 'telegram' ? 'Telegram' : nguon?.nhom || nguon?.tieu_de || nguon?.nguoi_gui || '';
+        if (await taoCauHoi(env, toChucId, { viecId: r.id, chuaChac: v.chua_chac, tenDuAn: duAn.map((d) => d.ten), boiCanh, tinTrich: nguon?.noi_dung })) soCauHoi++;
+      } catch (e) {
+        console.error('Tạo ô hỏi ý kiến lỗi', e);
+      }
+    }
     // Thông báo trên web cho việc đến từ người khác. Tin bạn tự gõ qua Telegram thì không báo lại chính bạn.
     if (nguon && nguon.nguon !== 'telegram' && (!r.trung || r.doi_han)) {
       await taoThongBao(env, toChucId, r.trung
@@ -266,7 +277,7 @@ async function chayLoTin(env, toChucId, tin, bayGio, khoa = null) {
   } catch (e) {
     console.error('Lưu ghi nhớ lỗi', e);
   }
-  return { soViec, soLienKet, viec: viecRa, soAi: ketQua.viec.length, duPhong: Boolean(tuyChon.duPhong) };
+  return { soViec, soLienKet, soCauHoi, viec: viecRa, soAi: ketQua.viec.length, duPhong: Boolean(tuyChon.duPhong) };
 }
 
 // Mỗi lượt xử lý tối đa SO_HOI_THOAI_MOI_LUOT cuộc trò chuyện, mỗi cuộc tối đa 20 tin chưa tách, cũ nhất trước.
@@ -299,7 +310,7 @@ export async function tachViecChoToChuc(env, toChucId) {
       continue;
     }
 
-    const { soViec, soLienKet, viec, soAi, duPhong } = await chayLoTin(env, toChucId, tin, bayGio, dau.khoa);
+    const { soViec, soLienKet, soCauHoi, viec, soAi, duPhong } = await chayLoTin(env, toChucId, tin, bayGio, dau.khoa);
     await env.CSDL.prepare(
       `UPDATE tin_nhan SET da_tach = 1 WHERE to_chuc_id = ?1 AND da_tach = 2 AND id IN (${tin.map((_, j) => `?${j + 2}`).join(',')})`,
     ).bind(toChucId, ...tin.map((t) => t.id)).run();
@@ -307,11 +318,22 @@ export async function tachViecChoToChuc(env, toChucId) {
     tong.so_viec += soViec;
     tong.so_ai += soAi;
     tong.so_lien_ket += soLienKet;
+    tong.so_cau_hoi = (tong.so_cau_hoi || 0) + soCauHoi;
     tong.so_trung += viec.filter((v) => v.trung).length;
     tong.du_phong ||= duPhong;
     tong.so_hoi_thoai++;
   }
+  if (tong.so_cau_hoi) await guiCauHoiTelegram(env, toChucId);
   return tong;
+}
+
+// Gửi các ô hỏi ý kiến đang chờ. Nạp telegram.js lúc dùng vì telegram.js cũng gọi ngược vào file này.
+async function guiCauHoiTelegram(env, toChucId) {
+  try {
+    await (await import('./telegram.js')).guiCauHoiMoi(env, toChucId);
+  } catch (e) {
+    console.error('Gửi ô hỏi ý kiến lỗi', e);
+  }
 }
 
 // Tin nhắn trực tiếp (Telegram, dịch vụ ngoài): đi qua cùng lõi AI như tin Zalo nhưng không nằm trong hộp tin.
@@ -320,6 +342,8 @@ export async function xuLyVanBanTrucTiep(env, toChucId, { nguon, nguoi_gui: nguo
   if (!(await docLuong(env, toChucId)).bat['tach-viec']) return { tat: true };
   const bayGio = new Date().toISOString();
   const tin = [{ id: null, nguon, nguoi_gui: nguoiGui || 'Tôi', nhom: null, tieu_de: null, noi_dung: String(noiDung || '').slice(0, 3000), thoi_diem: bayGio }];
-  const { viec } = await chayLoTin(env, toChucId, tin, bayGio);
-  return { viec };
+  const { viec, soCauHoi } = await chayLoTin(env, toChucId, tin, bayGio);
+  // Tin từ Telegram thì phần Telegram tự gửi ô hỏi sau khi trả lời kết quả, để đúng thứ tự.
+  if (soCauHoi && nguon !== 'telegram') await guiCauHoiTelegram(env, toChucId);
+  return { viec, co_cau_hoi: soCauHoi > 0 };
 }
