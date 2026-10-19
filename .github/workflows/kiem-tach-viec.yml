@@ -41,6 +41,10 @@ jobs:
           sqlite3 -readonly -header -column "$DB" "SELECT nguon, lan_cuoi, ghi_chu FROM tin_hieu WHERE nguon IN ('telegram', 'tach-viec', 'zalo');"
           echo "== Nhat ky may chu: loi o hoi / telegram =="
           grep -a "ô hỏi\|ô thêm việc\|Telegram" "$GOC/du-lieu/may-chu.log" 2>/dev/null | tail -8 || true
+          echo "== 10 viec moi nhat =="
+          sqlite3 -readonly -header -column "$DB" "SELECT id, substr(tieu_de,1,50) AS tieu_de, han_ngay, gio_hen, nhom, tin_nhan_id, tao_luc FROM viec ORDER BY id DESC LIMIT 10;"
+          echo "== Nhat ky may chu: luot AI gan day =="
+          grep -a "Token Claude Code\|Tách việc\|tách việc" "$GOC/du-lieu/may-chu.log" 2>/dev/null | tail -12 || true
           echo "== Tin =="
           sqlite3 -readonly -header -column "$DB" "SELECT id, nguoi_gui, substr(noi_dung,1,40) AS noi_dung, da_tach, tach_luc FROM tin_nhan WHERE id IN (${TIN_IDS:-0});"
           echo "== Viec sinh ra tu cac tin =="
