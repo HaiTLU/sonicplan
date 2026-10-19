@@ -70,9 +70,12 @@ function nguonChung(tin) {
 // Việc đời thường vụn vặt (ăn uống, mua nước, quà, chuyện lớp): AI hay lỡ tạo dù đã dặn, nên chặn thêm bằng code.
 // Việc có hạn thuộc dự án hoặc ưu tiên cao thì giữ lại, vì đó là việc người dùng chủ động đặt ra.
 const TU_VAN = /\b(an trua|an toi|an sang|di an|bua an|com trua|uong nuoc|tra sua|tra thach|tra dao|ca phe|cafe|mua nuoc|mua tra|mua do an|banh ngot|hoa qua|nhan hoa|ra nhan|tang qua|nuoc ngot|tra da|chai nuoc)\b/;
+// Việc chung của nhóm (sự kiện, kinh phí, đầu mối, hưởng ứng) không phải chuyện vặt dù có trà sữa hoặc hoa trong tên.
+const VIEC_CHUNG = /\b(su kien|kinh phi|ngan sach|du toan|dau moi|hung ung|le ky niem|le khai|khai truong|khanh thanh|hoi nghi|hoi thao|workshop|ban to chuc)\b/;
 export function laViecVanVat(v) {
   const ten = chuanHoa(v?.tieu_de);
   if (!TU_VAN.test(ten)) return false;
+  if (VIEC_CHUNG.test(`${ten} ${chuanHoa(v?.ghi_chu)}`)) return false;
   return v?.uu_tien !== 'cao' && !v?.du_an;
 }
 

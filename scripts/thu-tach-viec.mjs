@@ -14,7 +14,7 @@ const env = { CLAUDE_CODE_AI: moAiClaudeCode({ claudeBin, thuMuc: join(tmpdir(),
 let sai = 0;
 for (const c of bo.cac_tin) {
   try {
-    const kq = await tachViec(env, [{ ...c.tin, so: 1 }], bo.hom_nay, 'Hải', {});
+    const kq = await tachViec(env, (c.lo || [c.tin]).map((t, i) => ({ ...t, so: i + 1 })), bo.hom_nay, 'Hải', {});
     const viec = kq.viec || [];
     const loi = [];
     if (Boolean(viec.length) !== c.co_viec) loi.push(`mong ${c.co_viec ? 'có' : 'không có'} việc, AI tạo ${viec.length}`);

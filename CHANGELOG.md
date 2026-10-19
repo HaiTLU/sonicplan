@@ -7,6 +7,8 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 Memory của PM chuyển từ ThangLong_KB sang kho second-brain (18/10/2026). Có migration 0034 (bảng `cau_hoi_ai`).
 
 ### Thêm
+- Lời dặn tách việc có thêm hai loại việc trước đây bị bỏ: việc chung của nhóm phát sinh từ cuộc bàn (hưởng ứng sự kiện, mời trà sữa, tặng hoa, lên kinh phí, tìm đầu mối, hạn "ngày mai") thành một việc gộp của anh khi anh đề xuất, được hỏi hoặc giao khâu; và tài liệu anh chuyển cho người khác xin ý kiến thành việc theo dõi. Nguyên nhân trước đó: nguyên tắc 11 và 13 cấm việc ăn uống, quà, đặt đồ, và bộ lọc `laViecVanVat` xóa tiêu đề có "trà sữa", "hoa quả". Bộ lọc nay giữ việc có sự kiện, kinh phí, đầu mối. Không thêm lần gọi AI.
+- Nhận dự án theo từ riêng của tên dự án ("bên CPG" khớp "CPG - TLU"), bỏ từ có ở từ 2 dự án trở lên; còn lẫn thì AI hỏi qua Telegram. Thêm 3 tin mẫu cho `thu-tach-viec` (bộ nhiều tin dùng khóa `lo`).
 - Ô hỏi ý kiến trên Telegram: khi AI chưa chắc giờ hẹn, hạn, tên người, dự án, loại việc hoặc có phải việc thật không, AI đánh dấu `chua_chac` ngay trong lượt tách việc (không gọi thêm AI) và bot gửi tin kèm nút bấm; anh cũng có thể nhắn trả lời đúng tin đó. Trả lời sửa luôn việc, ghi một lần sửa vào lịch sử (để AI học như các lần anh sửa tay và để báo cáo tuần đề xuất lời dặn) và gộp một dòng vào mục Ghi nhớ cùng bối cảnh (nhóm Zalo hoặc người gửi). Hỏi tối đa 3 ô mỗi lượt, tối đa 8 ô chưa trả lời, không hỏi lại một việc, ô quá 3 ngày tự hết hạn.
 - AI học từ việc anh sửa: mỗi lượt tách việc nạp tối đa 10 lần hủy, đổi tên, đổi dự án, đổi nhóm, sửa hạn gần đây (30 ngày, chỉ việc do AI tạo) vào lời nhắc.
 - Hủy việc do AI tách thì có nút "Ghi lý do" (`ly_do` trong PATCH `/api/viec/:id`), lý do lưu cùng sự kiện hủy.
