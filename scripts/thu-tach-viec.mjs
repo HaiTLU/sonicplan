@@ -17,7 +17,8 @@ for (const c of bo.cac_tin) {
     const kq = await tachViec(env, (c.lo || [c.tin]).map((t, i) => ({ ...t, so: i + 1 })), bo.hom_nay, 'Hải', {});
     const viec = kq.viec || [];
     const loi = [];
-    if (Boolean(viec.length) !== c.co_viec) loi.push(`mong ${c.co_viec ? 'có' : 'không có'} việc, AI tạo ${viec.length}`);
+    const soRa = viec.length + (c.hoac_phan_van ? (kq.phan_van || []).length : 0);
+    if (Boolean(soRa) !== c.co_viec) loi.push(`mong ${c.co_viec ? 'có' : 'không có'} việc, AI tạo ${soRa}`);
     if (c.gio_hen && viec[0]?.gio_hen !== c.gio_hen) loi.push(`mong giờ ${c.gio_hen}, AI ghi ${viec[0]?.gio_hen || 'trống'}`);
     console.log(`${loi.length ? 'SAI' : 'ĐÚNG'}  ${c.ten}${loi.length ? `: ${loi.join('; ')}` : ''}`);
     if (loi.length) sai++;

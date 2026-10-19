@@ -43,3 +43,32 @@ test('tin trước đó chỉ lấy của chính cuộc trò chuyện', async ()
   assert.match(goi[0], /Tin trước đó[\s\S]*hợp đồng IPSOS/);
   assert.doesNotMatch(goi[0], /chuyện khác hẳn/);
 });
+
+test('đoạn chat hẹn lên gặp chưa có giờ: tin vẫn tới AI, việc "chờ liên hệ" được lưu, không có giờ', async () => {
+  const { db, goi, env } = moiTruong();
+  env.AI.run = async (_m, { messages }) => {
+    goi.push(messages[1].content);
+    return { response: JSON.stringify({ viec: [{ tieu_de: 'Gặp anh Hùng Vụ KHTC (chờ cô liên hệ, giờ chưa chốt)', han_ngay: '2026-10-19', gio_hen: null, ghi_chu: 'Cô Hoa nói chiều lên gặp vì Vụ ĐH và KHCN gửi hết rồi', tin_so: 1, nhom: 3, chua_chac: { loai: 'gio', cau_hoi: 'Mấy giờ gặp anh Hùng?', lua_chon: ['14:00', '15:00'] } }] }) };
+  };
+  for (const [nguoi, noi] of [['Cô Hoa', 'có khi chiều lên gặp Hùng Anh Vụ KHTC vì Vụ ĐH và KHCN gửi hết rồi'], ['Tôi', 'Vâng ạ'], ['Tôi', 'Mấy h đi ạ'], ['Cô Hoa', 'để cô liên hệ đã']]) {
+    them(db, { nguoi, ten: 'Cô Hoa', ma: 'ca-nhan:9', noi });
+  }
+  const kq = await tachViecChoToChuc(env, 'tc1');
+  assert.equal(goi.length, 1);
+  assert.match(goi[0], /gặp Hùng Anh Vụ KHTC[\s\S]*Vâng ạ[\s\S]*Mấy h đi ạ[\s\S]*để cô liên hệ đã/);
+  const v = db.prepare('SELECT tieu_de, han_ngay, gio_hen FROM viec').all();
+  assert.equal(v.length, 1);
+  assert.match(v[0].tieu_de, /Gặp anh Hùng Vụ KHTC/);
+  assert.equal(v[0].han_ngay, '2026-10-19');
+  assert.ok(!v[0].gio_hen);
+  assert.equal(kq.so_viec, 1);
+});
+
+test('tin kế hoạch đi gặp đứng một mình: AI đưa vào phan_van thì có ô hỏi Telegram, không bị bỏ im lặng', async () => {
+  const { db, env } = moiTruong();
+  env.AI.run = async () => ({ response: JSON.stringify({ viec: [], phan_van: [{ tieu_de: 'Gặp anh Hùng Vụ KHTC chiều nay', tin_so: 1, han_ngay: '2026-10-19', ghi_chu: 'Cô Hoa nói chiều lên gặp' }] }) });
+  them(db, { nguoi: 'Cô Hoa', ten: 'Cô Hoa', ma: 'ca-nhan:9', noi: 'có khi chiều lên gặp Hùng Anh Vụ KHTC vì Vụ ĐH và KHCN gửi hết rồi' });
+  await tachViecChoToChuc(env, 'tc1');
+  const hoi = db.prepare('SELECT COUNT(*) AS n FROM cau_hoi_ai').get().n;
+  assert.equal(hoi, 1);
+});
