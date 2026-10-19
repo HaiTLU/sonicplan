@@ -13,8 +13,6 @@ import { moR2 } from './lop-r2.js';
 import { moTinh } from './lop-tinh.js';
 import { moAi } from './lop-ai.js';
 import { moAiClaudeCode } from './ai-claude-code.js';
-import { moKhoaFpt } from './khoa-fpt.js';
-import { moLuaChonAi } from './lua-chon-ai.js';
 import { batHenGio } from './lich.js';
 import { moTram } from './lop-tram.js';
 import { moThoClaude } from './tho-claude.js';
@@ -127,12 +125,6 @@ export function taoMayChu(cauHinh = {}) {
     });
   }
 
-  // FPT AI Marketplace: khóa nhập ở trang Kết nối (lưu mã hóa, du-lieu/khoa-fpt.enc) hoặc đặt ở biến môi trường FPT_AI_API_KEY. Chọn dùng Claude hay FPT ở trang Kết nối; mặc định theo AI_NHA_CUNG_CAP (claude hoặc fpt, mặc định claude).
-  env.LUA_CHON_AI = moLuaChonAi(resolve(thuMucDuLieu, 'nha-cung-cap-ai.json'), cfg.AI_NHA_CUNG_CAP === 'fpt' ? 'fpt' : 'claude');
-  env.KHOA_FPT = moKhoaFpt({ tep: resolve(thuMucDuLieu, 'khoa-fpt.enc'), cfg, env });
-  Object.defineProperty(env, 'FPT_AI', { get: () => env.KHOA_FPT.lay(), enumerable: true });
-  env.KHOA_FPT.khoiDong.then(() => { if (!env.FPT_AI && env.LUA_CHON_AI.doc().chung === 'fpt') console.error('Đang chọn FPT AI nhưng chưa có khóa FPT, tạm dùng Claude'); });
-
   const dangCho = new Set();
   const ctx = {
     waitUntil: (p) => {
@@ -230,7 +222,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const cong = Number(m.cfg.PORT || 8787);
   const may = m.cfg.HOST || '127.0.0.1';
   m.maychu.listen(cong, may, () => {
-    console.log(`Sonicplan chạy ở ${may}:${cong}${m.cfg.PUBLIC_ORIGIN ? ` (địa chỉ công khai ${m.cfg.PUBLIC_ORIGIN})` : ''}${m.env.CLAUDE_CODE_AI ? `, AI: ${m.env.CLAUDE_CODE_AI.ten}${m.env.FPT_AI ? `, có ${m.env.FPT_AI.ten} (đang chọn: ${m.env.LUA_CHON_AI.doc().chung})` : ''}${m.env.AI ? ', dự phòng Workers AI' : ''}` : m.env.AI ? ', có AI' : ', không có AI'}`);
+    console.log(`Sonicplan chạy ở ${may}:${cong}${m.cfg.PUBLIC_ORIGIN ? ` (địa chỉ công khai ${m.cfg.PUBLIC_ORIGIN})` : ''}${m.env.CLAUDE_CODE_AI ? `, AI: ${m.env.CLAUDE_CODE_AI.ten}${m.env.AI ? ', dự phòng Workers AI' : ''}` : m.env.AI ? ', có AI' : ', không có AI'}`);
     if (m.cfg.HEN_GIO !== '0') m.batHenGio();
   });
   for (const tin of ['SIGINT', 'SIGTERM']) process.on(tin, () => m.dong().finally(() => process.exit(0)));

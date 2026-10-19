@@ -1,6 +1,5 @@
 // API giao diện: Tổng quan, tình trạng hệ thống và nhật ký chạy.
 // Mỗi nhóm nhận (yeuCau, env, phien, url) và trả Response, hoặc null nếu địa chỉ không thuộc nhóm này.
-import { chonNhaCungCap } from '../ai.js';
 import { docHetHanMuc, moTaLucDatLai } from '../han-muc-ai.js';
 import { docCaiDat, ghiCaiDat } from '../hop-tin.js';
 import { TAC_VU } from '../lich-chay.js';
@@ -160,8 +159,7 @@ async function tinhKetNoi(env, tc, khoa, tinHieu) {
     const loiAi = await env.CSDL.prepare(`SELECT COUNT(*) AS n FROM tin_nhan WHERE to_chuc_id = ?1 AND da_tach = 3 AND tao_luc >= ?2`)
       .bind(tc, new Date(Date.now() - 86400000).toISOString())
       .first();
-    let sanSang = env.CLAUDE_CODE_AI ? `${env.CLAUDE_CODE_AI.ten} sẵn sàng${env.AI ? ', dự phòng Workers AI' : ''}` : 'Workers AI sẵn sàng';
-    if (chonNhaCungCap(env) === 'fpt') sanSang = env.FPT_AI ? `${env.FPT_AI.ten} sẵn sàng, Claude dự phòng` : `Đã chọn FPT AI nhưng chưa có khóa FPT_AI_API_KEY, đang dùng ${sanSang}`;
+    const sanSang = env.CLAUDE_CODE_AI ? `${env.CLAUDE_CODE_AI.ten} sẵn sàng${env.AI ? ', dự phòng Workers AI' : ''}` : 'Workers AI sẵn sàng';
     // Hết hạn mức ngày (gói miễn phí): tin được giữ ở hàng chờ, hiện rõ để biết Workers AI chạy lại lúc nào.
     // Đã có Claude Code làm AI chính thì Workers AI hết hạn mức chỉ là cảnh báo dự phòng, không phải lỗi.
     const hetHanMuc = env.AI ? await docHetHanMuc(env) : null;

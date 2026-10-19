@@ -435,7 +435,6 @@ td.ghi-chu { max-width: 30rem; overflow-wrap: anywhere; color: var(--chu-2); }
 .khoi-api h3 { font-size: 15px; margin: 0 0 6px; }
 .khoi-api .mo-ta { margin: 0 0 12px; color: var(--phu); font-size: 13.5px; line-height: 1.5; }
 .luoi-nhap { display: grid; gap: 8px; }
-.luoi-nhap .hang-nhan { display: grid; gap: 4px; font-size: 13px; color: var(--phu); }
 .luoi-nhap input, .luoi-nhap select, .tele-nhap input { height: 40px; padding: 0 12px; border-radius: 11px; border: 1px solid var(--vach); background: var(--mat); color: var(--chu); outline: none; min-width: 0; transition: border-color .2s; }
 .luoi-nhap input:focus, .luoi-nhap select:focus { border-color: var(--nhan); }
 .luoi-nhap input[hidden] { display: none; }
