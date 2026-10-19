@@ -321,6 +321,72 @@ function nutClaudeThe(v) {
   return h('button', { class: 'nhan-claude giao', type: 'button', 'aria-label': `Giao Claude: ${v.tieu_de}`, ...meo('Giao việc này cho Claude Code làm. Claude hỏi lại nếu việc chưa rõ.'), onclick: () => giaoClaudeNhanh([v]) }, icon('ai'), 'Claude');
 }
 
+// Chip ngày giờ trên thẻ: "Thứ 2, 19/10 · 14:45"; bấm để sửa nhanh ngày và giờ, không cần mở cả ngăn sửa việc.
+function chipHan(v, hn) {
+  const mo = v.trang_thai === 'mo';
+  if (!v.han_ngay && !mo) return null;
+  const chu = v.han_ngay ? `${ngayHienThi(v.han_ngay)}${v.gio_hen ? ` · ${v.gio_hen}` : ''}` : 'Thêm ngày giờ';
+  const lop = `${v.han_ngay && hn && v.han_ngay < hn ? 'tre' : ''}${v.han_ngay ? '' : ' chua-han'}${mo ? ' sua-han' : ''}`.trim();
+  const chip = h('span', { class: lop, ...(mo ? { role: 'button', tabindex: '0', 'aria-label': `Sửa ngày giờ: ${v.tieu_de}`, title: 'Bấm để sửa ngày giờ' } : {}) }, icon(v.han_ngay ? 'lich' : 'dong-ho'), chu);
+  if (mo) {
+    chip.addEventListener('click', (ev) => { ev.stopPropagation(); moSuaHan(v, chip); });
+    chip.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); moSuaHan(v, chip); } });
+  }
+  return chip;
+}
+
+let khungHan = null;
+function dongSuaHan() {
+  if (!khungHan) return;
+  khungHan.remove();
+  khungHan = null;
+  document.removeEventListener('pointerdown', khiBamNgoaiHan, true);
+  document.removeEventListener('keydown', khiPhimHan, true);
+}
+const khiBamNgoaiHan = (ev) => { if (khungHan && !khungHan.contains(ev.target)) dongSuaHan(); };
+const khiPhimHan = (ev) => { if (ev.key === 'Escape') dongSuaHan(); };
+
+function moSuaHan(v, neo) {
+  dongSuaHan();
+  const oNgay = h('input', { type: 'date', value: v.han_ngay || '', 'aria-label': 'Ngày hạn' });
+  const oGio = h('input', { type: 'time', step: '300', value: v.gio_hen || '', 'aria-label': 'Giờ hẹn' });
+  const loi = h('p', { class: 'loi-form', hidden: true });
+  const luu = async (ngay, gio) => {
+    // Có giờ mà chưa có ngày thì lấy hôm nay, để giờ không bị mồ côi.
+    const sua = { han_ngay: ngay || (gio ? homNay() : null), gio_hen: ngay || gio ? gio || null : null };
+    try {
+      await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify(sua) });
+      dongSuaHan();
+      bao('Đã lưu ngày giờ.');
+      moMuc();
+    } catch (err) {
+      loi.textContent = err.message;
+      loi.hidden = false;
+    }
+  };
+  const nhanh = [['Hôm nay', 0], ['Ngày mai', 1], ['Tuần sau', 7]].map(([ten, n]) => h('button', { type: 'button', text: ten, onclick: () => { oNgay.value = congNgay(homNay(), n); } }));
+  khungHan = h('div', { class: 'trinh-don khung-han', role: 'dialog', 'aria-label': 'Sửa ngày giờ' },
+    h('div', { class: 'hang-2' },
+      h('label', { class: 'truong' }, h('span', { text: 'Ngày' }), oNgay),
+      h('label', { class: 'truong' }, h('span', { text: 'Giờ' }), oGio),
+    ),
+    h('div', { class: 'chon-nhanh' }, ...nhanh),
+    loi,
+    h('div', { class: 'hang-nut' },
+      h('button', { type: 'button', class: 'nut-phu', text: 'Bỏ ngày giờ', onclick: () => luu(null, null) }),
+      h('button', { type: 'button', class: 'nut-chinh', text: 'Lưu', onclick: () => luu(oNgay.value || null, oGio.value || null) }),
+    ),
+  );
+  document.body.append(khungHan);
+  const r = neo.getBoundingClientRect();
+  const rong = khungHan.offsetWidth;
+  khungHan.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - rong - 8))}px`;
+  khungHan.style.top = `${Math.min(r.bottom + 6, Math.max(8, window.innerHeight - khungHan.offsetHeight - 8))}px`;
+  document.addEventListener('pointerdown', khiBamNgoaiHan, true);
+  document.addEventListener('keydown', khiPhimHan, true);
+  (v.han_ngay ? oGio : oNgay).focus();
+}
+
 function theViec(v, hn) {
   const o = h('input', { class: 'o-xong', type: 'checkbox', checked: v.trang_thai === 'xong', 'aria-label': `${v.trang_thai === 'xong' ? 'Mở lại' : 'Đánh dấu xong'}: ${v.tieu_de}` });
   const mau = mauViec(v);
@@ -332,8 +398,7 @@ function theViec(v, hn) {
       h('button', { class: 'ten-viec', type: 'button', text: v.tieu_de, onclick: () => moNganViec(v) }),
       v.ghi_chu ? h('p', { class: 'ghi', text: v.ghi_chu }) : null,
       h('div', { class: 'chan' },
-        v.han_ngay ? h('span', { class: hn && v.han_ngay < hn ? 'tre' : '' }, icon('lich'), ngayHienThi(v.han_ngay)) : null,
-        v.gio_hen ? h('span', {}, icon('dong-ho'), v.gio_hen) : null,
+        chipHan(v, hn),
         v.so_lan_doi ? h('span', { class: v.so_lan_doi >= 3 ? 'tre' : '', ...meo(`Việc tự dời sang ngày sau ${v.so_lan_doi} lần vì chưa xong cuối ngày. Hạn gốc ${v.han_goc ? ngayHienThi(v.han_goc) : 'không rõ'}. Sửa hạn để bỏ đếm.`) }, `Dời ${v.so_lan_doi} lần`) : null,
         h('span', { class: `nguon ${nhanNguon(v).ma}`, title: `Nguồn: ${v.tin_nhom || v.tin_nguoi_gui || nhanNguon(v).chu}` }, icon(nhanNguon(v).icon), nhanNguon(v).chu),
         v.du_an_ten ? h('a', { class: 'nhan-du-an', href: `#du-an/${v.du_an_id}`, title: 'Xem lịch sử dự án' }, v.du_an_icon || v.du_an_anh ? anhDuAn(h, v, 'nho') : icon('du-an'), v.du_an_ten) : h('span', { class: 'nhan-du-an chua', text: 'Chưa xếp dự án' }),
