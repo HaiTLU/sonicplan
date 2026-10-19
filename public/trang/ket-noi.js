@@ -280,23 +280,44 @@ export async function veKetNoi(goc, { moi = false } = {}) {
   // API: AI của riêng bạn và địa chỉ nhận việc mới
   const th = kn.tich_hop;
   const laChu = th.vai_tro === 'chu';
-  const oLoaiAi = h('select', { 'aria-label': 'Loại dịch vụ AI' }, h('option', { value: 'claude', text: 'Claude (Anthropic)' }), h('option', { value: 'openai', text: 'Loại tương thích OpenAI' }));
+  // Hãng AI có sẵn: chọn là điền sẵn địa chỉ và mô hình gợi ý (sửa được). Tên mô hình do hãng đổi theo thời gian, sai thì sửa ở ô Mô hình.
+  const HANG_AI = [
+    { ma: 'claude', ten: 'Claude (Anthropic)', loai: 'claude', mo_hinh: '' },
+    { ma: 'openai', ten: 'OpenAI (ChatGPT)', loai: 'openai', dia_chi: 'https://api.openai.com/v1', mo_hinh: 'gpt-4o-mini' },
+    { ma: 'gemini', ten: 'Google Gemini', loai: 'openai', dia_chi: 'https://generativelanguage.googleapis.com/v1beta/openai', mo_hinh: 'gemini-2.5-flash' },
+    { ma: 'openrouter', ten: 'OpenRouter (nhiều hãng một khóa)', loai: 'openai', dia_chi: 'https://openrouter.ai/api/v1', mo_hinh: 'openai/gpt-4o-mini' },
+    { ma: 'deepseek', ten: 'DeepSeek', loai: 'openai', dia_chi: 'https://api.deepseek.com/v1', mo_hinh: 'deepseek-chat' },
+    { ma: 'groq', ten: 'Groq', loai: 'openai', dia_chi: 'https://api.groq.com/openai/v1', mo_hinh: 'llama-3.3-70b-versatile' },
+    { ma: 'mistral', ten: 'Mistral', loai: 'openai', dia_chi: 'https://api.mistral.ai/v1', mo_hinh: 'mistral-small-latest' },
+    { ma: 'xai', ten: 'xAI (Grok)', loai: 'openai', dia_chi: 'https://api.x.ai/v1', mo_hinh: 'grok-3-mini' },
+    { ma: 'khac', ten: 'Hãng khác (tương thích OpenAI)', loai: 'openai', dia_chi: '', mo_hinh: '' },
+  ];
+  const tenHang = (ai) => (ai.loai === 'claude' ? 'Claude' : (HANG_AI.find((x) => x.dia_chi && ai.dia_chi && new URL(x.dia_chi).host === new URL(ai.dia_chi).host)?.ten || `dịch vụ tương thích OpenAI (${new URL(ai.dia_chi).host})`));
+  const oLoaiAi = h('select', { 'aria-label': 'Hãng AI' }, HANG_AI.map((x) => h('option', { value: x.ma, text: x.ten })));
   const oKhoaAi = h('input', { type: 'password', placeholder: 'Dán khóa API', autocomplete: 'off', 'aria-label': 'Khóa API' });
   const oMoHinh = h('input', { type: 'text', placeholder: 'Mô hình (bỏ trống để dùng mặc định)', autocomplete: 'off', 'aria-label': 'Mô hình' });
   const oDiaChiAi = h('input', { type: 'url', placeholder: 'Địa chỉ dịch vụ, ví dụ https://api.openai.com/v1', autocomplete: 'off', 'aria-label': 'Địa chỉ dịch vụ', hidden: true });
   const oWorkspace = h('input', { type: 'text', placeholder: 'Workspace ID (chỉ điền khi khóa báo thiếu Workspace)', autocomplete: 'off', 'aria-label': 'Workspace ID của Anthropic' });
-  oLoaiAi.addEventListener('change', () => { oDiaChiAi.hidden = oLoaiAi.value !== 'openai'; oWorkspace.hidden = oLoaiAi.value !== 'claude'; });
+  const hangDangChon = () => HANG_AI.find((x) => x.ma === oLoaiAi.value);
+  oLoaiAi.addEventListener('change', () => {
+    const x = hangDangChon();
+    oDiaChiAi.hidden = x.loai !== 'openai';
+    oWorkspace.hidden = x.loai !== 'claude';
+    oDiaChiAi.value = x.dia_chi || '';
+    oMoHinh.value = x.mo_hinh || '';
+  });
+  oLoaiAi.dispatchEvent(new Event('change'));
   const aiNut = h('button', { class: 'nut nut-chinh', type: 'button', onclick: async (ev) => {
     ev.target.disabled = true;
     try {
-      await api('/api/ket-noi/ai', { method: 'POST', body: JSON.stringify({ loai: oLoaiAi.value, khoa: oKhoaAi.value, mo_hinh: oMoHinh.value, dia_chi: oDiaChiAi.value, workspace_id: oWorkspace.value }) });
+      await api('/api/ket-noi/ai', { method: 'POST', body: JSON.stringify({ loai: hangDangChon().loai, khoa: oKhoaAi.value, mo_hinh: oMoHinh.value, dia_chi: oDiaChiAi.value, workspace_id: oWorkspace.value }) });
       bao('Đã nối dịch vụ AI. Từ lượt tách việc sau sẽ dùng dịch vụ này.');
       ve();
     } catch (e) { bao(e.message, { loi: true }); ev.target.disabled = false; }
   } }, icon('ai'), 'Kiểm tra và lưu');
   const khoiAi = h('div', { class: 'khoi-api' },
     h('h3', { text: 'AI của bạn' }),
-    h('p', { class: 'mo-ta', text: th.ai ? `Đang dùng ${th.ai.loai === 'claude' ? 'Claude' : 'dịch vụ tương thích OpenAI'}, mô hình ${th.ai.mo_hinh}. Gặp lỗi thì tự quay về AI có sẵn.` : 'Mặc định tách việc bằng AI có sẵn của hệ thống. Dán khóa API của bạn nếu muốn dùng mô hình mạnh hơn.' }),
+    h('p', { class: 'mo-ta', text: th.ai ? `Đang dùng ${tenHang(th.ai)}, mô hình ${th.ai.mo_hinh}. Gặp lỗi thì tự quay về AI có sẵn.` : 'Mặc định tách việc bằng AI có sẵn của hệ thống. Dán khóa API của bạn nếu muốn dùng mô hình mạnh hơn.' }),
     th.ai?.loi ? h('p', { class: 'canh-bao-nho', text: th.ai.loi.ghi_chu }) : null,
     laChu ? (th.ai
       ? h('div', { class: 'hang-nut' }, h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/ai', { method: 'DELETE' }); bao('Đã gỡ, quay về AI có sẵn.'); ve(); } }, 'Gỡ dịch vụ này'))
