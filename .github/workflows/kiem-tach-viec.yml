@@ -5,8 +5,9 @@ on:
   workflow_dispatch:
     inputs:
       tin_ids:
-        description: 'Mã tin, cách nhau bằng dấu phẩy (ví dụ 2359)'
-        required: true
+        description: 'Mã tin, cách nhau bằng dấu phẩy (ví dụ 2359). Để trống thì chỉ xem tình trạng chung.'
+        required: false
+        default: ''
 permissions:
   contents: read
 jobs:
@@ -20,13 +21,30 @@ jobs:
           TIN_IDS: ${{ inputs.tin_ids }}
         run: |
           set -uo pipefail
-          if ! [[ "$TIN_IDS" =~ ^[0-9]+(,[0-9]+){0,19}$ ]]; then echo "Mã tin không hợp lệ: $TIN_IDS" >&2; exit 1; fi
+          if [ -n "$TIN_IDS" ] && ! [[ "$TIN_IDS" =~ ^[0-9]+(,[0-9]+){0,19}$ ]]; then echo "Mã tin không hợp lệ: $TIN_IDS" >&2; exit 1; fi
           GOC="${SONICPLAN_DIR:-$HOME/sonicplan}"
           DB="$GOC/du-lieu/sonicplan.sqlite"
+          echo "== Ban dang chay =="
+          git -C "$GOC" log -1 --format='%h %ci %s'
+          ps -axo pid,lstart,command | grep -a "[m]ay-chu/chay.js" || echo "Không thấy tiến trình máy chủ"
+          echo "== 8 tin moi nhat =="
+          sqlite3 -readonly -header -column "$DB" "SELECT id, nguon, nguoi_gui, nhom, substr(noi_dung,1,30) AS noi_dung, da_tach, tach_luc, tao_luc FROM tin_nhan ORDER BY id DESC LIMIT 8;"
+          echo "== Tin theo trang thai tach =="
+          sqlite3 -readonly -header -column "$DB" "SELECT da_tach, count(*) AS so, max(id) AS id_moi_nhat FROM tin_nhan GROUP BY da_tach;"
+          echo "== O hoi y kien (cau_hoi_ai) =="
+          sqlite3 -readonly -header -column "$DB" "SELECT trang_thai, loai, count(*) AS so, max(tao_luc) AS moi_nhat FROM cau_hoi_ai GROUP BY trang_thai, loai;" 2>&1
+          sqlite3 -readonly -header -column "$DB" "SELECT id, loai, trang_thai, substr(cau_hoi,1,40) AS cau_hoi, tin_nhan_id, tao_luc FROM cau_hoi_ai ORDER BY id DESC LIMIT 8;" 2>&1
+          echo "== Khau luong (chi khoa luong_*) =="
+          sqlite3 -readonly -header -column "$DB" "SELECT khoa, gia_tri FROM cai_dat WHERE khoa LIKE 'luong\\_%' ESCAPE '\\';"
+          echo "== Telegram da noi chua =="
+          sqlite3 -readonly -header -column "$DB" "SELECT khoa, CASE WHEN gia_tri IS NULL OR gia_tri = '' THEN 'trong' ELSE 'co' END AS co_gia_tri FROM cai_dat WHERE khoa LIKE 'telegram%';"
+          sqlite3 -readonly -header -column "$DB" "SELECT nguon, lan_cuoi, ghi_chu FROM tin_hieu WHERE nguon IN ('telegram', 'tach-viec', 'zalo');"
+          echo "== Nhat ky may chu: loi o hoi / telegram =="
+          grep -a "ô hỏi\|ô thêm việc\|Telegram" "$GOC/du-lieu/may-chu.log" 2>/dev/null | tail -8 || true
           echo "== Tin =="
-          sqlite3 -readonly -header -column "$DB" "SELECT id, nguoi_gui, substr(noi_dung,1,40) AS noi_dung, da_tach, tach_luc FROM tin_nhan WHERE id IN ($TIN_IDS);"
+          sqlite3 -readonly -header -column "$DB" "SELECT id, nguoi_gui, substr(noi_dung,1,40) AS noi_dung, da_tach, tach_luc FROM tin_nhan WHERE id IN (${TIN_IDS:-0});"
           echo "== Viec sinh ra tu cac tin =="
-          sqlite3 -readonly -header -column "$DB" "SELECT id, tieu_de, han_ngay, gio_hen, trang_thai, tin_nhan_id, lich_event_id IS NOT NULL AS len_lich, tao_luc FROM viec WHERE tin_nhan_id IN ($TIN_IDS);"
+          sqlite3 -readonly -header -column "$DB" "SELECT id, tieu_de, han_ngay, gio_hen, trang_thai, tin_nhan_id, lich_event_id IS NOT NULL AS len_lich, tao_luc FROM viec WHERE tin_nhan_id IN (${TIN_IDS:-0});"
           echo "== Tin hieu AI =="
           sqlite3 -readonly -header -column "$DB" "SELECT nguon, lan_cuoi, ghi_chu FROM tin_hieu WHERE nguon = 'ai';"
           echo "== Nhat ky may chu: loi AI gan day =="
