@@ -17,7 +17,7 @@ Máy chủ Node chạy nguyên mã Worker trong `src/`, thay D1 bằng SQLite, R
 | `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` | Lấy mặc định từ `wrangler.jsonc`; Cloudflare Access phải còn đứng trước tên miền |
 | `KHOA_MA_HOA` | Khóa mã hóa token kết nối; không có thì Google, Zalo, Telegram không giải mã được |
 | `CF_ACCOUNT_ID`, `CF_AI_TOKEN` | Muốn có AI: gọi Workers AI qua REST. Thiếu thì chạy không AI |
-| `AI_CLAUDE_CODE=0` | Tắt AI qua Claude Code gói Max. Mặc định bật khi có lệnh `claude` (`CLAUDE_BIN`): mọi tác vụ AI gọi `claude -p` trước, lỗi thì quay về Workers AI. Tổ chức đã dán khóa AI riêng ở trang Kết nối thì khóa đó vẫn đứng trước. Đổi mô hình, mức suy nghĩ bằng `AI_CLAUDE_CODE_MODEL` (mặc định `claude-sonnet-5-5`), `AI_CLAUDE_CODE_EFFORT` (mặc định `low`). Dùng chung hạn mức gói Max với thợ Claude và các phiên Claude Code của PM |
+| `AI_CLAUDE_CODE=0` | Tắt AI qua Claude Code gói Max. Mặc định bật khi có lệnh `claude` (`CLAUDE_BIN`): mọi tác vụ AI gọi `claude -p` trước, lỗi thì quay về Workers AI. Tổ chức đã dán khóa AI riêng ở trang Kết nối thì khóa đó vẫn đứng trước. Đổi mô hình, mức suy nghĩ bằng `AI_CLAUDE_CODE_MODEL` (mặc định `claude-haiku-5-5`), `AI_CLAUDE_CODE_EFFORT` (mặc định `medium`). Dùng chung hạn mức gói Max với thợ Claude và các phiên Claude Code của PM |
 | `DU_LIEU`, `DB_FILE`, `TEP_DIR` | Thư mục dữ liệu (mặc định `du-lieu/`) |
 | `HEN_GIO=0` | Tắt hẹn giờ |
 | `KHOA_MA_HOA_CU` | Chỉ khi đang xoay khóa: khóa cũ, để đọc được dữ liệu chưa mã hóa lại. Cách xoay: dừng máy chủ, sao lưu, chạy `KHOA_MA_HOA_CU=<cũ> KHOA_MA_HOA=<mới> DB_FILE=<đường dẫn> node may-chu/xoay-khoa.js`, đặt khóa mới vào `.env`, gỡ biến này |

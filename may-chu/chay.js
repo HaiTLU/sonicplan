@@ -119,8 +119,8 @@ export function taoMayChu(cauHinh = {}) {
   if (cfg.AI_CLAUDE_CODE !== '0' && existsSync(claudeBin)) {
     env.CLAUDE_CODE_AI = moAiClaudeCode({
       claudeBin,
-      model: cfg.AI_CLAUDE_CODE_MODEL || 'claude-sonnet-5-5',
-      effort: cfg.AI_CLAUDE_CODE_EFFORT || 'low',
+      model: cfg.AI_CLAUDE_CODE_MODEL || 'claude-haiku-5-5',
+      effort: cfg.AI_CLAUDE_CODE_EFFORT || 'medium',
       thuMuc: join(tmpdir(), 'sonicplan-ai-claude-code'), // thư mục rỗng, ngoài mọi kho: không nạp CLAUDE.md hay cài đặt dự án nào
     });
   }

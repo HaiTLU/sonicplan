@@ -7,7 +7,7 @@ import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-export function moAiClaudeCode({ claudeBin, model = 'claude-sonnet-5-5', effort = 'low', thuMuc, toiDaCungLuc = 2, hetGioMs = 180000, spawnHam = spawn }) {
+export function moAiClaudeCode({ claudeBin, model = 'claude-haiku-5-5', effort = 'medium', thuMuc, toiDaCungLuc = 2, hetGioMs = 180000, spawnHam = spawn }) {
   mkdirSync(thuMuc, { recursive: true });
   // Giới hạn số tiến trình claude chạy cùng lúc; lượt sau đợi lượt trước xong.
   let dangChay = 0;
