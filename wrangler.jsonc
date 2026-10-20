@@ -8,10 +8,8 @@
   "observability": { "enabled": true },
   "preview_urls": false,
 
-  // Địa chỉ trang. Khi triển khai, Cloudflare tự tạo bản ghi DNS và chứng chỉ cho tên miền này
-  // (tên miền sonicrec.app phải nằm trong cùng tài khoản Cloudflare).
+  // Không gắn tên miền cho Worker: trang plan.sonicrec.app do Cloudflare Tunnel trỏ về máy Mac mini chạy may-chu/.
   // Tắt địa chỉ *.workers.dev để chỉ có một cửa vào, cửa này được Access bảo vệ.
-  "routes": [{ "pattern": "plan.sonicrec.app", "custom_domain": true }],
   "workers_dev": false,
 
   // Chỉ API, địa chỉ nhận tin và lịch đi qua Worker. Trang tĩnh (html, css, js, phông) do Cloudflare phát thẳng
