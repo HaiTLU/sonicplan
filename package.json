@@ -11,6 +11,6 @@
     "may-chu": "node may-chu/chay.js"
   },
   "devDependencies": {
-    "wrangler": "4.149.0"
+    "wrangler": "4.151.1"
   }
 }
