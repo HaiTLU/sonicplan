@@ -1,7 +1,7 @@
 #!/bin/bash
 # Cập nhật Sonicplan đang chạy trên máy riêng: kéo main, áp migration mới, khởi động lại dịch vụ, kiểm tra sống.
 # Chạy tay: bash may-chu/cap-nhat.sh   Hoặc tự chạy từ GitHub Actions (xem .github/workflows/trien-khai-mac.yml).
-# Biến tùy chọn: SONICPLAN_DIR (thư mục cài, mặc định ~/sonicplan), SONICPLAN_LAUNCHD (tên dịch vụ, mặc định vn.sonicplan.may-chu), PORT.
+# Biến tùy chọn: SONICPLAN_DIR (thư mục cài, mặc định ~/sonicplan), SONICPLAN_LAUNCHD (tên dịch vụ launchd trên Mac hoặc unit systemd --user trên Linux, mặc định vn.sonicplan.may-chu), PORT.
 set -euo pipefail
 DIR="${SONICPLAN_DIR:-$HOME/sonicplan}"
 NHAN="${SONICPLAN_LAUNCHD:-vn.sonicplan.may-chu}"
@@ -20,11 +20,14 @@ echo "Đang ở bản: $(git log -1 --format='%h %s')"
 node may-chu/migrate.js
 node scripts/cau-hinh-dashboard.mjs
 
-if launchctl print "gui/$(id -u)/$NHAN" >/dev/null 2>&1; then
+if command -v launchctl >/dev/null 2>&1 && launchctl print "gui/$(id -u)/$NHAN" >/dev/null 2>&1; then
   launchctl kickstart -k "gui/$(id -u)/$NHAN"
   echo "Đã khởi động lại dịch vụ $NHAN"
+elif command -v systemctl >/dev/null 2>&1 && systemctl --user cat "$NHAN.service" >/dev/null 2>&1; then
+  systemctl --user restart "$NHAN.service"
+  echo "Đã khởi động lại dịch vụ systemd $NHAN"
 else
-  echo "Chưa có dịch vụ launchd tên $NHAN. Khởi động lại máy chủ bằng tay (npm run may-chu) rồi kiểm tra." >&2
+  echo "Chưa có dịch vụ launchd hoặc systemd --user tên $NHAN. Khởi động lại máy chủ bằng tay (npm run may-chu) rồi kiểm tra." >&2
   exit 2
 fi
 
