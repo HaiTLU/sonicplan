@@ -10,6 +10,18 @@ CONG="${PORT:-8787}"
 cd "$DIR"
 echo "Thư mục cài: $DIR"
 git fetch --quiet origin main
+tap_xung_dot=()
+while IFS= read -r tep; do
+  [ -n "$tep" ] || continue
+  if git cat-file -e "origin/main:$tep" 2>/dev/null; then
+    tap_xung_dot+=("$tep")
+  fi
+done < <(git ls-files --others --exclude-standard)
+if [ "${#tap_xung_dot[@]}" -gt 0 ]; then
+  echo "Xóa file local chưa theo dõi nhưng trùng với main:"
+  printf '  - %s\n' "${tap_xung_dot[@]}"
+  rm -rf -- "${tap_xung_dot[@]}"
+fi
 if ! git merge --ff-only --quiet origin/main; then
   echo "Không kéo được main (thư mục cài có thay đổi riêng hoặc lệch nhánh). Xử lý tay rồi chạy lại." >&2
   exit 1
