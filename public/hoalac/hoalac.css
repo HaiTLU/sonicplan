@@ -1,0 +1,54 @@
+/* Giao diện phần Viện Hòa Lạc: bảng Kanban và lịch Gantt rút gọn. Dùng biến màu của /kieu.css. */
+.dau-trang-hoalac {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--vien, #e5e5ea);
+  flex-wrap: wrap;
+}
+.thuong-hieu-hoalac { display: flex; align-items: center; gap: 0.6rem; }
+.thuong-hieu-hoalac div { display: flex; flex-direction: column; line-height: 1.25; }
+.ten-to-chuc { font-size: 0.85rem; opacity: 0.7; }
+.tab-hoalac { display: flex; gap: 0.5rem; }
+.tab-hoalac button {
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--vien, #e5e5ea);
+  background: transparent;
+  cursor: pointer;
+}
+.tab-hoalac button[aria-current="true"] { background: var(--nhan, #0a84ff); color: #fff; border-color: transparent; }
+
+.goc-hoalac { padding: 1.25rem; max-width: 1200px; margin: 0 auto; }
+
+.bang-kanban { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 1rem; overflow-x: auto; }
+.cot-kanban { background: var(--nen-nhe, #f5f5f7); border-radius: 12px; padding: 0.75rem; min-height: 120px; }
+.cot-kanban h3 { font-size: 0.9rem; margin: 0 0 0.6rem; opacity: 0.8; }
+.the-kanban {
+  background: var(--nen, #fff);
+  border: 1px solid var(--vien, #e5e5ea);
+  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+  margin-bottom: 0.6rem;
+  cursor: grab;
+}
+.the-kanban.tren-gang { border-left: 3px solid #ff3b30; }
+.the-kanban .phu-trach { font-size: 0.8rem; opacity: 0.7; margin-top: 0.2rem; }
+.tien-do { height: 4px; background: var(--vien, #e5e5ea); border-radius: 2px; margin-top: 0.5rem; overflow: hidden; }
+.tien-do-trong { height: 100%; background: var(--nhan, #0a84ff); }
+
+.bang-gantt { display: flex; flex-direction: column; gap: 0.5rem; }
+.bang-gantt .ghi-chu { font-size: 0.8rem; opacity: 0.7; margin-bottom: 0.5rem; }
+.hang-gantt { display: grid; grid-template-columns: 220px 1fr; align-items: center; gap: 0.75rem; }
+.ten-gantt { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.truc-gantt { position: relative; height: 22px; background: var(--nen-nhe, #f5f5f7); border-radius: 6px; }
+.thanh-gantt { position: absolute; top: 2px; bottom: 2px; background: var(--nhan, #0a84ff); border-radius: 4px; min-width: 6px; }
+.thanh-gantt.tren-gang { background: #ff3b30; }
+
+.vung-bao { position: fixed; top: 1rem; right: 1rem; z-index: 50; display: flex; flex-direction: column; gap: 0.5rem; }
+.bao { background: var(--nen, #fff); border: 1px solid var(--vien, #e5e5ea); border-radius: 8px; padding: 0.5rem 0.9rem; box-shadow: 0 2px 10px rgba(0,0,0,.1); }
+.bao.loi { border-color: #ff3b30; color: #ff3b30; }
+.khung-loi { padding: 2rem; text-align: center; opacity: 0.8; }
+.trong { padding: 1rem; opacity: 0.7; }

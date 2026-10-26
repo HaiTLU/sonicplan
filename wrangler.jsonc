@@ -17,7 +17,9 @@
   "assets": {
     "directory": "public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*", "/nhan/*", "/lich/*"],
+    // /hoalac/* luôn qua Worker trước: đường dẫn này cần Worker kiểm phạm vi truy cập (chỉ tổ chức
+    // 'hoalac' vào được) trước khi phát tệp tĩnh, không phát thẳng từ biên như phần còn lại.
+    "run_worker_first": ["/api/*", "/nhan/*", "/lich/*", "/hoalac", "/hoalac/*"],
     "not_found_handling": "single-page-application"
   },
 

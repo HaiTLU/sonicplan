@@ -73,8 +73,15 @@ export default {
       if (url.pathname.startsWith('/api/tram/')) return xuLyApiTram(yeuCau, env, phien, url);
       if (url.pathname.startsWith('/api/')) return xuLyApi(yeuCau, env, phien, url);
       // Trang, mã và kiểu dáng luôn hỏi lại máy chủ trước khi dùng bản lưu, để bản mới lên ngay.
-      const tinh = await env.ASSETS.fetch(yeuCau);
-      if (/\.(?:js|css|html|webmanifest)$|\/$/.test(url.pathname)) {
+      // Phần /hoalac có bundle riêng (public/hoalac/), không dùng SPA fallback của bundle chính:
+      // mọi đường dẫn trang (không có đuôi tệp) dưới /hoalac trả về đúng public/hoalac/index.html.
+      let yeuCauTinh = yeuCau;
+      if (duongHoaLac && !/\.[a-z0-9]+$/i.test(url.pathname)) {
+        const u2 = new URL(url); u2.pathname = '/hoalac/index.html';
+        yeuCauTinh = new Request(u2, yeuCau);
+      }
+      const tinh = await env.ASSETS.fetch(yeuCauTinh);
+      if (/\.(?:js|css|html|webmanifest)$|\/$/.test(new URL(yeuCauTinh.url).pathname)) {
         const ra = new Response(tinh.body, tinh);
         ra.headers.set('cache-control', 'no-cache');
         return ra;
