@@ -67,5 +67,8 @@ Cập nhật: 11/10/2026.
 
 ## Bước tiếp (Hòa Lạc, sau PR4)
 
-- PR4 đã gộp. Viết và chạy `scripts/nhap-hoalac.mjs` nhập dữ liệu khởi tạo (24 việc/5 nhóm A-E), sinh `out.sql` để PM soát trước, không tự áp vào production.
+- 26/10: viết `scripts/nhap-hoalac.mjs` + `test/hoalac-nhap.test.js` (4 ca, dữ liệu mẫu nội bộ), commit thẳng vào `main` (403/403 đạt). **Đếm lại tệp nguồn thật: 23 việc (không phải 24 như kế hoạch ghi)** - nhóm A=4, B=4, C=5, D=2, E=8.
+- 26/10: phát hiện CSDL D1 gắn trong `wrangler.jsonc` (database_id `1eda092c-...`) chỉ mới áp tới migration `0003` - không phải CSDL thật đang chạy, không dùng cho việc này. CSDL thật của `plan.sonicapp.top` là tệp sqlite trên VPS `tlu-prod-web-02` (`~/apps/sonicplan/du-lieu/sonicplan.sqlite`), tự áp migration khi `may-chu/cap-nhat.sh` chạy (CI `trien-khai-mac.yml` mỗi lần gộp vào `main`); tại đây đã có đủ migration 0038-0041 và 0 dòng `qlda_thu_tuc` trước khi nhập.
+- 26/10: đã sao lưu tệp sqlite thật trên VPS (`sonicplan.sqlite.truoc-hoalac-261026`) trước khi ghi. Tạo tổ chức `tc_hoalac` ("Dự án Viện Hòa Lạc", `pham_vi_truy_cap='hoalac'`), gán `hainnam@gmail.com` (đã có `nguoi_dung_id = nd_namhai`) làm `chu`. Sinh `out-hoalac.sql` từ tệp kế hoạch dự án gốc (`--boi hainnam@gmail.com`), tự kiểm bằng CSDL tạm rồi áp trực tiếp vào tệp sqlite thật trên VPS: 23 thủ tục (A=4,B=4,C=5,D=2,E=8), 29 phụ thuộc - khớp đúng số tự kiểm trước khi áp.
+- Còn treo: kiểm trực tiếp trên trình duyệt (UNVERIFIED, cùng lý do PR2/PR3); cấu hình Cloudflare Access Application riêng cho `/hoalac`.
 - PR5 (Ngân sách & EVM, migration 0042, số để trống chờ PM xác nhận bản TMĐT), PR6 (lịch .ics + hoàn thiện README).
