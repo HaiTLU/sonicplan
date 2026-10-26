@@ -54,7 +54,7 @@ function moiEnv() {
   db.exec("INSERT INTO nguoi_dung (id, email, tao_luc) VALUES ('nd-hoalac', 'doi-tac@vi-du.vn', '2026-01-01')");
   db.exec("INSERT INTO thanh_vien (to_chuc_id, nguoi_dung_id, vai_tro, tao_luc) VALUES ('tc-chung', 'nd-chung', 'thanh_vien', '2026-01-01')");
   db.exec("INSERT INTO thanh_vien (to_chuc_id, nguoi_dung_id, vai_tro, tao_luc) VALUES ('tc-hoalac', 'nd-hoalac', 'doi_tac', '2026-01-01')");
-  const ASSETS = { fetch: async () => new Response('trang chinh', { status: 200, headers: { 'content-type': 'text/html' } }) };
+  const ASSETS = { fetch: async (r) => new Response(new URL(r.url).pathname, { status: 200, headers: { 'content-type': 'text/html' } }) };
   return { CSDL: d1(db), ASSETS, QUAN_TRI: 'quan-tri@vi-du.vn' };
 }
 
@@ -84,8 +84,21 @@ test('đối tác tổ chức phạm vi hoalac gọi /api/toi và /api/thong-bao
   assert.notEqual(thongBao.status, 403);
 });
 
-test('đối tác tổ chức phạm vi hoalac mở được trang /hoalac (chưa có API riêng vẫn không bị 403)', async () => {
+test('đối tác tổ chức phạm vi hoalac mở được trang /hoalac, và /hoalac trả đúng public/hoalac/index.html (không rơi về index.html của bundle chính)', async () => {
   const env = { ...moiEnv(), EMAIL_THU: 'doi-tac@vi-du.vn' };
   const ra = await sonicplan.fetch(new Request('https://localhost/hoalac'), env, { waitUntil: () => {} });
   assert.notEqual(ra.status, 403);
+  assert.equal(await ra.text(), '/hoalac/index.html');
+});
+
+test('đường dẫn con không có đuôi tệp dưới /hoalac (ví dụ /hoalac/gi-do) cũng trả về public/hoalac/index.html', async () => {
+  const env = { ...moiEnv(), EMAIL_THU: 'doi-tac@vi-du.vn' };
+  const ra = await sonicplan.fetch(new Request('https://localhost/hoalac/gi-do'), env, { waitUntil: () => {} });
+  assert.equal(await ra.text(), '/hoalac/index.html');
+});
+
+test('tệp tĩnh có đuôi dưới /hoalac (ví dụ /hoalac/hoalac.js) không bị viết lại đường dẫn', async () => {
+  const env = { ...moiEnv(), EMAIL_THU: 'doi-tac@vi-du.vn' };
+  const ra = await sonicplan.fetch(new Request('https://localhost/hoalac/hoalac.js'), env, { waitUntil: () => {} });
+  assert.equal(await ra.text(), '/hoalac/hoalac.js');
 });
