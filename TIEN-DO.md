@@ -84,3 +84,52 @@ Cập nhật: 11/10/2026.
   - **Đối tác** (`doitac-thu@vi-du.vn`): PASS - không có tab RAID, Pháp lý chỉ thấy đúng 1 thủ tục được gán (gọi thủ tục khác trả 404, không lộ tồn tại), gọi API RAID trả 403 (kiểm cả qua giao diện và `curl` trực tiếp).
 - Còn treo: cấu hình Cloudflare Access Application riêng cho `/hoalac` (biến `ACCESS_UNG_DUNG`) - chưa làm trong đợt này.
 - Bước tiếp: PR5 (Ngân sách & EVM, migration 0042, số để trống chờ PM xác nhận bản TMĐT), PR6 (lịch .ics + hoàn thiện README).
+
+## Phân hệ Viện Hòa Lạc (/hoalac) - PR5: Ngân sách & EVM
+
+- 26/10: nhánh `claude/hoalac-5-ngan-sach`. Migration `0042_hoalac_ngan_sach.sql`: 3 bảng `qlda_ngan_sach_dong` (dòng ngân sách theo nhóm), `qlda_giai_ngan` (giải ngân, tham chiếu dòng ngân sách và `tep`), `qlda_evm` (PV/AC/EV theo kỳ, `UNIQUE(to_chuc_id, ky)`).
+- **Số tiền để trống (`NULL`) đúng theo kế hoạch**: không tự chọn một trong ba bản TMĐT khác nhau (1.612,245 tỷ / ~1.795,6 tỷ / 1.700-1.750 tỷ) làm chuẩn. Cột `trang_thai_so_lieu` (`chua_thong_nhat`/`da_xac_nhan`) đánh dấu dòng nào PM đã xác nhận số; nhập dữ liệu ngân sách thật là việc ngoài phạm vi PR5 (chỉ dựng cấu trúc/API/giao diện).
+- Mẫu `BO_QUA` (sentinel, theo đúng tiền lệ PR4 cho lỗi COALESCE-trên-cột-nullable): PUT dòng ngân sách và PUT EVM phân biệt "không gửi field" (giữ nguyên) với "gửi `null`" (xóa về trống, quay lại "chưa thống nhất") cho `ngan_sach_du_kien`, `pv`, `ac`, `ev`.
+- Quyền: không có cơ chế gán theo dòng cho đối tác ở ba mục này (không giống `qlda_thu_tuc` ở PR4), nên `CHAN_DOI_TAC()` chặn 403 toàn bộ `/api/hoalac/ngan-sach*`, `/api/hoalac/giai-ngan*`, `/api/hoalac/evm*`, như RAID.
+- `tinhEvm()`: tính CV=EV-AC, SV=EV-PV, CPI=EV/AC, SPI=EV/PV lúc đọc, chặn null/0 để không ra `Infinity`/`NaN` (trả `null` khi thiếu số nguồn).
+- Thêm 3 bảng vào `BANG_XUAT` (`src/du-lieu.js`) và `BANG_CUA_TO_CHUC` (`src/xoa-to-chuc.js`, `qlda_giai_ngan` đứng trước `tep`/`qlda_ngan_sach_dong` vì có khóa ngoại thật tới cả hai).
+- Giao diện: thêm tab "Ngân sách" vào `public/hoalac/` với 3 mục con (dòng ngân sách, giải ngân, EVM), mỗi dòng ngân sách gắn nhãn trạng thái số liệu.
+- Lỗi tự phát hiện qua kiểm thử (không phải Codex chỉ ra): thiếu kiểm `trang_thai_so_lieu` trước khi ghi DB khiến giá trị sai rơi thẳng vào ràng buộc `CHECK` của SQLite, lộ ra lỗi 500 thô thay vì 400 sạch - đã thêm `TRANG_THAI_SO_LIEU_HOP_LE` và kiểm ở cả POST/PUT.
+- Kiểm: `test/hoalac-ngan-sach.test.js` (15 ca: CRUD dòng ngân sách có/không số, xóa-về-null qua `BO_QUA`, giữ nguyên khi không gửi field, 400 khi `trang_thai_so_lieu` sai, 409 khi xóa dòng đang có giải ngân, CRUD giải ngân kiểm số và khóa ngoài tổ chức, CRUD EVM kiểm trùng kỳ 409, EVM tính null-safe, PUT EVM xóa-về-null, 403 đối tác trên cả 3 mục, xóa tổ chức dọn sạch cả 3 bảng không vỡ khóa ngoài).
+- `npm test`: 410/412 đạt (2 lỗi còn lại là crash có sẵn của Node 26.10.0 trong `test/may-chu.test.js` và `test/tram-claude.test.js`, đã cô lập chạy riêng và xác nhận không liên quan tới thay đổi của PR5 - không phải lỗi do PR5 gây ra). `npx wrangler deploy --dry-run` thành công.
+- 26/10: mở PR5 (#139). Codex rà ra 3 lỗi thật (P1/P2), cả 3 đã sửa và kiểm lại: (1) `guiForm()` (dùng chung cho mọi form `/hoalac`, không riêng Ngân sách) gửi mọi giá trị dạng chuỗi từ `FormData` dù input là `type="number"`, khiến server nhận chuỗi thay số - sửa ép kiểu `Number` cho input số trước khi gửi JSON; (2) thiếu kiểm PV/AC/EV phải là số hữu hạn trong cả POST và PUT `/api/hoalac/evm` - thêm hàm `soHopLeHoacRong()`; (3) PUT EVM đổi `ky` sang kỳ đã có dòng khác làm vỡ ràng buộc `UNIQUE` thành lỗi máy chủ thay vì 409 sạch - thêm kiểm trùng trước khi UPDATE, giống logic POST đã có. Thêm 2 ca kiểm mới (lên 15 ca), `npm test` lại 410/412 (không đổi 2 lỗi có sẵn). Trả lời cả 3 bình luận inline qua `gh api`, đóng cả 3 luồng.
+- 26/10: PR5 (#139) tự gộp vào `main` lúc 17:11 UTC (CI "kiem" và "tro-nang" đều SUCCESS, mergeable CLEAN, không còn bình luận chưa xử lý). Commit gộp `55a2983`.
+- Chưa làm: kiểm trực tiếp trên trình duyệt cho tab Ngân sách (UNVERIFIED, cùng lý do PR2-PR4 - cấu trúc đã qua kiểm tự động `test/giao-dien.test.js` và 403-đối-tác đã kiểm ở tầng API).
+
+### Bảng tiêu chí PR5 (PASS/FAIL/UNVERIFIED)
+
+| Tiêu chí | Trạng thái | Bằng chứng |
+|---|---|---|
+| Migration 0042 tạo 3 bảng ngân sách/giải ngân/EVM, số tiền `NULL` được | PASS | `migrations/0042_hoalac_ngan_sach.sql`; ca kiểm "tạo dòng ngân sách không có số" |
+| Không tự chọn một bản TMĐT làm chuẩn | PASS | Không có migration/script nào ghi số TMĐT; `trang_thai_so_lieu` mặc định `chua_thong_nhat` |
+| Xóa số về `NULL` qua PUT hoạt động đúng (không bị COALESCE giữ số cũ) | PASS | `test/hoalac-ngan-sach.test.js` ca "PUT xóa ngan_sach_du_kien về null" và "PUT EVM xóa pv/ac/ev về null" |
+| `trang_thai_so_lieu` sai giá trị trả 400, không rơi vào lỗi CHECK thô | PASS | ca kiểm "trang_thai_so_lieu ngoài 2 giá trị cho phép thì 400" |
+| EVM: PV/AC/EV không phải số hữu hạn trả 400 | PASS | ca kiểm "POST/PUT EVM với pv/ac/ev không phải số thì 400" (thêm sau Codex) |
+| EVM: trùng kỳ ở POST và PUT đều trả 409, không vỡ UNIQUE | PASS | ca kiểm "PUT EVM đổi ky sang kỳ đã có dòng khác thì 409" (thêm sau Codex) |
+| Giải ngân kiểm số tiền và khóa ngoài đúng tổ chức | PASS | ca kiểm CRUD giải ngân |
+| Xóa dòng ngân sách đang có giải ngân bị chặn (409) | PASS | ca kiểm 409-xóa-có-giải-ngân |
+| Đối tác bị chặn 403 toàn bộ 3 mục (không thấy tồn tại) | PASS | ca kiểm "Đối tác: chặn hẳn cả 3 mục" |
+| EVM tính CV/SV/CPI/SPI không ra `Infinity`/`NaN` khi thiếu số | PASS | ca kiểm "EVM tính null-safe" |
+| Xóa tổ chức dọn sạch cả 3 bảng, không vỡ khóa ngoài D1 thật | PASS | ca kiểm cascade qua `xoaToChuc()` |
+| `guiForm()` gửi đúng kiểu số (sửa theo Codex) | PASS | `public/hoalac/hoalac.js`, commit `9811068` |
+| `npm test` toàn kho đạt | PASS (410/412, 2 lỗi có sẵn không liên quan) | log `npm test`; cô lập 2 tệp lỗi chạy riêng cho cùng kết quả trước PR5 |
+| `wrangler deploy --dry-run` đóng gói được | PASS | log lệnh |
+| CI GitHub Actions (kiem, tro-nang) | PASS | PR #139, cả hai check SUCCESS trước khi gộp |
+| 3 bình luận Codex đã trả lời và đóng luồng | PASS | `gh api` reply + `resolveReviewThread` cho 3 luồng |
+| Kiểm trực tiếp trình duyệt (3 vai trò) cho tab Ngân sách | UNVERIFIED | chưa chạy `may-chu/chay.js` cục bộ thử tab này; cấu trúc đã qua kiểm tự động |
+| Cấu hình Cloudflare Access Application riêng cho `/hoalac` | UNVERIFIED (ngoài phạm vi PR5, treo từ PR1) | chưa làm |
+
+### Giả định đã chọn (PR5)
+
+- Không chọn bản TMĐT nào trong 3 bản khác nhau (1.612,245 tỷ / ~1.795,6 tỷ / 1.700-1.750 tỷ) làm số liệu mặc định - để trống, chờ PM xác nhận và tự nhập qua giao diện khi có số thật.
+- Nhập dữ liệu ngân sách thật (các dòng ngân sách, giải ngân, EVM thật của dự án Hòa Lạc) không nằm trong phạm vi PR5, chỉ dựng cấu trúc/API/giao diện rỗng.
+
+## Bước tiếp (Hòa Lạc, sau PR5)
+
+- PR5 đã gộp. Còn treo từ các PR trước: kiểm trình duyệt ba vai trò cho tab Ngân sách (UNVERIFIED), cấu hình Cloudflare Access Application riêng cho `/hoalac`, lỗi `qlda_hop_dong` PUT COALESCE-trên-khóa-ngoại-nullable (đã ghi nhận từ PR4, chưa sửa, ngoài phạm vi các PR đã giao).
+- PR6 (lịch `.ics` mở rộng cho mốc dự án + hoàn thiện README) - chưa bắt đầu, là PR cuối trong kế hoạch 6 PR đã duyệt.
