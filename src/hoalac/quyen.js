@@ -18,3 +18,18 @@ export async function duocXemHangMuc(env, phien, hangMucId) {
   const ds = await idHangMucDuocXem(env, phien);
   return ds.has(hangMucId);
 }
+
+// Trả danh sách id thủ tục pháp lý đối tác được xem.
+export async function idThuTucDuocXem(env, phien) {
+  const { results } = await env.CSDL.prepare(
+    `SELECT doi_tuong_id FROM qlda_giao_doi_tac WHERE to_chuc_id = ?1 AND nguoi_dung_id = ?2 AND loai = 'thu_tuc'`,
+  ).bind(phien.to_chuc.id, phien.nguoi_dung.id).all();
+  return new Set(results.map((r) => r.doi_tuong_id));
+}
+
+// true nếu đối tác được xem thủ tục này; chủ/thành viên luôn true.
+export async function duocXemThuTuc(env, phien, thuTucId) {
+  if (!laDoiTac(phien)) return true;
+  const ds = await idThuTucDuocXem(env, phien);
+  return ds.has(thuTucId);
+}

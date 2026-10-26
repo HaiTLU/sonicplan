@@ -1,9 +1,10 @@
 // API phân hệ Viện Hòa Lạc: giai đoạn (stage gate), hạng mục (WBS/Gantt/Kanban), phụ thuộc (CPM), baseline,
-// RAID (rủi ro/vấn đề/thay đổi/quyết định/bài học). Mọi địa chỉ /api/hoalac/*.
-// Đối tác (doi_tac) chỉ GET đúng hạng mục được gán (quyen.js); toàn bộ RAID không có cơ chế gán theo
-// dòng nên chặn hẳn cho đối tác (403), không chỉ chặn sửa.
+// RAID (rủi ro/vấn đề/thay đổi/quyết định/bài học), Pháp lý (các bên liên quan, RACI, hợp đồng tư vấn,
+// thủ tục pháp lý, văn bản đi/đến, họp). Mọi địa chỉ /api/hoalac/*.
+// Đối tác (doi_tac) chỉ GET đúng hạng mục/thủ tục được gán (quyen.js); các mục còn lại (RAID, các bên
+// liên quan, RACI, hợp đồng, văn bản, họp) không có cơ chế gán theo dòng nên chặn hẳn cho đối tác (403).
 import { json, loi } from '../tien-ich.js';
-import { laDoiTac, idHangMucDuocXem, duocXemHangMuc } from './quyen.js';
+import { laDoiTac, idHangMucDuocXem, duocXemHangMuc, idThuTucDuocXem, duocXemThuTuc } from './quyen.js';
 import { capNhatCpm } from './wbs.js';
 import { taoThongBao } from '../thong-bao.js';
 
@@ -359,6 +360,329 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
     const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
     const { meta } = await env.CSDL.prepare('DELETE FROM qlda_bai_hoc WHERE id = ?1 AND to_chuc_id = ?2').bind(Number(khop[1]), tc).run();
     return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy bài học.');
+  }
+
+  // ---------- Pháp lý: các bên liên quan ----------
+  if (p === '/api/hoalac/ben-lien-quan' && m === 'GET') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const { results } = await env.CSDL.prepare('SELECT * FROM qlda_ben_lien_quan WHERE to_chuc_id = ?1 ORDER BY ten').bind(tc).all();
+    return json({ ben_lien_quan: results });
+  }
+  if (p === '/api/hoalac/ben-lien-quan' && m === 'POST') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const than = await yeuCau.json().catch(() => ({}));
+    if (!than.ten) return loi(400, 'Thiếu tên bên liên quan.');
+    const { meta } = await env.CSDL.prepare(
+      `INSERT INTO qlda_ben_lien_quan (to_chuc_id, ten, loai, don_vi, vai_tro, lien_he, muc_do_anh_huong, ghi_chu, tao_boi, tao_luc, cap_nhat_luc)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)`,
+    ).bind(tc, than.ten, than.loai || 'tu_van', than.don_vi || '', than.vai_tro || '', than.lien_he || '',
+      than.muc_do_anh_huong ?? null, than.ghi_chu || '', phien.email, bayGio).run();
+    return json({ id: meta.last_row_id }, 201);
+  }
+  if ((khop = p.match(/^\/api\/hoalac\/ben-lien-quan\/(\d+)$/))) {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const id = Number(khop[1]);
+    if (m === 'PUT') {
+      const than = await yeuCau.json().catch(() => ({}));
+      const { meta } = await env.CSDL.prepare(
+        `UPDATE qlda_ben_lien_quan SET ten = COALESCE(?1, ten), loai = COALESCE(?2, loai), don_vi = COALESCE(?3, don_vi),
+         vai_tro = COALESCE(?4, vai_tro), lien_he = COALESCE(?5, lien_he), muc_do_anh_huong = COALESCE(?6, muc_do_anh_huong),
+         ghi_chu = COALESCE(?7, ghi_chu), cap_nhat_luc = ?8 WHERE id = ?9 AND to_chuc_id = ?10`,
+      ).bind(than.ten ?? null, than.loai ?? null, than.don_vi ?? null, than.vai_tro ?? null, than.lien_he ?? null,
+        than.muc_do_anh_huong ?? null, than.ghi_chu ?? null, bayGio, id, tc).run();
+      return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy bên liên quan.');
+    }
+    if (m === 'DELETE') {
+      const coHopDong = await env.CSDL.prepare('SELECT 1 FROM qlda_hop_dong WHERE ben_lien_quan_id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+      if (coHopDong) return loi(409, 'Bên liên quan đang gắn với một hợp đồng, hãy xóa hoặc đổi hợp đồng đó trước.');
+      const kq = await env.CSDL.batch([
+        env.CSDL.prepare('DELETE FROM qlda_raci WHERE ben_lien_quan_id = ?1 AND to_chuc_id = ?2').bind(id, tc),
+        env.CSDL.prepare('DELETE FROM qlda_ben_lien_quan WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc),
+      ]);
+      return kq[1].meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy bên liên quan.');
+    }
+  }
+
+  // ---------- Pháp lý: RACI ----------
+  if (p === '/api/hoalac/raci' && m === 'GET') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const { results } = await env.CSDL.prepare(
+      `SELECT r.*, b.ten AS ben_lien_quan_ten FROM qlda_raci r JOIN qlda_ben_lien_quan b ON b.id = r.ben_lien_quan_id
+       WHERE r.to_chuc_id = ?1 ORDER BY r.id DESC`,
+    ).bind(tc).all();
+    return json({ raci: results });
+  }
+  if (p === '/api/hoalac/raci' && m === 'POST') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const than = await yeuCau.json().catch(() => ({}));
+    if (!than.hoat_dong || !than.ben_lien_quan_id || !than.vai_tro) return loi(400, 'Thiếu hoạt động, bên liên quan hoặc vai trò.');
+    if (!['R', 'A', 'C', 'I'].includes(than.vai_tro)) return loi(400, 'Vai trò RACI phải là R, A, C hoặc I.');
+    if (!(await thuocToChuc(env, tc, 'qlda_ben_lien_quan', than.ben_lien_quan_id))) return loi(400, 'Bên liên quan không thuộc tổ chức này.');
+    const { meta } = await env.CSDL.prepare(
+      `INSERT INTO qlda_raci (to_chuc_id, hoat_dong, ben_lien_quan_id, vai_tro, ghi_chu, tao_boi, tao_luc) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
+    ).bind(tc, than.hoat_dong, than.ben_lien_quan_id, than.vai_tro, than.ghi_chu || '', phien.email, bayGio).run();
+    return json({ id: meta.last_row_id }, 201);
+  }
+  if ((khop = p.match(/^\/api\/hoalac\/raci\/(\d+)$/)) && m === 'DELETE') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const { meta } = await env.CSDL.prepare('DELETE FROM qlda_raci WHERE id = ?1 AND to_chuc_id = ?2').bind(Number(khop[1]), tc).run();
+    return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy dòng RACI.');
+  }
+
+  // ---------- Pháp lý: hợp đồng tư vấn ----------
+  if (p === '/api/hoalac/hop-dong' && m === 'GET') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const { results } = await env.CSDL.prepare('SELECT * FROM qlda_hop_dong WHERE to_chuc_id = ?1 ORDER BY id DESC').bind(tc).all();
+    return json({ hop_dong: results });
+  }
+  if (p === '/api/hoalac/hop-dong' && m === 'POST') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const than = await yeuCau.json().catch(() => ({}));
+    if (!than.ten) return loi(400, 'Thiếu tên hợp đồng.');
+    if (!(await thuocToChuc(env, tc, 'qlda_ben_lien_quan', than.ben_lien_quan_id))) return loi(400, 'Bên liên quan không thuộc tổ chức này.');
+    if (!(await thuocToChuc(env, tc, 'tep', than.tep_id))) return loi(400, 'Tệp không thuộc tổ chức này.');
+    const { meta } = await env.CSDL.prepare(
+      `INSERT INTO qlda_hop_dong (to_chuc_id, ten, ben_lien_quan_id, so_hop_dong, gia_tri, don_vi_tien, ngay_ky, ngay_bat_dau, ngay_ket_thuc, trang_thai, tep_id, ghi_chu, tao_boi, tao_luc, cap_nhat_luc)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14)`,
+    ).bind(tc, than.ten, than.ben_lien_quan_id ?? null, than.so_hop_dong || '', than.gia_tri ?? null, than.don_vi_tien || 'VND',
+      than.ngay_ky ?? null, than.ngay_bat_dau ?? null, than.ngay_ket_thuc ?? null, than.trang_thai || 'du_thao', than.tep_id ?? null,
+      than.ghi_chu || '', phien.email, bayGio).run();
+    return json({ id: meta.last_row_id }, 201);
+  }
+  if ((khop = p.match(/^\/api\/hoalac\/hop-dong\/(\d+)$/))) {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const id = Number(khop[1]);
+    if (m === 'PUT') {
+      const than = await yeuCau.json().catch(() => ({}));
+      if (!(await thuocToChuc(env, tc, 'qlda_ben_lien_quan', than.ben_lien_quan_id))) return loi(400, 'Bên liên quan không thuộc tổ chức này.');
+      if (!(await thuocToChuc(env, tc, 'tep', than.tep_id))) return loi(400, 'Tệp không thuộc tổ chức này.');
+      const { meta } = await env.CSDL.prepare(
+        `UPDATE qlda_hop_dong SET ten = COALESCE(?1, ten), ben_lien_quan_id = COALESCE(?2, ben_lien_quan_id), so_hop_dong = COALESCE(?3, so_hop_dong),
+         gia_tri = COALESCE(?4, gia_tri), don_vi_tien = COALESCE(?5, don_vi_tien), ngay_ky = COALESCE(?6, ngay_ky),
+         ngay_bat_dau = COALESCE(?7, ngay_bat_dau), ngay_ket_thuc = COALESCE(?8, ngay_ket_thuc), trang_thai = COALESCE(?9, trang_thai),
+         tep_id = COALESCE(?10, tep_id), ghi_chu = COALESCE(?11, ghi_chu), cap_nhat_luc = ?12 WHERE id = ?13 AND to_chuc_id = ?14`,
+      ).bind(than.ten ?? null, than.ben_lien_quan_id ?? null, than.so_hop_dong ?? null, than.gia_tri ?? null, than.don_vi_tien ?? null,
+        than.ngay_ky ?? null, than.ngay_bat_dau ?? null, than.ngay_ket_thuc ?? null, than.trang_thai ?? null, than.tep_id ?? null,
+        than.ghi_chu ?? null, bayGio, id, tc).run();
+      return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy hợp đồng.');
+    }
+    if (m === 'DELETE') {
+      const { meta } = await env.CSDL.prepare('DELETE FROM qlda_hop_dong WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).run();
+      return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy hợp đồng.');
+    }
+  }
+
+  // ---------- Pháp lý: thủ tục (đối tác chỉ xem đúng thủ tục được gán, 404 nếu không) ----------
+  if (p === '/api/hoalac/thu-tuc' && m === 'GET') {
+    let { results } = await env.CSDL.prepare('SELECT * FROM qlda_thu_tuc WHERE to_chuc_id = ?1 ORDER BY nhom, id').bind(tc).all();
+    if (laDoiTac(phien)) {
+      const duocXem = await idThuTucDuocXem(env, phien);
+      results = results.filter((t) => duocXem.has(t.id));
+    }
+    return json({ thu_tuc: results });
+  }
+  if (p === '/api/hoalac/thu-tuc' && m === 'POST') {
+    const chan = CHI_CHU_THANH_VIEN(phien); if (chan) return chan;
+    const than = await yeuCau.json().catch(() => ({}));
+    if (!than.ten) return loi(400, 'Thiếu tên thủ tục.');
+    if (!than.nhom || !['A', 'B', 'C', 'D', 'E'].includes(than.nhom)) return loi(400, 'Nhóm phải là A, B, C, D hoặc E.');
+    const { meta } = await env.CSDL.prepare(
+      `INSERT INTO qlda_thu_tuc (to_chuc_id, ma_nguon, nhom, ten, don_vi_phu_trach, nguon, can_cu, diem_chua_ro, so_ngay, la_moc, ngay_co_dinh, trang_thai, ghi_chu, tao_boi, tao_luc, cap_nhat_luc)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15)`,
+    ).bind(tc, than.ma_nguon || '', than.nhom, than.ten, than.don_vi_phu_trach || '', than.nguon || '', than.can_cu || '',
+      than.diem_chua_ro || '', than.so_ngay ?? null, than.la_moc ? 1 : 0, than.ngay_co_dinh ?? null, than.trang_thai || 'todo',
+      than.ghi_chu || '', phien.email, bayGio).run();
+    return json({ id: meta.last_row_id }, 201);
+  }
+  if ((khop = p.match(/^\/api\/hoalac\/thu-tuc\/(\d+)$/))) {
+    const id = Number(khop[1]);
+    if (m === 'GET') {
+      if (!(await duocXemThuTuc(env, phien, id))) return loi(404, 'Không tìm thấy thủ tục.');
+      const r = await env.CSDL.prepare('SELECT * FROM qlda_thu_tuc WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+      return r ? json(r) : loi(404, 'Không tìm thấy thủ tục.');
+    }
+    if (m === 'PUT') {
+      const than = await yeuCau.json().catch(() => ({}));
+      if (laDoiTac(phien)) {
+        // Đối tác chỉ cập nhật trạng thái thực hiện của đúng thủ tục được gán, không đổi cấu trúc/căn cứ pháp lý.
+        if (!(await duocXemThuTuc(env, phien, id))) return loi(404, 'Không tìm thấy thủ tục.');
+        const { meta } = await env.CSDL.prepare(
+          `UPDATE qlda_thu_tuc SET trang_thai = COALESCE(?1, trang_thai), ngay_bat_dau_thuc_te = COALESCE(?2, ngay_bat_dau_thuc_te),
+           ngay_hoan_thanh_thuc_te = COALESCE(?3, ngay_hoan_thanh_thuc_te), cap_nhat_luc = ?4 WHERE id = ?5 AND to_chuc_id = ?6`,
+        ).bind(than.trang_thai ?? null, than.ngay_bat_dau_thuc_te ?? null, than.ngay_hoan_thanh_thuc_te ?? null, bayGio, id, tc).run();
+        return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy thủ tục.');
+      }
+      if (than.nhom && !['A', 'B', 'C', 'D', 'E'].includes(than.nhom)) return loi(400, 'Nhóm phải là A, B, C, D hoặc E.');
+      const { meta } = await env.CSDL.prepare(
+        `UPDATE qlda_thu_tuc SET ma_nguon = COALESCE(?1, ma_nguon), nhom = COALESCE(?2, nhom), ten = COALESCE(?3, ten),
+         don_vi_phu_trach = COALESCE(?4, don_vi_phu_trach), nguon = COALESCE(?5, nguon), can_cu = COALESCE(?6, can_cu),
+         diem_chua_ro = COALESCE(?7, diem_chua_ro), so_ngay = COALESCE(?8, so_ngay), la_moc = COALESCE(?9, la_moc),
+         ngay_co_dinh = COALESCE(?10, ngay_co_dinh), ngay_bat_dau_thuc_te = COALESCE(?11, ngay_bat_dau_thuc_te),
+         ngay_hoan_thanh_thuc_te = COALESCE(?12, ngay_hoan_thanh_thuc_te), trang_thai = COALESCE(?13, trang_thai),
+         ghi_chu = COALESCE(?14, ghi_chu), cap_nhat_luc = ?15 WHERE id = ?16 AND to_chuc_id = ?17`,
+      ).bind(than.ma_nguon ?? null, than.nhom ?? null, than.ten ?? null, than.don_vi_phu_trach ?? null, than.nguon ?? null,
+        than.can_cu ?? null, than.diem_chua_ro ?? null, than.so_ngay ?? null, than.la_moc == null ? null : (than.la_moc ? 1 : 0),
+        than.ngay_co_dinh ?? null, than.ngay_bat_dau_thuc_te ?? null, than.ngay_hoan_thanh_thuc_te ?? null, than.trang_thai ?? null,
+        than.ghi_chu ?? null, bayGio, id, tc).run();
+      return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy thủ tục.');
+    }
+    if (m === 'DELETE') {
+      const chan = CHI_CHU_THANH_VIEN(phien); if (chan) return chan;
+      const coVanBan = await env.CSDL.prepare('SELECT 1 FROM qlda_van_ban WHERE lien_quan_thu_tuc_id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+      if (coVanBan) return loi(409, 'Thủ tục đang được một văn bản tham chiếu, hãy bỏ liên kết ở văn bản đó trước khi xóa.');
+      const kq = await env.CSDL.batch([
+        env.CSDL.prepare('DELETE FROM qlda_thu_tuc_phu_thuoc WHERE to_chuc_id = ?1 AND (truoc_id = ?2 OR sau_id = ?2)').bind(tc, id),
+        env.CSDL.prepare(`DELETE FROM qlda_giao_doi_tac WHERE to_chuc_id = ?1 AND loai = 'thu_tuc' AND doi_tuong_id = ?2`).bind(tc, id),
+        env.CSDL.prepare('DELETE FROM qlda_thu_tuc WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc),
+      ]);
+      return kq[2].meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy thủ tục.');
+    }
+  }
+
+  // ---------- Pháp lý: phụ thuộc giữa thủ tục (chỉ để hiển thị thứ tự, không tính CPM) ----------
+  if (p === '/api/hoalac/thu-tuc-phu-thuoc' && m === 'GET') {
+    const { results } = await env.CSDL.prepare('SELECT * FROM qlda_thu_tuc_phu_thuoc WHERE to_chuc_id = ?1').bind(tc).all();
+    return json({ thu_tuc_phu_thuoc: laDoiTac(phien) ? [] : results });
+  }
+  if (p === '/api/hoalac/thu-tuc-phu-thuoc' && m === 'POST') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const than = await yeuCau.json().catch(() => ({}));
+    if (!than.truoc_id || !than.sau_id) return loi(400, 'Thiếu thủ tục trước hoặc sau.');
+    if (than.truoc_id === than.sau_id) return loi(400, 'Một thủ tục không tự phụ thuộc chính nó.');
+    if (!(await thuocToChuc(env, tc, 'qlda_thu_tuc', than.truoc_id))) return loi(400, 'Thủ tục trước không thuộc tổ chức này.');
+    if (!(await thuocToChuc(env, tc, 'qlda_thu_tuc', than.sau_id))) return loi(400, 'Thủ tục sau không thuộc tổ chức này.');
+    try {
+      await env.CSDL.prepare('INSERT INTO qlda_thu_tuc_phu_thuoc (to_chuc_id, truoc_id, sau_id) VALUES (?1, ?2, ?3)')
+        .bind(tc, than.truoc_id, than.sau_id).run();
+      return json({ ok: true }, 201);
+    } catch (e) {
+      if (String(e.message).includes('UNIQUE')) return loi(409, 'Hai thủ tục này đã có phụ thuộc với nhau.');
+      throw e;
+    }
+  }
+  if ((khop = p.match(/^\/api\/hoalac\/thu-tuc-phu-thuoc\/(\d+)\/(\d+)$/)) && m === 'DELETE') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const { meta } = await env.CSDL.prepare('DELETE FROM qlda_thu_tuc_phu_thuoc WHERE to_chuc_id = ?1 AND truoc_id = ?2 AND sau_id = ?3')
+      .bind(tc, Number(khop[1]), Number(khop[2])).run();
+    return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy phụ thuộc.');
+  }
+
+  // ---------- Pháp lý: văn bản đi/đến ----------
+  if (p === '/api/hoalac/van-ban' && m === 'GET') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const { results } = await env.CSDL.prepare('SELECT * FROM qlda_van_ban WHERE to_chuc_id = ?1 ORDER BY id DESC').bind(tc).all();
+    return json({ van_ban: results });
+  }
+  if (p === '/api/hoalac/van-ban' && m === 'POST') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const than = await yeuCau.json().catch(() => ({}));
+    if (!than.trich_yeu) return loi(400, 'Thiếu trích yếu văn bản.');
+    if (!than.loai || !['den', 'di'].includes(than.loai)) return loi(400, 'Loại văn bản phải là "den" hoặc "di".');
+    if (!(await thuocToChuc(env, tc, 'qlda_thu_tuc', than.lien_quan_thu_tuc_id))) return loi(400, 'Thủ tục không thuộc tổ chức này.');
+    if (!(await thuocToChuc(env, tc, 'tep', than.tep_id))) return loi(400, 'Tệp không thuộc tổ chức này.');
+    const { meta } = await env.CSDL.prepare(
+      `INSERT INTO qlda_van_ban (to_chuc_id, loai, so_hieu, trich_yeu, noi_gui, noi_nhan, ngay_van_ban, ngay_nhan_gui, lien_quan_thu_tuc_id, tep_id, ghi_chu, tao_boi, tao_luc)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`,
+    ).bind(tc, than.loai, than.so_hieu || '', than.trich_yeu, than.noi_gui || '', than.noi_nhan || '', than.ngay_van_ban ?? null,
+      than.ngay_nhan_gui ?? null, than.lien_quan_thu_tuc_id ?? null, than.tep_id ?? null, than.ghi_chu || '', phien.email, bayGio).run();
+    return json({ id: meta.last_row_id }, 201);
+  }
+  if ((khop = p.match(/^\/api\/hoalac\/van-ban\/(\d+)$/))) {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const id = Number(khop[1]);
+    if (m === 'PUT') {
+      const than = await yeuCau.json().catch(() => ({}));
+      if (!(await thuocToChuc(env, tc, 'qlda_thu_tuc', than.lien_quan_thu_tuc_id))) return loi(400, 'Thủ tục không thuộc tổ chức này.');
+      if (!(await thuocToChuc(env, tc, 'tep', than.tep_id))) return loi(400, 'Tệp không thuộc tổ chức này.');
+      const { meta } = await env.CSDL.prepare(
+        `UPDATE qlda_van_ban SET loai = COALESCE(?1, loai), so_hieu = COALESCE(?2, so_hieu), trich_yeu = COALESCE(?3, trich_yeu),
+         noi_gui = COALESCE(?4, noi_gui), noi_nhan = COALESCE(?5, noi_nhan), ngay_van_ban = COALESCE(?6, ngay_van_ban),
+         ngay_nhan_gui = COALESCE(?7, ngay_nhan_gui), lien_quan_thu_tuc_id = COALESCE(?8, lien_quan_thu_tuc_id), tep_id = COALESCE(?9, tep_id),
+         ghi_chu = COALESCE(?10, ghi_chu) WHERE id = ?11 AND to_chuc_id = ?12`,
+      ).bind(than.loai ?? null, than.so_hieu ?? null, than.trich_yeu ?? null, than.noi_gui ?? null, than.noi_nhan ?? null,
+        than.ngay_van_ban ?? null, than.ngay_nhan_gui ?? null, than.lien_quan_thu_tuc_id ?? null, than.tep_id ?? null, than.ghi_chu ?? null, id, tc).run();
+      return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy văn bản.');
+    }
+    if (m === 'DELETE') {
+      const { meta } = await env.CSDL.prepare('DELETE FROM qlda_van_ban WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).run();
+      return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy văn bản.');
+    }
+  }
+
+  // ---------- Pháp lý: họp ----------
+  if (p === '/api/hoalac/hop' && m === 'GET') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const { results } = await env.CSDL.prepare('SELECT * FROM qlda_hop WHERE to_chuc_id = ?1 ORDER BY thoi_gian DESC').bind(tc).all();
+    return json({ hop: results });
+  }
+  if (p === '/api/hoalac/hop' && m === 'POST') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const than = await yeuCau.json().catch(() => ({}));
+    if (!than.tieu_de || !than.thoi_gian) return loi(400, 'Thiếu tiêu đề hoặc thời gian họp.');
+    if (!(await thuocToChuc(env, tc, 'tep', than.tep_id))) return loi(400, 'Tệp không thuộc tổ chức này.');
+    const { meta } = await env.CSDL.prepare(
+      `INSERT INTO qlda_hop (to_chuc_id, tieu_de, thoi_gian, dia_diem, thanh_phan, noi_dung, tep_id, tao_boi, tao_luc, cap_nhat_luc)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)`,
+    ).bind(tc, than.tieu_de, than.thoi_gian, than.dia_diem || '', than.thanh_phan || '', than.noi_dung || '', than.tep_id ?? null, phien.email, bayGio).run();
+    return json({ id: meta.last_row_id }, 201);
+  }
+  if ((khop = p.match(/^\/api\/hoalac\/hop\/(\d+)$/))) {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const id = Number(khop[1]);
+    if (m === 'GET') {
+      const cuoc = await env.CSDL.prepare('SELECT * FROM qlda_hop WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+      if (!cuoc) return loi(404, 'Không tìm thấy cuộc họp.');
+      const { results } = await env.CSDL.prepare('SELECT * FROM qlda_hop_viec WHERE hop_id = ?1 AND to_chuc_id = ?2 ORDER BY id').bind(id, tc).all();
+      return json({ ...cuoc, viec: results });
+    }
+    if (m === 'PUT') {
+      const than = await yeuCau.json().catch(() => ({}));
+      if (!(await thuocToChuc(env, tc, 'tep', than.tep_id))) return loi(400, 'Tệp không thuộc tổ chức này.');
+      const { meta } = await env.CSDL.prepare(
+        `UPDATE qlda_hop SET tieu_de = COALESCE(?1, tieu_de), thoi_gian = COALESCE(?2, thoi_gian), dia_diem = COALESCE(?3, dia_diem),
+         thanh_phan = COALESCE(?4, thanh_phan), noi_dung = COALESCE(?5, noi_dung), tep_id = COALESCE(?6, tep_id), cap_nhat_luc = ?7
+         WHERE id = ?8 AND to_chuc_id = ?9`,
+      ).bind(than.tieu_de ?? null, than.thoi_gian ?? null, than.dia_diem ?? null, than.thanh_phan ?? null, than.noi_dung ?? null,
+        than.tep_id ?? null, bayGio, id, tc).run();
+      return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy cuộc họp.');
+    }
+    if (m === 'DELETE') {
+      const kq = await env.CSDL.batch([
+        env.CSDL.prepare('DELETE FROM qlda_hop_viec WHERE hop_id = ?1 AND to_chuc_id = ?2').bind(id, tc),
+        env.CSDL.prepare('DELETE FROM qlda_hop WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc),
+      ]);
+      return kq[1].meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy cuộc họp.');
+    }
+  }
+
+  // ---------- Pháp lý: việc sau họp ----------
+  if (p === '/api/hoalac/hop-viec' && m === 'POST') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const than = await yeuCau.json().catch(() => ({}));
+    if (!than.noi_dung || !than.hop_id) return loi(400, 'Thiếu nội dung hoặc cuộc họp.');
+    if (!(await thuocToChuc(env, tc, 'qlda_hop', than.hop_id))) return loi(400, 'Cuộc họp không thuộc tổ chức này.');
+    const { meta } = await env.CSDL.prepare(
+      `INSERT INTO qlda_hop_viec (to_chuc_id, hop_id, noi_dung, phu_trach, han, trang_thai, tao_boi, tao_luc, cap_nhat_luc)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)`,
+    ).bind(tc, than.hop_id, than.noi_dung, than.phu_trach || '', than.han ?? null, than.trang_thai || 'chua_xong', phien.email, bayGio).run();
+    return json({ id: meta.last_row_id }, 201);
+  }
+  if ((khop = p.match(/^\/api\/hoalac\/hop-viec\/(\d+)$/))) {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const id = Number(khop[1]);
+    if (m === 'PUT') {
+      const than = await yeuCau.json().catch(() => ({}));
+      if (!(await thuocToChuc(env, tc, 'qlda_hop', than.hop_id))) return loi(400, 'Cuộc họp không thuộc tổ chức này.');
+      const { meta } = await env.CSDL.prepare(
+        `UPDATE qlda_hop_viec SET noi_dung = COALESCE(?1, noi_dung), phu_trach = COALESCE(?2, phu_trach), han = COALESCE(?3, han),
+         trang_thai = COALESCE(?4, trang_thai), cap_nhat_luc = ?5 WHERE id = ?6 AND to_chuc_id = ?7`,
+      ).bind(than.noi_dung ?? null, than.phu_trach ?? null, than.han ?? null, than.trang_thai ?? null, bayGio, id, tc).run();
+      return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy việc sau họp.');
+    }
+    if (m === 'DELETE') {
+      const { meta } = await env.CSDL.prepare('DELETE FROM qlda_hop_viec WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).run();
+      return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy việc sau họp.');
+    }
   }
 
   return loi(404, 'Không có chức năng này.');

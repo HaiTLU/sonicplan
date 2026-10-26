@@ -7,8 +7,12 @@ import { xuatDuLieu } from './du-lieu.js';
 export const GIU_NGAY = 30;
 
 // Các bảng có cột to_chuc_id. Thêm bảng mới có cột này thì thêm vào đây (test/xoa-to-chuc.test.js kiểm đủ).
+// qlda_hop_viec, qlda_van_ban, qlda_hop_dong, qlda_hop đứng trước 'tep' vì cả 3 bảng cuối có tep_id
+// tham chiếu tới tep (khóa ngoại thật), xóa tep trước sẽ vỡ ràng buộc trên D1 thật.
 export const BANG_CUA_TO_CHUC = [
-  'dashboard_de_xuat', 'viec_su_kien', 'luot_claude', 'prompt_claude', 'nguon_chan', 'nhat_ky_truy_cap', 'kho_da_luu', 'ghi_nho', 'cau_hoi_ai', 'tep', 'viec', 'du_an',
+  'dashboard_de_xuat', 'viec_su_kien', 'luot_claude', 'prompt_claude', 'nguon_chan', 'nhat_ky_truy_cap', 'kho_da_luu', 'ghi_nho', 'cau_hoi_ai',
+  'qlda_hop_viec', 'qlda_van_ban', 'qlda_thu_tuc_phu_thuoc', 'qlda_raci', 'qlda_hop_dong', 'qlda_hop', 'qlda_thu_tuc', 'qlda_ben_lien_quan',
+  'tep', 'viec', 'du_an',
   'tin_nhan', 'cai_dat', 'lenh_cho', 'khoa_truy_cap', 'ket_noi', 'tin_hieu', 'nhat_ky_chay', 'thanh_vien', 'thong_bao', 'dang_ky_day', 'anh_dai_dien', 'zalo_gui',
   'qlda_baseline_hang_muc', 'qlda_phu_thuoc', 'qlda_giao_doi_tac', 'qlda_van_de', 'qlda_rui_ro', 'qlda_thay_doi', 'qlda_quyet_dinh', 'qlda_bai_hoc',
   'qlda_hang_muc', 'qlda_giai_doan', 'qlda_baseline',

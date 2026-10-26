@@ -44,8 +44,26 @@ Cập nhật: 11/10/2026.
 - Giao diện: thêm tab "RAID" vào `public/hoalac/` (nút ẩn hẳn với đối tác, không gọi API RAID khi là đối tác - khớp chính sách 403-mọi-nơi ở server). 5 mục con (Rủi ro/Vấn đề/Thay đổi/Quyết định/Bài học) có form tạo mới, đổi trạng thái, nút duyệt/từ chối thay đổi, xóa.
 - Kiểm: viết `test/hoalac-raid.test.js` (16 ca: tính điểm rủi ro, ngưỡng thông báo rủi ro cao, luồng duyệt thay đổi hợp lệ/không hợp lệ, 403 cho đối tác trên toàn bộ 5 loại × 4 động từ, ẩn thông báo và cài đặt thông báo với đối tác, xóa tổ chức dọn sạch cả 5 bảng RAID không vỡ khóa ngoài). `npm run kiem` (Node 22, phải ghi đè PATH vì máy có Node 26 không tương thích, và `dangerouslyDisableSandbox` vì sandbox chặn bind cổng cục bộ) 377/377 đạt, đóng gói `wrangler deploy --dry-run` thành công.
 - Chưa làm: kiểm trực tiếp trên trình duyệt (`wrangler dev` cục bộ với `EMAIL_THU`, vai chủ và đối tác) - đánh dấu UNVERIFIED trong báo cáo cuối, theo đúng tiền lệ PR2 (việc này cần dựng tổ chức/phạm vi truy cập mẫu, tốn công vượt mức cần cho một tab UI đã qua kiểm cấu trúc import/export tự động của `test/giao-dien.test.js`).
+- 26/10: mở PR3 (#137). Codex rà ra 6 lỗi thật: (1) thông báo Web Push lộ RAID cho đối tác (bảng đăng ký đẩy chỉ gắn tổ chức, không gắn vai trò) - đã chặn đẩy cho 2 loại `hoalac_rui_ro`/`hoalac_thay_doi`, giữ chuông trong ứng dụng; (2) thiếu kiểm `rui_ro_id`/`hang_muc_id`/`giai_doan_id` trong thân POST/PUT thuộc đúng tổ chức - thêm hàm `thuocToChuc()`; (3) xóa rủi ro có vấn đề liên kết vỡ khóa ngoại trên D1 thật (bộ kiểm cũ tắt FK) - trả 409 trước khi xóa; (4) duyệt/từ chối thay đổi không nguyên tử, hai lượt đồng thời có thể đè nhau - UPDATE ghim trạng thái cũ vào WHERE, lượt thua trả 409; (5) `prompt()` Cancel bị `|| ''` biến thành gửi quyết định rỗng - sửa dừng hẳn khi trả `null`; (6) thiếu 5 bảng RAID trong `BANG_XUAT` nên bản sao lưu trước khi xóa tổ chức mất dữ liệu RAID - đã thêm. Thêm 9 ca kiểm mới (`test/hoalac-raid.test.js` lên 20 ca); `npm run kiem` 381/381 đạt. Trả lời 6 bình luận inline, đóng cả 6 luồng. PR3 (#137) tự gộp vào `main` lúc 12:39 UTC 26/10 (CI "kiem" và "tro-nang" đều SUCCESS, không xung đột).
 
 ## Bước tiếp (Hòa Lạc, sau PR3)
 
-- Commit, đẩy nhánh `claude/hoalac-3-raid`, mở PR3, theo dõi CI, tự gộp khi đạt, báo PM.
+- PR3 đã gộp. Còn treo từ PR2/PR3: kiểm trực tiếp trên trình duyệt (UNVERIFIED), cấu hình Cloudflare Access Application riêng cho `/hoalac` (biến `ACCESS_UNG_DUNG`).
 - PR4 (Pháp lý/Hợp đồng/Các bên, migration 0041 + nhập 24 việc/5 nhóm từ tệp kế hoạch dự án đã có), PR5 (Ngân sách & EVM, migration 0042, số để trống chờ PM xác nhận bản TMĐT), PR6 (lịch .ics + hoàn thiện README).
+
+## Phân hệ Viện Hòa Lạc (/hoalac) - PR4: Pháp lý/Hợp đồng/Các bên
+
+- 26/10: nhánh `claude/hoalac-4-phap-ly`. Migration `0041_hoalac_phap_ly.sql`: 6 bảng `qlda_ben_lien_quan`, `qlda_raci`, `qlda_hop_dong`, `qlda_thu_tuc`, `qlda_thu_tuc_phu_thuoc`, `qlda_van_ban`, `qlda_hop`, `qlda_hop_viec` (8 bảng, theo đúng khuôn mẫu PR1-PR3).
+- Quyền: tái dùng cơ chế gán đối tác `qlda_giao_doi_tac` (`loai='thu_tuc'`) đã có từ PR1 - đối tác chỉ GET được đúng thủ tục pháp lý được gán (404 nếu không, không lộ tồn tại), sửa được trạng thái nhưng không đổi tên/nhóm. 5 mục còn lại (các bên liên quan, RACI, hợp đồng, văn bản, họp) chặn hẳn đối tác bằng 403 như RAID, vì không có cơ chế gán theo dòng.
+- `src/hoalac/quyen.js` thêm `idThuTucDuocXem`/`duocXemThuTuc` cạnh cặp hàm hạng mục đã có.
+- Thêm 9 bảng pháp lý vào `BANG_XUAT` (`src/du-lieu.js`) và `BANG_CUA_TO_CHUC` (`src/xoa-to-chuc.js`), đúng thứ tự con trước cha.
+- Giao diện: thêm tab "Pháp lý" vào `public/hoalac/` với 6 mục con.
+- Sửa lỗi phát hiện qua kiểm thử: `test/csdl-thu.js` hàm `batch()` chỉ gọi `.all()` cho mọi câu lệnh nên không có `.meta.changes` (D1 thật trả cả `results` và `meta` cho mọi câu lệnh trong batch, không chỉ SELECT) - đã sửa để phân loại SELECT/RETURNING/ghi, khớp D1 thật, không đổi hành vi các điểm gọi `.batch()` cũ (chỉ đọc `.results`).
+- Kiểm: `test/hoalac-phap-ly.test.js` (17 ca: CRUD các bên/RACI/hợp đồng/thủ tục/văn bản/họp, chặn nhóm/vai_tro/loai sai, 409 khi xóa dòng đang được tham chiếu, quyền đối tác theo dòng cho thủ tục, chặn 403 đối tác trên 5 mục còn lại, xóa tổ chức dọn sạch 8 bảng). `npm run kiem` 398/398 đạt, `wrangler deploy --dry-run` thành công.
+- Chưa làm: kiểm trực tiếp trên trình duyệt (UNVERIFIED, cùng lý do PR2/PR3); sau khi PR4 gộp sẽ chạy `scripts/nhap-hoalac.mjs` (chưa viết) nhập 24 việc/5 nhóm A-E từ tệp kế hoạch dự án gốc vào `qlda_thu_tuc`.
+
+## Bước tiếp (Hòa Lạc, sau PR4)
+
+- Mở PR4, tự gộp khi kiểm tự động đạt.
+- Viết và chạy `scripts/nhap-hoalac.mjs` nhập dữ liệu khởi tạo.
+- PR5 (Ngân sách & EVM, migration 0042, số để trống chờ PM xác nhận bản TMĐT), PR6 (lịch .ics + hoàn thiện README).
