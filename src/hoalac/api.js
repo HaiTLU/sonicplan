@@ -11,6 +11,10 @@ import { taoThongBao } from '../thong-bao.js';
 // Mức rủi ro cao (ma trận 5x5, điểm từ 1 đến 25): từ 15 điểm trở lên thì báo, không phải mọi rủi ro.
 const DIEM_RUI_RO_CAO = 15;
 
+// Đánh dấu "không gửi field này, giữ nguyên" khi PUT dùng COALESCE - phân biệt với gửi null (muốn xóa liên kết),
+// vì COALESCE(null, cot) luôn giữ nguyên nên không tự xóa được một khóa ngoài nullable qua PUT một phần.
+const BO_QUA = '__hoalac_bo_qua__';
+
 const CHI_CHU_THANH_VIEN = (phien) => (laDoiTac(phien) ? loi(403, 'Tài khoản đối tác chỉ xem, không sửa được.') : null);
 const CHAN_DOI_TAC = (phien) => (laDoiTac(phien) ? loi(403, 'Tài khoản đối tác không dùng được mục này.') : null);
 
@@ -594,13 +598,16 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
       const than = await yeuCau.json().catch(() => ({}));
       if (!(await thuocToChuc(env, tc, 'qlda_thu_tuc', than.lien_quan_thu_tuc_id))) return loi(400, 'Thủ tục không thuộc tổ chức này.');
       if (!(await thuocToChuc(env, tc, 'tep', than.tep_id))) return loi(400, 'Tệp không thuộc tổ chức này.');
+      // Gửi lien_quan_thu_tuc_id: null là cố ý bỏ liên kết; không gửi field này mới giữ nguyên.
+      const lienQuanThuTuc = 'lien_quan_thu_tuc_id' in than ? than.lien_quan_thu_tuc_id : BO_QUA;
       const { meta } = await env.CSDL.prepare(
         `UPDATE qlda_van_ban SET loai = COALESCE(?1, loai), so_hieu = COALESCE(?2, so_hieu), trich_yeu = COALESCE(?3, trich_yeu),
          noi_gui = COALESCE(?4, noi_gui), noi_nhan = COALESCE(?5, noi_nhan), ngay_van_ban = COALESCE(?6, ngay_van_ban),
-         ngay_nhan_gui = COALESCE(?7, ngay_nhan_gui), lien_quan_thu_tuc_id = COALESCE(?8, lien_quan_thu_tuc_id), tep_id = COALESCE(?9, tep_id),
-         ghi_chu = COALESCE(?10, ghi_chu) WHERE id = ?11 AND to_chuc_id = ?12`,
+         ngay_nhan_gui = COALESCE(?7, ngay_nhan_gui),
+         lien_quan_thu_tuc_id = CASE WHEN ?8 = ?13 THEN lien_quan_thu_tuc_id ELSE ?8 END,
+         tep_id = COALESCE(?9, tep_id), ghi_chu = COALESCE(?10, ghi_chu) WHERE id = ?11 AND to_chuc_id = ?12`,
       ).bind(than.loai ?? null, than.so_hieu ?? null, than.trich_yeu ?? null, than.noi_gui ?? null, than.noi_nhan ?? null,
-        than.ngay_van_ban ?? null, than.ngay_nhan_gui ?? null, than.lien_quan_thu_tuc_id ?? null, than.tep_id ?? null, than.ghi_chu ?? null, id, tc).run();
+        than.ngay_van_ban ?? null, than.ngay_nhan_gui ?? null, lienQuanThuTuc, than.tep_id ?? null, than.ghi_chu ?? null, id, tc, BO_QUA).run();
       return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy văn bản.');
     }
     if (m === 'DELETE') {

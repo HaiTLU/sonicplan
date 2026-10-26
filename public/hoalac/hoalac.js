@@ -482,6 +482,16 @@ function veThuTuc(ds, chiXem, lamMoi) {
 
 const TEN_LOAI_VAN_BAN = { den: 'Văn bản đến', di: 'Văn bản đi' };
 
+// thoi_gian là chuỗi "YYYY-MM-DDTHH:MM" từ <input type="datetime-local">, không có múi giờ - ghép chuỗi trực
+// tiếp để hiện lại đúng giờ đã gõ, không qua Date()/Intl (dựng Date từ chuỗi này đọc theo múi giờ máy, rồi
+// ép hiện theo UTC sẽ lệch giờ với người dùng ở múi giờ khác UTC).
+function gioHopDaGo(s) {
+  const khop = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s || '');
+  if (!khop) return s || '';
+  const [, nam, thang, ngay, gio, phut] = khop;
+  return `${gio}:${phut} ${ngay}/${thang}/${nam}`;
+}
+
 function veVanBan(ds, dsThuTuc, lamMoi) {
   const form = h('form', { class: 'form-raid', onsubmit: (e) => guiForm(e, '/api/hoalac/van-ban', lamMoi) },
     h('label', {}, 'Loại ', oChon('loai', Object.entries(TEN_LOAI_VAN_BAN), 'den')),
@@ -514,7 +524,7 @@ function veHop(ds, lamMoi) {
   );
   if (!ds.length) return h('div', {}, form, h('p', { class: 'trong' }, 'Chưa có cuộc họp nào.'));
   const list = ds.map((x) => h('div', { class: 'the-raid' },
-    h('div', { class: 'dau-the-raid' }, h('strong', { text: x.tieu_de }), h('span', { class: 'chi-tiet-raid', text: new Date(x.thoi_gian).toLocaleString('vi-VN', { timeZone: 'UTC' }) })),
+    h('div', { class: 'dau-the-raid' }, h('strong', { text: x.tieu_de }), h('span', { class: 'chi-tiet-raid', text: gioHopDaGo(x.thoi_gian) })),
     h('p', { class: 'chi-tiet-raid' }, `${x.dia_diem ? `Địa điểm: ${x.dia_diem}` : ''}${x.thanh_phan ? ` · Thành phần: ${x.thanh_phan}` : ''}`),
     x.noi_dung ? h('p', { text: x.noi_dung }) : null,
     h('div', { class: 'hang-dong-raid' }, h('button', { type: 'button', onclick: () => xoaRaid(`/api/hoalac/hop/${x.id}`, lamMoi) }, 'Xóa')),

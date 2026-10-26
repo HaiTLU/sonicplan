@@ -169,6 +169,23 @@ test('chủ tạo văn bản đến và đi, loai sai thì 400', async () => {
   assert.equal(ds.van_ban.length, 2);
 });
 
+test('sửa văn bản gửi lien_quan_thu_tuc_id: null thì bỏ liên kết, không gửi field thì giữ nguyên', async () => {
+  const { env } = moiEnv();
+  const { id: thuTucId } = await (await goi(env, CHU, '/api/hoalac/thu-tuc', { method: 'POST', body: JSON.stringify({ ten: 'A', nhom: 'A' }) })).json();
+  const { id: vbId } = await (await goi(env, CHU, '/api/hoalac/van-ban', {
+    method: 'POST', body: JSON.stringify({ loai: 'den', trich_yeu: 'Công văn', lien_quan_thu_tuc_id: thuTucId }),
+  })).json();
+  // Không gửi field này: giữ nguyên liên kết.
+  await goi(env, CHU, `/api/hoalac/van-ban/${vbId}`, { method: 'PUT', body: JSON.stringify({ ghi_chu: 'cập nhật' }) });
+  let ds = await (await goi(env, CHU, '/api/hoalac/van-ban')).json();
+  assert.equal(ds.van_ban.find((x) => x.id === vbId).lien_quan_thu_tuc_id, thuTucId);
+  // Gửi null: xóa liên kết, cho phép xóa thủ tục sau đó.
+  assert.equal((await goi(env, CHU, `/api/hoalac/van-ban/${vbId}`, { method: 'PUT', body: JSON.stringify({ lien_quan_thu_tuc_id: null }) })).status, 200);
+  ds = await (await goi(env, CHU, '/api/hoalac/van-ban')).json();
+  assert.equal(ds.van_ban.find((x) => x.id === vbId).lien_quan_thu_tuc_id, null);
+  assert.equal((await goi(env, CHU, `/api/hoalac/thu-tuc/${thuTucId}`, { method: 'DELETE' })).status, 200);
+});
+
 // ---------- Họp và việc sau họp ----------
 
 test('chủ tạo cuộc họp, thêm/sửa/xóa việc sau họp, GET theo id trả kèm viec', async () => {
