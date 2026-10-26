@@ -17,7 +17,13 @@ export const LOAI_THONG_BAO = {
   doi_han: 'Việc đổi hạn theo tin mới',
   gio_hen: 'Việc tới giờ hẹn',
   claude: 'Claude hỏi lại hoặc làm xong',
+  hoalac_rui_ro: 'Viện Hòa Lạc: rủi ro mới hoặc mức độ cao',
+  hoalac_thay_doi: 'Viện Hòa Lạc: yêu cầu thay đổi chờ duyệt',
 };
+
+// Loại thông báo chỉ dành cho chủ/thành viên tổ chức Hòa Lạc, không cho đối tác thấy (đối tác dùng
+// chung /api/thong-bao với phần còn lại của tổ chức - CLAUDE.md: đối tác không thấy RAID).
+const AN_VOI_DOI_TAC = ['hoalac_rui_ro', 'hoalac_thay_doi'];
 
 // Chỉ gửi tới dịch vụ đẩy của trình duyệt lớn, không để địa chỉ tùy ý biến máy chủ thành nơi gọi đi bất kỳ đâu.
 const MIEN_DAY = ['.googleapis.com', '.mozilla.com', '.push.apple.com', '.notify.windows.com'];
@@ -186,13 +192,15 @@ export async function xuLyApiThongBao(yeuCau, env, phien, url) {
 
   if (p === '/api/thong-bao' && m === 'GET') {
     const sau = Number(url.searchParams.get('sau')) || 0;
-    const dem = await env.CSDL.prepare('SELECT COUNT(*) AS n, MAX(id) AS moi FROM thong_bao WHERE to_chuc_id = ?1 AND da_doc_luc IS NULL').bind(tc).first();
-    const moiNhat = await env.CSDL.prepare('SELECT MAX(id) AS id FROM thong_bao WHERE to_chuc_id = ?1').bind(tc).first();
+    const anLoai = phien.to_chuc?.vai_tro === 'doi_tac' ? AN_VOI_DOI_TAC : [];
+    const dkAn = anLoai.length ? ` AND loai NOT IN (${anLoai.map((_, i) => `?${i + 2}`).join(',')})` : '';
+    const dem = await env.CSDL.prepare(`SELECT COUNT(*) AS n, MAX(id) AS moi FROM thong_bao WHERE to_chuc_id = ?1 AND da_doc_luc IS NULL${dkAn}`).bind(tc, ...anLoai).first();
+    const moiNhat = await env.CSDL.prepare(`SELECT MAX(id) AS id FROM thong_bao WHERE to_chuc_id = ?1${dkAn}`).bind(tc, ...anLoai).first();
     // Trang hỏi định kỳ kèm ?sau=<id mới nhất đã có>: không có gì mới thì không gửi lại danh sách.
     if (sau && (moiNhat?.id || 0) <= sau) return json({ chua_doc: dem?.n || 0, moi_nhat: moiNhat?.id || 0, ds: null });
     const { results } = await env.CSDL.prepare(
-      'SELECT id, loai, tieu_de, noi_dung, duong_dan, viec_id, tao_luc, da_doc_luc FROM thong_bao WHERE to_chuc_id = ?1 ORDER BY id DESC LIMIT ?2',
-    ).bind(tc, DS_TOI_DA).all();
+      `SELECT id, loai, tieu_de, noi_dung, duong_dan, viec_id, tao_luc, da_doc_luc FROM thong_bao WHERE to_chuc_id = ?1${dkAn} ORDER BY id DESC LIMIT ?${anLoai.length + 2}`,
+    ).bind(tc, ...anLoai, DS_TOI_DA).all();
     return json({ chua_doc: dem?.n || 0, moi_nhat: moiNhat?.id || 0, ds: results });
   }
   if (p === '/api/thong-bao/doc' && m === 'POST') {
@@ -207,13 +215,18 @@ export async function xuLyApiThongBao(yeuCau, env, phien, url) {
   if (p === '/api/thong-bao/cai' && m === 'GET') {
     const khoa = await layKhoaVapid(env, url.origin);
     const { results } = await env.CSDL.prepare('SELECT endpoint, thiet_bi, lan_cuoi, tao_luc FROM dang_ky_day WHERE to_chuc_id = ?1 ORDER BY id').bind(tc).all();
-    return json({ ...(await docCaiThongBao(env, tc)), loai: LOAI_THONG_BAO, khoa_cong_khai: khoa.cong_khai, thiet_bi: results });
+    const laDT = phien.to_chuc?.vai_tro === 'doi_tac';
+    const loai = laDT ? Object.fromEntries(Object.entries(LOAI_THONG_BAO).filter(([k]) => !AN_VOI_DOI_TAC.includes(k))) : LOAI_THONG_BAO;
+    const cai = await docCaiThongBao(env, tc);
+    if (laDT) for (const k of AN_VOI_DOI_TAC) delete cai.bat[k];
+    return json({ ...cai, loai, khoa_cong_khai: khoa.cong_khai, thiet_bi: results });
   }
   if (p === '/api/thong-bao/cai' && m === 'PUT') {
     const than = await yeuCau.json().catch(() => ({}));
+    const laDT = phien.to_chuc?.vai_tro === 'doi_tac';
     const bat = {};
     for (const [k, v] of Object.entries(than?.bat || {})) {
-      if (!(k in LOAI_THONG_BAO) || typeof v !== 'boolean') return loi(400, `Không có loại thông báo "${k}".`);
+      if (!(k in LOAI_THONG_BAO) || (laDT && AN_VOI_DOI_TAC.includes(k)) || typeof v !== 'boolean') return loi(400, `Không có loại thông báo "${k}".`);
       bat[k] = v;
     }
     const cu = await docCaiThongBao(env, tc);
