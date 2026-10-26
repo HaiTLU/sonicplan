@@ -14,6 +14,7 @@ const DIEM_RUI_RO_CAO = 15;
 // Đánh dấu "không gửi field này, giữ nguyên" khi PUT dùng COALESCE - phân biệt với gửi null (muốn xóa liên kết),
 // vì COALESCE(null, cot) luôn giữ nguyên nên không tự xóa được một khóa ngoài nullable qua PUT một phần.
 const BO_QUA = '__hoalac_bo_qua__';
+const TRANG_THAI_SO_LIEU_HOP_LE = ['chua_thong_nhat', 'da_xac_nhan'];
 
 const CHI_CHU_THANH_VIEN = (phien) => (laDoiTac(phien) ? loi(403, 'Tài khoản đối tác chỉ xem, không sửa được.') : null);
 const CHAN_DOI_TAC = (phien) => (laDoiTac(phien) ? loi(403, 'Tài khoản đối tác không dùng được mục này.') : null);
@@ -692,5 +693,119 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
     }
   }
 
+  // ---------- Ngân sách & EVM (chưa có cơ chế gán theo dòng cho đối tác, chặn hẳn như RAID) ----------
+  if (p === '/api/hoalac/ngan-sach' && m === 'GET') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const { results } = await env.CSDL.prepare('SELECT * FROM qlda_ngan_sach_dong WHERE to_chuc_id = ?1 ORDER BY nhom, id').bind(tc).all();
+    return json({ ngan_sach: results });
+  }
+  if (p === '/api/hoalac/ngan-sach' && m === 'POST') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const than = await yeuCau.json().catch(() => ({}));
+    if (!than.ten) return loi(400, 'Thiếu tên dòng ngân sách.');
+    if (than.trang_thai_so_lieu && !TRANG_THAI_SO_LIEU_HOP_LE.includes(than.trang_thai_so_lieu)) return loi(400, 'Trạng thái số liệu không hợp lệ.');
+    const { meta } = await env.CSDL.prepare(
+      `INSERT INTO qlda_ngan_sach_dong (to_chuc_id, ten, nhom, ngan_sach_du_kien, don_vi_tien, nguon, trang_thai_so_lieu, ghi_chu, tao_boi, tao_luc, cap_nhat_luc)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)`,
+    ).bind(tc, than.ten, than.nhom || '', than.ngan_sach_du_kien ?? null, than.don_vi_tien || 'VND', than.nguon || '',
+      than.trang_thai_so_lieu || 'chua_thong_nhat', than.ghi_chu || '', phien.email, bayGio).run();
+    return json({ id: meta.last_row_id }, 201);
+  }
+  if ((khop = p.match(/^\/api\/hoalac\/ngan-sach\/(\d+)$/))) {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const id = Number(khop[1]);
+    if (m === 'PUT') {
+      const than = await yeuCau.json().catch(() => ({}));
+      if (than.trang_thai_so_lieu && !TRANG_THAI_SO_LIEU_HOP_LE.includes(than.trang_thai_so_lieu)) return loi(400, 'Trạng thái số liệu không hợp lệ.');
+      // Số tiền phải tự xóa được về NULL (quay lại "chưa thống nhất"), nên dùng BO_QUA thay COALESCE thẳng.
+      const ngs = 'ngan_sach_du_kien' in than ? than.ngan_sach_du_kien : BO_QUA;
+      const { meta } = await env.CSDL.prepare(
+        `UPDATE qlda_ngan_sach_dong SET ten = COALESCE(?1, ten), nhom = COALESCE(?2, nhom),
+         ngan_sach_du_kien = CASE WHEN ?3 = ?11 THEN ngan_sach_du_kien ELSE ?3 END,
+         don_vi_tien = COALESCE(?4, don_vi_tien), nguon = COALESCE(?5, nguon), trang_thai_so_lieu = COALESCE(?6, trang_thai_so_lieu),
+         ghi_chu = COALESCE(?7, ghi_chu), cap_nhat_luc = ?8 WHERE id = ?9 AND to_chuc_id = ?10`,
+      ).bind(than.ten ?? null, than.nhom ?? null, ngs, than.don_vi_tien ?? null, than.nguon ?? null,
+        than.trang_thai_so_lieu ?? null, than.ghi_chu ?? null, bayGio, id, tc, BO_QUA).run();
+      return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy dòng ngân sách.');
+    }
+    if (m === 'DELETE') {
+      const coGiaiNgan = await env.CSDL.prepare('SELECT 1 FROM qlda_giai_ngan WHERE ngan_sach_dong_id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+      if (coGiaiNgan) return loi(409, 'Dòng ngân sách đang có giải ngân, hãy xóa hoặc đổi các giải ngân đó trước.');
+      const { meta } = await env.CSDL.prepare('DELETE FROM qlda_ngan_sach_dong WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).run();
+      return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy dòng ngân sách.');
+    }
+  }
+
+  if (p === '/api/hoalac/giai-ngan' && m === 'GET') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const { results } = await env.CSDL.prepare('SELECT * FROM qlda_giai_ngan WHERE to_chuc_id = ?1 ORDER BY ngay DESC, id DESC').bind(tc).all();
+    return json({ giai_ngan: results });
+  }
+  if (p === '/api/hoalac/giai-ngan' && m === 'POST') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const than = await yeuCau.json().catch(() => ({}));
+    if (!Number.isFinite(than.so_tien)) return loi(400, 'Thiếu hoặc sai số tiền giải ngân.');
+    if (!(await thuocToChuc(env, tc, 'qlda_ngan_sach_dong', than.ngan_sach_dong_id))) return loi(400, 'Dòng ngân sách không thuộc tổ chức này.');
+    if (!(await thuocToChuc(env, tc, 'tep', than.tep_id))) return loi(400, 'Tệp không thuộc tổ chức này.');
+    const { meta } = await env.CSDL.prepare(
+      `INSERT INTO qlda_giai_ngan (to_chuc_id, ngan_sach_dong_id, so_tien, ngay, noi_dung, tep_id, tao_boi, tao_luc)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+    ).bind(tc, than.ngan_sach_dong_id ?? null, than.so_tien, than.ngay ?? null, than.noi_dung || '', than.tep_id ?? null, phien.email, bayGio).run();
+    return json({ id: meta.last_row_id }, 201);
+  }
+  if ((khop = p.match(/^\/api\/hoalac\/giai-ngan\/(\d+)$/)) && m === 'DELETE') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const id = Number(khop[1]);
+    const { meta } = await env.CSDL.prepare('DELETE FROM qlda_giai_ngan WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).run();
+    return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy giải ngân.');
+  }
+
+  if (p === '/api/hoalac/evm' && m === 'GET') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const { results } = await env.CSDL.prepare('SELECT * FROM qlda_evm WHERE to_chuc_id = ?1 ORDER BY ky').bind(tc).all();
+    return json({ evm: results.map(tinhEvm) });
+  }
+  if (p === '/api/hoalac/evm' && m === 'POST') {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const than = await yeuCau.json().catch(() => ({}));
+    if (!than.ky) return loi(400, 'Thiếu kỳ báo cáo.');
+    const trung = await env.CSDL.prepare('SELECT 1 FROM qlda_evm WHERE to_chuc_id = ?1 AND ky = ?2').bind(tc, than.ky).first();
+    if (trung) return loi(409, 'Kỳ này đã có dòng EVM, hãy sửa dòng cũ.');
+    const { meta } = await env.CSDL.prepare(
+      `INSERT INTO qlda_evm (to_chuc_id, ky, pv, ac, ev, ghi_chu, tao_boi, tao_luc, cap_nhat_luc) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)`,
+    ).bind(tc, than.ky, than.pv ?? null, than.ac ?? null, than.ev ?? null, than.ghi_chu || '', phien.email, bayGio).run();
+    return json({ id: meta.last_row_id }, 201);
+  }
+  if ((khop = p.match(/^\/api\/hoalac\/evm\/(\d+)$/))) {
+    const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
+    const id = Number(khop[1]);
+    if (m === 'PUT') {
+      const than = await yeuCau.json().catch(() => ({}));
+      // pv/ac/ev phải tự xóa được về NULL khi số nguồn bị rút lại, nên dùng BO_QUA cho cả ba.
+      const pv = 'pv' in than ? than.pv : BO_QUA;
+      const ac = 'ac' in than ? than.ac : BO_QUA;
+      const ev = 'ev' in than ? than.ev : BO_QUA;
+      const { meta } = await env.CSDL.prepare(
+        `UPDATE qlda_evm SET ky = COALESCE(?1, ky),
+         pv = CASE WHEN ?2 = ?9 THEN pv ELSE ?2 END, ac = CASE WHEN ?3 = ?9 THEN ac ELSE ?3 END, ev = CASE WHEN ?4 = ?9 THEN ev ELSE ?4 END,
+         ghi_chu = COALESCE(?5, ghi_chu), cap_nhat_luc = ?6 WHERE id = ?7 AND to_chuc_id = ?8`,
+      ).bind(than.ky ?? null, pv, ac, ev, than.ghi_chu ?? null, bayGio, id, tc, BO_QUA).run();
+      return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy kỳ EVM.');
+    }
+    if (m === 'DELETE') {
+      const { meta } = await env.CSDL.prepare('DELETE FROM qlda_evm WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).run();
+      return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy kỳ EVM.');
+    }
+  }
+
   return loi(404, 'Không có chức năng này.');
+}
+
+// EVM: cv/sv/cpi/spi tính từ pv/ev/ac khi có đủ số (và mẫu khác 0), không lưu cứng để khỏi lệch khi sửa số nguồn.
+function tinhEvm(r) {
+  const cv = r.ev != null && r.ac != null ? r.ev - r.ac : null;
+  const sv = r.ev != null && r.pv != null ? r.ev - r.pv : null;
+  const cpi = r.ev != null && r.ac ? r.ev / r.ac : null;
+  const spi = r.ev != null && r.pv ? r.ev / r.pv : null;
+  return { ...r, cv, sv, cpi, spi };
 }

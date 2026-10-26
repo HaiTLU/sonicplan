@@ -39,6 +39,11 @@ export const BANG_XUAT = [
   ['qlda_van_ban', 'SELECT * FROM qlda_van_ban WHERE to_chuc_id = ?1'],
   ['qlda_hop', 'SELECT * FROM qlda_hop WHERE to_chuc_id = ?1'],
   ['qlda_hop_viec', 'SELECT * FROM qlda_hop_viec WHERE to_chuc_id = ?1'],
+  // Ngân sách & EVM của Viện Hòa Lạc (PR5): cùng lý do, phải có trong bản sao lưu trước khi
+  // xoaToChuc() xóa các bảng này.
+  ['qlda_ngan_sach_dong', 'SELECT * FROM qlda_ngan_sach_dong WHERE to_chuc_id = ?1'],
+  ['qlda_giai_ngan', 'SELECT * FROM qlda_giai_ngan WHERE to_chuc_id = ?1'],
+  ['qlda_evm', 'SELECT * FROM qlda_evm WHERE to_chuc_id = ?1'],
 ];
 
 export async function xuatDuLieu(env, tc, luc = new Date().toISOString()) {

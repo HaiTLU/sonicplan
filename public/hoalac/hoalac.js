@@ -27,6 +27,13 @@ const CAC_MUC_PHAP_LY = [
 ];
 let phapLySub = 'thu_tuc';
 
+const CAC_MUC_NGAN_SACH = [
+  { ma: 'dong', ten: 'Dòng ngân sách' },
+  { ma: 'giai_ngan', ten: 'Giải ngân' },
+  { ma: 'evm', ten: 'EVM' },
+];
+let nganSachSub = 'dong';
+
 async function chinh() {
   const goc = document.getElementById('goc');
   let toi;
@@ -44,24 +51,29 @@ async function chinh() {
   const tabGantt = document.getElementById('tab-gantt');
   const tabRaid = document.getElementById('tab-raid');
   const tabPhapLy = document.getElementById('tab-phap-ly');
+  const tabNganSach = document.getElementById('tab-ngan-sach');
   const moKanban = () => taiVaVe(goc, chiXem, 'kanban');
   const moGantt = () => taiVaVe(goc, chiXem, 'gantt');
   const moPhapLy = () => taiVaVePhapLy(goc, chiXem);
   if (chiXem) {
-    // Đối tác: RAID trả 403 cho mọi thao tác, không gọi API và không cho thấy tab này. Pháp lý vẫn còn vì
-    // đối tác được xem đúng thủ tục được gán (404 nếu không), nhưng vePhapLy() tự ẩn 5 mục còn lại.
+    // Đối tác: RAID và Ngân sách trả 403 cho mọi thao tác (không có cơ chế gán theo dòng), không gọi API
+    // và không cho thấy hai tab này. Pháp lý vẫn còn vì đối tác được xem đúng thủ tục được gán (404 nếu
+    // không), nhưng vePhapLy() tự ẩn 5 mục còn lại.
     tabRaid.remove();
+    tabNganSach.remove();
     const cacTab = [tabKanban, tabGantt, tabPhapLy];
     tabKanban.onclick = () => { chonTab(tabKanban, cacTab); moKanban(); };
     tabGantt.onclick = () => { chonTab(tabGantt, cacTab); moGantt(); };
     tabPhapLy.onclick = () => { chonTab(tabPhapLy, cacTab); moPhapLy(); };
   } else {
-    const cacTab = [tabKanban, tabGantt, tabRaid, tabPhapLy];
+    const cacTab = [tabKanban, tabGantt, tabRaid, tabPhapLy, tabNganSach];
     const moRaid = () => taiVaVeRaid(goc);
+    const moNganSach = () => taiVaVeNganSach(goc);
     tabKanban.onclick = () => { chonTab(tabKanban, cacTab); moKanban(); };
     tabGantt.onclick = () => { chonTab(tabGantt, cacTab); moGantt(); };
     tabRaid.onclick = () => { chonTab(tabRaid, cacTab); moRaid(); };
     tabPhapLy.onclick = () => { chonTab(tabPhapLy, cacTab); moPhapLy(); };
+    tabNganSach.onclick = () => { chonTab(tabNganSach, cacTab); moNganSach(); };
   }
   await moKanban();
 }
@@ -528,6 +540,124 @@ function veHop(ds, lamMoi) {
     h('p', { class: 'chi-tiet-raid' }, `${x.dia_diem ? `Địa điểm: ${x.dia_diem}` : ''}${x.thanh_phan ? ` · Thành phần: ${x.thanh_phan}` : ''}`),
     x.noi_dung ? h('p', { text: x.noi_dung }) : null,
     h('div', { class: 'hang-dong-raid' }, h('button', { type: 'button', onclick: () => xoaRaid(`/api/hoalac/hop/${x.id}`, lamMoi) }, 'Xóa')),
+  ));
+  return h('div', {}, form, ...list);
+}
+
+// ---------- Ngân sách & EVM ----------
+// Không có cơ chế gán theo dòng cho đối tác (api.js chặn hẳn 403), nên module này chỉ chạy khi !chiXem.
+function tienOrChuaThongNhat(so, donVi) {
+  return so != null ? `${Number(so).toLocaleString('vi-VN')}${donVi ? ` ${donVi}` : ''}` : 'chưa thống nhất';
+}
+
+async function taiVaVeNganSach(goc) {
+  try {
+    const [ns, gn, evm] = await Promise.all([
+      api('/api/hoalac/ngan-sach'), api('/api/hoalac/giai-ngan'), api('/api/hoalac/evm'),
+    ]);
+    thay(goc, veNganSach(goc, { ngan_sach: ns.ngan_sach, giai_ngan: gn.giai_ngan, evm: evm.evm }));
+  } catch (e) {
+    thay(goc, khungLoi(e));
+  }
+}
+
+function veNganSach(goc, d) {
+  const subNav = h('nav', { class: 'sub-raid', 'aria-label': 'Mục ngân sách' },
+    ...CAC_MUC_NGAN_SACH.map(({ ma, ten }) => h('button', {
+      type: 'button',
+      'aria-current': ma === nganSachSub ? 'true' : null,
+      onclick: () => { nganSachSub = ma; thay(goc, veNganSach(goc, d)); },
+      text: `${ten} (${d[ma === 'dong' ? 'ngan_sach' : ma].length})`,
+    })),
+  );
+  const lamMoi = () => taiVaVeNganSach(goc);
+  const noiDung = {
+    dong: () => veDongNganSach(d.ngan_sach, lamMoi),
+    giai_ngan: () => veGiaiNgan(d.giai_ngan, d.ngan_sach, lamMoi),
+    evm: () => veEvm(d.evm, lamMoi),
+  }[nganSachSub]();
+  return h('div', { class: 'khung-raid' }, subNav, noiDung);
+}
+
+// Xóa một số tiền về NULL (quay lại "chưa thống nhất") không làm được bằng cách để trống ô trong form -
+// guiForm() bỏ qua field rỗng, PUT coi là "không đổi" (BO_QUA). Phải gửi null tường minh qua nút riêng.
+async function boSoVeChuaThongNhat(duongDan, truong, lamMoi) {
+  if (!confirm('Bỏ số này, quay về "chưa thống nhất"?')) return;
+  try {
+    await api(duongDan, { method: 'PUT', body: JSON.stringify({ [truong]: null }) });
+    await lamMoi();
+  } catch (err) { bao(err.message, true); }
+}
+
+function veDongNganSach(ds, lamMoi) {
+  const form = h('form', { class: 'form-raid', onsubmit: (e) => guiForm(e, '/api/hoalac/ngan-sach', lamMoi) },
+    h('input', { name: 'ten', placeholder: 'Tên dòng ngân sách', required: true }),
+    h('input', { name: 'nhom', placeholder: 'Nhóm' }),
+    h('input', { name: 'ngan_sach_du_kien', type: 'number', step: '0.001', placeholder: 'Số dự kiến (để trống nếu chưa thống nhất)' }),
+    h('input', { name: 'don_vi_tien', placeholder: 'Đơn vị tiền (VND)' }),
+    h('input', { name: 'nguon', placeholder: 'Nguồn số liệu (tên hồ sơ)' }),
+    h('label', {}, 'Trạng thái số liệu ', oChon('trang_thai_so_lieu', [['chua_thong_nhat', 'Chưa thống nhất'], ['da_xac_nhan', 'Đã xác nhận']], 'chua_thong_nhat')),
+    h('button', { type: 'submit' }, 'Thêm dòng ngân sách'),
+  );
+  if (!ds.length) return h('div', {}, form, h('p', { class: 'trong' }, 'Chưa có dòng ngân sách nào.'));
+  const list = ds.map((x) => h('div', { class: 'the-raid' },
+    h('div', { class: 'dau-the-raid' },
+      h('strong', { text: x.ten }),
+      h('span', { class: `nhan-trang-thai nhan-trang-thai-${x.trang_thai_so_lieu}`, text: tienOrChuaThongNhat(x.ngan_sach_du_kien, x.don_vi_tien) }),
+    ),
+    h('p', { class: 'chi-tiet-raid' }, `${x.nhom ? `Nhóm: ${x.nhom}` : ''}${x.nguon ? ` · Nguồn: ${x.nguon}` : ''} · ${x.trang_thai_so_lieu === 'da_xac_nhan' ? 'Đã xác nhận' : 'Chưa thống nhất'}`),
+    x.ghi_chu ? h('p', { text: x.ghi_chu }) : null,
+    h('div', { class: 'hang-dong-raid' },
+      x.ngan_sach_du_kien != null
+        ? h('button', { type: 'button', onclick: () => boSoVeChuaThongNhat(`/api/hoalac/ngan-sach/${x.id}`, 'ngan_sach_du_kien', lamMoi) }, 'Bỏ số')
+        : null,
+      h('button', { type: 'button', onclick: () => xoaRaid(`/api/hoalac/ngan-sach/${x.id}`, lamMoi) }, 'Xóa'),
+    ),
+  ));
+  return h('div', {}, form, ...list);
+}
+
+function veGiaiNgan(ds, dsDong, lamMoi) {
+  const form = h('form', { class: 'form-raid', onsubmit: (e) => guiForm(e, '/api/hoalac/giai-ngan', lamMoi) },
+    dsDong.length ? oChon('ngan_sach_dong_id', [['', 'Dòng ngân sách (tùy chọn)'], ...dsDong.map((x) => [x.id, x.ten])]) : null,
+    h('input', { name: 'so_tien', type: 'number', step: '0.001', placeholder: 'Số tiền', required: true }),
+    h('input', { name: 'ngay', type: 'date' }),
+    h('input', { name: 'noi_dung', placeholder: 'Nội dung' }),
+    h('button', { type: 'submit' }, 'Thêm giải ngân'),
+  );
+  if (!ds.length) return h('div', {}, form, h('p', { class: 'trong' }, 'Chưa có giải ngân nào.'));
+  const tenDong = (id) => dsDong.find((x) => x.id === id)?.ten;
+  const list = ds.map((x) => h('div', { class: 'the-raid' },
+    h('div', { class: 'dau-the-raid' }, h('strong', { text: tienOrChuaThongNhat(x.so_tien) }), x.ngay ? h('span', { class: 'chi-tiet-raid', text: fmt.ngayNgan.format(new Date(`${x.ngay}T00:00:00Z`)) }) : null),
+    h('p', { class: 'chi-tiet-raid' }, `${x.ngan_sach_dong_id ? `Dòng: ${tenDong(x.ngan_sach_dong_id) || x.ngan_sach_dong_id}` : ''}${x.noi_dung ? ` · ${x.noi_dung}` : ''}`),
+    h('div', { class: 'hang-dong-raid' }, h('button', { type: 'button', onclick: () => xoaRaid(`/api/hoalac/giai-ngan/${x.id}`, lamMoi) }, 'Xóa')),
+  ));
+  return h('div', {}, form, ...list);
+}
+
+function veEvm(ds, lamMoi) {
+  const form = h('form', { class: 'form-raid', onsubmit: (e) => guiForm(e, '/api/hoalac/evm', lamMoi) },
+    h('input', { name: 'ky', placeholder: 'Kỳ báo cáo (ví dụ 2026-10)', required: true }),
+    h('input', { name: 'pv', type: 'number', step: '0.001', placeholder: 'PV - giá trị dự kiến' }),
+    h('input', { name: 'ac', type: 'number', step: '0.001', placeholder: 'AC - chi phí thực tế' }),
+    h('input', { name: 'ev', type: 'number', step: '0.001', placeholder: 'EV - giá trị đạt được' }),
+    h('button', { type: 'submit' }, 'Thêm kỳ EVM'),
+  );
+  if (!ds.length) return h('div', {}, form, h('p', { class: 'trong' }, 'Chưa có kỳ EVM nào.'));
+  const truong = [['pv', 'PV'], ['ac', 'AC'], ['ev', 'EV']];
+  const list = ds.map((x) => h('div', { class: 'the-raid' },
+    h('div', { class: 'dau-the-raid' }, h('strong', { text: x.ky }),
+      x.cpi != null ? h('span', { class: 'chi-tiet-raid', text: `CPI ${x.cpi.toFixed(2)}` }) : null,
+      x.spi != null ? h('span', { class: 'chi-tiet-raid', text: `SPI ${x.spi.toFixed(2)}` }) : null,
+    ),
+    h('p', { class: 'chi-tiet-raid' },
+      truong.map(([k, ten]) => `${ten}: ${tienOrChuaThongNhat(x[k])}`).join(' · '),
+    ),
+    h('div', { class: 'hang-dong-raid' },
+      ...truong.filter(([k]) => x[k] != null).map(([k, ten]) =>
+        h('button', { type: 'button', onclick: () => boSoVeChuaThongNhat(`/api/hoalac/evm/${x.id}`, k, lamMoi) }, `Bỏ ${ten}`)),
+      h('button', { type: 'button', onclick: () => xoaRaid(`/api/hoalac/evm/${x.id}`, lamMoi) }, 'Xóa'),
+    ),
   ));
   return h('div', {}, form, ...list);
 }
