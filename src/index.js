@@ -39,7 +39,13 @@ export default {
       const lich = url.pathname.match(/^\/lich\/([a-z0-9]{20,64})\.ics$/);
       if (lich && yeuCau.method === 'GET') return docLich(env, lich[1], url);
 
-      const phien = await xacDinhPhien(yeuCau, env);
+      // Phần /hoalac (Viện Hòa Lạc) cách ly hẳn khỏi phần còn lại: tổ chức phạm vi 'hoalac' chỉ
+      // vào được đúng đường dẫn này, và đường dẫn này chỉ nhận tổ chức phạm vi 'hoalac'. Tính trước
+      // khi xác định phiên để một người thuộc nhiều tổ chức (ví dụ vừa chủ tổ chức thường vừa chủ
+      // Hòa Lạc) vẫn được chọn đúng tổ chức Hòa Lạc khi gọi đường dẫn này, không chỉ chọn tổ chức
+      // thêm trước nhất.
+      const duongHoaLac = url.pathname === '/hoalac' || url.pathname.startsWith('/hoalac/') || url.pathname === '/api/hoalac' || url.pathname.startsWith('/api/hoalac/');
+      const phien = await xacDinhPhien(yeuCau, env, duongHoaLac ? 'hoalac' : undefined);
       if (!phien.duoc) {
         console.warn('Từ chối:', phien.ly_do, url.pathname);
         if (!url.pathname.startsWith('/api/') && phien.ma === 403) return trangChuaMoi();
@@ -51,9 +57,6 @@ export default {
         return loi(403, 'Yêu cầu không đến từ trang Sonicplan.');
       }
 
-      // Phần /hoalac (Viện Hòa Lạc) cách ly hẳn khỏi phần còn lại: tổ chức phạm vi 'hoalac' chỉ
-      // vào được đúng đường dẫn này, và đường dẫn này chỉ nhận tổ chức phạm vi 'hoalac'.
-      const duongHoaLac = url.pathname === '/hoalac' || url.pathname.startsWith('/hoalac/') || url.pathname === '/api/hoalac' || url.pathname.startsWith('/api/hoalac/');
       if (phien.to_chuc.pham_vi_truy_cap === 'hoalac') {
         if (!duongHoaLac && !url.pathname.startsWith('/api/toi') && url.pathname !== '/api/thong-bao' && !url.pathname.startsWith('/api/thong-bao/')) {
           return loi(403, 'Tài khoản này chỉ dùng được phần Viện Hòa Lạc.');

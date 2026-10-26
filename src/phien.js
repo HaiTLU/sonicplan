@@ -27,16 +27,19 @@ async function docThanhVien(env, email) {
   return results;
 }
 
-export async function xacDinhPhien(yeuCau, env) {
+export async function xacDinhPhien(yeuCau, env, phamViMuon) {
   const email = await layEmail(yeuCau, env);
   if (!email.duoc) return { duoc: false, ma: 401, ly_do: email.ly_do };
 
   const results = await docThanhVien(env, email.email);
   if (!results.length) return { duoc: false, ma: 403, ly_do: 'Tài khoản chưa được mời vào tổ chức nào' };
 
-  // Một người có thể thuộc nhiều tổ chức; chọn theo tiêu đề x-to-chuc, mặc định tổ chức đầu tiên.
+  // Một người có thể thuộc nhiều tổ chức; chọn theo tiêu đề x-to-chuc, rồi theo phạm vi đường dẫn
+  // đang gọi (ví dụ /hoalac luôn cần tổ chức phạm vi 'hoalac'), mặc định tổ chức đầu tiên.
   const muon = yeuCau.headers.get('x-to-chuc');
-  const dong = results.find((r) => r.to_chuc_id === muon) || results[0];
+  const dong = results.find((r) => r.to_chuc_id === muon)
+    || (phamViMuon && results.find((r) => r.pham_vi_truy_cap === phamViMuon))
+    || results[0];
   return {
     duoc: true,
     email: email.email,

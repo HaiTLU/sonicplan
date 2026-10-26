@@ -102,3 +102,19 @@ test('tệp tĩnh có đuôi dưới /hoalac (ví dụ /hoalac/hoalac.js) không
   const ra = await sonicplan.fetch(new Request('https://localhost/hoalac/hoalac.js'), env, { waitUntil: () => {} });
   assert.equal(await ra.text(), '/hoalac/hoalac.js');
 });
+
+// Một người có thể vừa chủ tổ chức phạm vi chung vừa chủ tổ chức Hòa Lạc (ví dụ chính PM): thành viên
+// tổ chức chung thêm trước, nên nếu chỉ chọn tổ chức đầu tiên thì /hoalac luôn bị từ chối sai.
+test('người thuộc cả tổ chức phạm vi chung (thêm trước) và tổ chức Hòa Lạc vẫn vào được /hoalac', async () => {
+  const db = dungCsdl();
+  db.exec("INSERT INTO to_chuc (id, ten, pham_vi_truy_cap, tao_luc) VALUES ('tc-chung2', 'Chung 2', 'chung', '2026-01-01')");
+  db.exec("INSERT INTO to_chuc (id, ten, pham_vi_truy_cap, tao_luc) VALUES ('tc-hoalac2', 'Vien Hoa Lac 2', 'hoalac', '2026-01-01')");
+  db.exec("INSERT INTO nguoi_dung (id, email, tao_luc) VALUES ('nd-ca-hai', 'ca-hai@vi-du.vn', '2026-01-01')");
+  db.exec("INSERT INTO thanh_vien (to_chuc_id, nguoi_dung_id, vai_tro, tao_luc) VALUES ('tc-chung2', 'nd-ca-hai', 'chu', '2026-01-01')");
+  db.exec("INSERT INTO thanh_vien (to_chuc_id, nguoi_dung_id, vai_tro, tao_luc) VALUES ('tc-hoalac2', 'nd-ca-hai', 'chu', '2026-01-02')");
+  const ASSETS = { fetch: async (r) => new Response(new URL(r.url).pathname, { status: 200, headers: { 'content-type': 'text/html' } }) };
+  const env = { CSDL: d1(db), ASSETS, EMAIL_THU: 'ca-hai@vi-du.vn' };
+  const ra = await sonicplan.fetch(new Request('https://localhost/hoalac'), env, { waitUntil: () => {} });
+  assert.notEqual(ra.status, 403);
+  assert.equal(await ra.text(), '/hoalac/index.html');
+});
