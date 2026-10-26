@@ -22,6 +22,13 @@ export const BANG_XUAT = [
   ['cai_dat', `SELECT khoa, gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa NOT LIKE 'tich_hop%' AND khoa NOT LIKE '%ma_noi%' AND khoa NOT LIKE '%bam%' AND khoa <> 'google_state'`],
   ['thong_bao', 'SELECT loai, tieu_de, noi_dung, viec_id, tao_luc, da_doc_luc FROM thong_bao WHERE to_chuc_id = ?1'],
   ['nhat_ky_chay', 'SELECT * FROM nhat_ky_chay WHERE to_chuc_id = ?1 ORDER BY id DESC LIMIT 2000'],
+  // RAID của Viện Hòa Lạc (rủi ro, vấn đề, thay đổi, quyết định, bài học): phải có trong bản sao lưu trước khi
+  // xoaToChuc() xóa 5 bảng này, không thì dữ liệu RAID mất hẳn, không khôi phục được trong 30 ngày như đã hứa.
+  ['qlda_rui_ro', 'SELECT * FROM qlda_rui_ro WHERE to_chuc_id = ?1'],
+  ['qlda_van_de', 'SELECT * FROM qlda_van_de WHERE to_chuc_id = ?1'],
+  ['qlda_thay_doi', 'SELECT * FROM qlda_thay_doi WHERE to_chuc_id = ?1'],
+  ['qlda_quyet_dinh', 'SELECT * FROM qlda_quyet_dinh WHERE to_chuc_id = ?1'],
+  ['qlda_bai_hoc', 'SELECT * FROM qlda_bai_hoc WHERE to_chuc_id = ?1'],
 ];
 
 export async function xuatDuLieu(env, tc, luc = new Date().toISOString()) {

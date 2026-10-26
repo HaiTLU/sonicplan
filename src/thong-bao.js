@@ -25,6 +25,11 @@ export const LOAI_THONG_BAO = {
 // chung /api/thong-bao với phần còn lại của tổ chức - CLAUDE.md: đối tác không thấy RAID).
 const AN_VOI_DOI_TAC = ['hoalac_rui_ro', 'hoalac_thay_doi'];
 
+// dang_ky_day chỉ gắn với tổ chức, không gắn với người/vai trò cụ thể, nên không biết thiết bị đăng ký
+// là của chủ, thành viên hay đối tác. Hai loại RAID này chỉ báo trong chuông (nơi /api/thong-bao đã lọc
+// theo vai trò ở AN_VOI_DOI_TAC), không đẩy ra thiết bị để tránh lộ tiêu đề/nội dung cho đối tác.
+const KHONG_DAY = ['hoalac_rui_ro', 'hoalac_thay_doi'];
+
 // Chỉ gửi tới dịch vụ đẩy của trình duyệt lớn, không để địa chỉ tùy ý biến máy chủ thành nơi gọi đi bất kỳ đâu.
 const MIEN_DAY = ['.googleapis.com', '.mozilla.com', '.push.apple.com', '.notify.windows.com'];
 export function laDiaChiDay(dia) {
@@ -164,7 +169,7 @@ export async function taoThongBao(env, tc, tb, { bayGio = new Date().toISOString
     ).bind(tc).run();
     let day = null;
     const lg = await docLuong(env, tc);
-    if (tb.loai === 'thu' || !dangYenLang(gioVN(bayGio), lg.nguong)) {
+    if (!KHONG_DAY.includes(tb.loai) && (tb.loai === 'thu' || !dangYenLang(gioVN(bayGio), lg.nguong))) {
       day = await guiDayToChuc(env, tc, { id: dong.id, loai: tb.loai, tieu_de: cat(tb.tieu_de, 160), noi_dung: tb.noi_dung ? cat(tb.noi_dung, 300) : '', duong_dan: tb.duong_dan || '#tong-quan', viec_id: tb.viec_id ?? null });
     }
     return { id: dong.id, day };

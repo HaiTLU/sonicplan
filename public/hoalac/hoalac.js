@@ -251,8 +251,18 @@ function veThayDoi(ds, lamMoi) {
   if (!ds.length) return h('div', {}, form, h('p', { class: 'trong' }, 'Chưa có yêu cầu thay đổi nào.'));
   const chuyen = async (id, trangThai) => {
     let ghiChu = '';
-    if (trangThai === 'tu_choi') ghiChu = prompt('Lý do từ chối (không bắt buộc):') || '';
-    if (trangThai === 'duyet') ghiChu = prompt('Ghi chú khi duyệt (không bắt buộc):') || '';
+    // prompt() trả null khi người dùng bấm Cancel: dừng hẳn, không coi là "để trống rồi vẫn gửi",
+    // vì duyệt/từ chối là quyết định một chiều không lùi lại được.
+    if (trangThai === 'tu_choi') {
+      const tra = prompt('Lý do từ chối (không bắt buộc):');
+      if (tra === null) return;
+      ghiChu = tra;
+    }
+    if (trangThai === 'duyet') {
+      const tra = prompt('Ghi chú khi duyệt (không bắt buộc):');
+      if (tra === null) return;
+      ghiChu = tra;
+    }
     try {
       await api(`/api/hoalac/thay-doi/${id}`, { method: 'PUT', body: JSON.stringify({ trang_thai: trangThai, ghi_chu_duyet: ghiChu || undefined }) });
       await lamMoi();

@@ -204,8 +204,65 @@ test('xóa tổ chức xóa sạch cả 5 bảng RAID, không lỗi khóa ngoạ
   const toChuc = { id: 'tc-hl', ten: 'Vien Hoa Lac', vai_tro: 'chu' };
   const kq = await xoaToChuc(env, toChuc, CHU, 'Vien Hoa Lac');
   assert.equal(kq.ok, true);
+  const khoaSaoLuu = [...env.TEP.kho.keys()].find((k) => k.startsWith('sao-luu/tc-hl/'));
+  const banSao = JSON.parse(env.TEP.kho.get(khoaSaoLuu));
+  assert.equal(banSao.qlda_rui_ro[0].ten, 'A');
+  assert.equal(banSao.qlda_van_de[0].ten, 'B');
+  assert.equal(banSao.qlda_thay_doi[0].ten, 'C');
+  assert.equal(banSao.qlda_quyet_dinh[0].ten, 'D');
+  assert.equal(banSao.qlda_bai_hoc[0].ten, 'E');
   for (const bang of ['qlda_rui_ro', 'qlda_van_de', 'qlda_thay_doi', 'qlda_quyet_dinh', 'qlda_bai_hoc']) {
     const con = db.prepare(`SELECT COUNT(*) AS n FROM ${bang} WHERE to_chuc_id = 'tc-hl'`).get().n;
     assert.equal(con, 0, `${bang} phải rỗng sau khi xóa tổ chức`);
   }
+});
+
+// ---------- Khóa ngoài phải thuộc đúng tổ chức (chặn gán chéo tổ chức) ----------
+
+test('tạo rủi ro với hang_muc_id của tổ chức khác thì 400', async () => {
+  const { env, db } = moiEnv();
+  db.exec("INSERT INTO to_chuc (id, ten, pham_vi_truy_cap, tao_luc) VALUES ('tc-khac', 'To chuc khac', 'hoalac', '2026-01-01')");
+  db.exec("INSERT INTO qlda_hang_muc (to_chuc_id, ten, tao_luc, cap_nhat_luc) VALUES ('tc-khac', 'Hang muc la', '2026-01-01', '2026-01-01')");
+  const { id: hangMucKhacId } = db.prepare("SELECT id FROM qlda_hang_muc WHERE to_chuc_id = 'tc-khac'").get();
+  const r = await goi(env, CHU, '/api/hoalac/rui-ro', { method: 'POST', body: JSON.stringify({ ten: 'A', hang_muc_id: hangMucKhacId }) });
+  assert.equal(r.status, 400);
+});
+
+test('sửa rủi ro gán hang_muc_id của tổ chức khác thì 400, không đổi dữ liệu', async () => {
+  const { env, db } = moiEnv();
+  db.exec("INSERT INTO to_chuc (id, ten, pham_vi_truy_cap, tao_luc) VALUES ('tc-khac', 'To chuc khac', 'hoalac', '2026-01-01')");
+  db.exec("INSERT INTO qlda_hang_muc (to_chuc_id, ten, tao_luc, cap_nhat_luc) VALUES ('tc-khac', 'Hang muc la', '2026-01-01', '2026-01-01')");
+  const { id: hangMucKhacId } = db.prepare("SELECT id FROM qlda_hang_muc WHERE to_chuc_id = 'tc-khac'").get();
+  const { id } = await (await goi(env, CHU, '/api/hoalac/rui-ro', { method: 'POST', body: JSON.stringify({ ten: 'A' }) })).json();
+  const r = await goi(env, CHU, `/api/hoalac/rui-ro/${id}`, { method: 'PUT', body: JSON.stringify({ hang_muc_id: hangMucKhacId }) });
+  assert.equal(r.status, 400);
+  const ds = await (await goi(env, CHU, '/api/hoalac/rui-ro')).json();
+  assert.equal(ds.rui_ro[0].hang_muc_id, null);
+});
+
+test('tạo vấn đề với rui_ro_id của tổ chức khác thì 400', async () => {
+  const { env, db } = moiEnv();
+  db.exec("INSERT INTO to_chuc (id, ten, pham_vi_truy_cap, tao_luc) VALUES ('tc-khac', 'To chuc khac', 'hoalac', '2026-01-01')");
+  db.exec("INSERT INTO nguoi_dung (id, email, tao_luc) VALUES ('nd-chu-khac', 'chu-khac@vi-du.vn', '2026-01-01')");
+  db.exec("INSERT INTO thanh_vien (to_chuc_id, nguoi_dung_id, vai_tro, tao_luc) VALUES ('tc-khac', 'nd-chu-khac', 'chu', '2026-01-01')");
+  const { id: ruiRoKhacId } = await (await goi(env, 'chu-khac@vi-du.vn', '/api/hoalac/rui-ro', { method: 'POST', body: JSON.stringify({ ten: 'Rủi ro tổ chức khác' }) })).json();
+  const r = await goi(env, CHU, '/api/hoalac/van-de', { method: 'POST', body: JSON.stringify({ ten: 'B', rui_ro_id: ruiRoKhacId }) });
+  assert.equal(r.status, 400);
+});
+
+// ---------- Xóa rủi ro đang có vấn đề tham chiếu ----------
+
+test('xóa rủi ro đang được vấn đề tham chiếu thì 409, không vỡ khóa ngoại; rủi ro không có vấn đề thì xóa được 200', async () => {
+  const { env } = moiEnv();
+  const { id: ruiRoCoVanDe } = await (await goi(env, CHU, '/api/hoalac/rui-ro', { method: 'POST', body: JSON.stringify({ ten: 'A' }) })).json();
+  await goi(env, CHU, '/api/hoalac/van-de', { method: 'POST', body: JSON.stringify({ ten: 'B', rui_ro_id: ruiRoCoVanDe }) });
+
+  const bi409 = await goi(env, CHU, `/api/hoalac/rui-ro/${ruiRoCoVanDe}`, { method: 'DELETE' });
+  assert.equal(bi409.status, 409);
+  const vanConRuiRo = await (await goi(env, CHU, '/api/hoalac/rui-ro')).json();
+  assert.equal(vanConRuiRo.rui_ro.length, 1, 'rủi ro không bị xóa dở khi trả 409');
+
+  const { id: ruiRoKhongVanDe } = await (await goi(env, CHU, '/api/hoalac/rui-ro', { method: 'POST', body: JSON.stringify({ ten: 'C' }) })).json();
+  const r = await goi(env, CHU, `/api/hoalac/rui-ro/${ruiRoKhongVanDe}`, { method: 'DELETE' });
+  assert.equal(r.status, 200);
 });

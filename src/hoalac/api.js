@@ -16,6 +16,14 @@ const CHAN_DOI_TAC = (phien) => (laDoiTac(phien) ? loi(403, 'Tài khoản đối
 // Luồng duyệt thay đổi một chiều, không lùi lại hay nhảy cóc.
 const CHUYEN_TRANG_THAI_THAY_DOI = { de_xuat: ['xem_xet'], xem_xet: ['duyet', 'tu_choi'], duyet: [], tu_choi: [] };
 
+// Kiểm một khóa ngoài có thật và thuộc đúng tổ chức trước khi ghi, tránh một tổ chức gán tới dòng của tổ chức khác.
+// `bang` luôn là tên cố định viết sẵn trong tệp này, không phải dữ liệu người dùng.
+async function thuocToChuc(env, tc, bang, id) {
+  if (id == null) return true;
+  const r = await env.CSDL.prepare(`SELECT 1 FROM ${bang} WHERE id = ?1 AND to_chuc_id = ?2`).bind(id, tc).first();
+  return !!r;
+}
+
 export async function xuLyHoaLac(yeuCau, env, phien, url) {
   const p = url.pathname;
   if (!p.startsWith('/api/hoalac/')) return null;
@@ -180,6 +188,7 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
     const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
     const than = await yeuCau.json().catch(() => ({}));
     if (!than.ten) return loi(400, 'Thiếu tên rủi ro.');
+    if (!(await thuocToChuc(env, tc, 'qlda_hang_muc', than.hang_muc_id))) return loi(400, 'Hạng mục không thuộc tổ chức này.');
     const { meta } = await env.CSDL.prepare(
       `INSERT INTO qlda_rui_ro (to_chuc_id, ten, mo_ta, xac_suat, tac_dong, bien_phap, phu_trach, hang_muc_id, tao_boi, tao_luc, cap_nhat_luc)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)`,
@@ -195,6 +204,7 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
     const id = Number(khop[1]);
     if (m === 'PUT') {
       const than = await yeuCau.json().catch(() => ({}));
+      if (!(await thuocToChuc(env, tc, 'qlda_hang_muc', than.hang_muc_id))) return loi(400, 'Hạng mục không thuộc tổ chức này.');
       const { meta } = await env.CSDL.prepare(
         `UPDATE qlda_rui_ro SET ten = COALESCE(?1, ten), mo_ta = COALESCE(?2, mo_ta), xac_suat = COALESCE(?3, xac_suat),
          tac_dong = COALESCE(?4, tac_dong), bien_phap = COALESCE(?5, bien_phap), phu_trach = COALESCE(?6, phu_trach),
@@ -204,6 +214,9 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
       return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy rủi ro.');
     }
     if (m === 'DELETE') {
+      // Một vấn đề còn tham chiếu tới rủi ro này thì chặn xóa (khóa ngoài CSDL thật sẽ ném lỗi ràng buộc, không phải 409 có ích).
+      const coVanDe = await env.CSDL.prepare('SELECT 1 FROM qlda_van_de WHERE rui_ro_id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+      if (coVanDe) return loi(409, 'Rủi ro đang được một vấn đề tham chiếu, hãy bỏ liên kết ở vấn đề đó trước khi xóa.');
       const { meta } = await env.CSDL.prepare('DELETE FROM qlda_rui_ro WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).run();
       return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy rủi ro.');
     }
@@ -219,6 +232,8 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
     const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
     const than = await yeuCau.json().catch(() => ({}));
     if (!than.ten) return loi(400, 'Thiếu tên vấn đề.');
+    if (!(await thuocToChuc(env, tc, 'qlda_rui_ro', than.rui_ro_id))) return loi(400, 'Rủi ro không thuộc tổ chức này.');
+    if (!(await thuocToChuc(env, tc, 'qlda_hang_muc', than.hang_muc_id))) return loi(400, 'Hạng mục không thuộc tổ chức này.');
     const { meta } = await env.CSDL.prepare(
       `INSERT INTO qlda_van_de (to_chuc_id, ten, mo_ta, muc_do, phu_trach, rui_ro_id, hang_muc_id, tao_boi, tao_luc, cap_nhat_luc)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)`,
@@ -230,6 +245,8 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
     const id = Number(khop[1]);
     if (m === 'PUT') {
       const than = await yeuCau.json().catch(() => ({}));
+      if (!(await thuocToChuc(env, tc, 'qlda_rui_ro', than.rui_ro_id))) return loi(400, 'Rủi ro không thuộc tổ chức này.');
+      if (!(await thuocToChuc(env, tc, 'qlda_hang_muc', than.hang_muc_id))) return loi(400, 'Hạng mục không thuộc tổ chức này.');
       const { meta } = await env.CSDL.prepare(
         `UPDATE qlda_van_de SET ten = COALESCE(?1, ten), mo_ta = COALESCE(?2, mo_ta), muc_do = COALESCE(?3, muc_do),
          phu_trach = COALESCE(?4, phu_trach), rui_ro_id = COALESCE(?5, rui_ro_id), hang_muc_id = COALESCE(?6, hang_muc_id),
@@ -254,6 +271,7 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
     const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
     const than = await yeuCau.json().catch(() => ({}));
     if (!than.ten) return loi(400, 'Thiếu tên yêu cầu thay đổi.');
+    if (!(await thuocToChuc(env, tc, 'qlda_hang_muc', than.hang_muc_id))) return loi(400, 'Hạng mục không thuộc tổ chức này.');
     const { meta } = await env.CSDL.prepare(
       `INSERT INTO qlda_thay_doi (to_chuc_id, ten, mo_ta, ly_do, anh_huong, hang_muc_id, de_xuat_boi, tao_luc, cap_nhat_luc)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)`,
@@ -264,26 +282,33 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
     const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
     const id = Number(khop[1]);
     const than = await yeuCau.json().catch(() => ({}));
+    if (!(await thuocToChuc(env, tc, 'qlda_hang_muc', than.hang_muc_id))) return loi(400, 'Hạng mục không thuộc tổ chức này.');
     if (than.trang_thai) {
-      const hien = await env.CSDL.prepare('SELECT trang_thai FROM qlda_thay_doi WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+      const hien = await env.CSDL.prepare('SELECT ten, trang_thai FROM qlda_thay_doi WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
       if (!hien) return loi(404, 'Không tìm thấy yêu cầu thay đổi.');
       if (!(CHUYEN_TRANG_THAI_THAY_DOI[hien.trang_thai] || []).includes(than.trang_thai)) {
         return loi(409, `Không chuyển được từ "${hien.trang_thai}" sang "${than.trang_thai}".`);
       }
+      // Giữ đúng trạng thái vừa đọc trong điều kiện UPDATE: hai lượt duyệt/từ chối tới cùng lúc thì chỉ một lượt ghi được, lượt sau trả 409 thay vì đè quyết định đã duyệt.
+      const { meta } = await env.CSDL.prepare(
+        `UPDATE qlda_thay_doi SET ten = COALESCE(?1, ten), mo_ta = COALESCE(?2, mo_ta), ly_do = COALESCE(?3, ly_do),
+         anh_huong = COALESCE(?4, anh_huong), hang_muc_id = COALESCE(?5, hang_muc_id), trang_thai = ?6,
+         ghi_chu_duyet = COALESCE(?7, ghi_chu_duyet), duyet_boi = CASE WHEN ?6 IN ('duyet', 'tu_choi') THEN ?8 ELSE duyet_boi END,
+         cap_nhat_luc = ?9 WHERE id = ?10 AND to_chuc_id = ?11 AND trang_thai = ?12`,
+      ).bind(than.ten ?? null, than.mo_ta ?? null, than.ly_do ?? null, than.anh_huong ?? null, than.hang_muc_id ?? null,
+        than.trang_thai, than.ghi_chu_duyet ?? null, phien.email, bayGio, id, tc, hien.trang_thai).run();
+      if (!meta.changes) return loi(409, `Trạng thái đã bị một yêu cầu khác đổi (không còn ở "${hien.trang_thai}"), hãy tải lại.`);
+      if (than.trang_thai === 'xem_xet') {
+        await taoThongBao(env, tc, { loai: 'hoalac_thay_doi', tieu_de: `Thay đổi chờ duyệt: ${hien.ten}`, duong_dan: '/hoalac#raid' });
+      }
+      return json({ ok: true });
     }
     const { meta } = await env.CSDL.prepare(
       `UPDATE qlda_thay_doi SET ten = COALESCE(?1, ten), mo_ta = COALESCE(?2, mo_ta), ly_do = COALESCE(?3, ly_do),
-       anh_huong = COALESCE(?4, anh_huong), hang_muc_id = COALESCE(?5, hang_muc_id), trang_thai = COALESCE(?6, trang_thai),
-       ghi_chu_duyet = COALESCE(?7, ghi_chu_duyet), duyet_boi = CASE WHEN ?6 IN ('duyet', 'tu_choi') THEN ?8 ELSE duyet_boi END,
-       cap_nhat_luc = ?9 WHERE id = ?10 AND to_chuc_id = ?11`,
-    ).bind(than.ten ?? null, than.mo_ta ?? null, than.ly_do ?? null, than.anh_huong ?? null, than.hang_muc_id ?? null,
-      than.trang_thai ?? null, than.ghi_chu_duyet ?? null, phien.email, bayGio, id, tc).run();
-    if (!meta.changes) return loi(404, 'Không tìm thấy yêu cầu thay đổi.');
-    if (than.trang_thai === 'xem_xet') {
-      const r = await env.CSDL.prepare('SELECT ten FROM qlda_thay_doi WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
-      await taoThongBao(env, tc, { loai: 'hoalac_thay_doi', tieu_de: `Thay đổi chờ duyệt: ${r?.ten || ''}`, duong_dan: '/hoalac#raid' });
-    }
-    return json({ ok: true });
+       anh_huong = COALESCE(?4, anh_huong), hang_muc_id = COALESCE(?5, hang_muc_id), cap_nhat_luc = ?6
+       WHERE id = ?7 AND to_chuc_id = ?8`,
+    ).bind(than.ten ?? null, than.mo_ta ?? null, than.ly_do ?? null, than.anh_huong ?? null, than.hang_muc_id ?? null, bayGio, id, tc).run();
+    return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy yêu cầu thay đổi.');
   }
   if ((khop = p.match(/^\/api\/hoalac\/thay-doi\/(\d+)$/)) && m === 'DELETE') {
     const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
@@ -301,6 +326,7 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
     const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
     const than = await yeuCau.json().catch(() => ({}));
     if (!than.ten) return loi(400, 'Thiếu tên quyết định.');
+    if (!(await thuocToChuc(env, tc, 'qlda_hang_muc', than.hang_muc_id))) return loi(400, 'Hạng mục không thuộc tổ chức này.');
     const { meta } = await env.CSDL.prepare(
       `INSERT INTO qlda_quyet_dinh (to_chuc_id, ten, noi_dung, can_cu, nguoi_quyet_dinh, ngay_quyet_dinh, hang_muc_id, tao_boi, tao_luc)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
@@ -323,6 +349,7 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
     const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
     const than = await yeuCau.json().catch(() => ({}));
     if (!than.ten) return loi(400, 'Thiếu tên bài học.');
+    if (!(await thuocToChuc(env, tc, 'qlda_giai_doan', than.giai_doan_id))) return loi(400, 'Giai đoạn không thuộc tổ chức này.');
     const { meta } = await env.CSDL.prepare(
       `INSERT INTO qlda_bai_hoc (to_chuc_id, ten, mo_ta, loai, de_xuat_ap_dung, giai_doan_id, tao_boi, tao_luc) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
     ).bind(tc, than.ten, than.mo_ta || '', than.loai || 'tot', than.de_xuat_ap_dung || '', than.giai_doan_id ?? null, phien.email, bayGio).run();
