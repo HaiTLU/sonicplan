@@ -51,6 +51,9 @@
     "ACCESS_TEAM_DOMAIN": "autumn-bar-9932.cloudflareaccess.com",
     // Mã AUD của ứng dụng Access (README bước 5).
     "ACCESS_AUD": "3c6d37c2645cc2d9276921c4684b8a5e9a175f346ee93b79ff1736910e161f1c",
+    // AUD của các ứng dụng Access phụ, JSON mảng chuỗi. Phần /hoalac dùng ứng dụng Access riêng
+    // (tư vấn bên ngoài), AUD của nó thêm vào đây, không dùng chung ACCESS_AUD.
+    "ACCESS_UNG_DUNG": "[]",
     // Tên miền nhận thư qua Email Routing, ví dụ "sonicplan.vn". Để trống thì chưa nhận thư.
     "EMAIL_DOMAIN": "sonicrec.app",
     // Người quản trị hệ thống (cài bot Telegram chung ở trang Kết nối), nhiều email cách nhau dấu phẩy.

@@ -13,7 +13,7 @@ async function docThanhVien(env, email) {
   const co = nho.get(email);
   if (co && Date.now() - co.luc < NHO_MS) return co.dong;
   const { results } = await env.CSDL.prepare(
-    `SELECT n.id AS nguoi_dung_id, n.ten AS ten_nguoi_dung, t.id AS to_chuc_id, t.ten AS ten_to_chuc, t.goi, v.vai_tro
+    `SELECT n.id AS nguoi_dung_id, n.ten AS ten_nguoi_dung, t.id AS to_chuc_id, t.ten AS ten_to_chuc, t.goi, t.pham_vi_truy_cap, v.vai_tro
      FROM nguoi_dung n
      JOIN thanh_vien v ON v.nguoi_dung_id = n.id
      JOIN to_chuc t ON t.id = v.to_chuc_id
@@ -41,7 +41,7 @@ export async function xacDinhPhien(yeuCau, env) {
     duoc: true,
     email: email.email,
     nguoi_dung: { id: dong.nguoi_dung_id, ten: dong.ten_nguoi_dung },
-    to_chuc: { id: dong.to_chuc_id, ten: dong.ten_to_chuc, goi: dong.goi, vai_tro: dong.vai_tro },
+    to_chuc: { id: dong.to_chuc_id, ten: dong.ten_to_chuc, goi: dong.goi, pham_vi_truy_cap: dong.pham_vi_truy_cap, vai_tro: dong.vai_tro },
     cac_to_chuc: results.map((r) => ({ id: r.to_chuc_id, ten: r.ten_to_chuc })),
   };
 }

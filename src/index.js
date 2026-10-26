@@ -51,6 +51,17 @@ export default {
         return loi(403, 'Yêu cầu không đến từ trang Sonicplan.');
       }
 
+      // Phần /hoalac (Viện Hòa Lạc) cách ly hẳn khỏi phần còn lại: tổ chức phạm vi 'hoalac' chỉ
+      // vào được đúng đường dẫn này, và đường dẫn này chỉ nhận tổ chức phạm vi 'hoalac'.
+      const duongHoaLac = url.pathname === '/hoalac' || url.pathname.startsWith('/hoalac/') || url.pathname === '/api/hoalac' || url.pathname.startsWith('/api/hoalac/');
+      if (phien.to_chuc.pham_vi_truy_cap === 'hoalac') {
+        if (!duongHoaLac && !url.pathname.startsWith('/api/toi') && url.pathname !== '/api/thong-bao' && !url.pathname.startsWith('/api/thong-bao/')) {
+          return loi(403, 'Tài khoản này chỉ dùng được phần Viện Hòa Lạc.');
+        }
+      } else if (duongHoaLac) {
+        return loi(403, 'Tài khoản này không thuộc Viện Hòa Lạc.');
+      }
+
       // Chạy ngay một tác vụ hẹn giờ (nút "Chạy ngay" ở trang Luồng và Nhật ký). Chỉ chủ tổ chức.
       if (url.pathname === '/api/chay-ngay' && yeuCau.method === 'POST') {
         if (phien.to_chuc.vai_tro !== 'chu') return json({ loi: 'Chỉ chủ tổ chức chạy tay được.' }, 403);

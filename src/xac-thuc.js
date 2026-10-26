@@ -43,7 +43,7 @@ export async function kiemDangNhap(yeuCau, env, { layKhoa = layKhoaAccess, bayGi
   if (!dungChuKy) return { duoc: false, ly_do: 'Chữ ký vé sai' };
 
   const aud = Array.isArray(than.aud) ? than.aud : [than.aud];
-  if (!aud.includes(env.ACCESS_AUD)) return { duoc: false, ly_do: 'Vé không dành cho ứng dụng này' };
+  if (!aud.some((a) => audChoPhep(env).includes(a))) return { duoc: false, ly_do: 'Vé không dành cho ứng dụng này' };
   if (than.iss !== `https://${env.ACCESS_TEAM_DOMAIN}`) return { duoc: false, ly_do: 'Nơi cấp vé không đúng' };
   if (!than.exp || than.exp * 1000 < bayGio) return { duoc: false, ly_do: 'Vé đã hết hạn' };
 
@@ -52,6 +52,20 @@ export async function kiemDangNhap(yeuCau, env, { layKhoa = layKhoaAccess, bayGi
 
   // Email đúng là người thật đã qua Access; được dùng tổ chức nào thì do bảng thanh_vien quyết (src/phien.js).
   return { duoc: true, email };
+}
+
+// Phần /hoalac có ứng dụng Access riêng (AUD riêng), để tách tư vấn bên ngoài khỏi Access chung
+// của Sonicplan. env.ACCESS_UNG_DUNG là JSON mảng các AUD được nhận thêm, ví dụ ["aud-hoalac"].
+function audChoPhep(env) {
+  const ds = [env.ACCESS_AUD];
+  if (env.ACCESS_UNG_DUNG) {
+    try {
+      ds.push(...JSON.parse(env.ACCESS_UNG_DUNG));
+    } catch {
+      // Cấu hình sai thì chỉ còn AUD chính, không chặn luôn cả hệ thống.
+    }
+  }
+  return ds;
 }
 
 async function layKhoaAccess(mien, bayGio, { lamMoi = false } = {}) {
