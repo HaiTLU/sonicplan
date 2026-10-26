@@ -21,15 +21,27 @@ export function d1(db) {
       const kq = db.prepare(cau).run(...ts);
       return { meta: { changes: Number(kq.changes), last_row_id: Number(kq.lastInsertRowid) } };
     },
+    // Dùng trong batch(): D1 thật trả cả results và meta cho mọi câu lệnh trong batch, không chỉ SELECT.
+    _trongBatch: async () => {
+      if (/\bRETURNING\b/i.test(cau)) {
+        const rows = db.prepare(cau).all(...ts).map(thuong);
+        return { results: rows, meta: { changes: rows.length } };
+      }
+      if (/^\s*select/i.test(cau)) {
+        return { results: db.prepare(cau).all(...ts).map(thuong), meta: { changes: 0 } };
+      }
+      const kq = db.prepare(cau).run(...ts);
+      return { results: [], meta: { changes: Number(kq.changes), last_row_id: Number(kq.lastInsertRowid) } };
+    },
   });
   return {
     prepare: (cau) => cauLenh(cau),
-    // D1 chạy batch như một giao dịch.
+    // D1 chạy batch như một giao dịch; mỗi câu lệnh trả cả results và meta như D1 thật.
     batch: async (ds) => {
       db.exec('BEGIN');
       try {
         const ra = [];
-        for (const x of ds) ra.push(await x.all());
+        for (const x of ds) ra.push(await x._trongBatch());
         db.exec('COMMIT');
         return ra;
       } catch (e) {

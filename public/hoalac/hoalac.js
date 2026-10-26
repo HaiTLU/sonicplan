@@ -17,6 +17,16 @@ const CAC_MUC_RAID = [
 ];
 let raidSub = 'rui_ro';
 
+const CAC_MUC_PHAP_LY = [
+  { ma: 'ben_lien_quan', ten: 'Các bên' },
+  { ma: 'raci', ten: 'RACI' },
+  { ma: 'hop_dong', ten: 'Hợp đồng' },
+  { ma: 'thu_tuc', ten: 'Thủ tục' },
+  { ma: 'van_ban', ten: 'Văn bản' },
+  { ma: 'hop', ten: 'Họp' },
+];
+let phapLySub = 'thu_tuc';
+
 async function chinh() {
   const goc = document.getElementById('goc');
   let toi;
@@ -33,20 +43,25 @@ async function chinh() {
   const tabKanban = document.getElementById('tab-kanban');
   const tabGantt = document.getElementById('tab-gantt');
   const tabRaid = document.getElementById('tab-raid');
+  const tabPhapLy = document.getElementById('tab-phap-ly');
   const moKanban = () => taiVaVe(goc, chiXem, 'kanban');
   const moGantt = () => taiVaVe(goc, chiXem, 'gantt');
+  const moPhapLy = () => taiVaVePhapLy(goc, chiXem);
   if (chiXem) {
-    // Đối tác: RAID trả 403 cho mọi thao tác, không gọi API và không cho thấy tab này.
+    // Đối tác: RAID trả 403 cho mọi thao tác, không gọi API và không cho thấy tab này. Pháp lý vẫn còn vì
+    // đối tác được xem đúng thủ tục được gán (404 nếu không), nhưng vePhapLy() tự ẩn 5 mục còn lại.
     tabRaid.remove();
-    const cacTab = [tabKanban, tabGantt];
+    const cacTab = [tabKanban, tabGantt, tabPhapLy];
     tabKanban.onclick = () => { chonTab(tabKanban, cacTab); moKanban(); };
     tabGantt.onclick = () => { chonTab(tabGantt, cacTab); moGantt(); };
+    tabPhapLy.onclick = () => { chonTab(tabPhapLy, cacTab); moPhapLy(); };
   } else {
-    const cacTab = [tabKanban, tabGantt, tabRaid];
+    const cacTab = [tabKanban, tabGantt, tabRaid, tabPhapLy];
     const moRaid = () => taiVaVeRaid(goc);
     tabKanban.onclick = () => { chonTab(tabKanban, cacTab); moKanban(); };
     tabGantt.onclick = () => { chonTab(tabGantt, cacTab); moGantt(); };
     tabRaid.onclick = () => { chonTab(tabRaid, cacTab); moRaid(); };
+    tabPhapLy.onclick = () => { chonTab(tabPhapLy, cacTab); moPhapLy(); };
   }
   await moKanban();
 }
@@ -316,6 +331,203 @@ function veBaiHoc(ds, lamMoi) {
     x.mo_ta ? h('p', { text: x.mo_ta }) : null,
     x.de_xuat_ap_dung ? h('p', { class: 'chi-tiet-raid' }, `Đề xuất áp dụng: ${x.de_xuat_ap_dung}`) : null,
     h('div', { class: 'hang-dong-raid' }, h('button', { type: 'button', onclick: () => xoaRaid(`/api/hoalac/bai-hoc/${x.id}`, lamMoi) }, 'Xóa')),
+  ));
+  return h('div', {}, form, ...list);
+}
+
+// ---------- Pháp lý: các bên liên quan, RACI, hợp đồng, thủ tục, văn bản, họp ----------
+// Đối tác chỉ GET được thủ tục được gán (404 nếu không), 5 mục còn lại chặn hẳn (403) ở api.js;
+// vePhapLy() giữ đúng chính sách đó bằng cách chỉ hiện mục "Thủ tục" trong sub-nav khi chiXem.
+async function taiVaVePhapLy(goc, chiXem) {
+  try {
+    if (chiXem) {
+      const { thu_tuc } = await api('/api/hoalac/thu-tuc');
+      phapLySub = 'thu_tuc';
+      thay(goc, vePhapLy(goc, chiXem, { thu_tuc, ben_lien_quan: [], raci: [], hop_dong: [], van_ban: [], hop: [] }));
+      return;
+    }
+    const [bl, rc, hd, tt, vb, hp] = await Promise.all([
+      api('/api/hoalac/ben-lien-quan'), api('/api/hoalac/raci'), api('/api/hoalac/hop-dong'),
+      api('/api/hoalac/thu-tuc'), api('/api/hoalac/van-ban'), api('/api/hoalac/hop'),
+    ]);
+    thay(goc, vePhapLy(goc, chiXem, {
+      ben_lien_quan: bl.ben_lien_quan, raci: rc.raci, hop_dong: hd.hop_dong,
+      thu_tuc: tt.thu_tuc, van_ban: vb.van_ban, hop: hp.hop,
+    }));
+  } catch (e) {
+    thay(goc, khungLoi(e));
+  }
+}
+
+function vePhapLy(goc, chiXem, d) {
+  const muc = chiXem ? CAC_MUC_PHAP_LY.filter((x) => x.ma === 'thu_tuc') : CAC_MUC_PHAP_LY;
+  const subNav = h('nav', { class: 'sub-raid', 'aria-label': 'Mục Pháp lý' },
+    ...muc.map(({ ma, ten }) => h('button', {
+      type: 'button',
+      'aria-current': ma === phapLySub ? 'true' : null,
+      onclick: () => { phapLySub = ma; thay(goc, vePhapLy(goc, chiXem, d)); },
+      text: `${ten} (${d[ma].length})`,
+    })),
+  );
+  const lamMoi = () => taiVaVePhapLy(goc, chiXem);
+  const noiDung = {
+    ben_lien_quan: () => veBenLienQuan(d.ben_lien_quan, lamMoi),
+    raci: () => veRaci(d.raci, d.ben_lien_quan, lamMoi),
+    hop_dong: () => veHopDong(d.hop_dong, d.ben_lien_quan, lamMoi),
+    thu_tuc: () => veThuTuc(d.thu_tuc, chiXem, lamMoi),
+    van_ban: () => veVanBan(d.van_ban, d.thu_tuc, lamMoi),
+    hop: () => veHop(d.hop, lamMoi),
+  }[phapLySub]();
+  return h('div', { class: 'khung-raid' }, subNav, noiDung);
+}
+
+const TEN_LOAI_BEN = { noi_bo: 'Nội bộ', tu_van: 'Tư vấn', co_quan_nha_nuoc: 'Cơ quan nhà nước', khac: 'Khác' };
+
+function veBenLienQuan(ds, lamMoi) {
+  const form = h('form', { class: 'form-raid', onsubmit: (e) => guiForm(e, '/api/hoalac/ben-lien-quan', lamMoi) },
+    h('input', { name: 'ten', placeholder: 'Tên bên liên quan', required: true }),
+    h('label', {}, 'Loại ', oChon('loai', Object.entries(TEN_LOAI_BEN), 'tu_van')),
+    h('input', { name: 'don_vi', placeholder: 'Đơn vị' }),
+    h('input', { name: 'vai_tro', placeholder: 'Vai trò trong dự án' }),
+    h('input', { name: 'lien_he', placeholder: 'Liên hệ (email/SĐT)' }),
+    h('label', {}, 'Mức ảnh hưởng ', oChon('muc_do_anh_huong', [['cao', 'Cao'], ['trung_binh', 'Trung bình'], ['thap', 'Thấp']], 'trung_binh')),
+    h('button', { type: 'submit' }, 'Thêm bên liên quan'),
+  );
+  if (!ds.length) return h('div', {}, form, h('p', { class: 'trong' }, 'Chưa có bên liên quan nào.'));
+  const list = ds.map((x) => h('div', { class: 'the-raid' },
+    h('div', { class: 'dau-the-raid' }, h('strong', { text: x.ten }), h('span', { class: 'chi-tiet-raid', text: TEN_LOAI_BEN[x.loai] })),
+    h('p', { class: 'chi-tiet-raid' }, `${x.don_vi ? `Đơn vị: ${x.don_vi}` : ''}${x.vai_tro ? ` · Vai trò: ${x.vai_tro}` : ''}${x.lien_he ? ` · Liên hệ: ${x.lien_he}` : ''}`),
+    h('div', { class: 'hang-dong-raid' }, h('button', { type: 'button', onclick: () => xoaRaid(`/api/hoalac/ben-lien-quan/${x.id}`, lamMoi) }, 'Xóa')),
+  ));
+  return h('div', {}, form, ...list);
+}
+
+const TEN_VAI_TRO_RACI = { R: 'R - Thực hiện', A: 'A - Chịu trách nhiệm', C: 'C - Tư vấn', I: 'I - Thông báo' };
+
+function veRaci(ds, dsBen, lamMoi) {
+  if (!dsBen.length) return h('p', { class: 'trong' }, 'Thêm bên liên quan trước khi gán RACI.');
+  const form = h('form', { class: 'form-raid', onsubmit: (e) => guiForm(e, '/api/hoalac/raci', lamMoi) },
+    h('input', { name: 'hoat_dong', placeholder: 'Hoạt động / công việc', required: true }),
+    oChon('ben_lien_quan_id', dsBen.map((b) => [b.id, b.ten])),
+    h('label', {}, 'Vai trò ', oChon('vai_tro', Object.entries(TEN_VAI_TRO_RACI), 'R')),
+    h('button', { type: 'submit' }, 'Thêm RACI'),
+  );
+  if (!ds.length) return h('div', {}, form, h('p', { class: 'trong' }, 'Chưa có phân quyền RACI nào.'));
+  const tenBen = (id) => dsBen.find((b) => b.id === id)?.ten || id;
+  const list = ds.map((x) => h('div', { class: 'the-raid' },
+    h('div', { class: 'dau-the-raid' }, h('strong', { text: x.hoat_dong }), h('span', { class: 'nhan-trang-thai', text: x.vai_tro })),
+    h('p', { class: 'chi-tiet-raid' }, `Bên: ${tenBen(x.ben_lien_quan_id)}`),
+    h('div', { class: 'hang-dong-raid' }, h('button', { type: 'button', onclick: () => xoaRaid(`/api/hoalac/raci/${x.id}`, lamMoi) }, 'Xóa')),
+  ));
+  return h('div', {}, form, ...list);
+}
+
+const TEN_TRANG_THAI_HOP_DONG = { du_thao: 'Dự thảo', da_ky: 'Đã ký', dang_thuc_hien: 'Đang thực hiện', da_hoan_thanh: 'Đã hoàn thành', da_huy: 'Đã hủy' };
+
+function veHopDong(ds, dsBen, lamMoi) {
+  const form = h('form', { class: 'form-raid', onsubmit: (e) => guiForm(e, '/api/hoalac/hop-dong', lamMoi) },
+    h('input', { name: 'ten', placeholder: 'Tên hợp đồng', required: true }),
+    dsBen.length ? oChon('ben_lien_quan_id', [['', 'Bên liên quan (tùy chọn)'], ...dsBen.map((b) => [b.id, b.ten])]) : null,
+    h('input', { name: 'so_hop_dong', placeholder: 'Số hợp đồng' }),
+    h('input', { name: 'gia_tri', type: 'number', step: '0.01', placeholder: 'Giá trị' }),
+    h('input', { name: 'ngay_ky', type: 'date' }),
+    h('label', {}, 'Trạng thái ', oChon('trang_thai', Object.entries(TEN_TRANG_THAI_HOP_DONG), 'du_thao')),
+    h('button', { type: 'submit' }, 'Thêm hợp đồng'),
+  );
+  if (!ds.length) return h('div', {}, form, h('p', { class: 'trong' }, 'Chưa có hợp đồng nào.'));
+  const tenBen = (id) => dsBen.find((b) => b.id === id)?.ten;
+  const doiTrangThai = async (id, trangThai) => {
+    try { await api(`/api/hoalac/hop-dong/${id}`, { method: 'PUT', body: JSON.stringify({ trang_thai: trangThai }) }); await lamMoi(); } catch (err) { bao(err.message, true); }
+  };
+  const list = ds.map((x) => {
+    const chonTrangThai = oChon('trang_thai', Object.entries(TEN_TRANG_THAI_HOP_DONG), x.trang_thai);
+    chonTrangThai.onchange = () => doiTrangThai(x.id, chonTrangThai.value);
+    return h('div', { class: 'the-raid' },
+      h('div', { class: 'dau-the-raid' }, h('strong', { text: x.ten }), x.gia_tri != null ? h('span', { class: 'chi-tiet-raid', text: `${Number(x.gia_tri).toLocaleString('vi-VN')} ${x.don_vi_tien}` }) : null),
+      h('p', { class: 'chi-tiet-raid' }, `${x.so_hop_dong ? `Số: ${x.so_hop_dong}` : ''}${x.ben_lien_quan_id ? ` · Bên: ${tenBen(x.ben_lien_quan_id) || x.ben_lien_quan_id}` : ''}${x.ngay_ky ? ` · Ký ngày: ${x.ngay_ky}` : ''}`),
+      h('div', { class: 'hang-dong-raid' }, chonTrangThai, h('button', { type: 'button', onclick: () => xoaRaid(`/api/hoalac/hop-dong/${x.id}`, lamMoi) }, 'Xóa')),
+    );
+  });
+  return h('div', {}, form, ...list);
+}
+
+const TEN_TRANG_THAI_THU_TUC = { todo: 'Chưa làm', doing: 'Đang làm', wait: 'Đang chờ', done: 'Xong', block: 'Bị chặn' };
+
+function veThuTuc(ds, chiXem, lamMoi) {
+  const form = chiXem ? null : h('form', { class: 'form-raid', onsubmit: (e) => guiForm(e, '/api/hoalac/thu-tuc', lamMoi) },
+    h('input', { name: 'ten', placeholder: 'Tên thủ tục', required: true }),
+    h('label', {}, 'Nhóm ', oChon('nhom', ['A', 'B', 'C', 'D', 'E'].map((n) => [n, `Nhóm ${n}`]), 'A')),
+    h('input', { name: 'don_vi_phu_trach', placeholder: 'Đơn vị phụ trách' }),
+    h('input', { name: 'so_ngay', type: 'number', placeholder: 'Số ngày dự kiến' }),
+    h('button', { type: 'submit' }, 'Thêm thủ tục'),
+  );
+  if (!ds.length) return h('div', {}, form, h('p', { class: 'trong' }, 'Chưa có thủ tục nào.'));
+  const doiTrangThai = async (id, trangThai) => {
+    try { await api(`/api/hoalac/thu-tuc/${id}`, { method: 'PUT', body: JSON.stringify({ trang_thai: trangThai }) }); await lamMoi(); } catch (err) { bao(err.message, true); }
+  };
+  const list = ds.map((x) => {
+    const chonTrangThai = oChon('trang_thai', Object.entries(TEN_TRANG_THAI_THU_TUC), x.trang_thai);
+    chonTrangThai.onchange = () => doiTrangThai(x.id, chonTrangThai.value);
+    return h('div', { class: 'the-raid' },
+      h('div', { class: 'dau-the-raid' }, h('strong', { text: x.ten }), h('span', { class: 'chi-tiet-raid', text: `Nhóm ${x.nhom}` })),
+      h('p', { class: 'chi-tiet-raid' }, `${x.don_vi_phu_trach ? `Phụ trách: ${x.don_vi_phu_trach}` : ''}${x.so_ngay != null ? ` · Dự kiến: ${x.so_ngay} ngày` : ''}${x.la_moc ? ' · Mốc dự án' : ''}`),
+      h('div', { class: 'hang-dong-raid' },
+        chonTrangThai,
+        chiXem ? null : h('button', { type: 'button', onclick: () => xoaRaid(`/api/hoalac/thu-tuc/${x.id}`, lamMoi) }, 'Xóa'),
+      ),
+    );
+  });
+  return h('div', {}, form, ...list);
+}
+
+const TEN_LOAI_VAN_BAN = { den: 'Văn bản đến', di: 'Văn bản đi' };
+
+// thoi_gian là chuỗi "YYYY-MM-DDTHH:MM" từ <input type="datetime-local">, không có múi giờ - ghép chuỗi trực
+// tiếp để hiện lại đúng giờ đã gõ, không qua Date()/Intl (dựng Date từ chuỗi này đọc theo múi giờ máy, rồi
+// ép hiện theo UTC sẽ lệch giờ với người dùng ở múi giờ khác UTC).
+function gioHopDaGo(s) {
+  const khop = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s || '');
+  if (!khop) return s || '';
+  const [, nam, thang, ngay, gio, phut] = khop;
+  return `${gio}:${phut} ${ngay}/${thang}/${nam}`;
+}
+
+function veVanBan(ds, dsThuTuc, lamMoi) {
+  const form = h('form', { class: 'form-raid', onsubmit: (e) => guiForm(e, '/api/hoalac/van-ban', lamMoi) },
+    h('label', {}, 'Loại ', oChon('loai', Object.entries(TEN_LOAI_VAN_BAN), 'den')),
+    h('input', { name: 'so_hieu', placeholder: 'Số hiệu' }),
+    h('input', { name: 'trich_yeu', placeholder: 'Trích yếu', required: true }),
+    h('input', { name: 'noi_gui', placeholder: 'Nơi gửi' }),
+    h('input', { name: 'noi_nhan', placeholder: 'Nơi nhận' }),
+    h('input', { name: 'ngay_van_ban', type: 'date' }),
+    dsThuTuc.length ? oChon('lien_quan_thu_tuc_id', [['', 'Liên quan thủ tục (tùy chọn)'], ...dsThuTuc.map((t) => [t.id, t.ten])]) : null,
+    h('button', { type: 'submit' }, 'Thêm văn bản'),
+  );
+  if (!ds.length) return h('div', {}, form, h('p', { class: 'trong' }, 'Chưa có văn bản nào.'));
+  const tenThuTuc = (id) => dsThuTuc.find((t) => t.id === id)?.ten;
+  const list = ds.map((x) => h('div', { class: 'the-raid' },
+    h('div', { class: 'dau-the-raid' }, h('strong', { text: x.trich_yeu }), h('span', { class: 'chi-tiet-raid', text: TEN_LOAI_VAN_BAN[x.loai] })),
+    h('p', { class: 'chi-tiet-raid' }, `${x.so_hieu ? `Số: ${x.so_hieu}` : ''}${x.noi_gui ? ` · Nơi gửi: ${x.noi_gui}` : ''}${x.noi_nhan ? ` · Nơi nhận: ${x.noi_nhan}` : ''}${x.ngay_van_ban ? ` · Ngày: ${x.ngay_van_ban}` : ''}${x.lien_quan_thu_tuc_id ? ` · Thủ tục: ${tenThuTuc(x.lien_quan_thu_tuc_id) || x.lien_quan_thu_tuc_id}` : ''}`),
+    h('div', { class: 'hang-dong-raid' }, h('button', { type: 'button', onclick: () => xoaRaid(`/api/hoalac/van-ban/${x.id}`, lamMoi) }, 'Xóa')),
+  ));
+  return h('div', {}, form, ...list);
+}
+
+function veHop(ds, lamMoi) {
+  const form = h('form', { class: 'form-raid', onsubmit: (e) => guiForm(e, '/api/hoalac/hop', lamMoi) },
+    h('input', { name: 'tieu_de', placeholder: 'Tiêu đề cuộc họp', required: true }),
+    h('input', { name: 'thoi_gian', type: 'datetime-local', required: true }),
+    h('input', { name: 'dia_diem', placeholder: 'Địa điểm' }),
+    h('input', { name: 'thanh_phan', placeholder: 'Thành phần tham dự' }),
+    h('textarea', { name: 'noi_dung', placeholder: 'Nội dung chính' }),
+    h('button', { type: 'submit' }, 'Thêm cuộc họp'),
+  );
+  if (!ds.length) return h('div', {}, form, h('p', { class: 'trong' }, 'Chưa có cuộc họp nào.'));
+  const list = ds.map((x) => h('div', { class: 'the-raid' },
+    h('div', { class: 'dau-the-raid' }, h('strong', { text: x.tieu_de }), h('span', { class: 'chi-tiet-raid', text: gioHopDaGo(x.thoi_gian) })),
+    h('p', { class: 'chi-tiet-raid' }, `${x.dia_diem ? `Địa điểm: ${x.dia_diem}` : ''}${x.thanh_phan ? ` · Thành phần: ${x.thanh_phan}` : ''}`),
+    x.noi_dung ? h('p', { text: x.noi_dung }) : null,
+    h('div', { class: 'hang-dong-raid' }, h('button', { type: 'button', onclick: () => xoaRaid(`/api/hoalac/hop/${x.id}`, lamMoi) }, 'Xóa')),
   ));
   return h('div', {}, form, ...list);
 }

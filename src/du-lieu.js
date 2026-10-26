@@ -29,6 +29,16 @@ export const BANG_XUAT = [
   ['qlda_thay_doi', 'SELECT * FROM qlda_thay_doi WHERE to_chuc_id = ?1'],
   ['qlda_quyet_dinh', 'SELECT * FROM qlda_quyet_dinh WHERE to_chuc_id = ?1'],
   ['qlda_bai_hoc', 'SELECT * FROM qlda_bai_hoc WHERE to_chuc_id = ?1'],
+  // Pháp lý/Hợp đồng/Các bên của Viện Hòa Lạc (PR4): cùng lý do, phải có trong bản sao lưu trước khi
+  // xoaToChuc() xóa các bảng này.
+  ['qlda_ben_lien_quan', 'SELECT * FROM qlda_ben_lien_quan WHERE to_chuc_id = ?1'],
+  ['qlda_raci', 'SELECT * FROM qlda_raci WHERE to_chuc_id = ?1'],
+  ['qlda_hop_dong', 'SELECT * FROM qlda_hop_dong WHERE to_chuc_id = ?1'],
+  ['qlda_thu_tuc', 'SELECT * FROM qlda_thu_tuc WHERE to_chuc_id = ?1'],
+  ['qlda_thu_tuc_phu_thuoc', 'SELECT * FROM qlda_thu_tuc_phu_thuoc WHERE to_chuc_id = ?1'],
+  ['qlda_van_ban', 'SELECT * FROM qlda_van_ban WHERE to_chuc_id = ?1'],
+  ['qlda_hop', 'SELECT * FROM qlda_hop WHERE to_chuc_id = ?1'],
+  ['qlda_hop_viec', 'SELECT * FROM qlda_hop_viec WHERE to_chuc_id = ?1'],
 ];
 
 export async function xuatDuLieu(env, tc, luc = new Date().toISOString()) {
