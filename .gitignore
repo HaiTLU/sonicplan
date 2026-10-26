@@ -11,3 +11,4 @@ wrangler-dev*.log
 may-chu.log
 cloudflared.log
 du-lieu-cuoi.sql
+out-hoalac.sql

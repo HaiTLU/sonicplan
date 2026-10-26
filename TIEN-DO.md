@@ -61,9 +61,11 @@ Cập nhật: 11/10/2026.
 - Sửa lỗi phát hiện qua kiểm thử: `test/csdl-thu.js` hàm `batch()` chỉ gọi `.all()` cho mọi câu lệnh nên không có `.meta.changes` (D1 thật trả cả `results` và `meta` cho mọi câu lệnh trong batch, không chỉ SELECT) - đã sửa để phân loại SELECT/RETURNING/ghi, khớp D1 thật, không đổi hành vi các điểm gọi `.batch()` cũ (chỉ đọc `.results`).
 - Kiểm: `test/hoalac-phap-ly.test.js` (17 ca: CRUD các bên/RACI/hợp đồng/thủ tục/văn bản/họp, chặn nhóm/vai_tro/loai sai, 409 khi xóa dòng đang được tham chiếu, quyền đối tác theo dòng cho thủ tục, chặn 403 đối tác trên 5 mục còn lại, xóa tổ chức dọn sạch 8 bảng). `npm run kiem` 398/398 đạt, `wrangler deploy --dry-run` thành công.
 - Chưa làm: kiểm trực tiếp trên trình duyệt (UNVERIFIED, cùng lý do PR2/PR3); sau khi PR4 gộp sẽ chạy `scripts/nhap-hoalac.mjs` (chưa viết) nhập 24 việc/5 nhóm A-E từ tệp kế hoạch dự án gốc vào `qlda_thu_tuc`.
+- 26/10: Codex rà PR4 ra 2 lỗi thật (P2): (1) PUT văn bản gửi `lien_quan_thu_tuc_id: null` không xóa được liên kết (COALESCE coi null như không gửi) - thêm hằng `BO_QUA` + `CASE WHEN` phân biệt "không gửi field" với "gửi null"; (2) giờ họp hiển thị sai múi giờ cho người xem không ở UTC (dựng Date từ chuỗi datetime-local rồi ép hiện UTC) - đổi sang ghép chuỗi trực tiếp (`gioHopDaGo`), không qua Date()/Intl. Thêm 1 ca kiểm cho lỗi (1); `npm run kiem` 399/399 đạt. Trả lời và đóng cả 2 luồng.
+- 26/10: PR4 (#138) tự gộp vào `main` lúc 14:30 UTC (CI đạt, mergeable CLEAN, không còn bình luận chưa xử lý).
+- Lỗi đã biết, chưa sửa (ngoài phạm vi PR4, Codex không chỉ ra): `qlda_hop_dong` PUT có cùng lỗi COALESCE-trên-khóa-ngoại-nullable với `ben_lien_quan_id` (không có trong phần Codex rà) - cần sửa nếu PM gặp hoặc đợt rà sau chỉ ra.
 
 ## Bước tiếp (Hòa Lạc, sau PR4)
 
-- Mở PR4, tự gộp khi kiểm tự động đạt.
-- Viết và chạy `scripts/nhap-hoalac.mjs` nhập dữ liệu khởi tạo.
+- PR4 đã gộp. Viết và chạy `scripts/nhap-hoalac.mjs` nhập dữ liệu khởi tạo (24 việc/5 nhóm A-E), sinh `out.sql` để PM soát trước, không tự áp vào production.
 - PR5 (Ngân sách & EVM, migration 0042, số để trống chờ PM xác nhận bản TMĐT), PR6 (lịch .ics + hoàn thiện README).
