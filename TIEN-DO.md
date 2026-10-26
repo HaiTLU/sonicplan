@@ -33,3 +33,19 @@ Cập nhật: 11/10/2026.
 
 - Kiểm trình duyệt thật rồi `npm run kiem` lần cuối, commit, đẩy nhánh `claude/hoalac-2-wbs`, mở PR2, tự gộp khi kiểm tự động đạt.
 - Sau khi PR2 gộp: PR3 (RAID, migration 0040), PR4 (Pháp lý/Hợp đồng/Các bên, migration 0041 + nhập 24 việc/5 nhóm), PR5 (Ngân sách & EVM, migration 0042, số để trống chờ PM xác nhận bản TMĐT), PR6 (lịch .ics + hoàn thiện README).
+- 26/10: PR2 (#136) đã gộp vào `main`.
+
+## Phân hệ Viện Hòa Lạc (/hoalac) - PR3: RAID (rủi ro, vấn đề, thay đổi, quyết định, bài học)
+
+- 26/10: nhánh `claude/hoalac-3-raid`. Migration `0040_hoalac_raid.sql`: 5 bảng `qlda_rui_ro/van_de/thay_doi/quyet_dinh/bai_hoc`, theo đúng khuôn mẫu PR1/PR2 (CHECK cho enum, mọi bảng có `to_chuc_id`). `src/hoalac/api.js` thêm route cho cả 5 loại (theo mẫu dispatcher một tệp của PR2, không tách file riêng như kế hoạch gốc).
+- Chặn đối tác: RAID không có cơ chế gán từng dòng như hạng mục (không có bảng tương đương `qlda_giao_doi_tac`), nên mọi route RAID (GET/POST/PUT/DELETE, cả 5 loại) trả 403 cho `vai_tro = 'doi_tac'`, không phải 404 - đối tác không biết RAID có tồn tại.
+- Luồng duyệt thay đổi một chiều `de_xuat -> xem_xet -> {duyet | tu_choi}` (bảng tra `CHUYEN_TRANG_THAI_THAY_DOI` trong `api.js`), chuyển sai thứ tự trả 409. Mức độ rủi ro (`xác_suất × tác_động`) tính lúc đọc, không lưu cột tính sẵn, tránh lệch khi sửa một trong hai số. Rủi ro điểm ≥ 15 (trên 25) và thay đổi chuyển sang `xem_xet` tạo thông báo (`src/thong-bao.js`, 2 loại mới `hoalac_rui_ro`, `hoalac_thay_doi`, ẩn khỏi đối tác qua `AN_VOI_DOI_TAC`).
+- Thêm 5 bảng RAID vào `BANG_CUA_TO_CHUC` (`src/xoa-to-chuc.js`), đúng thứ tự con trước cha (`qlda_van_de` tham chiếu `qlda_rui_ro` nên đứng trước).
+- Giao diện: thêm tab "RAID" vào `public/hoalac/` (nút ẩn hẳn với đối tác, không gọi API RAID khi là đối tác - khớp chính sách 403-mọi-nơi ở server). 5 mục con (Rủi ro/Vấn đề/Thay đổi/Quyết định/Bài học) có form tạo mới, đổi trạng thái, nút duyệt/từ chối thay đổi, xóa.
+- Kiểm: viết `test/hoalac-raid.test.js` (16 ca: tính điểm rủi ro, ngưỡng thông báo rủi ro cao, luồng duyệt thay đổi hợp lệ/không hợp lệ, 403 cho đối tác trên toàn bộ 5 loại × 4 động từ, ẩn thông báo và cài đặt thông báo với đối tác, xóa tổ chức dọn sạch cả 5 bảng RAID không vỡ khóa ngoài). `npm run kiem` (Node 22, phải ghi đè PATH vì máy có Node 26 không tương thích, và `dangerouslyDisableSandbox` vì sandbox chặn bind cổng cục bộ) 377/377 đạt, đóng gói `wrangler deploy --dry-run` thành công.
+- Chưa làm: kiểm trực tiếp trên trình duyệt (`wrangler dev` cục bộ với `EMAIL_THU`, vai chủ và đối tác) - đánh dấu UNVERIFIED trong báo cáo cuối, theo đúng tiền lệ PR2 (việc này cần dựng tổ chức/phạm vi truy cập mẫu, tốn công vượt mức cần cho một tab UI đã qua kiểm cấu trúc import/export tự động của `test/giao-dien.test.js`).
+
+## Bước tiếp (Hòa Lạc, sau PR3)
+
+- Commit, đẩy nhánh `claude/hoalac-3-raid`, mở PR3, theo dõi CI, tự gộp khi đạt, báo PM.
+- PR4 (Pháp lý/Hợp đồng/Các bên, migration 0041 + nhập 24 việc/5 nhóm từ tệp kế hoạch dự án đã có), PR5 (Ngân sách & EVM, migration 0042, số để trống chờ PM xác nhận bản TMĐT), PR6 (lịch .ics + hoàn thiện README).

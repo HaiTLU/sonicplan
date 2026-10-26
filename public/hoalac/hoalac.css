@@ -47,6 +47,81 @@
 .thanh-gantt { position: absolute; top: 2px; bottom: 2px; background: var(--nhan, #0a84ff); border-radius: 4px; min-width: 6px; }
 .thanh-gantt.tren-gang { background: #ff3b30; }
 
+.khung-raid { display: flex; flex-direction: column; gap: 1rem; }
+.sub-raid { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.sub-raid button {
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--vien, #e5e5ea);
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.sub-raid button[aria-current="true"] { background: var(--nhan, #0a84ff); color: #fff; border-color: transparent; }
+
+.form-raid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  background: var(--nen-nhe, #f5f5f7);
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+.form-raid input, .form-raid textarea, .form-raid select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--vien, #e5e5ea);
+  border-radius: 8px;
+  background: var(--nen, #fff);
+  font: inherit;
+}
+.form-raid textarea { min-height: 2.2rem; resize: vertical; flex: 1 1 220px; }
+.form-raid input { flex: 1 1 160px; }
+.form-raid label { display: flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; }
+.form-raid button {
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  border: none;
+  background: var(--nhan, #0a84ff);
+  color: #fff;
+  cursor: pointer;
+}
+
+.the-raid {
+  background: var(--nen, #fff);
+  border: 1px solid var(--vien, #e5e5ea);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+.dau-the-raid { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.chi-tiet-raid { font-size: 0.85rem; opacity: 0.75; margin: 0.3rem 0; }
+.hang-dong-raid { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
+.hang-dong-raid select, .hang-dong-raid button {
+  padding: 0.3rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--vien, #e5e5ea);
+  background: var(--nen, #fff);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.nhan-muc-do, .nhan-trang-thai, .nhan-loai-bai-hoc {
+  font-size: 0.78rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.nhan-muc-do-cao { background: rgba(255,59,48,.15); color: #ff3b30; }
+.nhan-muc-do-trung { background: rgba(255,159,10,.15); color: #c77700; }
+.nhan-muc-do-thap { background: rgba(52,199,89,.15); color: #2a9d44; }
+.nhan-trang-thai-de_xuat { background: rgba(10,132,255,.15); color: #0a84ff; }
+.nhan-trang-thai-xem_xet { background: rgba(255,159,10,.15); color: #c77700; }
+.nhan-trang-thai-duyet { background: rgba(52,199,89,.15); color: #2a9d44; }
+.nhan-trang-thai-tu_choi { background: rgba(255,59,48,.15); color: #ff3b30; }
+.nhan-loai-bai-hoc-tot { background: rgba(52,199,89,.15); color: #2a9d44; }
+.nhan-loai-bai-hoc-chua_tot { background: rgba(255,159,10,.15); color: #c77700; }
+
 .vung-bao { position: fixed; top: 1rem; right: 1rem; z-index: 50; display: flex; flex-direction: column; gap: 0.5rem; }
 .bao { background: var(--nen, #fff); border: 1px solid var(--vien, #e5e5ea); border-radius: 8px; padding: 0.5rem 0.9rem; box-shadow: 0 2px 10px rgba(0,0,0,.1); }
 .bao.loi { border-color: #ff3b30; color: #ff3b30; }
