@@ -146,6 +146,25 @@ test('PUT pv/ac/ev với null phải xóa được số, không gửi field thì
   assert.equal(ds.evm[0].ac, 10, 'PUT không đụng tới ac vẫn phải giữ nguyên');
 });
 
+test('POST/PUT EVM với pv/ac/ev không phải số thì 400', async () => {
+  const { env } = moiEnv();
+  const saiKieu = await goi(env, CHU, '/api/hoalac/evm', { method: 'POST', body: JSON.stringify({ ky: '2026-10', pv: 'khong-phai-so' }) });
+  assert.equal(saiKieu.status, 400);
+  const { id } = await (await goi(env, CHU, '/api/hoalac/evm', { method: 'POST', body: JSON.stringify({ ky: '2026-11' }) })).json();
+  const saiKieuPut = await goi(env, CHU, `/api/hoalac/evm/${id}`, { method: 'PUT', body: JSON.stringify({ ac: 'khong-phai-so' }) });
+  assert.equal(saiKieuPut.status, 400);
+});
+
+test('PUT EVM đổi ky sang kỳ đã có dòng khác thì 409, không vỡ ràng buộc UNIQUE', async () => {
+  const { env } = moiEnv();
+  await goi(env, CHU, '/api/hoalac/evm', { method: 'POST', body: JSON.stringify({ ky: '2026-10' }) });
+  const { id: id11 } = await (await goi(env, CHU, '/api/hoalac/evm', { method: 'POST', body: JSON.stringify({ ky: '2026-11' }) })).json();
+  const r = await goi(env, CHU, `/api/hoalac/evm/${id11}`, { method: 'PUT', body: JSON.stringify({ ky: '2026-10' }) });
+  assert.equal(r.status, 409);
+  // Đổi ky sang chính kỳ hiện tại của dòng (không trùng dòng khác) vẫn phải đạt.
+  assert.equal((await goi(env, CHU, `/api/hoalac/evm/${id11}`, { method: 'PUT', body: JSON.stringify({ ky: '2026-11' }) })).status, 200);
+});
+
 // ---------- Đối tác: chặn hẳn cả 3 mục (403), như RAID ----------
 
 test('đối tác bị chặn 403 trên dòng ngân sách, giải ngân, EVM', async () => {

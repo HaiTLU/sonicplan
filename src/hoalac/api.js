@@ -15,6 +15,8 @@ const DIEM_RUI_RO_CAO = 15;
 // vì COALESCE(null, cot) luôn giữ nguyên nên không tự xóa được một khóa ngoài nullable qua PUT một phần.
 const BO_QUA = '__hoalac_bo_qua__';
 const TRANG_THAI_SO_LIEU_HOP_LE = ['chua_thong_nhat', 'da_xac_nhan'];
+// true nếu x là null/undefined (hợp lệ, "chưa có số") hoặc một số hữu hạn; false với chuỗi, NaN, Infinity...
+const soHopLeHoacRong = (x) => x == null || Number.isFinite(x);
 
 const CHI_CHU_THANH_VIEN = (phien) => (laDoiTac(phien) ? loi(403, 'Tài khoản đối tác chỉ xem, không sửa được.') : null);
 const CHAN_DOI_TAC = (phien) => (laDoiTac(phien) ? loi(403, 'Tài khoản đối tác không dùng được mục này.') : null);
@@ -769,6 +771,7 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
     const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
     const than = await yeuCau.json().catch(() => ({}));
     if (!than.ky) return loi(400, 'Thiếu kỳ báo cáo.');
+    if (!soHopLeHoacRong(than.pv) || !soHopLeHoacRong(than.ac) || !soHopLeHoacRong(than.ev)) return loi(400, 'PV/AC/EV phải là số hoặc để trống.');
     const trung = await env.CSDL.prepare('SELECT 1 FROM qlda_evm WHERE to_chuc_id = ?1 AND ky = ?2').bind(tc, than.ky).first();
     if (trung) return loi(409, 'Kỳ này đã có dòng EVM, hãy sửa dòng cũ.');
     const { meta } = await env.CSDL.prepare(
@@ -785,6 +788,13 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
       const pv = 'pv' in than ? than.pv : BO_QUA;
       const ac = 'ac' in than ? than.ac : BO_QUA;
       const ev = 'ev' in than ? than.ev : BO_QUA;
+      if (!soHopLeHoacRong(pv === BO_QUA ? null : pv) || !soHopLeHoacRong(ac === BO_QUA ? null : ac) || !soHopLeHoacRong(ev === BO_QUA ? null : ev)) {
+        return loi(400, 'PV/AC/EV phải là số hoặc để trống.');
+      }
+      if (than.ky) {
+        const trung = await env.CSDL.prepare('SELECT 1 FROM qlda_evm WHERE to_chuc_id = ?1 AND ky = ?2 AND id <> ?3').bind(tc, than.ky, id).first();
+        if (trung) return loi(409, 'Kỳ này đã có dòng EVM khác, hãy sửa dòng đó hoặc chọn kỳ khác.');
+      }
       const { meta } = await env.CSDL.prepare(
         `UPDATE qlda_evm SET ky = COALESCE(?1, ky),
          pv = CASE WHEN ?2 = ?9 THEN pv ELSE ?2 END, ac = CASE WHEN ?3 = ?9 THEN ac ELSE ?3 END, ev = CASE WHEN ?4 = ?9 THEN ev ELSE ?4 END,

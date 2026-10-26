@@ -187,7 +187,11 @@ async function guiForm(e, duongDan, lamMoi) {
   e.preventDefault();
   const fd = new FormData(e.target);
   const than = {};
-  for (const [k, v] of fd.entries()) if (v !== '') than[k] = v;
+  for (const [k, v] of fd.entries()) {
+    if (v === '') continue;
+    const o = e.target.elements[k];
+    than[k] = o && o.type === 'number' ? Number(v) : v;
+  }
   try {
     await api(duongDan, { method: 'POST', body: JSON.stringify(than) });
     e.target.reset();
