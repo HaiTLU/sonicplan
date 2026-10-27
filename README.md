@@ -30,6 +30,7 @@ Tiến độ và quyết định: `LO_TRINH.md`. Kế hoạch đầy đủ nằm
 | `migrations/` | Bảng dữ liệu D1, chạy theo thứ tự số |
 | `public/` | Giao diện |
 | `test/` | Kiểm thử, chạy bằng `npm test` |
+| `src/hoalac/` (`wbs.js`, `api-wbs.js`, `raid.js`, `api-raid.js`, `phap-ly.js`, `api-phap-ly.js`, `ngan-sach.js`, `api-ngan-sach.js`, `quyen.js`), `public/hoalac/` | Phân hệ quản lý dự án Viện Hòa Lạc (`/hoalac`): tiến độ WBS/Gantt/CPM/baseline/stage gate, RAID, pháp lý - hợp đồng - các bên, ngân sách & EVM. Tổ chức phạm vi `pham_vi_truy_cap = 'hoalac'`, đăng nhập bằng ứng dụng Cloudflare Access riêng (`ACCESS_UNG_DUNG`), cách ly hoàn toàn khỏi phần còn lại của Sonicplan; mốc dự án (`qlda_hang_muc` có `la_moc = 1`) được gộp vào cùng lịch `.ics` của tổ chức qua `src/lich-ics.js` |
 
 Nguyên tắc nhiều khách: mọi bảng dữ liệu có cột `to_chuc_id`, mọi câu truy vấn của người dùng phải lọc theo cột này. Dòng có `to_chuc_id` rỗng là của cả hệ thống (ví dụ hẹn giờ tự kiểm).
 
