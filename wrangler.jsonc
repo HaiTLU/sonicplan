@@ -55,7 +55,7 @@
     "ACCESS_AUD": "3c6d37c2645cc2d9276921c4684b8a5e9a175f346ee93b79ff1736910e161f1c",
     // AUD của các ứng dụng Access phụ, JSON mảng chuỗi. Phần /hoalac dùng ứng dụng Access riêng
     // (tư vấn bên ngoài), AUD của nó thêm vào đây, không dùng chung ACCESS_AUD.
-    "ACCESS_UNG_DUNG": "[]",
+    "ACCESS_UNG_DUNG": "[\"cf60fc6d7024ed7e18062bd89fd2e7b58867a9668a04ca69d20124cee8384746\"]",
     // Tên miền nhận thư qua Email Routing, ví dụ "sonicplan.vn". Để trống thì chưa nhận thư.
     "EMAIL_DOMAIN": "sonicrec.app",
     // Người quản trị hệ thống (cài bot Telegram chung ở trang Kết nối), nhiều email cách nhau dấu phẩy.
