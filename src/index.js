@@ -119,12 +119,18 @@ export default {
 async function docLich(env, khoa, url) {
   const toChucId = await toChucTheoKhoa(env, khoa, 'lich');
   if (!toChucId) return new Response('Không tìm thấy lịch', { status: 404 });
-  const [viec, toChuc] = await env.CSDL.batch([
+  const [viec, moc, toChuc] = await env.CSDL.batch([
     env.CSDL.prepare(`SELECT id, tieu_de, ghi_chu, han_ngay, gio_hen FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay IS NOT NULL`).bind(toChucId),
+    // Mốc dự án (/hoalac): la_moc=1, ngày lấy từ ngay_ket_thuc, hoặc ngay_bat_dau nếu chưa có ngày kết thúc.
+    env.CSDL.prepare(
+      `SELECT id, ten, mo_ta, COALESCE(ngay_ket_thuc, ngay_bat_dau) AS han_ngay FROM qlda_hang_muc
+       WHERE to_chuc_id = ?1 AND la_moc = 1 AND COALESCE(ngay_ket_thuc, ngay_bat_dau) IS NOT NULL`,
+    ).bind(toChucId),
     env.CSDL.prepare('SELECT ten FROM to_chuc WHERE id = ?1').bind(toChucId),
     env.CSDL.prepare('UPDATE khoa_truy_cap SET dung_luc = ?2 WHERE ma_bam = ?1').bind(await bam(khoa), new Date().toISOString()),
   ]);
-  const ics = taoIcs(viec.results, { ten: `Việc - ${toChuc.results[0]?.ten || 'Sonicplan'}`, mien: url.hostname });
+  const cacMoc = moc.results.map((m) => ({ id: m.id, tieu_de: `Mốc: ${m.ten}`, ghi_chu: m.mo_ta, han_ngay: m.han_ngay, gio_hen: null, loai: 'moc' }));
+  const ics = taoIcs([...viec.results, ...cacMoc], { ten: `Việc - ${toChuc.results[0]?.ten || 'Sonicplan'}`, mien: url.hostname });
   return new Response(ics, { headers: { 'content-type': 'text/calendar; charset=utf-8', 'cache-control': 'no-store' } });
 }
 

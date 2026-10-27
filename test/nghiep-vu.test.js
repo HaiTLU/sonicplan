@@ -59,6 +59,19 @@ test('lịch .ics: việc có giờ thành sự kiện 30 phút, việc không g
   for (const dong of ics.split('\r\n')) assert.ok(new TextEncoder().encode(dong).length <= 75, dong);
 });
 
+test('lịch .ics: mốc dự án (loai=moc) dùng mã UID riêng, không trùng việc cùng id', () => {
+  const ics = taoIcs(
+    [
+      { id: 5, tieu_de: 'Việc', han_ngay: '2026-10-12', gio_hen: null },
+      { id: 5, tieu_de: 'Mốc: Khởi công', han_ngay: '2026-10-12', gio_hen: null, loai: 'moc' },
+    ],
+    { mien: 'vd.test', bayGio: new Date('2026-10-11T00:00:00Z') },
+  );
+  assert.match(ics, /UID:viec-5@vd\.test/);
+  assert.match(ics, /UID:moc-5@vd\.test/);
+  assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, 2);
+});
+
 test('tin Zalo từ máy Mac: nhóm và tin riêng được tách đúng', () => {
   const nhom = chuyenTinZalo({ id: '9', thread: 'Phòng Đào tạo', type: 'nhom', sender: 'Lan', time: '2026-10-11T01:00:00Z', text: 'Họp 14h' });
   assert.equal(nhom.nhom, 'Phòng Đào tạo');

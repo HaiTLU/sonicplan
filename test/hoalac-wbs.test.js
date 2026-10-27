@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { tinhCpm, CpmLoi } from '../src/hoalac/wbs.js';
 import sonicplan from '../src/index.js';
 import { d1, dungCsdl } from './csdl-thu.js';
+import { bam } from '../src/tien-ich.js';
 
 // ---------- CPM thuần ----------
 
@@ -200,4 +201,22 @@ test('giai đoạn (stage gate): chủ tạo và sửa được, đối tác ch�
   assert.equal(suaChan.status, 403);
   const xemDuoc = await goi(env, 'doi-tac@vi-du.vn', '/api/hoalac/giai-doan');
   assert.equal(xemDuoc.status, 200);
+});
+
+test('lịch .ics (/lich/<khoa>.ics): mốc dự án (qlda_hang_muc la_moc=1) được gộp cùng việc, dùng UID riêng', async () => {
+  const { env, db } = moiEnv();
+  const khoa = 'tokenlichthunghiem20kytu1234';
+  db.exec(
+    `INSERT INTO khoa_truy_cap (ma_bam, to_chuc_id, loai, tao_luc) VALUES ('${await bam(khoa)}', 'tc-hl', 'lich', '2026-01-01')`,
+  );
+  db.exec(
+    `INSERT INTO qlda_hang_muc (to_chuc_id, ten, mo_ta, la_moc, ngay_ket_thuc, tao_luc, cap_nhat_luc)
+     VALUES ('tc-hl', 'Khởi công', 'Lễ khởi công dự án', 1, '2026-12-01', '2026-01-01', '2026-01-01')`,
+  );
+  const r = await sonicplan.fetch(new Request(`https://localhost/lich/${khoa}.ics`), env, { waitUntil: () => {} });
+  assert.equal(r.status, 200);
+  const ics = await r.text();
+  assert.match(ics, /UID:moc-\d+@localhost/);
+  assert.match(ics, /SUMMARY:Mốc: Khởi công/);
+  assert.match(ics, /DTSTART;VALUE=DATE:20261201/);
 });

@@ -52,7 +52,7 @@ export function taoIcs(cacViec, { ten = 'Sonicplan', mien = 'sonicplan.app', bay
   ];
   for (const v of cacViec) {
     if (!v.han_ngay) continue;
-    dong.push('BEGIN:VEVENT', `UID:viec-${v.id}@${mien}`, `DTSTAMP:${thoiDiemIcs(bayGio)}`);
+    dong.push('BEGIN:VEVENT', `UID:${v.loai || 'viec'}-${v.id}@${mien}`, `DTSTAMP:${thoiDiemIcs(bayGio)}`);
     if (v.gio_hen) {
       const batDau = sangUTC(v.han_ngay, v.gio_hen);
       dong.push(`DTSTART:${thoiDiemIcs(batDau)}`, `DTEND:${thoiDiemIcs(new Date(batDau.getTime() + PHUT_SU_KIEN * 60000))}`);
