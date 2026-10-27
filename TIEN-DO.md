@@ -133,3 +133,39 @@ Cập nhật: 11/10/2026.
 
 - PR5 đã gộp. Còn treo từ các PR trước: kiểm trình duyệt ba vai trò cho tab Ngân sách (UNVERIFIED), cấu hình Cloudflare Access Application riêng cho `/hoalac`, lỗi `qlda_hop_dong` PUT COALESCE-trên-khóa-ngoại-nullable (đã ghi nhận từ PR4, chưa sửa, ngoài phạm vi các PR đã giao).
 - PR6 (lịch `.ics` mở rộng cho mốc dự án + hoàn thiện README) - chưa bắt đầu, là PR cuối trong kế hoạch 6 PR đã duyệt.
+
+## Phân hệ Viện Hòa Lạc (/hoalac) - PR6: Lịch & hoàn thiện
+
+- 27/10: nhánh `claude/hoalac-6-lich` từ `main` (sau khi gộp PR5, commit `e2e36bb`). Phạm vi đúng theo kế hoạch gốc: mở rộng `.ics` cho mốc dự án, cập nhật README - không thêm bảng, không thêm route mới.
+- `src/lich-ics.js`: `taoIcs()` nhận thêm `v.loai` (tùy ý, mặc định `'viec'`) để tạo `UID:${loai}-${id}@${mien}` thay vì cố định `viec-`. Lý do: khi gộp hai nguồn dữ liệu khác bảng (`viec.id` và `qlda_hang_muc.id`) vào một lịch, hai dòng có thể trùng số id và sinh UID trùng nếu không phân biệt nguồn - các ứng dụng lịch (Google/Apple/Outlook) coi UID là khóa duy nhất của sự kiện, trùng UID sẽ làm mất một sự kiện. Thay đổi lùi tương thích hoàn toàn vì mọi nơi gọi cũ không đặt `loai` nên vẫn ra đúng `viec-` như trước.
+- `src/index.js` (`docLich()`): thêm một câu lệnh `SELECT` vào đúng `env.CSDL.batch()` đã có, lấy `qlda_hang_muc WHERE to_chuc_id = ? AND la_moc = 1 AND COALESCE(ngay_ket_thuc, ngay_bat_dau) IS NOT NULL`, gắn tiền tố `Mốc: ` vào `tieu_de` và `loai: 'moc'`, rồi gộp chung danh sách với `viec` trước khi gọi `taoIcs()`. Dùng chung đúng một route `/lich/<token>.ics` và một bảng `khoa_truy_cap` đã có (`loai = 'lich'`), không đổi cơ chế xác thực token, không chặn theo `trang_thai` của hạng mục (khác việc, vì mốc dự án vẫn đáng xem trên lịch dù đã xong hoặc chưa).
+- Kiểm thử: thêm 1 ca thuần vào `test/nghiep-vu.test.js` (hai sự kiện cùng `id=5` nhưng `loai` khác nhau sinh đúng 2 UID riêng `viec-5@...`/`moc-5@...`, không mất sự kiện); thêm 1 ca xuyên suốt vào `test/hoalac-wbs.test.js` (tạo tổ chức Hòa Lạc, một hạng mục `la_moc=1`, một khóa `khoa_truy_cap loai='lich'`, gọi thật `sonicplan.fetch('/lich/<token>.ics')`, xác nhận mốc lên lịch đúng ngày, đúng `SUMMARY`, UID tiền tố `moc-`).
+- Lỗi gặp khi viết kiểm thử (tự phát hiện, không phải Codex): token thử ban đầu có gạch ngang (`token-lich-thu-nghiem-...`) không khớp regex route `/^\/lich\/([a-z0-9]{20,64})\.ics$/` (chỉ nhận chữ thường và số), khiến yêu cầu rơi qua nhánh xác thực Access thường và trả 401 thay vì tới `docLich()`. Sửa bằng cách đổi token thử sang chỉ chữ thường và số - không phải lỗi trong mã nguồn, chỉ là dữ liệu kiểm thử sai dạng.
+- README: thêm một dòng vào bảng cấu trúc cho `src/hoalac/`, `public/hoalac/`, ghi rõ phạm vi cách ly và việc gộp mốc dự án vào lịch `.ics` chung.
+- `npm test`: 417/419 đạt (2 lỗi còn lại là crash Node 26.10.0 có sẵn, không liên quan, giống mọi PR trước). `npx wrangler deploy --dry-run` đạt (cảnh báo `EPERM` ghi log của Wrangler trong sandbox là cosmetic, không ảnh hưởng gói xuất ra).
+- 27/10: mở PR6 (#140), bật Auto-fix và theo dõi bình luận. CI "kiem" và "tro-nang" đều SUCCESS; Codex rà xong, không có phát hiện nào (`has_any_findings: false`). PR6 (#140) tự gộp vào `main` lúc 03:18 UTC 27/10, commit gộp `0c6e59d`, nhánh đã xóa.
+
+### Bảng tiêu chí PR6 (PASS/FAIL/UNVERIFIED)
+
+| Tiêu chí | Trạng thái | Bằng chứng |
+|---|---|---|
+| `taoIcs()` phân biệt UID theo nguồn sự kiện, không trùng khi cùng id | PASS | `src/lich-ics.js`; ca kiểm "mốc dự án (loai=moc) dùng mã UID riêng" trong `test/nghiep-vu.test.js` |
+| Thay đổi `taoIcs()` lùi tương thích (không đặt `loai` vẫn ra `viec-` như trước) | PASS | mọi ca kiểm cũ của `taoIcs()` không sửa vẫn đạt |
+| `/lich/<token>.ics` gộp đúng mốc dự án (`qlda_hang_muc la_moc=1`) của đúng tổ chức | PASS | ca kiểm xuyên suốt trong `test/hoalac-wbs.test.js` |
+| Dùng đúng một route, một cơ chế xác thực token đã có, không thêm bảng/route mới | PASS | đối chiếu diff: chỉ sửa `src/lich-ics.js`, `src/index.js`, không chạm `migrations/` |
+| README ghi nhận phạm vi `/hoalac` trong bảng cấu trúc | PASS | `README.md`, mục Cấu trúc |
+| `npm test` toàn kho đạt | PASS (417/419, 2 lỗi có sẵn không liên quan) | log `npm test` |
+| `wrangler deploy --dry-run` đóng gói được | PASS | log lệnh |
+| CI GitHub Actions (kiem, tro-nang) | PASS | PR #140, cả hai check SUCCESS |
+| Codex rà soát không phát hiện lỗi | PASS | bình luận Codex trên PR #140, `has_any_findings: false` |
+| Đã gộp vào `main` | PASS | commit gộp `0c6e59d`, 27/10 03:18 UTC |
+
+### Giả định đã chọn (PR6)
+
+- Mốc dự án lên lịch không lọc theo `trang_thai` của hạng mục (khác việc, luôn lọc `trang_thai = 'mo'`) - vì một mốc đã "xong" vẫn là một điểm mốc có ý nghĩa xem lại trên lịch, không giống một việc đã xong thì nên biến mất khỏi lịch nhắc.
+- `SUMMARY` của mốc thêm tiền tố `Mốc: ` để phân biệt với việc thường ngay trên mặt lịch, không cần mở sự kiện mới biết đó là mốc.
+
+## Bước tiếp (Hòa Lạc, sau PR6)
+
+- PR6 đã gộp. Đây là PR cuối trong kế hoạch 6 PR đã duyệt cho `/hoalac` - phân hệ xây dựng xong theo đúng kế hoạch gốc.
+- Việc còn treo ngoài phạm vi mọi PR (chưa có PR nào giao đúng việc này, cần PM quyết định làm tiếp hay không): kiểm trình duyệt ba vai trò cho tab Ngân sách (UNVERIFIED từ PR5), cấu hình Cloudflare Access Application riêng cho `/hoalac` (`ACCESS_UNG_DUNG`, chưa làm từ PR1 - hiện `/hoalac` vẫn dùng chung ứng dụng Access của Sonicplan, không tách riêng như kế hoạch gốc nêu), lỗi `qlda_hop_dong` PUT COALESCE-trên-khóa-ngoại-nullable (ghi nhận từ PR4, chưa sửa), chưa chọn một trong ba bản TMĐT khác nhau làm số ngân sách thật (số vẫn để trống từ PR5).
