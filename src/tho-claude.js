@@ -5,6 +5,7 @@
 import { phanLuongThu } from './luong-thu.js';
 import { docCaiDat } from './hop-tin.js';
 import { thuMucLamViec } from './kb.js';
+import { timGhiNho } from './ghi-nho.js';
 
 const KHOA = 'tho_claude';
 export const MAC_DINH = { model: 'claude-haiku-5-5', effort: 'medium', model_theo_loai: true };
@@ -113,6 +114,14 @@ export async function layGhiNhoSonicplan(env, tc, duAnTen, gioiHan = 15) {
     `SELECT loai, tieu_de, noi_dung FROM ghi_nho WHERE to_chuc_id = ?1 AND (ghim = 1 OR loai IN ('nguoi', 'quyet_dinh') OR (?2 IS NOT NULL AND tieu_de LIKE '%' || ?2 || '%'))
      ORDER BY ghim DESC, cap_nhat_luc DESC LIMIT ?3`,
   ).bind(tc, duAnTen || null, gioiHan).all();
+  // Thêm mục khớp tên dự án trong nội dung (FTS5, không dấu); giữ nguyên thứ tự các mục đã chọn ở trên.
+  if (duAnTen && results.length < gioiHan) {
+    const co = new Set(results.map((r) => `${r.loai}|${r.tieu_de}`));
+    for (const r of await timGhiNho(env, tc, duAnTen, gioiHan)) {
+      if (results.length >= gioiHan) break;
+      if (!co.has(`${r.loai}|${r.tieu_de}`)) results.push({ loai: r.loai, tieu_de: r.tieu_de, noi_dung: r.noi_dung });
+    }
+  }
   return results;
 }
 

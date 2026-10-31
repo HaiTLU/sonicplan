@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { d1, dungCsdl } from './csdl-thu.js';
 import { timGhiNho, truyVanFts } from '../src/ghi-nho.js';
+import { layGhiNhoSonicplan } from '../src/tho-claude.js';
 import { xuLyGhiNho } from '../src/api/ghi-nho.js';
 
 function moi() {
@@ -109,4 +110,15 @@ test('API danh sách ghi nhớ: ô tìm dùng FTS5 (không dấu, nhiều từ),
   assert.deepEqual(tieuDe(await goi('?q=zzzkhongco')), []);
   assert.deepEqual(tieuDe(await goi('?q=lan&loai=du_an')), []);
   assert.equal((await goi('?q=lan')).length, 1, 'không lẫn ghi nhớ của tổ chức B');
+});
+
+test('layGhiNhoSonicplan: thêm mục nhắc tên dự án trong nội dung, không trùng, không lẫn tổ chức', async () => {
+  const { db, env } = moi();
+  db.prepare('INSERT INTO ghi_nho (to_chuc_id, loai, tieu_de, noi_dung, tao_luc, cap_nhat_luc) VALUES (?, ?, ?, ?, ?, ?)')
+    .run('A', 'su_that', 'Hạn nộp', 'Dự án Hòa Lạc phải nộp trước 15/11', '2026-01-02', '2026-01-02');
+  const ds = await layGhiNhoSonicplan(env, 'A', 'hoa lac');
+  assert.ok(tieuDe(ds).includes('Hạn nộp'));
+  assert.equal(new Set(tieuDe(ds)).size, ds.length, 'không trùng');
+  assert.ok(!ds.some((x) => /kế toán/.test(x.noi_dung)));
+  assert.deepEqual(tieuDe(await layGhiNhoSonicplan(env, 'A', null)).includes('Hạn nộp'), false);
 });
