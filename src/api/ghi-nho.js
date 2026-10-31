@@ -108,7 +108,7 @@ export async function xuLyGhiNho(yeuCau, env, phien, url) {
   if (p === '/api/goi-y-loi-dan' && m === 'POST') {
     if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức duyệt được lời dặn.');
     const b = await yeuCau.json().catch(() => ({}));
-    const kq = await quyetGoiYLoiDan(env, tc, Number(b.chi_so), b.quyet, b.noi_dung);
+    const kq = await quyetGoiYLoiDan(env, tc, Number(b.chi_so), b.quyet, b.noi_dung, { id: phien.nguoi_dung.id, vai_tro: phien.to_chuc.vai_tro });
     return kq.loi ? loi(400, kq.loi) : json(kq);
   }
   if (p === '/api/ghi-nho' && m === 'GET') return json(await dsGhiNho(env, tc, url));

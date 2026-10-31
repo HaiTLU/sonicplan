@@ -3,7 +3,7 @@
 import { NHOM_THEO_SO, tachViec } from './ai.js';
 import { chonBaiHoc } from './chon-bai-hoc.js';
 import { ghiChuKeHoach } from './ai.js';
-import { docHoSo, ghiNhoChoAi, luuGhiNho } from './ghi-nho.js';
+import { docHoSo, ghiNhoChoAi, luuGhiNho, nhayCam } from './ghi-nho.js';
 import { laHetHanMucNgay } from './han-muc-ai.js';
 import { ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { docLuong } from './luong.js';
@@ -168,7 +168,7 @@ export async function ghiLienKet(env, toChucId, lienKet, tin, viecMoIds) {
 const TEN_SUA = { huy: 'Hủy việc', sua_ten: 'Sửa tên việc', doi_du_an: 'Đổi dự án', doi_nhom: 'Đổi nhóm', sua_han: 'Sửa hạn' };
 export async function docViecDaSua(env, toChucId, toiDa = 10, tinHienTai = null) {
   const { results } = await env.CSDL.prepare(
-    `SELECT e.loai, e.noi_dung, e.luc, v.tieu_de, t.noi_dung AS tin,
+    `SELECT e.loai, e.noi_dung, e.ly_do, e.luc, v.tieu_de, t.noi_dung AS tin,
        t.nguon, t.nhom, t.nguoi_gui, t.ma_hoi_thoai FROM viec_su_kien e
      JOIN viec v ON v.id = e.viec_id AND v.to_chuc_id = e.to_chuc_id LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id AND t.to_chuc_id = e.to_chuc_id
      WHERE e.to_chuc_id = ?1 AND e.luc >= ?2 AND e.loai IN ('huy', 'sua_ten', 'doi_du_an', 'doi_nhom', 'sua_han')
@@ -186,7 +186,8 @@ export async function docViecDaSua(env, toChucId, toiDa = 10, tinHienTai = null)
   const tatCa = [...results, ...traLoi].sort((a, b) => String(b.luc).localeCompare(String(a.luc)));
   const ds = tinHienTai ? chonBaiHoc(tatCa, tinHienTai, toiDa) : tatCa.slice(0, toiDa);
   return ds.map((r) => {
-    const [chinh, lyDo] = String(r.noi_dung || '').split(' | lý do: ');
+    const [chinh, lyDoCu] = String(r.noi_dung || '').split(' | lý do: ');
+    const lyDo = [r.ly_do || lyDoCu].filter((x) => x && !nhayCam(x))[0]; // cột ly_do (từ 0044) ưu tiên; sự kiện cũ còn lý do trong nội dung
     const tin = r.tin ? ` (tin gốc: "${cat(String(r.tin).replace(/\s+/g, ' '), 100)}")` : '';
     const chiTiet = r.loai === 'huy' ? `"${cat(chinh || r.tieu_de, 80)}"` : `${cat(chinh, 120)}`;
     const phamVi = JSON.stringify({ nguon: r.nguon, nhom: r.nhom, nguoi_gui: r.nguoi_gui, ma_hoi_thoai: r.ma_hoi_thoai });

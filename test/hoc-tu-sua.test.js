@@ -43,6 +43,7 @@ test('đề xuất lời dặn: đọc dòng AI trả, bỏ dòng ngắn, tối 
   assert.equal(docDongDeXuat(Array.from({ length: 9 }, (_, i) => `- Quy tắc số ${i} dài đủ`).join('\n')).length, 5);
 });
 
+const CHU = { id: 'u1', vai_tro: 'chu' };
 test('duyệt gợi ý nối vào hồ sơ, bỏ thì chỉ xóa khỏi danh sách', async () => {
   const { dungCsdl, d1 } = await import('./csdl-thu.js');
   const { ghiCaiDat } = await import('../src/hop-tin.js');
@@ -51,12 +52,12 @@ test('duyệt gợi ý nối vào hồ sơ, bỏ thì chỉ xóa khỏi danh sá
   const env = { CSDL: d1(dungCsdl()) };
   await luuHoSo(env, 't', 'Tôi là quản lý dự án.');
   await ghiCaiDat(env, 't', 'goi_y_loi_dan', JSON.stringify({ luc: 'x', ds: ['Rủ ăn uống thì không tạo việc', 'Giờ 5h30 là 17:30'] }));
-  assert.equal((await quyetGoiYLoiDan(env, 't', 0, 'duyet')).ds.length, 1);
+  assert.equal((await quyetGoiYLoiDan(env, 't', 0, 'duyet', null, CHU)).ds.length, 1);
   assert.match(await docHoSo(env, 't'), /Quy tắc AI học được:\n- Rủ ăn uống thì không tạo việc/);
   await quyetGoiYLoiDan(env, 't', 0, 'bo');
   assert.deepEqual((await docGoiYLoiDan(env, 't')).ds, []);
   assert.doesNotMatch(await docHoSo(env, 't'), /5h30/);
-  assert.ok((await quyetGoiYLoiDan(env, 't', 0, 'duyet')).loi);
+  assert.ok((await quyetGoiYLoiDan(env, 't', 0, 'duyet', null, CHU)).loi);
 });
 
 test('bộ tin mẫu đúng khuôn và dựng được lời nhắc cho từng tin', async () => {
