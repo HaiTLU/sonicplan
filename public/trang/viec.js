@@ -482,6 +482,9 @@ export function moNganViec(v, macDinh = {}) {
   document.getElementById('nut-huy-viec').hidden = !v;
   const du = v || { han_ngay: homNay(), ...macDinh };
   for (const k of ['tieu_de', 'han_ngay', 'gio_hen', 'ghi_chu']) formViec.elements[k].value = du[k] || '';
+  // Lý do sửa chỉ hỏi với việc do AI tạo, không bắt buộc.
+  formViec.elements.ly_do.value = '';
+  document.getElementById('truong-ly-do').hidden = !(v && v.nguon && v.nguon !== 'tay');
   const chon = formViec.elements.du_an_id;
   thay(chon, h('option', { value: '', text: 'Chưa xếp dự án' }), ...S.duAnDs.map((d) => h('option', { value: String(d.id), text: d.ten })));
   chon.value = du.du_an_id ? String(du.du_an_id) : '';
@@ -504,6 +507,8 @@ formViec.addEventListener('submit', async (e) => {
   const du = Object.fromEntries(['tieu_de', 'han_ngay', 'gio_hen', 'ghi_chu'].map((k) => [k, formViec.elements[k].value.trim() || null]));
   du.du_an_id = formViec.elements.du_an_id.value ? Number(formViec.elements.du_an_id.value) : null;
   du.mau = mauDangChon;
+  const lyDoSua = formViec.elements.ly_do.value.trim();
+  if (viecDangSua && lyDoSua) du.ly_do = lyDoSua;
   if (!du.tieu_de) {
     loiEl.textContent = 'Nhập tên việc.';
     loiEl.hidden = false;

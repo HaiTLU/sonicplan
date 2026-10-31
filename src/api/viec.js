@@ -53,7 +53,7 @@ export function kiemViec(than, { batBuocTieuDe }) {
     if (!['mo', 'xong', 'huy'].includes(than.trang_thai)) return { loi: 'Trạng thái không hợp lệ.' };
     ra.trang_thai = than.trang_thai;
   }
-  if ('ly_do' in than) ra.ly_do = cat(String(than.ly_do || '').trim(), 150) || null;
+  if ('ly_do' in than) ra.ly_do = cat(String(than.ly_do || '').trim(), 200) || null;
   if ('du_an_id' in than) {
     const d = than.du_an_id;
     if (d !== null && d !== '' && !Number.isInteger(Number(d))) return { loi: 'Dự án không hợp lệ.' };
@@ -97,7 +97,7 @@ export async function sapXepViec(env, tc, than) {
 export async function suaViec(env, tc, id, than) {
   const k = kiemViec(than, { batBuocTieuDe: false });
   if (k.loi) return loi(400, k.loi);
-  const lyDo = k.viec.ly_do; // lý do hủy: chỉ ghi vào lịch sử để AI học, không phải cột của việc
+  const lyDo = k.viec.ly_do; // lý do sửa hoặc hủy: chỉ ghi vào lịch sử (cột ly_do của viec_su_kien) để AI học, không phải cột của việc
   delete k.viec.ly_do;
   const cot = Object.keys(k.viec);
   if (!cot.length) return loi(400, 'Không có gì để sửa.');
@@ -119,21 +119,21 @@ export async function suaViec(env, tc, id, than) {
   if (truoc) {
     if (k.viec.trang_thai && k.viec.trang_thai !== truoc.trang_thai) {
       const loaiSk = k.viec.trang_thai === 'xong' ? 'xong' : k.viec.trang_thai === 'mo' ? 'mo_lai' : 'huy';
-      await ghiSuKien(env, tc, id, loaiSk, loaiSk === 'huy' && lyDo ? `${truoc.tieu_de} | lý do: ${lyDo}` : truoc.tieu_de).catch(() => {});
+      await ghiSuKien(env, tc, id, loaiSk, loaiSk === 'huy' && lyDo ? `${truoc.tieu_de} | lý do: ${lyDo}` : truoc.tieu_de, null, loaiSk === 'huy' ? lyDo : null).catch(() => {});
     }
     // Ghi lý do sau khi đã hủy (nút trên thông báo): gắn vào sự kiện hủy gần nhất thay vì ghi thêm sự kiện.
     if (lyDo && k.viec.trang_thai === 'huy' && truoc.trang_thai === 'huy') {
-      await env.CSDL.prepare(`UPDATE viec_su_kien SET noi_dung = ?3 WHERE id = (SELECT MAX(id) FROM viec_su_kien WHERE to_chuc_id = ?1 AND viec_id = ?2 AND loai = 'huy') AND noi_dung NOT LIKE 'Gỡ vì%'`)
-        .bind(tc, id, `${truoc.tieu_de} | lý do: ${lyDo}`).run().catch(() => {});
+      await env.CSDL.prepare(`UPDATE viec_su_kien SET noi_dung = ?3, ly_do = ?4 WHERE id = (SELECT MAX(id) FROM viec_su_kien WHERE to_chuc_id = ?1 AND viec_id = ?2 AND loai = 'huy') AND noi_dung NOT LIKE 'Gỡ vì%'`)
+        .bind(tc, id, `${truoc.tieu_de} | lý do: ${lyDo}`, lyDo).run().catch(() => {});
     }
     if ('du_an_id' in k.viec && k.viec.du_an_id !== truoc.du_an_id) {
       const ten = k.viec.du_an_id ? (await env.CSDL.prepare('SELECT ten FROM du_an WHERE id = ?1').bind(k.viec.du_an_id).first())?.ten : null;
-      await ghiSuKien(env, tc, id, 'doi_du_an', ten ? `Chuyển vào dự án ${ten}` : 'Gỡ khỏi dự án').catch(() => {});
+      await ghiSuKien(env, tc, id, 'doi_du_an', ten ? `Chuyển vào dự án ${ten}` : 'Gỡ khỏi dự án', null, lyDo).catch(() => {});
     }
     // Các lần người dùng sửa việc: dữ liệu để đo AI tách việc đúng hay sai (xem src/danh-gia-tach-viec.js).
-    if ('nhom' in k.viec && (k.viec.nhom || null) !== (truoc.nhom || null)) await ghiSuKien(env, tc, id, 'doi_nhom', `${truoc.nhom || 'trống'} -> ${k.viec.nhom || 'trống'}`).catch(() => {});
-    if ('tieu_de' in k.viec && k.viec.tieu_de !== truoc.tieu_de) await ghiSuKien(env, tc, id, 'sua_ten', `${truoc.tieu_de} -> ${k.viec.tieu_de}`).catch(() => {});
-    if ('han_ngay' in k.viec && (k.viec.han_ngay || null) !== (truoc.han_ngay || null)) await ghiSuKien(env, tc, id, 'sua_han', `${truoc.han_ngay || 'trống'} -> ${k.viec.han_ngay || 'trống'}`).catch(() => {});
+    if ('nhom' in k.viec && (k.viec.nhom || null) !== (truoc.nhom || null)) await ghiSuKien(env, tc, id, 'doi_nhom', `${truoc.nhom || 'trống'} -> ${k.viec.nhom || 'trống'}`, null, lyDo).catch(() => {});
+    if ('tieu_de' in k.viec && k.viec.tieu_de !== truoc.tieu_de) await ghiSuKien(env, tc, id, 'sua_ten', `${truoc.tieu_de} -> ${k.viec.tieu_de}`, null, lyDo).catch(() => {});
+    if ('han_ngay' in k.viec && (k.viec.han_ngay || null) !== (truoc.han_ngay || null)) await ghiSuKien(env, tc, id, 'sua_han', `${truoc.han_ngay || 'trống'} -> ${k.viec.han_ngay || 'trống'}`, null, lyDo).catch(() => {});
   }
   // Đổi hạn hoặc giờ thì cho phép nhắc lại theo mốc mới.
   if ('han_ngay' in k.viec || 'gio_hen' in k.viec) await env.CSDL.prepare('DELETE FROM nhac_da_gui WHERE viec_id = ?1').bind(id).run();

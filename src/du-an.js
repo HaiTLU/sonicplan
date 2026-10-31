@@ -95,10 +95,16 @@ export async function docDuAn(env, tc) {
 }
 
 // Ghi một sự kiện vào lịch sử của việc: tao, tien_do, xong, mo_lai, doi_du_an, doi_han.
-export async function ghiSuKien(env, tc, viecId, loai, noiDung, tinNhanId = null) {
-  await env.CSDL.prepare(
-    'INSERT INTO viec_su_kien (to_chuc_id, viec_id, loai, noi_dung, tin_nhan_id, luc) VALUES (?1, ?2, ?3, ?4, ?5, ?6)',
-  ).bind(tc, viecId, loai, noiDung ? String(noiDung).slice(0, 500) : null, tinNhanId, new Date().toISOString()).run();
+export async function ghiSuKien(env, tc, viecId, loai, noiDung, tinNhanId = null, lyDo = null) {
+  const ly = lyDo ? String(lyDo).trim().slice(0, 200) : '';
+  const luc = new Date().toISOString();
+  const nd = noiDung ? String(noiDung).slice(0, 500) : null;
+  // Chỉ chạm cột ly_do (migration 0044) khi có lý do, để sự kiện thường không phụ thuộc thứ tự áp migration.
+  if (ly) {
+    await env.CSDL.prepare('INSERT INTO viec_su_kien (to_chuc_id, viec_id, loai, noi_dung, tin_nhan_id, luc, ly_do) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)').bind(tc, viecId, loai, nd, tinNhanId, luc, ly).run();
+    return;
+  }
+  await env.CSDL.prepare('INSERT INTO viec_su_kien (to_chuc_id, viec_id, loai, noi_dung, tin_nhan_id, luc) VALUES (?1, ?2, ?3, ?4, ?5, ?6)').bind(tc, viecId, loai, nd, tinNhanId, luc).run();
 }
 
 export function kiemDuAn(than, { batBuoc }) {
