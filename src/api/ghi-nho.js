@@ -1,6 +1,6 @@
 // API giao diện: Tổng hợp, hồ sơ và ghi nhớ.
 // Mỗi nhóm nhận (yeuCau, env, phien, url) và trả Response, hoặc null nếu địa chỉ không thuộc nhóm này.
-import { LOAI_GHI_NHO, TOI_DA_HO_SO, docHoSo, luuHoSo } from '../ghi-nho.js';
+import { LOAI_GHI_NHO, TOI_DA_HO_SO, docHoSo, luuHoSo, truyVanFts } from '../ghi-nho.js';
 import { json, loi } from '../tien-ich.js';
 import { docGoiYLoiDan, quyetGoiYLoiDan } from '../loi-dan-tuan.js';
 import { docTongHopCuoi, tongHopChoToChuc } from '../tong-hop.js';
@@ -16,7 +16,25 @@ async function dsGhiNho(env, tc, url) {
   const thamSo = [tc];
   if (LOAI_GHI_NHO.includes(loai)) { thamSo.push(loai); dieuKien.push(`loai = ?${thamSo.length}`); }
   if (moi) dieuKien.push('da_duyet = 0 AND nguon = \'ai\'');
-  if (q) { thamSo.push(`%${q.replace(/[%_]/g, '')}%`); dieuKien.push(`(tieu_de LIKE ?${thamSo.length} OR noi_dung LIKE ?${thamSo.length})`); }
+  if (q) {
+    // Tìm bằng FTS5 (không dấu, nhiều từ); không ra hoặc lỗi thì rơi về LIKE như cũ.
+    let idKhop = [];
+    const mq = truyVanFts(q);
+    if (mq) {
+      try {
+        const { results } = await env.CSDL.prepare('SELECT rowid AS id FROM ghi_nho_fts WHERE ghi_nho_fts MATCH ?1 LIMIT 500').bind(mq).all();
+        idKhop = results.map((r) => Number(r.id));
+      } catch (e) {
+        console.error('FTS ghi nhớ lỗi, dùng LIKE', e?.message);
+      }
+    }
+    if (idKhop.length) {
+      dieuKien.push(`id IN (${idKhop.join(',')})`);
+    } else {
+      thamSo.push(`%${q.replace(/[%_]/g, '')}%`);
+      dieuKien.push(`(tieu_de LIKE ?${thamSo.length} OR noi_dung LIKE ?${thamSo.length})`);
+    }
+  }
   const [ds, dem] = await env.CSDL.batch([
     env.CSDL.prepare(`SELECT id, loai, tieu_de, noi_dung, nguon, do_tin_cay, ghim, da_duyet, tao_luc, cap_nhat_luc FROM ghi_nho WHERE ${dieuKien.join(' AND ')} ORDER BY ghim DESC, cap_nhat_luc DESC LIMIT 200`).bind(...thamSo),
     env.CSDL.prepare(`SELECT COUNT(*) AS tong, SUM(CASE WHEN da_duyet = 0 AND nguon = 'ai' THEN 1 ELSE 0 END) AS moi FROM ghi_nho WHERE to_chuc_id = ?1`).bind(tc),

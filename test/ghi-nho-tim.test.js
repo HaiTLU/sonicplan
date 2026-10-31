@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { d1, dungCsdl } from './csdl-thu.js';
 import { timGhiNho, truyVanFts } from '../src/ghi-nho.js';
+import { xuLyGhiNho } from '../src/api/ghi-nho.js';
 
 function moi() {
   const db = dungCsdl();
@@ -95,4 +96,17 @@ test('chỉ mục theo kịp sửa và xóa', async () => {
   assert.deepEqual(tieuDe(await timGhiNho(t.env, 'A', 'giám đốc')), ['Chị Lan']);
   t.db.prepare("DELETE FROM ghi_nho WHERE tieu_de = 'Chị Lan' AND to_chuc_id = 'A'").run();
   assert.equal((await timGhiNho(t.env, 'A', 'giám đốc')).length, 0);
+});
+
+test('API danh sách ghi nhớ: ô tìm dùng FTS5 (không dấu, nhiều từ), vẫn tách theo tổ chức và lọc loại', async () => {
+  const { env } = moi();
+  const goi = async (qs) => {
+    const r = await xuLyGhiNho(new Request('http://x/api/ghi-nho'), env, { to_chuc: { id: 'A', vai_tro: 'chu' } }, new URL(`http://x/api/ghi-nho${qs}`));
+    return (await r.json()).ghi_nho;
+  };
+  assert.deepEqual(tieuDe(await goi('?q=truong%20phong%20dao%20tao')), ['Chị Lan']);
+  assert.deepEqual(tieuDe(await goi('?q=dang%20ky')), ['Khóa AI']);
+  assert.deepEqual(tieuDe(await goi('?q=zzzkhongco')), []);
+  assert.deepEqual(tieuDe(await goi('?q=lan&loai=du_an')), []);
+  assert.equal((await goi('?q=lan')).length, 1, 'không lẫn ghi nhớ của tổ chức B');
 });
