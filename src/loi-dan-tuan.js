@@ -5,7 +5,7 @@ import { chayAi } from './ai.js';
 import { docHoSo, TOI_DA_HO_SO, nhayCam } from './ghi-nho.js';
 import { docCaiDat } from './hop-tin.js';
 import { docTichHop } from './tich-hop.js';
-import { kiemUngVien } from './rao-chan-hoc.js';
+import { doanChuDe, kiemUngVien } from './rao-chan-hoc.js';
 import { chuanHoa, ngayVN } from './tien-ich.js';
 import { docViecDaSua } from './viec.js';
 
@@ -62,7 +62,8 @@ export async function deXuatLoiDan(env, toChucId, bayGio = new Date().toISOStrin
     const dong = u.noi_dung;
     if (nhayCam(dong) || daQuyet.has(chuanHoa(dong)) || chuanHoa(hoSo).includes(chuanHoa(dong)) || ds.includes(dong)) continue;
     const kt = kiemUngVien(u, { soDaNhanHomNay: dem });
-    if (!kt.ok) { biChan.push({ noi_dung: dong.slice(0, 80), ly_do: kt.lyDo }); continue; }
+    // Không giữ chữ gốc của ứng viên bị chặn: có thể là mật khẩu hay khóa.
+    if (!kt.ok) { biChan.push({ ly_do: kt.lyDo }); continue; }
     ds.push(dong);
     dem++;
   }
@@ -86,7 +87,8 @@ export async function docGoiYLoiDan(env, toChucId) {
 }
 
 // quyet: 'duyet' nối dòng vào hồ sơ; 'bo' chỉ xóa khỏi danh sách. Trả { loi } nếu không làm được.
-export async function quyetGoiYLoiDan(env, toChucId, chiSo, quyet, noiDung = null) {
+// nguoiXacNhan: { id, vai_tro } của người bấm duyệt. Lời dặn áp cho cả tổ chức nên phải do người có quyền xác nhận.
+export async function quyetGoiYLoiDan(env, toChucId, chiSo, quyet, noiDung = null, nguoiXacNhan = null) {
   const raw = await docCaiDat(env, toChucId, KHOA);
   const hien = raw ? JSON.parse(raw) : { ds: [] };
   const dong = hien.ds[chiSo];
@@ -95,6 +97,8 @@ export async function quyetGoiYLoiDan(env, toChucId, chiSo, quyet, noiDung = nul
   const ho = await docHoSo(env, toChucId);
   let hoMoi = ho;
   if (quyet === 'duyet') {
+    const kt = kiemUngVien({ noi_dung: dong, chu_de: doanChuDe(dong) ?? 'tach_viec', pham_vi: 'to_chuc', nguoi_xac_nhan: nguoiXacNhan });
+    if (!kt.ok) return { loi: kt.lyDo };
     if (ho.includes(`- ${dong}`)) { /* đã có sẵn: chỉ xóa khỏi danh sách */ } else {
       const moi = ho.includes(TIEU_DE_QUY_TAC) ? `${ho.trimEnd()}\n- ${dong}` : `${ho.trimEnd()}${ho.trim() ? '\n\n' : ''}${TIEU_DE_QUY_TAC}\n- ${dong}`;
       if (moi.length > TOI_DA_HO_SO) return { loi: `Hồ sơ đầy (${TOI_DA_HO_SO} ký tự). Xóa bớt dòng cũ trong hồ sơ rồi duyệt lại.` };

@@ -191,3 +191,22 @@ test('hocHangNgay không tự tắt khi tỷ lệ sửa không tệ đi hai kỳ
 test('rào chắn được dùng chung: ứng viên 0.3 bị kiemUngVien chặn', () => {
   assert.equal(kiemUngVien({ noi_dung: 'Tin kiểu đặt bàn thì tạo việc', do_tin: 0.3 }).ok, false);
 });
+
+test('bi_chan không giữ chữ gốc của ứng viên bị chặn', async () => {
+  const { env } = dungDeXuat();
+  await deXuatLoiDan(env, 't', bay(), async () => '- Tin Zalo của sếp thì mật khẩu wifi là Abc12345xyz');
+  const luu = await docGoiYLoiDan(env, 't');
+  assert.ok(luu.bi_chan.length >= 1);
+  assert.doesNotMatch(JSON.stringify(luu.bi_chan), /Abc12345|wifi/);
+});
+
+test('duyệt lời dặn cần người xác nhận có quyền: thiếu hoặc sai vai trò bị từ chối', async () => {
+  const { dungCsdl, d1 } = await import('./csdl-thu.js');
+  const { ghiCaiDat } = await import('../src/hop-tin.js');
+  const { quyetGoiYLoiDan } = await import('../src/loi-dan-tuan.js');
+  const env = { CSDL: d1(dungCsdl()) };
+  await ghiCaiDat(env, 't', 'goi_y_loi_dan', JSON.stringify({ luc: 'x', ds: ['Rủ ăn uống thì không tạo việc'] }));
+  assert.match((await quyetGoiYLoiDan(env, 't', 0, 'duyet')).loi, /quyền/);
+  assert.match((await quyetGoiYLoiDan(env, 't', 0, 'duyet', null, { id: 'u2', vai_tro: 'thanh_vien' })).loi, /quyền/);
+  assert.ok((await quyetGoiYLoiDan(env, 't', 0, 'duyet', null, { id: 'u1', vai_tro: 'chu' })).ds);
+});
