@@ -83,3 +83,47 @@ export async function luuHoSo(env, toChucId, chu) {
   else await ghiCaiDat(env, toChucId, 'ho_so', sach);
   return null;
 }
+
+// ---- Tìm ghi nhớ bằng FTS5 (migration 0105), rơi về LIKE khi không dùng được ----
+const TU_DUNG = new Set(['la', 'cua', 'va', 'ai', 'gi', 'thi', 'cho', 'voi', 'cac', 'nhung', 'nao', 'co', 'khong', 'duoc', 'the', 'nay', 'kia', 'o', 'tai', 'ra', 'sao']);
+
+// Biến câu tự nhiên thành truy vấn FTS5 an toàn: tách từ, bỏ ký tự đặc biệt, bọc từng từ trong nháy kép, nối bằng OR.
+// remove_diacritics của FTS5 không gộp "đ" với "d": thêm biến thể d <-> đ cho từ có chữ đ hoặc bắt đầu bằng d.
+// Trả null nếu không còn từ nào để tìm.
+export function truyVanFts(tuKhoa) {
+  const tho = (String(tuKhoa || '').toLowerCase().match(/[\p{L}\p{N}]+/gu) || []).filter((t) => t.length > 1 || /\p{N}/u.test(t));
+  const loc = tho.filter((t) => !TU_DUNG.has(t.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd')));
+  const ds = loc.length ? loc : tho;
+  const co = new Set();
+  for (const t of ds.slice(0, 12)) {
+    co.add(t);
+    if (t.includes('đ')) co.add(t.replace(/đ/g, 'd'));
+    if (t.startsWith('d')) co.add(`đ${t.slice(1)}`);
+  }
+  return co.size ? [...co].map((t) => `"${t}"`).join(' OR ') : null;
+}
+
+// Tìm ghi nhớ của một tổ chức. Không có từ khóa thì trả mục mới cập nhật. Giữ lọc to_chuc_id ở mọi nhánh.
+export async function timGhiNho(env, toChucId, tuKhoa, gioiHan = 10) {
+  const tk = String(tuKhoa || '').trim();
+  const cot = 'g.id, g.loai, g.tieu_de, g.noi_dung';
+  if (!tk) {
+    const { results } = await env.CSDL.prepare('SELECT id, loai, tieu_de, noi_dung FROM ghi_nho WHERE to_chuc_id = ?1 ORDER BY cap_nhat_luc DESC LIMIT ?2').bind(toChucId, gioiHan).all();
+    return results;
+  }
+  const mq = truyVanFts(tk);
+  if (mq) {
+    try {
+      const { results } = await env.CSDL.prepare(
+        `SELECT ${cot} FROM ghi_nho_fts f JOIN ghi_nho g ON g.id = f.rowid WHERE ghi_nho_fts MATCH ?1 AND g.to_chuc_id = ?2 ORDER BY bm25(ghi_nho_fts), g.cap_nhat_luc DESC LIMIT ?3`,
+      ).bind(mq, toChucId, gioiHan).all();
+      if (results.length) return results;
+    } catch (e) {
+      console.error('FTS ghi nhớ lỗi, dùng LIKE', e?.message);
+    }
+  }
+  const like = tk.replace(/[%_]/g, '');
+  if (!like) return [];
+  const { results } = await env.CSDL.prepare('SELECT id, loai, tieu_de, noi_dung FROM ghi_nho WHERE to_chuc_id = ?1 AND (tieu_de LIKE ?2 OR noi_dung LIKE ?2) ORDER BY cap_nhat_luc DESC LIMIT ?3').bind(toChucId, `%${like}%`, gioiHan).all();
+  return results;
+}
