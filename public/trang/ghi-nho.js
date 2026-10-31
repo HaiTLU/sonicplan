@@ -50,16 +50,25 @@ export async function veGhiNho(goc) {
     capNhatDem();
     oHoSo.focus();
   } }, 'Chèn khung mẫu');
-  // Gợi ý lời dặn hàng tuần từ các lần sửa việc: duyệt thì nối vào hồ sơ, bỏ thì xóa.
+  const hopHoc = h('section', { class: 'bang' }, h('h3', { text: 'Học từ lựa chọn của bạn' }));
+  api('/api/hoc-hang-ngay').then((r) => {
+    hopHoc.append(
+      h('p', { text: `Những lần bạn sửa việc hoặc trả lời AI được dùng khi gặp tin cùng bối cảnh. ${r.bat ? 'Mỗi tối lúc 23h, hệ thống tổng hợp lời dặn để bạn duyệt.' : 'Tổng hợp hằng ngày đang tắt; bạn có thể bật trong trang Luồng.'}` }),
+      h('p', { text: r.lan_cuoi ? `Lần tổng hợp gần nhất: ${new Date(r.lan_cuoi.luc).toLocaleString('vi-VN')}.` : 'Chưa có lượt tổng hợp hằng ngày thành công.' }),
+      h('p', { text: `7 ngày gần đây: ${r.so_tra_loi} câu trả lời; ${r.gan.da_sua}/${r.gan.so_viec} việc AI tạo đã bị sửa hoặc hủy. Kỳ 7 ngày trước: ${r.truoc.da_sua}/${r.truoc.so_viec}.` }),
+      h('p', { class: 'mo-ta', text: r.luu_y }),
+    );
+  }).catch(() => hopHoc.append(h('p', { text: 'Chưa tải được tình trạng học. Hãy tải lại trang.' })));
+  // Gợi ý hằng ngày; giữ nguyên các đề xuất đang chờ.
   const hopGoiY = h('section', { class: 'bang goi-y-loi-dan', hidden: true });
   const napGoiY = () => api('/api/goi-y-loi-dan').then((r) => {
     hopGoiY.replaceChildren();
     hopGoiY.hidden = !r.ds.length;
     if (!r.ds.length) return;
-    hopGoiY.append(h('h3', { text: 'AI gợi ý lời dặn mới' }), h('p', { class: 'mo-ta', text: 'AI đọc các lần bạn sửa hoặc hủy việc và đề xuất các quy tắc dưới đây. Duyệt thì quy tắc nối vào hồ sơ, bỏ thì xóa khỏi danh sách.' }));
+    hopGoiY.append(h('h3', { text: 'AI gợi ý lời dặn mới' }), h('p', { class: 'mo-ta', text: 'AI học từ những lần bạn sửa việc và trả lời câu hỏi. Duyệt để thêm quy tắc vào hồ sơ; bỏ để ghi nhớ rằng bạn không muốn lời dặn này. Bạn có thể sửa hoặc xóa quy tắc đã duyệt trong hồ sơ.' }));
     r.ds.forEach((dong, i) => {
       const lam = async (quyet) => {
-        try { await api('/api/goi-y-loi-dan', { method: 'POST', body: JSON.stringify({ chi_so: i, quyet }) }); if (quyet === 'duyet') api('/api/ho-so').then((x) => { oHoSo.value = x.noi_dung || ''; capNhatDem(); }); napGoiY(); } catch (err) { bao(err.message, { loi: true }); }
+        try { await api('/api/goi-y-loi-dan', { method: 'POST', body: JSON.stringify({ chi_so: i, quyet, noi_dung: dong }) }); if (quyet === 'duyet') api('/api/ho-so').then((x) => { oHoSo.value = x.noi_dung || ''; capNhatDem(); }); napGoiY(); } catch (err) { bao(err.message, { loi: true }); }
       };
       hopGoiY.append(h('div', { class: 'hang-nut' }, h('span', { text: dong }), h('button', { class: 'nut nut-chinh nut-nho', type: 'button', onclick: () => lam('duyet') }, 'Duyệt'), h('button', { class: 'nut nut-phu nut-nho', type: 'button', onclick: () => lam('bo') }, 'Bỏ')));
     });
@@ -71,7 +80,7 @@ export async function veGhiNho(goc) {
     oHoSo,
     h('div', { class: 'hang-nut' }, nutHoSo, nutKhung, demHoSo),
   );
-  thay(goc, theHoSo, hopGoiY, h('p', { class: 'tom-tat-phu', style: 'margin-bottom:14px', text: 'Hệ thống tự nhớ người, dự án và quyết định từ tin đến, rồi dùng lại khi đọc tin sau. Mục mới do AI thêm có nhãn chờ duyệt: bấm dấu tích nếu đúng, sửa hoặc xóa nếu sai.' }), form, dauMuc, ds);
+  thay(goc, hopHoc, theHoSo, hopGoiY, h('p', { class: 'tom-tat-phu', style: 'margin-bottom:14px', text: 'Hệ thống tự nhớ người, dự án và quyết định từ tin đến, rồi dùng lại khi đọc tin sau. Mục mới do AI thêm có nhãn chờ duyệt: bấm dấu tích nếu đúng, sửa hoặc xóa nếu sai.' }), form, dauMuc, ds);
 
   async function hanhDong(id, thanDu, thongBao) {
     try {

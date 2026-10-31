@@ -5,6 +5,7 @@ import { json, loi } from '../tien-ich.js';
 import { docGoiYLoiDan, quyetGoiYLoiDan } from '../loi-dan-tuan.js';
 import { docTongHopCuoi, tongHopChoToChuc } from '../tong-hop.js';
 import { laChu } from './chung.js';
+import { trangThaiHoc } from '../hoc-hang-ngay.js';
 
 // ---- Ghi nhớ ----
 
@@ -91,6 +92,7 @@ export async function xuLyGhiNho(yeuCau, env, phien, url) {
   const m = yeuCau.method;
   const tc = phien.to_chuc.id;
   let khop;
+  if (p === '/api/hoc-hang-ngay' && m === 'GET') return json(await trangThaiHoc(env, tc));
 
   if (p === '/api/tong-hop' && m === 'GET') return json({ cuoi: await docTongHopCuoi(env, tc) });
   if (p === '/api/tong-hop' && m === 'POST') {
@@ -106,7 +108,7 @@ export async function xuLyGhiNho(yeuCau, env, phien, url) {
   if (p === '/api/goi-y-loi-dan' && m === 'POST') {
     if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức duyệt được lời dặn.');
     const b = await yeuCau.json().catch(() => ({}));
-    const kq = await quyetGoiYLoiDan(env, tc, Number(b.chi_so), b.quyet);
+    const kq = await quyetGoiYLoiDan(env, tc, Number(b.chi_so), b.quyet, b.noi_dung);
     return kq.loi ? loi(400, kq.loi) : json(kq);
   }
   if (p === '/api/ghi-nho' && m === 'GET') return json(await dsGhiNho(env, tc, url));
