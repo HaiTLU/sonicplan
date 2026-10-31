@@ -14,6 +14,7 @@ export const BANG_XUAT = [
   ['tep', 'SELECT * FROM tep WHERE to_chuc_id = ?1'],
   ['dashboard_de_xuat', 'SELECT * FROM dashboard_de_xuat WHERE to_chuc_id = ?1'],
   ['ghi_nho', 'SELECT * FROM ghi_nho WHERE to_chuc_id = ?1'],
+  ['cau_hoi_ai', 'SELECT * FROM cau_hoi_ai WHERE to_chuc_id = ?1'],
   ['luot_claude', 'SELECT id, viec_id, lo_id, trang_thai, dan, ket_qua, cau_hoi, nhanh, pr, nhat_ky, danh_gia, tao_luc, cap_nhat_luc FROM luot_claude WHERE to_chuc_id = ?1'],
   ['prompt_claude', 'SELECT id, viec_id, viec_ids, noi_dung, model, dan, tao_luc FROM prompt_claude WHERE to_chuc_id = ?1'],
   ['nguon_chan', 'SELECT nguon, loai, gia_tri, nhan, tao_luc FROM nguon_chan WHERE to_chuc_id = ?1'],

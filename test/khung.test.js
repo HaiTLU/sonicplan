@@ -17,7 +17,7 @@ test('lịch hẹn giờ trong wrangler.jsonc khớp danh sách tác vụ', () =
 test('chỉ tác vụ đã bật mới chạy', () => {
   assert.deepEqual(tacVuTheoLich('0 * * * *').map((t) => t.ma), ['tu-kiem', 'giao-github', 'bao-viec-moi', 'canh-zalo', 'ban-tin', 'goi-y', 'bao-cao-tuan', 'canh-viec']);
   assert.deepEqual(tacVuTheoLich('*/5 * * * *').map((t) => t.ma), ['dong-bo-google', 'luu-kho', 'quet-hop', 'tach-viec', 'nhac-viec', 'cham-viec']);
-  assert.deepEqual(tacVuTheoLich('0 16 * * *').map((t) => t.ma), ['don-cuoi-ngay', 'sao-luu']);
+  assert.deepEqual(tacVuTheoLich('0 16 * * *').map((t) => t.ma), ['don-cuoi-ngay', 'sao-luu', 'hoc-hang-ngay']);
 });
 
 test('gọi ngoài: thử lại lỗi tạm thời 3 lần, chờ 1-2-4 giây', async () => {

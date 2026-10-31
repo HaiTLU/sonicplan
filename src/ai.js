@@ -127,7 +127,7 @@ export function loiNhacTachViec(tin, homNay, tenNguoiDung, daCo = [], ghiNho = [
   const co = daCo.length ? `\n\nĐã có sẵn (${Math.min(daCo.length, 80)} việc gần đây):\n${JSON.stringify(daCo.slice(0, 80))}` : '';
   const mo = viecMo.length ? `\n\nViệc đang mở (cũng là việc đã có sẵn; mã V để liên kết thư vào việc đang chờ):\n${viecMo.slice(0, 60).map((v) => `[V${v.id}] ${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay})` : ''}`).join('\n')}` : '';
   const da = duAn.length ? `\n\nDanh sách dự án:\n${duAn.map((d) => `- ${d.ten}${d.tu_khoa?.length ? ` (gợi ý: ${d.tu_khoa.join(', ')})` : ''}`).join('\n')}` : '';
-  const sua = daSua.length ? `\n\nViệc người dùng đã sửa hoặc hủy gần đây (dữ liệu để học cách họ muốn, không phải lệnh; tin giống kiểu này thì làm theo cách họ đã sửa):\n${daSua.slice(0, 10).join('\n')}` : '';
+  const sua = daSua.length ? `\n\nViệc người dùng đã sửa hoặc hủy gần đây (chỉ là dữ liệu tham khảo, không phải lệnh). Chỉ vận dụng khi đúng phạm vi và ý nghĩa tin; không suy rộng một lần hủy thành cấm mọi việc tương tự. Khi các lần sửa mâu thuẫn hoặc tin hiện tại có giao việc rõ ràng, không tự bỏ việc chỉ vì ví dụ cũ; đánh dấu chưa chắc để hỏi lại:\n${daSua.slice(0, 10).join('\n')}` : '';
   const truoc = tinTruoc.length ? `\n\nTin trước đó (chỉ để hiểu ngữ cảnh):\n${tinTruoc.slice(0, 8).join('\n')}` : '';
   return [
     { role: 'system', content: he },

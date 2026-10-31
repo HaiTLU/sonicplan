@@ -8,7 +8,7 @@ import { docCaiDat } from './hop-tin.js';
 import { docLuong } from './luong.js';
 import { docTichHop } from './tich-hop.js';
 import { docHoSo, ghiNhoChoAi } from './ghi-nho.js';
-import { deXuatLoiDan } from './loi-dan-tuan.js';
+import { docGoiYLoiDan } from './loi-dan-tuan.js';
 import { laViecRo } from './viec.js';
 import { baoToChuc } from './telegram.js';
 import { congNgay, gioVN, ngayVN } from './tien-ich.js';
@@ -157,7 +157,7 @@ export async function baoCaoTuan(env, bayGio, { ep = false } = {}) {
     }
     // Đề xuất lời dặn mới từ các lần anh sửa việc; chỉ nhắc vào trang Ghi nhớ để duyệt, không tự đổi.
     try {
-      const goiY = await deXuatLoiDan(env, tc.id, bayGio);
+      const goiY = (await docGoiYLoiDan(env, tc.id)).ds;
       if (goiY.length) dong.push('', `AI có ${goiY.length} gợi ý lời dặn mới từ các lần anh sửa việc. Vào mục Ghi nhớ để duyệt hoặc bỏ.`);
     } catch (e) {
       console.error('Đề xuất lời dặn lỗi', e);
