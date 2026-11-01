@@ -188,12 +188,20 @@ export async function docViecDaSua(env, toChucId, toiDa = 10, tinHienTai = null)
   return ds.map((r) => {
     const [chinh, lyDoCu] = String(r.noi_dung || '').split(' | lý do: ');
     const lyDo = [r.ly_do || lyDoCu].filter((x) => x && !nhayCam(x))[0]; // cột ly_do (từ 0044) ưu tiên; sự kiện cũ còn lý do trong nội dung
-    const tin = r.tin ? ` (tin gốc: "${cat(String(r.tin).replace(/\s+/g, ' '), 100)}")` : '';
-    const chiTiet = r.loai === 'huy' ? `"${cat(chinh || r.tieu_de, 80)}"` : `${cat(chinh, 120)}`;
-    const phamVi = JSON.stringify({ nguon: r.nguon, nhom: r.nhom, nguoi_gui: r.nguoi_gui, ma_hoi_thoai: r.ma_hoi_thoai });
-    if (r.tra_loi != null) return `- Anh đã chọn: ${JSON.stringify({ cau_hoi: r.cau_hoi, tra_loi: r.tra_loi })}${tin}; phạm vi: ${phamVi}`;
-    return `- ${TEN_SUA[r.loai]}: ${chiTiet}${lyDo ? `, lý do: ${cat(lyDo, 100)}` : ''}${tin}; phạm vi: ${phamVi}`;
+    // Mọi chữ do người dùng hoặc người ngoài gõ: gộp thành một dòng, cắt ngắn, bọc JSON.stringify để không giả được dòng lệnh.
+    const tin = r.tin ? ` (tin gốc: ${JSON.stringify(motDong(r.tin, 100))})` : '';
+    const chiTiet = r.loai === 'huy' ? JSON.stringify(motDong(chinh || r.tieu_de, 80)) : JSON.stringify(motDong(chinh, 120));
+    const phamVi = JSON.stringify({ nguon: motDong(r.nguon, 40), nhom: motDong(r.nhom, 80), nguoi_gui: motDong(r.nguoi_gui, 80), ma_hoi_thoai: motDong(r.ma_hoi_thoai, 80) });
+    if (r.tra_loi != null) return `- Anh đã chọn: ${JSON.stringify({ cau_hoi: motDong(r.cau_hoi, 200), tra_loi: motDong(r.tra_loi, 200) })}${tin}; phạm vi: ${phamVi}`;
+    return `- ${TEN_SUA[r.loai]}: ${chiTiet}${lyDo ? `, lý do: ${JSON.stringify(motDong(lyDo, 100))}` : ''}${tin}; phạm vi: ${phamVi}`;
   });
+}
+
+// Gộp khoảng trắng và xuống dòng thành một dòng, vô hiệu cụm mở đầu kiểu lệnh ("Quy tắc:", "Anh đã chọn:"), cắt độ dài.
+export function motDong(x, toiDa) {
+  const g = String(x ?? '').replace(/[\p{Cf}\p{Cc}\s]+/gu, ' ').trim()
+    .replace(/(quy tắc|anh đã chọn|hệ thống|system|assistant|lưu ý|chỉ dẫn)\s*:/giu, '$1 -');
+  return cat(g, toiDa);
 }
 
 // Tin Zalo chỉ vài chữ không số, không "@" ("ok", "dạ", "được", "haha"): không thể là việc. Cả lô toàn tin loại này thì khỏi gọi AI.

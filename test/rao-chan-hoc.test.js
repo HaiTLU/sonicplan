@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { kiemUngVien, doanChuDe, HAN_MUC_MOI_NGAY, TOI_DA_KY_TU } from '../src/rao-chan-hoc.js';
 
-const tot = { noi_dung: 'Tin nhóm Lớp A chưa nhận lời thì không tạo việc ăn uống' };
+const tot = { noi_dung: 'Tin nhóm Lớp A chưa nhận lời thì không tạo việc ăn uống', do_tin: 0.9 };
 const chan = (u, ctx, mau) => { const r = kiemUngVien(u, ctx); assert.equal(r.ok, false, JSON.stringify(u)); assert.match(r.lyDo, mau); };
 
 test('ứng viên bình thường được nhận, lyDo rỗng', () => {
@@ -24,7 +24,7 @@ test('chặn số thẻ và CCCD', () => {
   chan({ noi_dung: 'Tin có số 4111-1111-1111-1111 thì tạo việc' }, {}, /số thẻ/);
   chan({ noi_dung: 'Tin có CCCD 001234567890 thì tạo việc' }, {}, /giấy tờ/);
   chan({ noi_dung: 'Tin ghi số căn cước thì tạo việc' }, {}, /giấy tờ/);
-  assert.equal(kiemUngVien({ noi_dung: 'Việc gọi lại số 0912345678 thì giao việc cho tôi' }).ok, true); // số điện thoại không bị chặn nhầm
+  assert.equal(kiemUngVien({ noi_dung: 'Việc gọi lại số 0912345678 thì giao việc cho tôi', chu_de: 'tach_viec', do_tin: 0.9 }).ok, true); // số điện thoại không bị chặn nhầm
 });
 
 test('chặn khóa API và token', () => {
@@ -53,7 +53,7 @@ test('chặn chủ đề ngoài danh sách; chủ đề tự gắn phải nằm 
 test('chặn nội dung quá 300 ký tự và nội dung trống', () => {
   chan({ noi_dung: 'việc '.repeat(70) }, {}, /dài quá/);
   assert.equal(TOI_DA_KY_TU, 300);
-  assert.equal(kiemUngVien({ noi_dung: 'tin việc '.repeat(33).trim().slice(0, 300) }).ok, true); // đúng 300 thì còn nhận
+  assert.equal(kiemUngVien({ noi_dung: 'tin việc '.repeat(33).trim().slice(0, 300), chu_de: 'tach_viec', do_tin: 0.9 }).ok, true); // đúng 300 thì còn nhận
   chan({ noi_dung: '   ' }, {}, /trống/);
   chan(null, {}, /trống/);
 });

@@ -3,7 +3,7 @@
 import { chayAi } from '../ai.js';
 import { dsPrompt, soanPrompt } from '../soan-prompt.js';
 import { ghiSuKien } from '../du-an.js';
-import { docHoSo } from '../ghi-nho.js';
+import { docHoSo, nhayCam } from '../ghi-nho.js';
 import { chuanMau } from '../mau.js';
 import { docTichHop } from '../tich-hop.js';
 import { cat, json, loi, ngayVN } from '../tien-ich.js';
@@ -97,7 +97,9 @@ export async function sapXepViec(env, tc, than) {
 export async function suaViec(env, tc, id, than) {
   const k = kiemViec(than, { batBuocTieuDe: false });
   if (k.loi) return loi(400, k.loi);
-  const lyDo = k.viec.ly_do; // lý do sửa hoặc hủy: chỉ ghi vào lịch sử (cột ly_do của viec_su_kien) để AI học, không phải cột của việc
+  // Lý do là chữ người dùng gõ và sẽ thành dữ liệu học chung: lọc bí mật ngay lúc ghi.
+  const lyDoTho = k.viec.ly_do;
+  const lyDo = lyDoTho && nhayCam(lyDoTho) ? '[đã chặn]' : lyDoTho; // lý do sửa hoặc hủy: chỉ ghi vào lịch sử (cột ly_do của viec_su_kien) để AI học, không phải cột của việc
   delete k.viec.ly_do;
   const cot = Object.keys(k.viec);
   if (!cot.length) return loi(400, 'Không có gì để sửa.');
@@ -122,9 +124,11 @@ export async function suaViec(env, tc, id, than) {
       await ghiSuKien(env, tc, id, loaiSk, loaiSk === 'huy' && lyDo ? `${truoc.tieu_de} | lý do: ${lyDo}` : truoc.tieu_de, null, loaiSk === 'huy' ? lyDo : null).catch(() => {});
     }
     // Ghi lý do sau khi đã hủy (nút trên thông báo): gắn vào sự kiện hủy gần nhất thay vì ghi thêm sự kiện.
+    // Chỉ nhận khi việc thuộc tổ chức (đã kiểm ở UPDATE trên), đang ở trạng thái hủy và sự kiện hủy còn mới (24 giờ), chưa có lý do: không cho ghi đè lý do cũ hay gắn lý do vào sự kiện xa.
     if (lyDo && k.viec.trang_thai === 'huy' && truoc.trang_thai === 'huy') {
-      await env.CSDL.prepare(`UPDATE viec_su_kien SET noi_dung = ?3, ly_do = ?4 WHERE id = (SELECT MAX(id) FROM viec_su_kien WHERE to_chuc_id = ?1 AND viec_id = ?2 AND loai = 'huy') AND noi_dung NOT LIKE 'Gỡ vì%'`)
-        .bind(tc, id, `${truoc.tieu_de} | lý do: ${lyDo}`, lyDo).run().catch(() => {});
+      const han = new Date(Date.now() - 86400000).toISOString();
+      await env.CSDL.prepare(`UPDATE viec_su_kien SET noi_dung = ?3, ly_do = ?4 WHERE id = (SELECT MAX(id) FROM viec_su_kien WHERE to_chuc_id = ?1 AND viec_id = ?2 AND loai = 'huy') AND noi_dung NOT LIKE 'Gỡ vì%' AND ly_do IS NULL AND luc >= ?5`)
+        .bind(tc, id, `${truoc.tieu_de} | lý do: ${lyDo}`, lyDo, han).run().catch(() => {});
     }
     if ('du_an_id' in k.viec && k.viec.du_an_id !== truoc.du_an_id) {
       const ten = k.viec.du_an_id ? (await env.CSDL.prepare('SELECT ten FROM du_an WHERE id = ?1').bind(k.viec.du_an_id).first())?.ten : null;

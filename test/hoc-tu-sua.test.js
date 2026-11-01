@@ -28,7 +28,7 @@ test('đọc việc đã sửa: chỉ việc do AI tạo, kèm lý do hủy và 
   ev.run(3, 'huy', 'Gỡ vì đã chặn Zalo', bay);
   const ds = await docViecDaSua(env, 't');
   assert.equal(ds.length, 1);
-  assert.match(ds[0], /Hủy việc: "Đi ăn cơm với lớp", lý do: chuyện riêng/);
+  assert.match(ds[0], /Hủy việc: "Đi ăn cơm với lớp", lý do: "chuyện riêng"/);
   assert.match(ds[0], /tin gốc: "Mai ăn cơm với lớp nhé"/);
 });
 

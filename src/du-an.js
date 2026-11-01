@@ -2,6 +2,7 @@ import { chuanMau, MAU_HOP_LE } from './mau.js';
 // Dự án: nhãn gom việc theo mảng, và lịch sử (dòng thời gian) của từng dự án.
 
 import { chuanHoa, ngayVN } from './tien-ich.js';
+import { nhayCam } from './ghi-nho.js';
 
 export const DU_AN_TOI_DA = 30;
 
@@ -96,7 +97,9 @@ export async function docDuAn(env, tc) {
 
 // Ghi một sự kiện vào lịch sử của việc: tao, tien_do, xong, mo_lai, doi_du_an, doi_han.
 export async function ghiSuKien(env, tc, viecId, loai, noiDung, tinNhanId = null, lyDo = null) {
-  const ly = lyDo ? String(lyDo).trim().slice(0, 200) : '';
+  // Lý do là chữ người dùng gõ: lọc bí mật ngay lúc ghi, dính thì thay bằng dấu chặn.
+  const ly0 = lyDo ? String(lyDo).trim().slice(0, 200) : '';
+  const ly = ly0 && nhayCam(ly0) ? '[đã chặn]' : ly0;
   const luc = new Date().toISOString();
   const nd = noiDung ? String(noiDung).slice(0, 500) : null;
   // Chỉ chạm cột ly_do (migration 0044) khi có lý do, để sự kiện thường không phụ thuộc thứ tự áp migration.

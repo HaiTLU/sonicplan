@@ -3,6 +3,7 @@
 
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
 import { chuanHoa } from './tien-ich.js';
+import { coBiMat } from './rao-chan-hoc.js';
 
 export const LOAI_GHI_NHO = ['nguoi', 'du_an', 'quyet_dinh', 'su_that'];
 export const TOI_DA_MOI_LUOT = 10;
@@ -11,7 +12,7 @@ const TOI_DA_DUA_VAO_AI = 30;
 // Số thẻ, mật khẩu, mã OTP, số giấy tờ: không bao giờ được nhớ.
 const SO_THE = /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/;
 const TU_NHAY_CAM = /\b(mat khau|password|passcode|otp|ma xac (nhan|thuc)|so (cmnd|cccd|ho chieu|tai khoan|the))\b/;
-export const nhayCam = (chu) => SO_THE.test(chu) || TU_NHAY_CAM.test(chuanHoa(chu));
+export const nhayCam = (chu) => SO_THE.test(chu) || TU_NHAY_CAM.test(chuanHoa(chu)) || coBiMat(chu); // coBiMat: NFKC, homoglyph, dấu phân cách, khóa API
 
 // Làm sạch danh sách ghi nhớ do AI trả về: đúng loại, có chữ, bỏ mục nhạy cảm, tối đa 10 mục.
 export function chuanHoaGhiNho(ds) {
