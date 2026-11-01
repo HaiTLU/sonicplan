@@ -1,0 +1,51 @@
+/* Hệ thiết kế Thăng Long Liquid Glass v2, đặt SAU apple.css. Token ở tokens-tlg.css (sinh từ kỹ năng thang-long-liquid-glass).
+   Chỉ đổi biến, phông, hình khối và chuyển động; không đổi chức năng. Bỏ tệp này và hai dòng link ở index.html là quay về giao diện cũ.
+   Màu nhấn là Indigo TLU; teal cũ chỉ còn ở logo. */
+
+:root {
+  --phong: var(--font-text), system-ui, sans-serif;
+  --phong-td: var(--font-display), system-ui, sans-serif;
+  --nen: var(--c-bg);
+  --nen-2: var(--c-bg-alt);
+  --mat: var(--c-bg-raised);
+  --mat-2: var(--c-bg-alt);
+  --mat-3: color-mix(in srgb, var(--c-ink) 8%, var(--c-bg));
+  --vach: color-mix(in srgb, var(--c-ink) 9%, transparent);
+  --vach-2: var(--c-hairline);
+  --chu: var(--c-ink);
+  --chu-2: color-mix(in srgb, var(--c-ink) 82%, var(--c-bg));
+  --phu: var(--c-ink-2);
+  --mo: var(--c-ink-2);
+  --nhan: var(--c-link);
+  --nhan-chu: var(--c-on-accent);
+  --nhan-nhat: color-mix(in srgb, var(--c-accent) 14%, transparent);
+  --on: var(--c-success);
+  --loi: var(--c-danger);
+  --teal: var(--c-accent);
+  --navy: var(--c-on-accent);
+  --r-lon: var(--r-lg);
+  --r-vua: var(--r-md);
+  --r-nho: var(--r-sm);
+}
+
+body { font-family: var(--phong); letter-spacing: -.011em; }
+h1, h2, h3 { font-family: var(--phong-td); font-weight: 700; }
+.dau-trang h1 { font-weight: 700; line-height: 1.12; }
+.dau-trang { -webkit-backdrop-filter: saturate(var(--g-saturate)) blur(var(--g-blur)); backdrop-filter: saturate(var(--g-saturate)) blur(var(--g-blur)); }
+
+/* Nút: viên thuốc, chuyển động của Apple. */
+.nut, .chip, .nut-lenh, .dieu-huong a { transition: background-color var(--m-fast) linear, color var(--m-fast) linear, border-color var(--m-fast) linear, transform var(--m-base) var(--m-ease-out); }
+.nut { border-radius: var(--r-pill); }
+.nut-chinh:hover { background: var(--c-accent-hover); }
+.nut-chinh:active { transform: scale(.98); }
+
+/* Logo giữ màu nhận diện SonicRec. */
+.logo-nen { fill: #02152a; }
+.logo-song { stroke: #06e3d8; }
+.anh-dai-dien { background: var(--c-accent); color: var(--c-on-accent); }
+.dem-zalo, .nut-chuong .dem-chuong { background: var(--c-accent); color: var(--c-on-accent); }
+
+/* Mục chạm đủ 44px trên cảm ứng. */
+@media (pointer: coarse) { .nut, .chip, .nut-lenh { min-height: var(--sp-touch); } }
+
+@media (prefers-reduced-transparency: reduce) { .dau-trang { background: var(--nen); -webkit-backdrop-filter: none; backdrop-filter: none; } }

@@ -1,0 +1,148 @@
+/* Thang Long Liquid Glass v2 - sinh tu tokens.json, khong sua tay */
+@font-face{font-family:'Thang Long Sans';font-weight:500;font-display:swap;src:url('/fonts/ThangLongSans-Medium.woff2') format('woff2')}
+@font-face{font-family:'Thang Long Sans';font-weight:700;font-display:swap;src:url('/fonts/ThangLongSans-Bold.woff2') format('woff2')}
+@font-face{font-family:'Manrope';font-weight:200 800;font-display:swap;src:url('/fonts/Manrope-Viet.woff2') format('woff2')}
+
+:root{
+  --c-bg: #ffffff;
+  --c-bg-alt: #f5f5f7;
+  --c-bg-raised: #ffffff;
+  --c-ink: #1d1d1f;
+  --c-ink-2: #6e6e73;
+  --c-hairline: #d2d2d7;
+  --c-accent: #000066;
+  --c-accent-hover: #1a1a85;
+  --c-on-accent: #ffffff;
+  --c-link: #2b2bb8;
+  --c-identity: #f32409;
+  --c-success: #0b6b23;
+  --c-warning: #8a5000;
+  --c-danger: #b31a05;
+  --font-display: 'Thang Long Sans', 'SF Pro Display', system-ui, sans-serif;
+  --font-text: 'Manrope', 'SF Pro Text', system-ui, sans-serif;
+  --weight-display: 700;
+  --weight-text: 400;
+  --weight-strong: 600;
+  --t-hero-size: 80px;
+  --t-hero-lh: 88px;
+  --t-hero-track: -1.2px;
+  --t-display-1-size: 56px;
+  --t-display-1-lh: 62px;
+  --t-display-1-track: -0.28px;
+  --t-display-2-size: 48px;
+  --t-display-2-lh: 54px;
+  --t-display-2-track: -0.144px;
+  --t-headline-size: 40px;
+  --t-headline-lh: 46px;
+  --t-headline-track: 0px;
+  --t-title-1-size: 32px;
+  --t-title-1-lh: 38px;
+  --t-title-1-track: 0px;
+  --t-title-2-size: 28px;
+  --t-title-2-lh: 34px;
+  --t-title-2-track: 0.196px;
+  --t-title-3-size: 24px;
+  --t-title-3-lh: 30px;
+  --t-title-3-track: 0.216px;
+  --t-title-4-size: 21px;
+  --t-title-4-lh: 27px;
+  --t-title-4-track: 0.231px;
+  --t-body-size: 17px;
+  --t-body-lh: 26px;
+  --t-body-track: -0.374px;
+  --t-body-sm-size: 14px;
+  --t-body-sm-lh: 20px;
+  --t-body-sm-track: -0.224px;
+  --t-caption-size: 12px;
+  --t-caption-lh: 17px;
+  --t-caption-track: -0.12px;
+  --t-mobile-hero-size: 48px;
+  --t-mobile-hero-lh: 54px;
+  --t-mobile-hero-track: -0.144px;
+  --t-mobile-title-size: 32px;
+  --t-mobile-title-lh: 38px;
+  --t-mobile-title-track: 0px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+  --sp-section-sm: 112px;
+  --sp-section: 144px;
+  --sp-nav-h: 44px;
+  --sp-content: 1024px;
+  --sp-page-max: 1440px;
+  --sp-touch: 44px;
+  --r-sm: 10px;
+  --r-md: 18px;
+  --r-lg: 28px;
+  --r-xl: 36px;
+  --r-pill: 980px;
+  --r-round: 50%;
+  --m-fast: 0.1s;
+  --m-base: 0.3s;
+  --m-slow: 0.5s;
+  --m-ease-out: cubic-bezier(0, 0, 0.5, 1);
+  --m-ease-in-out: cubic-bezier(0.4, 0, 0.6, 1);
+  --m-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --bp-sm: 734px;
+  --bp-md: 1068px;
+  --bp-lg: 1440px;
+  --g-bg: rgba(255,255,255,0.72);
+  --g-nav: rgba(255,255,255,0.72);
+  --g-edge: rgba(255,255,255,0.5);
+  --g-blur: 20px;
+  --g-saturate: 1.8;
+  --g-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+:root:where(:not([data-theme='light'])){
+  --c-bg: #000000;
+  --c-bg-alt: #161617;
+  --c-bg-raised: #1d1d1f;
+  --c-ink: #f5f5f7;
+  --c-ink-2: #a1a1a6;
+  --c-hairline: #424245;
+  --c-accent: #9aa6ff;
+  --c-accent-hover: #b3bcff;
+  --c-on-accent: #000000;
+  --c-link: #9aa6ff;
+  --c-identity: #ff6a56;
+  --c-success: #7ce97c;
+  --c-warning: #ffc46b;
+  --c-danger: #ff8b7a;
+  --g-bg: rgba(29,29,31,0.72);
+  --g-nav: rgba(0,0,0,0.8);
+  --g-edge: rgba(255,255,255,0.12);
+}
+}
+:where(:root[data-theme='dark']){
+  --c-bg: #000000;
+  --c-bg-alt: #161617;
+  --c-bg-raised: #1d1d1f;
+  --c-ink: #f5f5f7;
+  --c-ink-2: #a1a1a6;
+  --c-hairline: #424245;
+  --c-accent: #9aa6ff;
+  --c-accent-hover: #b3bcff;
+  --c-on-accent: #000000;
+  --c-link: #9aa6ff;
+  --c-identity: #ff6a56;
+  --c-success: #7ce97c;
+  --c-warning: #ffc46b;
+  --c-danger: #ff8b7a;
+  --g-bg: rgba(29,29,31,0.72);
+  --g-nav: rgba(0,0,0,0.8);
+  --g-edge: rgba(255,255,255,0.12);
+}
+
+.glass{background:var(--g-bg);-webkit-backdrop-filter:saturate(var(--g-saturate)) blur(var(--g-blur));backdrop-filter:saturate(var(--g-saturate)) blur(var(--g-blur));box-shadow:inset 0 0 0 1px var(--g-edge),var(--g-shadow)}
+@media (prefers-reduced-transparency: reduce){.glass{background:var(--c-bg-raised);-webkit-backdrop-filter:none;backdrop-filter:none}}
+@media (prefers-reduced-motion: reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
