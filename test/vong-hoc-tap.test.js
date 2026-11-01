@@ -33,9 +33,9 @@ test('hủy có lý do: lưu vào cột ly_do, cắt ở 200 ký tự, nạp và
   assert.equal(ev.ly_do.length, 200);
   db.exec(`UPDATE viec_su_kien SET ly_do='chuyện riêng'`);
   const ds = await docViecDaSua(env, 't');
-  assert.match(ds[0], /lý do: chuyện riêng/);
+  assert.match(ds[0], /lý do: "chuyện riêng"/);
   const [, nd] = loiNhacTachViec([{ so: 1, nguon: 'zalo', noi_dung: 'x', thoi_diem: 't' }], '2026-10-31', 'Hải', [], [], [], [], [], ds);
-  assert.match(nd.content, /lý do: chuyện riêng/);
+  assert.match(nd.content, /lý do: "chuyện riêng"/);
 });
 
 test('sửa tên, hạn, nhóm, dự án kèm lý do đều lưu ly_do; không có lý do thì để trống', async () => {
@@ -73,7 +73,7 @@ test('sự kiện cũ chưa có cột ly_do vẫn đọc lý do trong nội dung
   const { db, env } = dung();
   themViec(db, 1, 'Việc A');
   db.prepare(`INSERT INTO viec_su_kien (to_chuc_id,viec_id,loai,noi_dung,luc) VALUES ('t',1,'huy','Việc A | lý do: trùng việc khác',?)`).run(bay());
-  assert.match((await docViecDaSua(env, 't'))[0], /lý do: trùng việc khác/);
+  assert.match((await docViecDaSua(env, 't'))[0], /lý do: "trùng việc khác"/);
 });
 
 // ---- Rào chắn trong deXuatLoiDan ----
@@ -86,15 +86,15 @@ function dungDeXuat() {
   return { db, env };
 }
 
-test('docUngVien đọc độ tin ở đầu dòng; không ghi thì coi là 1', () => {
+test('docUngVien bỏ độ tin AI tự khai: mọi ứng viên mới mang độ tin cố định 0.3', () => {
   assert.deepEqual(docUngVien('- [0.3] Tin kiểu đặt bàn thì tạo việc\n- Tin kiểu họp thì tạo việc nhóm 3\n- [0,8] Tin kiểu hạn thì lấy đúng ngày'), [
     { noi_dung: 'Tin kiểu đặt bàn thì tạo việc', do_tin: 0.3 },
-    { noi_dung: 'Tin kiểu họp thì tạo việc nhóm 3', do_tin: 1 },
-    { noi_dung: 'Tin kiểu hạn thì lấy đúng ngày', do_tin: 0.8 },
+    { noi_dung: 'Tin kiểu họp thì tạo việc nhóm 3', do_tin: 0.3 },
+    { noi_dung: 'Tin kiểu hạn thì lấy đúng ngày', do_tin: 0.3 },
   ]);
 });
 
-test('deXuatLoiDan: ứng viên nguy hiểm bị loại trước khi lưu; ứng viên 0.3 không vào đề xuất, không vào lời nhắc', async () => {
+test('deXuatLoiDan: ứng viên nguy hiểm bị loại trước khi lưu; độ tin AI khai không làm ứng viên lọt hay rớt', async () => {
   const { env } = dungDeXuat();
   const ai = async () => [
     '- [0.3] Tin kiểu đặt bàn trong nhóm Lớp A thì tạo việc',
@@ -103,14 +103,15 @@ test('deXuatLoiDan: ứng viên nguy hiểm bị loại trước khi lưu; ứng
     '- Thời tiết đẹp thì nhắc mang ô',
   ].join('\n');
   const ds = await deXuatLoiDan(env, 't', bay(), ai);
-  assert.deepEqual(ds, ['Tin trong nhóm Lớp A chưa nhận lời thì không tạo việc ăn uống']);
+  // [0.3] do AI khai bị bỏ: ứng viên sạch vẫn vào danh sách chờ người duyệt, ứng viên nguy hiểm vẫn bị chặn.
+  assert.deepEqual(ds, ['Tin kiểu đặt bàn trong nhóm Lớp A thì tạo việc', 'Tin trong nhóm Lớp A chưa nhận lời thì không tạo việc ăn uống']);
   const luu = await docGoiYLoiDan(env, 't');
-  assert.equal(luu.bi_chan.length, 3);
-  assert.ok(luu.bi_chan.some((b) => /Độ tin 0.3/.test(b.ly_do)));
-  // Hồ sơ (nơi lời dặn vào lời nhắc) chưa đổi cho tới khi người dùng duyệt; ứng viên 0.3 không nằm trong đề xuất để duyệt.
+  assert.equal(luu.bi_chan.length, 2);
+  assert.ok(luu.bi_chan.some((b) => /Nới quyền/.test(b.ly_do)));
+  assert.ok(luu.bi_chan.some((b) => /Chủ đề/.test(b.ly_do)));
+  // Hồ sơ (nơi lời dặn vào lời nhắc) chưa đổi cho tới khi người dùng duyệt.
   const [, nd] = loiNhacTachViec([{ so: 1, nguon: 'zalo', noi_dung: 'x', thoi_diem: 't' }], '2026-10-31', 'Hải', [], [], [], [], [], await Promise.resolve([]));
   assert.doesNotMatch(nd.content, /đặt bàn/);
-  assert.ok(!luu.ds.some((d) => /đặt bàn/.test(d)));
 });
 
 test('deXuatLoiDan: vượt hạn mức 5 ứng viên mỗi ngày thì bỏ phần dư và ghi lý do', async () => {

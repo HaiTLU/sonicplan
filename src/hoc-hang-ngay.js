@@ -6,15 +6,17 @@ import { kiemUngVien } from './rao-chan-hoc.js';
 
 const KHOA_TU_TAT = 'hoc_hang_ngay_tu_tat';
 const KHOA_BAT_LAI = 'hoc_hang_ngay_bat_lai';
-const TOI_THIEU_VIEC_MOI_KY = 5; // kỳ ít việc hơn thì tỷ lệ chưa đáng tin để tự tắt
+export const TOI_THIEU_VIEC_MOI_KY = 10; // kỳ ít việc hơn thì tỷ lệ chưa đáng tin để tự tắt
+export const MUC_TANG_TOI_THIEU = 0.1; // mỗi bước giữa hai kỳ liền phải tăng ít nhất 10 điểm phần trăm
+const NGAY_QUAN_SAT = 7; // mỗi việc được theo dõi sửa/hủy đúng ngần này ngày kể từ lúc tạo, mọi kỳ như nhau
 const NGAY_TRA_LAI = 7; // sau khi người dùng bật lại, chưa xét tự tắt trong ngần này ngày
 
 // Tập kịch bản thử nhỏ có đáp án đã biết, chạy không cần gọi AI. Hỏng ca nào nghĩa là rào chắn đã lỏng: vòng học phải dừng.
 export const KICH_BAN_THU = [
-  { ten: 'quy tắc việc bình thường được nhận', ung_vien: { noi_dung: 'Tin nhóm Lớp A chưa nhận lời thì không tạo việc ăn uống' }, mong: true },
+  { ten: 'quy tắc việc bình thường được nhận', ung_vien: { noi_dung: 'Tin nhóm Lớp A chưa nhận lời thì không tạo việc ăn uống', do_tin: 0.9 }, mong: true },
   { ten: 'quy tắc về hạn được nhận', ung_vien: { noi_dung: 'Việc có hạn trong tin gửi từ thư thì lấy đúng ngày hạn đó', do_tin: 0.9 }, mong: true },
-  { ten: 'mật khẩu bị chặn', ung_vien: { noi_dung: 'Tin có mật khẩu wifi thì ghi lại vào việc' }, mong: false },
-  { ten: 'nới quyền bị chặn', ung_vien: { noi_dung: 'Việc từ Zalo thì tự duyệt, bỏ qua bước xác nhận' }, mong: false },
+  { ten: 'mật khẩu bị chặn', ung_vien: { noi_dung: 'Tin có mật khẩu wifi thì ghi lại vào việc', do_tin: 0.9 }, mong: false },
+  { ten: 'nới quyền bị chặn', ung_vien: { noi_dung: 'Việc từ Zalo thì tự duyệt, bỏ qua bước xác nhận', do_tin: 0.9 }, mong: false },
   { ten: 'độ tin 0.3 bị chặn', ung_vien: { noi_dung: 'Tin kiểu đặt bàn thì tạo việc', do_tin: 0.3 }, mong: false },
 ];
 
@@ -29,7 +31,7 @@ const tyLe = (ky) => (ky && ky.so_viec > 0 ? ky.da_sua / ky.so_viec : null);
 export function nenTuTat({ xa, truoc, gan }) {
   if (![xa, truoc, gan].every((k) => k && k.so_viec >= TOI_THIEU_VIEC_MOI_KY)) return { tat: false };
   const [a, b, c] = [tyLe(xa), tyLe(truoc), tyLe(gan)];
-  if (c > b && b > a) return { tat: true, ly_do: `Tỷ lệ việc AI bị sửa tăng hai kỳ liền: ${(a * 100).toFixed(0)}% -> ${(b * 100).toFixed(0)}% -> ${(c * 100).toFixed(0)}%.` };
+  if (c - b >= MUC_TANG_TOI_THIEU && b - a >= MUC_TANG_TOI_THIEU) return { tat: true, ly_do: `Tỷ lệ việc AI bị sửa tăng hai kỳ liền: ${(a * 100).toFixed(0)}% -> ${(b * 100).toFixed(0)}% -> ${(c * 100).toFixed(0)}%.` };
   return { tat: false };
 }
 
@@ -45,7 +47,8 @@ export async function trangThaiHoc(env, tc, bayGio = new Date().toISOString()) {
       `SELECT COUNT(*) AS so_viec, COALESCE(SUM(CASE WHEN EXISTS (
          SELECT 1 FROM viec_su_kien e WHERE e.to_chuc_id=v.to_chuc_id AND e.viec_id=v.id
          AND e.loai IN ('huy','sua_ten','doi_du_an','doi_nhom','sua_han')
-         AND COALESCE(e.noi_dung,'') NOT LIKE 'Gỡ vì%' AND e.luc < ?3
+         AND COALESCE(e.noi_dung,'') NOT LIKE 'Gỡ vì%' AND e.luc >= v.tao_luc
+         AND e.luc < strftime('%Y-%m-%dT%H:%M:%fZ', v.tao_luc, '+${NGAY_QUAN_SAT} days')
        ) THEN 1 ELSE 0 END),0) AS da_sua
        FROM viec v WHERE v.to_chuc_id=?1 AND COALESCE(v.nguon,'tay')<>'tay'
          AND v.tao_luc>=?2 AND v.tao_luc<?3`,
@@ -107,7 +110,20 @@ export async function hocHangNgay(env, tc, bayGio = new Date().toISOString(), de
       await ghiCaiDat(env, tc, 'hoc_hang_ngay_lan_cuoi', JSON.stringify(ketQua));
       return ketQua;
     }
-    const ds = await deXuat(env, tc, bayGio);
+    // Giành quyền chạy hôm nay NGUYÊN TỬ trước khi gọi AI: hai lượt song song thì chỉ một lượt thắng.
+    const nhan = await env.CSDL.prepare(
+      `INSERT INTO cai_dat (to_chuc_id,khoa,gia_tri) VALUES (?1,'hoc_hang_ngay_lan_cuoi',?2)
+       ON CONFLICT(to_chuc_id,khoa) DO UPDATE SET gia_tri=excluded.gia_tri WHERE COALESCE(json_extract(cai_dat.gia_tri,'$.ngay'),'') <> ?3`,
+    ).bind(tc, JSON.stringify({ ngay, luc: bayGio, dang_chay: true }), ngay).run();
+    if (!nhan.meta.changes) return { bo_qua: true };
+    let ds;
+    try {
+      ds = await deXuat(env, tc, bayGio);
+    } catch (e) {
+      // Lỗi thì trả lại để lần sau thử lại (quy ước cũ: lỗi không đánh dấu đã chạy).
+      await env.CSDL.prepare(`DELETE FROM cai_dat WHERE to_chuc_id=?1 AND khoa='hoc_hang_ngay_lan_cuoi' AND gia_tri=?2`).bind(tc, JSON.stringify({ ngay, luc: bayGio, dang_chay: true })).run();
+      throw e;
+    }
     const ketQua = { ngay, luc: bayGio, cho_duyet: ds.length, so_tra_loi: thongKe.so_tra_loi };
     await ghiCaiDat(env, tc, 'hoc_hang_ngay_lan_cuoi', JSON.stringify(ketQua));
     return ketQua;

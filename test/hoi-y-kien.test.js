@@ -69,7 +69,7 @@ test('trả lời giờ: sửa việc, ghi lần sửa cho AI học, nhớ bài 
   assert.match(kq.thongbao, /Đã đặt giờ 17:30/);
   assert.equal(db.prepare('SELECT gio_hen FROM viec WHERE id = 1').get().gio_hen, '17:30');
   const sua = await docViecDaSua(env, 'tc1');
-  assert.match(sua[0], /Sửa hạn: giờ 05:30 -> 17:30, lý do: anh trả lời ô hỏi/);
+  assert.match(sua[0], /Sửa hạn: "giờ 05:30 -> 17:30", lý do: "anh trả lời ô hỏi"/);
   const nho = db.prepare("SELECT * FROM ghi_nho WHERE tieu_de LIKE 'Anh trả lời ô hỏi giờ hẹn%'").get();
   assert.equal(nho.nguon, 'tay');
   assert.match(nho.noi_dung, /a 5h30 nhé.*anh chọn "17:30"/);
@@ -113,7 +113,7 @@ test('trả lời loại việc, dự án, có phải việc không', async () =
   const kq = await apDungTraLoi(env, 'tc1', await hoi(2, { loai: 'viec', cau_hoi: 'Có phải việc thật?' }), { chu: 'không phải' });
   assert.match(kq.thongbao, /Đã bỏ việc này/);
   assert.equal(db.prepare('SELECT trang_thai FROM viec WHERE id = 2').get().trang_thai, 'huy');
-  assert.match((await docViecDaSua(env, 'tc1')).join('\n'), /Hủy việc: "Mua nước cho lớp", lý do: anh trả lời ô hỏi/);
+  assert.match((await docViecDaSua(env, 'tc1')).join('\n'), /Hủy việc: "Mua nước cho lớp", lý do: "anh trả lời ô hỏi"/);
   await apDungTraLoi(env, 'tc1', await hoi(1, { loai: 'nguoi', cau_hoi: 'Chị Lan nào?' }), { chu: 'Chị Lan phòng Đào tạo' });
   assert.match(db.prepare('SELECT ghi_chu FROM viec WHERE id = 1').get().ghi_chu, /Người liên quan \(anh xác nhận\): Chị Lan phòng Đào tạo/);
 });
