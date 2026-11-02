@@ -1,7 +1,7 @@
 // Kiểm thử phần thuần của nối Google: địa chỉ đăng nhập, đọc thư Gmail, dựng việc và sự kiện.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { QUYEN_DRIVE, thanTaiLen, diaChiGoiLai, emailTuIdToken, kiemClient, QUYEN, taoDiaChiDangNhap, thanSuKien, thanTask, tepTuThuGmail, tinTuThuGmail } from '../src/google.js';
+import { QUYEN_DRIVE, thanSuaSuKien, thanTaiLen, diaChiGoiLai, emailTuIdToken, kiemClient, QUYEN, taoDiaChiDangNhap, thanSuKien, thanTask, tepTuThuGmail, tinTuThuGmail } from '../src/google.js';
 
 const b64 = (s) => Buffer.from(s).toString('base64url');
 
@@ -87,4 +87,26 @@ test('tệp đính kèm Gmail: giữ tệp thật, bỏ ảnh nhúng nhỏ, lờ
   ] } });
   assert.deepEqual(ds.map((t) => t.ma_tep), ['a1', 'a3']);
   assert.equal(ds[0].ten, 'hop-dong.pdf');
+});
+
+test('ngày hạn không có thật bị loại, không đẩy sang Lịch', async () => {
+  const { ngayCoThat } = await import('../src/tien-ich.js');
+  const { docKetQuaViec, docPhanVan } = await import('../src/ai.js');
+  assert.equal(ngayCoThat('2026-11-02'), true);
+  assert.equal(ngayCoThat('2028-02-29'), true);
+  for (const x of ['2026-11-31', '2026-02-30', '2026-00-10', '2026-13-01', '2026-1-1', null, undefined, '']) assert.equal(ngayCoThat(x), false, String(x));
+  const ra = docKetQuaViec({ response: { viec: [{ tieu_de: 'Nộp hồ sơ', han_ngay: '2026-11-31', gio_hen: '17:00' }] } });
+  assert.equal(ra[0].han_ngay, null);
+  assert.equal(docPhanVan([{ tieu_de: 'Gặp anh Hùng', han_ngay: '2026-02-30' }])[0].han_ngay, null);
+});
+
+test('sửa sự kiện đổi giữa cả ngày và có giờ thì xóa trường kia', () => {
+  const coGio = thanSuaSuKien({ tieu_de: 'Báo giờ', han_ngay: '2026-10-30', gio_hen: '19:00' });
+  assert.equal(coGio.start.date, null);
+  assert.equal(coGio.end.date, null);
+  assert.equal(coGio.start.dateTime, '2026-10-30T19:00:00');
+  const caNgay = thanSuaSuKien({ tieu_de: 'Nộp', han_ngay: '2026-10-30' });
+  assert.equal(caNgay.start.dateTime, null);
+  assert.equal(caNgay.end.dateTime, null);
+  assert.equal(caNgay.start.date, '2026-10-30');
 });
