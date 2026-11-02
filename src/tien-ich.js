@@ -46,6 +46,24 @@ export function sangUTC(ngay, gio) {
   return new Date(new Date(`${ngay}T${gio}:00Z`).getTime() - LECH_VN_MS);
 }
 
+// Buổi của việc chưa có giờ cụ thể: sáng 8-12h, chiều 13-17h. 'ca_ngay' hoặc rỗng là cả ngày.
+export const BUOI = { sang: ['08:00', '12:00'], chieu: ['13:00', '17:00'] };
+export const DS_BUOI = ['sang', 'chieu', 'ca_ngay'];
+const PHUT_SU_KIEN = 30;
+
+// Khung giờ của sự kiện lịch: { bat_dau, ket_thuc, sang_ngay_sau } hoặc null nếu là sự kiện cả ngày.
+// Có giờ hẹn thì lấy giờ hẹn + 30 phút (ưu tiên hơn buổi); không thì theo buổi.
+export function khungGio(viec) {
+  if (viec.gio_hen) {
+    const [g, p] = viec.gio_hen.split(':').map(Number);
+    const tong = g * 60 + p + PHUT_SU_KIEN;
+    const ket = `${String(Math.floor((tong % 1440) / 60)).padStart(2, '0')}:${String(tong % 60).padStart(2, '0')}`;
+    return { bat_dau: viec.gio_hen, ket_thuc: ket, sang_ngay_sau: tong >= 1440 };
+  }
+  const b = BUOI[viec.buoi];
+  return b ? { bat_dau: b[0], ket_thuc: b[1], sang_ngay_sau: false } : null;
+}
+
 // Bỏ dấu, chữ thường, chỉ giữ chữ và số: để so hai tiêu đề việc.
 export function chuanHoa(chuoi) {
   return String(chuoi || '')

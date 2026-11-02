@@ -1,9 +1,7 @@
 // Đường dẫn lịch dạng .ics: Google Calendar, Apple Calendar, Outlook tự đọc lại định kỳ.
 // Không cần xin quyền ghi lịch; việc xong hoặc dời ngày thì lịch tự cập nhật ở lần đọc sau.
 
-import { congNgay, sangUTC } from './tien-ich.js';
-
-const PHUT_SU_KIEN = 30;
+import { congNgay, khungGio, sangUTC } from './tien-ich.js';
 
 function ngayIcs(ngay) {
   return ngay.replaceAll('-', '');
@@ -53,9 +51,10 @@ export function taoIcs(cacViec, { ten = 'Sonicplan', mien = 'sonicplan.app', bay
   for (const v of cacViec) {
     if (!v.han_ngay) continue;
     dong.push('BEGIN:VEVENT', `UID:${v.loai || 'viec'}-${v.id}@${mien}`, `DTSTAMP:${thoiDiemIcs(bayGio)}`);
-    if (v.gio_hen) {
-      const batDau = sangUTC(v.han_ngay, v.gio_hen);
-      dong.push(`DTSTART:${thoiDiemIcs(batDau)}`, `DTEND:${thoiDiemIcs(new Date(batDau.getTime() + PHUT_SU_KIEN * 60000))}`);
+    const khung = khungGio(v);
+    if (khung) {
+      const ngayKet = khung.sang_ngay_sau ? congNgay(v.han_ngay, 1) : v.han_ngay;
+      dong.push(`DTSTART:${thoiDiemIcs(sangUTC(v.han_ngay, khung.bat_dau))}`, `DTEND:${thoiDiemIcs(sangUTC(ngayKet, khung.ket_thuc))}`);
     } else {
       dong.push(`DTSTART;VALUE=DATE:${ngayIcs(v.han_ngay)}`, `DTEND;VALUE=DATE:${ngayIcs(congNgay(v.han_ngay, 1))}`);
     }

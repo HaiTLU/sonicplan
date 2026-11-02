@@ -120,7 +120,7 @@ async function docLich(env, khoa, url) {
   const toChucId = await toChucTheoKhoa(env, khoa, 'lich');
   if (!toChucId) return new Response('Không tìm thấy lịch', { status: 404 });
   const [viec, moc, toChuc] = await env.CSDL.batch([
-    env.CSDL.prepare(`SELECT id, tieu_de, ghi_chu, han_ngay, gio_hen FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay IS NOT NULL`).bind(toChucId),
+    env.CSDL.prepare(`SELECT id, tieu_de, ghi_chu, han_ngay, gio_hen, buoi FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay IS NOT NULL`).bind(toChucId),
     // Mốc dự án (/hoalac): la_moc=1, ngày lấy từ ngay_ket_thuc, hoặc ngay_bat_dau nếu chưa có ngày kết thúc.
     env.CSDL.prepare(
       `SELECT id, ten, mo_ta, COALESCE(ngay_ket_thuc, ngay_bat_dau) AS han_ngay FROM qlda_hang_muc

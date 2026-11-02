@@ -43,6 +43,10 @@ test('việc trùng: tin mới đổi hạn hoặc giờ thì cập nhật việ
   assert.deepEqual(doiHanKhiTrung(cu, { han_ngay: '2026-10-17', gio_hen: null }, '2026-10-14'), { han_ngay: '2026-10-17', gio_hen: '09:00' });
   assert.deepEqual(doiHanKhiTrung(cu, { han_ngay: null, gio_hen: '15:00' }, '2026-10-14'), { han_ngay: '2026-10-15', gio_hen: '15:00' });
   assert.equal(doiHanKhiTrung(cu, { han_ngay: '2026-10-15', gio_hen: '09:00' }, '2026-10-14'), null);
+  // Buổi: tin mới nêu "chiều" mà việc cũ chưa có giờ thì nhận buổi; việc cũ có giờ thì giờ thắng buổi.
+  assert.deepEqual(doiHanKhiTrung({ han_ngay: '2026-10-15', gio_hen: null }, { han_ngay: '2026-10-15', gio_hen: null, buoi: 'chieu' }, '2026-10-14'), { han_ngay: '2026-10-15', gio_hen: null, buoi: 'chieu' });
+  assert.equal(doiHanKhiTrung({ han_ngay: '2026-10-15', gio_hen: null, buoi: 'chieu' }, { han_ngay: '2026-10-15', gio_hen: null, buoi: 'chieu' }, '2026-10-14'), null);
+  assert.equal(doiHanKhiTrung({ han_ngay: '2026-10-15', gio_hen: '09:00' }, { han_ngay: '2026-10-15', gio_hen: null, buoi: 'chieu' }, '2026-10-14'), null);
   assert.equal(doiHanKhiTrung(cu, { han_ngay: '2026-10-01', gio_hen: null }, '2026-10-14'), null);
   assert.equal(doiHanKhiTrung({ han_ngay: null, gio_hen: null }, { han_ngay: null, gio_hen: null }, '2026-10-14'), null);
 });
@@ -58,6 +62,34 @@ test('themViec trùng có hạn mới: không tạo việc thứ hai, hạn vi�
   assert.equal(v.han_ngay, '2099-01-03');
   assert.equal(v.can_dong_bo, 1);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM viec').get().n, 1);
+});
+
+test('buổi: việc mới lưu buổi; tin sau nêu buổi cho việc trùng thì cập nhật và báo đồng bộ lại', async () => {
+  const { db, env } = moiTruong();
+  const moi = await themViec(env, 'tc1', { tieu_de: 'Soạn tờ trình xin kinh phí', han_ngay: '2099-01-03', buoi: 'sang' });
+  assert.equal(db.prepare('SELECT buoi FROM viec WHERE id = ?').get(moi.id).buoi, 'sang');
+  // Có giờ cụ thể thì không lưu buổi.
+  const coGio = await themViec(env, 'tc1', { tieu_de: 'Họp với nhà thầu thi công', han_ngay: '2099-01-03', gio_hen: '09:00', buoi: 'chieu' });
+  assert.equal(db.prepare('SELECT buoi FROM viec WHERE id = ?').get(coGio.id).buoi, null);
+  db.prepare('UPDATE viec SET can_dong_bo = 0 WHERE id = ?').run(moi.id);
+  const r = await themViec(env, 'tc1', { tieu_de: 'Soạn tờ trình xin kinh phí', han_ngay: '2099-01-03', buoi: 'chieu' });
+  assert.equal(r.id, moi.id);
+  assert.equal(r.doi_han, true);
+  const v = db.prepare('SELECT buoi, can_dong_bo FROM viec WHERE id = ?').get(moi.id);
+  assert.deepEqual({ ...v }, { buoi: 'chieu', can_dong_bo: 1 });
+});
+
+test('buổi: API sửa việc kiểm giá trị, đặt giờ thì bỏ buổi và báo đồng bộ lại', async () => {
+  const { kiemViec, suaViec } = await import('../src/api/viec.js');
+  assert.equal(kiemViec({ buoi: 'toi' }, { batBuocTieuDe: false }).loi, 'Buổi không hợp lệ.');
+  assert.equal(kiemViec({ buoi: 'chieu' }, { batBuocTieuDe: false }).viec.buoi, 'chieu');
+  assert.equal(kiemViec({ buoi: '' }, { batBuocTieuDe: false }).viec.buoi, null);
+  assert.equal(kiemViec({ gio_hen: '10:00', buoi: 'sang' }, { batBuocTieuDe: false }).viec.buoi, null);
+  const { db, env } = moiTruong();
+  const id = themDong(db, '2099-01-01');
+  db.prepare('UPDATE viec SET can_dong_bo = 0 WHERE id = ?').run(id);
+  await suaViec(env, 'tc1', id, { buoi: 'sang' });
+  assert.deepEqual({ ...db.prepare('SELECT buoi, can_dong_bo FROM viec WHERE id = ?').get(id) }, { buoi: 'sang', can_dong_bo: 1 });
 });
 
 test('tin báo việc mới mang luôn nhóm và bước tiếp từ gợi ý', () => {

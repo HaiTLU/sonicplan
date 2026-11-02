@@ -26,7 +26,7 @@ test('chống trùng việc: bỏ dấu, giống từ 80% là trùng', () => {
   assert.equal(timTrung('Họp với đối tác về hợp đồng', ds), null);
 });
 
-const KHONG_KE_HOACH = { du_an: null, uu_tien: null, nhom: null, ly_do: '', cac_buoc: [], ban_nhap: '', chua_chac: null };
+const KHONG_KE_HOACH = { buoi: null, du_an: null, uu_tien: null, nhom: null, ly_do: '', cac_buoc: [], ban_nhap: '', chua_chac: null };
 
 test('đọc kết quả AI: chịu được chữ thừa quanh JSON và bỏ giá trị sai dạng', () => {
   const ra = docKetQuaViec({ response: 'Đây là kết quả: {"viec":[{"tieu_de":" Nộp hồ sơ ","han_ngay":"2026-10-15","gio_hen":"14:00","tin_so":2},{"tieu_de":"Gọi lại","han_ngay":"thứ 6","gio_hen":"25:00"},{"tieu_de":""}]} xong' });
@@ -34,6 +34,9 @@ test('đọc kết quả AI: chịu được chữ thừa quanh JSON và bỏ gi
     { tieu_de: 'Nộp hồ sơ', han_ngay: '2026-10-15', gio_hen: '14:00', ghi_chu: null, tin_so: 2, ...KHONG_KE_HOACH },
     { tieu_de: 'Gọi lại', han_ngay: null, gio_hen: null, ghi_chu: null, tin_so: null, ...KHONG_KE_HOACH },
   ]);
+  // Buổi: chỉ nhận khi đúng danh sách và chưa có giờ cụ thể.
+  const buoi = docKetQuaViec({ response: { viec: [{ tieu_de: 'Soạn tờ trình', buoi: 'sang' }, { tieu_de: 'Họp nhóm', gio_hen: '14:00', buoi: 'chieu' }, { tieu_de: 'Dọn kho', buoi: 'toi' }] } });
+  assert.deepEqual(buoi.map((v) => v.buoi), ['sang', null, null]);
   assert.deepEqual(docKetQuaViec({ response: { viec: [] } }), []);
   assert.deepEqual(docKetQuaViec({ response: 'không có JSON' }), []);
   const nhac = loiNhacTachViec([{ so: 1, nguon: 'zalo', nguoi_gui: 'Lan', nhom: 'Phòng A', noi_dung: 'Mai nộp nhé', thoi_diem: 'x' }], '2026-10-11', 'Hải');
@@ -57,6 +60,22 @@ test('lịch .ics: việc có giờ thành sự kiện 30 phút, việc không g
   assert.match(ics, /DTSTART;VALUE=DATE:20261013\r\nDTEND;VALUE=DATE:20261014/);
   assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, 2);
   for (const dong of ics.split('\r\n')) assert.ok(new TextEncoder().encode(dong).length <= 75, dong);
+});
+
+test('lịch .ics: việc chưa có giờ theo buổi (sáng 8-12h, chiều 13-17h), cả ngày giữ nguyên', () => {
+  const ics = taoIcs(
+    [
+      { id: 1, tieu_de: 'Sáng', han_ngay: '2026-11-03', gio_hen: null, buoi: 'sang' },
+      { id: 2, tieu_de: 'Chiều', han_ngay: '2026-11-03', gio_hen: null, buoi: 'chieu' },
+      { id: 3, tieu_de: 'Cả ngày', han_ngay: '2026-11-03', gio_hen: null, buoi: 'ca_ngay' },
+      { id: 4, tieu_de: 'Có giờ', han_ngay: '2026-11-03', gio_hen: '09:00', buoi: 'chieu' },
+    ],
+    { mien: 'vd.test', bayGio: new Date('2026-11-02T00:00:00Z') },
+  );
+  assert.match(ics, /DTSTART:20261103T010000Z\r\nDTEND:20261103T050000Z/); // 8h-12h VN
+  assert.match(ics, /DTSTART:20261103T060000Z\r\nDTEND:20261103T100000Z/); // 13h-17h VN
+  assert.match(ics, /DTSTART;VALUE=DATE:20261103\r\nDTEND;VALUE=DATE:20261104/);
+  assert.match(ics, /DTSTART:20261103T020000Z\r\nDTEND:20261103T023000Z/); // giờ 9:00 thắng buổi chiều
 });
 
 test('lịch .ics: mốc dự án (loai=moc) dùng mã UID riêng, không trùng việc cùng id', () => {

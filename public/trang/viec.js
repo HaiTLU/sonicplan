@@ -28,12 +28,17 @@ function nhanNguon(v) {
   return { ma: 'tay', icon: 'cong', chu: 'Tự thêm' };
 }
 
+// Buổi của việc chưa có giờ cụ thể (lịch Google/ICS xếp sáng 8-12h, chiều 13-17h).
+const DS_BUOI_NHAN = [['', 'Buổi: không'], ['sang', 'Sáng'], ['chieu', 'Chiều'], ['ca_ngay', 'Cả ngày']];
+const BUOI_CHIP = { sang: 'Sáng', chieu: 'Chiều', ca_ngay: 'Cả ngày' };
+
 export async function veViec(goc) {
   const v = trang.viec;
   const oTen = h('input', { name: 'tieu_de', placeholder: 'Thêm nhanh một việc rồi nhấn Enter…', maxlength: '200', 'aria-label': 'Tên việc', autocomplete: 'off' });
   const oNgay = h('input', { name: 'han_ngay', type: 'date', 'aria-label': 'Hạn', value: homNay() });
   const oGio = h('input', { name: 'gio_hen', type: 'time', step: '300', 'aria-label': 'Giờ hẹn' });
-  const form = h('form', { class: 'bang them-nhanh' }, oTen, oNgay, oGio, h('button', { class: 'nut nut-chinh', type: 'submit' }, icon('cong'), 'Thêm'));
+  const oBuoi = h('select', { name: 'buoi', 'aria-label': 'Buổi khi chưa có giờ cụ thể' }, ...DS_BUOI_NHAN.map(([ma, ten]) => h('option', { value: ma, text: ten })));
+  const form = h('form', { class: 'bang them-nhanh' }, oTen, oNgay, oGio, oBuoi, h('button', { class: 'nut nut-chinh', type: 'submit' }, icon('cong'), 'Thêm'));
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!oTen.value.trim()) {
@@ -42,7 +47,7 @@ export async function veViec(goc) {
       return;
     }
     try {
-      await api('/api/viec', { method: 'POST', body: JSON.stringify({ tieu_de: oTen.value, han_ngay: oNgay.value || null, gio_hen: oGio.value || null }) });
+      await api('/api/viec', { method: 'POST', body: JSON.stringify({ tieu_de: oTen.value, han_ngay: oNgay.value || null, gio_hen: oGio.value || null, buoi: oGio.value ? null : oBuoi.value || null }) });
       bao('Đã thêm việc.');
       oTen.value = '';
       napViec();
@@ -341,7 +346,8 @@ function nutClaudeThe(v) {
 function chipHan(v, hn) {
   const mo = v.trang_thai === 'mo';
   if (!v.han_ngay && !mo) return null;
-  const chu = v.han_ngay ? `${ngayHienThi(v.han_ngay)}${v.gio_hen ? ` · ${v.gio_hen}` : ''}` : 'Thêm ngày giờ';
+  const buoi = !v.gio_hen && BUOI_CHIP[v.buoi];
+  const chu = v.han_ngay ? `${ngayHienThi(v.han_ngay)}${v.gio_hen ? ` · ${v.gio_hen}` : buoi ? ` · ${buoi}` : ''}` : 'Thêm ngày giờ';
   const lop = `${v.han_ngay && hn && v.han_ngay < hn ? 'tre' : ''}${v.han_ngay ? '' : ' chua-han'}${mo ? ' sua-han' : ''}`.trim();
   const chip = h('span', { class: lop, ...(mo ? { role: 'button', tabindex: '0', 'aria-label': `Sửa ngày giờ: ${v.tieu_de}`, title: 'Bấm để sửa ngày giờ' } : {}) }, icon(v.han_ngay ? 'lich' : 'dong-ho'), chu);
   if (mo) {
@@ -366,10 +372,12 @@ function moSuaHan(v, neo) {
   dongSuaHan();
   const oNgay = h('input', { type: 'date', value: v.han_ngay || '', 'aria-label': 'Ngày hạn' });
   const oGio = h('input', { type: 'time', step: '300', value: v.gio_hen || '', 'aria-label': 'Giờ hẹn' });
+  const oBuoi = h('select', { 'aria-label': 'Buổi khi chưa có giờ cụ thể' }, ...DS_BUOI_NHAN.map(([ma, ten]) => h('option', { value: ma, text: ten })));
+  oBuoi.value = v.buoi || '';
   const loi = h('p', { class: 'loi-form', hidden: true });
-  const luu = async (ngay, gio) => {
-    // Có giờ mà chưa có ngày thì lấy hôm nay, để giờ không bị mồ côi.
-    const sua = { han_ngay: ngay || (gio ? homNay() : null), gio_hen: ngay || gio ? gio || null : null };
+  const luu = async (ngay, gio, buoi) => {
+    // Có giờ mà chưa có ngày thì lấy hôm nay, để giờ không bị mồ côi. Có giờ cụ thể thì bỏ buổi; bỏ ngày thì bỏ cả buổi.
+    const sua = { han_ngay: ngay || (gio ? homNay() : null), gio_hen: ngay || gio ? gio || null : null, buoi: (ngay || gio) && !gio ? buoi || null : null };
     try {
       await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify(sua) });
       dongSuaHan();
@@ -386,11 +394,12 @@ function moSuaHan(v, neo) {
       h('label', { class: 'truong' }, h('span', { text: 'Ngày' }), oNgay),
       h('label', { class: 'truong' }, h('span', { text: 'Giờ' }), oGio),
     ),
+    h('label', { class: 'truong' }, h('span', { text: 'Buổi (khi chưa có giờ)' }), oBuoi),
     h('div', { class: 'chon-nhanh' }, ...nhanh),
     loi,
     h('div', { class: 'hang-nut' },
-      h('button', { type: 'button', class: 'nut-phu', text: 'Bỏ ngày giờ', onclick: () => luu(null, null) }),
-      h('button', { type: 'button', class: 'nut-chinh', text: 'Lưu', onclick: () => luu(oNgay.value || null, oGio.value || null) }),
+      h('button', { type: 'button', class: 'nut-phu', text: 'Bỏ ngày giờ', onclick: () => luu(null, null, null) }),
+      h('button', { type: 'button', class: 'nut-chinh', text: 'Lưu', onclick: () => luu(oNgay.value || null, oGio.value || null, oBuoi.value || null) }),
     ),
   );
   document.body.append(khungHan);
@@ -481,7 +490,7 @@ export function moNganViec(v, macDinh = {}) {
   document.getElementById('ngan-viec-tieu-de').textContent = v ? 'Sửa việc' : 'Thêm việc';
   document.getElementById('nut-huy-viec').hidden = !v;
   const du = v || { han_ngay: homNay(), ...macDinh };
-  for (const k of ['tieu_de', 'han_ngay', 'gio_hen', 'ghi_chu']) formViec.elements[k].value = du[k] || '';
+  for (const k of ['tieu_de', 'han_ngay', 'gio_hen', 'buoi', 'ghi_chu']) formViec.elements[k].value = du[k] || '';
   // Lý do sửa chỉ hỏi với việc do AI tạo, không bắt buộc.
   formViec.elements.ly_do.value = '';
   document.getElementById('truong-ly-do').hidden = !(v && v.nguon && v.nguon !== 'tay');
@@ -504,7 +513,7 @@ formViec.querySelectorAll('[data-han]').forEach((b) => b.addEventListener('click
 formViec.addEventListener('submit', async (e) => {
   e.preventDefault();
   const loiEl = formViec.querySelector('.loi-form');
-  const du = Object.fromEntries(['tieu_de', 'han_ngay', 'gio_hen', 'ghi_chu'].map((k) => [k, formViec.elements[k].value.trim() || null]));
+  const du = Object.fromEntries(['tieu_de', 'han_ngay', 'gio_hen', 'buoi', 'ghi_chu'].map((k) => [k, formViec.elements[k].value.trim() || null]));
   du.du_an_id = formViec.elements.du_an_id.value ? Number(formViec.elements.du_an_id.value) : null;
   du.mau = mauDangChon;
   const lyDoSua = formViec.elements.ly_do.value.trim();

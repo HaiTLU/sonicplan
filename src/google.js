@@ -5,7 +5,7 @@ import { chuTuHtml } from './nhan-thu.js';
 import { goiNgoai } from './goi-ngoai.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu, luuTep, luuTin, TEP_TOI_DA } from './hop-tin.js';
 import { docTichHop, luuTichHop, xoaTichHop } from './tich-hop.js';
-import { congNgay, ngayVN } from './tien-ich.js';
+import { congNgay, khungGio, ngayVN } from './tien-ich.js';
 import { chuanCauHinh, dauVet, ganNhan } from './google-nhan.js';
 
 export const QUYEN = [
@@ -118,20 +118,20 @@ const giaiB64UrlNhiPhan = (s) => {
 };
 
 export function thanTask(viec) {
-  const ghiChu = [viec.ghi_chu, viec.gio_hen ? `Giờ: ${viec.gio_hen}` : ''].filter(Boolean).join('\n');
+  const buoi = !viec.gio_hen && viec.buoi === 'sang' ? 'Buổi: sáng' : !viec.gio_hen && viec.buoi === 'chieu' ? 'Buổi: chiều' : '';
+  const ghiChu = [viec.ghi_chu, viec.gio_hen ? `Giờ: ${viec.gio_hen}` : buoi].filter(Boolean).join('\n');
   return { title: viec.tieu_de, ...(ghiChu ? { notes: ghiChu } : {}), ...(viec.han_ngay ? { due: `${viec.han_ngay}T00:00:00.000Z` } : {}) };
 }
 
-// Việc có giờ hẹn thành sự kiện 30 phút; việc chỉ có ngày thành sự kiện cả ngày.
+// Việc có giờ hẹn thành sự kiện 30 phút; chưa có giờ nhưng có buổi thì sáng 8-12h, chiều 13-17h;
+// chỉ có ngày (hoặc "cả ngày") thành sự kiện cả ngày.
 export function thanSuKien(viec) {
   // mau: màu hiệu lực (màu riêng của việc, không có thì màu dự án), trùng colorId của Lịch.
   const goc = { summary: viec.tieu_de, ...(viec.ghi_chu ? { description: viec.ghi_chu } : {}), ...(viec.mau ? { colorId: String(viec.mau) } : {}) };
-  if (viec.gio_hen) {
-    const [g, p] = viec.gio_hen.split(':').map(Number);
-    const tong = g * 60 + p + 30;
-    const ngayKet = tong >= 1440 ? congNgay(viec.han_ngay, 1) : viec.han_ngay;
-    const ket = `${String(Math.floor((tong % 1440) / 60)).padStart(2, '0')}:${String(tong % 60).padStart(2, '0')}`;
-    return { ...goc, start: { dateTime: `${viec.han_ngay}T${viec.gio_hen}:00`, timeZone: MUI_GIO }, end: { dateTime: `${ngayKet}T${ket}:00`, timeZone: MUI_GIO } };
+  const khung = khungGio(viec);
+  if (khung) {
+    const ngayKet = khung.sang_ngay_sau ? congNgay(viec.han_ngay, 1) : viec.han_ngay;
+    return { ...goc, start: { dateTime: `${viec.han_ngay}T${khung.bat_dau}:00`, timeZone: MUI_GIO }, end: { dateTime: `${ngayKet}T${khung.ket_thuc}:00`, timeZone: MUI_GIO } };
   }
   return { ...goc, start: { date: viec.han_ngay }, end: { date: congNgay(viec.han_ngay, 1) } };
 }
@@ -328,7 +328,7 @@ async function dongBoGmail(env, tc, token) {
 
 // ---- Tasks và Lịch: việc của hệ thống sang Google, việc xong bên Tasks về lại ----
 
-const COT_VIEC_GG = `v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.trang_thai, v.google_task_id, v.lich_event_id, v.nhan_gg, v.nguon,
+const COT_VIEC_GG = `v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.buoi, v.trang_thai, v.google_task_id, v.lich_event_id, v.nhan_gg, v.nguon,
   t.nguon AS tin_nguon, t.nguoi_gui AS tin_nguoi_gui, t.nhom AS tin_nhom, d.ten AS du_an_ten, COALESCE(v.mau, d.mau) AS mau
   FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id LEFT JOIN du_an d ON d.id = v.du_an_id`;
 

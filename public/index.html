@@ -169,6 +169,16 @@
         <label class="truong"><span>Hạn</span><input name="han_ngay" type="date"></label>
         <label class="truong"><span>Giờ hẹn</span><input name="gio_hen" type="time" step="300"></label>
       </div>
+      <label class="truong">
+        <span>Buổi (khi chưa có giờ cụ thể)</span>
+        <select name="buoi" aria-describedby="goi-y-buoi">
+          <option value="">Không chọn (cả ngày)</option>
+          <option value="sang">Sáng (8h-12h)</option>
+          <option value="chieu">Chiều (13h-17h)</option>
+          <option value="ca_ngay">Cả ngày</option>
+        </select>
+        <small id="goi-y-buoi">Đã đặt giờ hẹn thì lịch lấy theo giờ, bỏ qua buổi.</small>
+      </label>
       <div class="chon-nhanh" role="group" aria-label="Chọn nhanh hạn">
         <button type="button" data-han="0">Hôm nay</button>
         <button type="button" data-han="1">Ngày mai</button>
