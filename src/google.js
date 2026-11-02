@@ -136,6 +136,14 @@ export function thanSuKien(viec) {
   return { ...goc, start: { date: viec.han_ngay }, end: { date: congNgay(viec.han_ngay, 1) } };
 }
 
+// PATCH gộp từng trường vào sự kiện cũ: sự kiện cả ngày đổi sang có giờ (hoặc ngược lại) mà không xóa
+// trường kia thì Lịch trả 400 "Invalid start time". Gửi null để xóa trường không còn dùng.
+export function thanSuaSuKien(viec) {
+  const sk = thanSuKien(viec);
+  const doiMoc = (m) => (m.dateTime ? { date: null, ...m } : { dateTime: null, timeZone: null, ...m });
+  return { colorId: null, ...sk, start: doiMoc(sk.start), end: doiMoc(sk.end) };
+}
+
 // ---- Đăng nhập và mã truy cập ----
 
 export async function doiMa(client, thamSo) {
@@ -408,7 +416,7 @@ export async function dongBoViec(env, tc, token) {
         await goiGoogle(token, dich, { method: 'DELETE' }).catch((e) => { if (e.trangThai !== 404 && e.trangThai !== 410) throw e; });
         await env.CSDL.prepare('UPDATE viec SET lich_event_id = NULL WHERE id = ?1').bind(v.id).run();
       } else {
-        await goiGoogle(token, dich, { method: 'PATCH', body: { colorId: null, ...thanSuKien(dung) } }).catch(async (e) => {
+        await goiGoogle(token, dich, { method: 'PATCH', body: thanSuaSuKien(dung) }).catch(async (e) => {
           if (e.trangThai !== 404 && e.trangThai !== 410) throw e;
           await env.CSDL.prepare('UPDATE viec SET lich_event_id = NULL WHERE id = ?1').bind(v.id).run(); // sự kiện đã bị xóa: tạo lại ở bước dưới
         });
