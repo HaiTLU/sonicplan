@@ -5,7 +5,7 @@ import { chuTuHtml } from './nhan-thu.js';
 import { goiNgoai } from './goi-ngoai.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu, luuTep, luuTin, TEP_TOI_DA } from './hop-tin.js';
 import { docTichHop, luuTichHop, xoaTichHop } from './tich-hop.js';
-import { congNgay, khungGio, ngayVN } from './tien-ich.js';
+import { congNgay, khungGio, ngayCoThat, ngayVN } from './tien-ich.js';
 import { chuanCauHinh, dauVet, ganNhan } from './google-nhan.js';
 
 export const QUYEN = [
@@ -402,7 +402,7 @@ async function dongBoViec(env, tc, token) {
     }
     if (v.lich_event_id) {
       const dich = `www.googleapis.com/calendar/v3/calendars/primary/events/${v.lich_event_id}`;
-      if (!v.han_ngay || ch.che_do === 'tasks') {
+      if (!ngayCoThat(v.han_ngay) || ch.che_do === 'tasks') {
         await goiGoogle(token, dich, { method: 'DELETE' }).catch((e) => { if (e.trangThai !== 404 && e.trangThai !== 410) throw e; });
         await env.CSDL.prepare('UPDATE viec SET lich_event_id = NULL WHERE id = ?1').bind(v.id).run();
       } else {
@@ -418,7 +418,7 @@ async function dongBoViec(env, tc, token) {
   // Lịch: việc còn mở có ngày hạn thành sự kiện (trừ khi chỉ dùng Tasks).
   const canLich = ch.che_do === 'tasks' ? [] : (await env.CSDL.prepare(
     `SELECT ${COT_VIEC_GG} WHERE v.to_chuc_id = ?1 AND v.trang_thai = 'mo' AND v.han_ngay IS NOT NULL AND v.lich_event_id IS NULL ORDER BY v.han_ngay LIMIT 25`,
-  ).bind(tc).all()).results;
+  ).bind(tc).all()).results.filter((v) => ngayCoThat(v.han_ngay)); // ngày không có thật thì Lịch trả 400 và kẹt cả lượt
   for (const v of canLich) {
     const g = gan(v);
     const s = await goiGoogle(token, 'www.googleapis.com/calendar/v3/calendars/primary/events', { method: 'POST', body: thanSuKien({ ...v, tieu_de: g.tieu_de, ghi_chu: g.ghi_chu, mau: g.mau }) });

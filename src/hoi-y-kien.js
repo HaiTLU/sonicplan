@@ -7,7 +7,7 @@ import { NHOM_THEO_SO } from './ai.js';
 import { ghiSuKien } from './du-an.js';
 import { nhayCam } from './ghi-nho.js';
 import { docNgayGio, ngayChoGio } from './ngay-viet.js';
-import { cat, chuanHoa } from './tien-ich.js';
+import { cat, chuanHoa, ngayCoThat } from './tien-ich.js';
 
 export const TOI_DA_MOI_LUOT = 3; // ô hỏi tối đa cho một lượt tách việc
 export const TOI_DA_DANG_CHO = 8; // chưa trả lời quá số này thì không hỏi thêm
@@ -16,17 +16,16 @@ const HET_HAN_NGAY = 3;
 export const TEN_LOAI = { gio: 'giờ hẹn', han: 'hạn', nguoi: 'tên người', du_an: 'dự án', nhom: 'loại việc', viec: 'có phải việc không', them: 'có thêm việc không' };
 const CO_DINH = { viec: ['Đúng là việc', 'Không phải việc'], nhom: ['Claude tự làm', 'Claude chuẩn bị', 'Tôi tự làm'], them: ['Thêm', 'Không'] };
 const GIO = /^([01]\d|2[0-3]):[0-5]\d$/;
-const NGAY = /^\d{4}-\d{2}-\d{2}$/;
 
 const ddmm = (n) => `${n.slice(8, 10)}/${n.slice(5, 7)}`;
-export const nhanLuaChon = (loai, v) => (loai === 'han' && NGAY.test(v) ? ddmm(v) : v);
+export const nhanLuaChon = (loai, v) => (loai === 'han' && ngayCoThat(v) ? ddmm(v) : v);
 
 // Lựa chọn hiện trên nút. Giờ, hạn, dự án phải đúng dạng; viec và nhom do code đặt sẵn nên AI không bịa được.
 export function chonLuaChon(chuaChac, tenDuAn = []) {
   const { loai, lua_chon: ds = [] } = chuaChac;
   if (CO_DINH[loai]) return CO_DINH[loai];
   if (loai === 'gio') return ds.filter((x) => GIO.test(x));
-  if (loai === 'han') return ds.filter((x) => NGAY.test(x));
+  if (loai === 'han') return ds.filter((x) => ngayCoThat(x));
   if (loai === 'du_an') return ds.map((x) => tenDuAn.find((t) => chuanHoa(t) === chuanHoa(x))).filter(Boolean);
   return ds;
 }
@@ -158,7 +157,7 @@ export async function apDungTraLoi(env, tc, id, tra, bayGio = new Date().toISOSt
   if (r.loai === 'gio' || r.loai === 'han') {
     const doc = docNgayGio(dapAn, new Date(bayGio));
     const gio = r.loai === 'gio' ? (GIO.test(dapAn) ? dapAn : doc.gio_hen) : null;
-    const han = r.loai === 'han' ? (NGAY.test(dapAn) ? dapAn : doc.han_ngay) : null;
+    const han = r.loai === 'han' ? (ngayCoThat(dapAn) ? dapAn : doc.han_ngay) : null;
     if (!(gio || han)) return { loi: r.loai === 'gio' ? 'Em chưa hiểu giờ này, anh nhắn dạng 17:30 hoặc 5h30 chiều nhé.' : 'Em chưa hiểu ngày này, anh nhắn dạng 25/10 hoặc "thứ Sáu" nhé.' };
     dapAn = gio || han;
     if (hieuLuc) {

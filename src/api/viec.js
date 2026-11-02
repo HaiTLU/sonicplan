@@ -6,7 +6,7 @@ import { ghiSuKien } from '../du-an.js';
 import { docHoSo, nhayCam } from '../ghi-nho.js';
 import { chuanMau } from '../mau.js';
 import { docTichHop } from '../tich-hop.js';
-import { cat, DS_BUOI, json, loi, ngayVN } from '../tien-ich.js';
+import { cat, DS_BUOI, json, loi, ngayCoThat, ngayVN } from '../tien-ich.js';
 import { themViec } from '../viec.js';
 import { laChu } from './chung.js';
 import { chuanTepTuy, dsDinhKemTuDong } from '../tho-claude.js';
@@ -15,7 +15,6 @@ import { luuTep, TEP_TOI_DA } from '../hop-tin.js';
 
 const GIO = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-const NGAY = /^\d{4}-\d{2}-\d{2}$/;
 
 // ---- Việc ----
 
@@ -42,7 +41,7 @@ export function kiemViec(than, { batBuocTieuDe }) {
   }
   if ('ghi_chu' in than) ra.ghi_chu = cat(String(than.ghi_chu || '').trim(), 2000) || null;
   if ('han_ngay' in than) {
-    if (than.han_ngay && !NGAY.test(than.han_ngay)) return { loi: 'Ngày hạn sai dạng.' };
+    if (than.han_ngay && !ngayCoThat(than.han_ngay)) return { loi: 'Ngày hạn sai dạng.' };
     ra.han_ngay = than.han_ngay || null;
   }
   if ('gio_hen' in than) {

@@ -88,3 +88,14 @@ test('tệp đính kèm Gmail: giữ tệp thật, bỏ ảnh nhúng nhỏ, lờ
   assert.deepEqual(ds.map((t) => t.ma_tep), ['a1', 'a3']);
   assert.equal(ds[0].ten, 'hop-dong.pdf');
 });
+
+test('ngày hạn không có thật bị loại, không đẩy sang Lịch', async () => {
+  const { ngayCoThat } = await import('../src/tien-ich.js');
+  const { docKetQuaViec, docPhanVan } = await import('../src/ai.js');
+  assert.equal(ngayCoThat('2026-11-02'), true);
+  assert.equal(ngayCoThat('2028-02-29'), true);
+  for (const x of ['2026-11-31', '2026-02-30', '2026-00-10', '2026-13-01', '2026-1-1', null, undefined, '']) assert.equal(ngayCoThat(x), false, String(x));
+  const ra = docKetQuaViec({ response: { viec: [{ tieu_de: 'Nộp hồ sơ', han_ngay: '2026-11-31', gio_hen: '17:00' }] } });
+  assert.equal(ra[0].han_ngay, null);
+  assert.equal(docPhanVan([{ tieu_de: 'Gặp anh Hùng', han_ngay: '2026-02-30' }])[0].han_ngay, null);
+});
