@@ -10,7 +10,7 @@ export const LOAI_NHAN = [
   { ma: 'du_an', ten: 'Tên dự án', vi_du: 'Dự án' },
   { ma: 'nguoi', ten: 'Người hoặc nhóm gửi', vi_du: 'Người gửi' },
 ];
-export const CHE_DO = ['ca-hai', 'tasks', 'lich'];
+export const CHE_DO = ['ca-hai', 'tasks', 'lich', 'tu-chia'];
 const MA_NHAN = LOAI_NHAN.map((l) => l.ma);
 const TEN_NGUON = { zalo: 'Zalo', gmail: 'Gmail', telegram: 'Telegram', api: 'Dịch vụ ngoài', tay: 'Tự thêm' };
 const MAU_XONG = '8'; // xám (Graphite) trong bảng màu Lịch
