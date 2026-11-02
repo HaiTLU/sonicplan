@@ -44,6 +44,15 @@ test('việc thành Task và sự kiện Lịch', () => {
   assert.deepEqual(thanTask({ tieu_de: 'Nộp', han_ngay: '2026-10-12', gio_hen: '14:00', ghi_chu: 'bản in' }), { title: 'Nộp', notes: 'bản in\nGiờ: 14:00', due: '2026-10-12T00:00:00.000Z' });
   assert.deepEqual(thanSuKien({ tieu_de: 'Họp', han_ngay: '2026-10-12', gio_hen: '23:45' }).end, { dateTime: '2026-10-13T00:15:00', timeZone: 'Asia/Ho_Chi_Minh' });
   assert.deepEqual(thanSuKien({ tieu_de: 'Nộp', han_ngay: '2026-10-12' }).end, { date: '2026-10-13' });
+  // Chưa có giờ cụ thể: buổi sáng 8-12h, chiều 13-17h, "cả ngày" hoặc không buổi thì cả ngày; có giờ thì giờ thắng buổi.
+  const sang = thanSuKien({ tieu_de: 'Soạn', han_ngay: '2026-11-03', buoi: 'sang' });
+  assert.deepEqual([sang.start, sang.end], [{ dateTime: '2026-11-03T08:00:00', timeZone: 'Asia/Ho_Chi_Minh' }, { dateTime: '2026-11-03T12:00:00', timeZone: 'Asia/Ho_Chi_Minh' }]);
+  const chieu = thanSuKien({ tieu_de: 'Soạn', han_ngay: '2026-11-03', buoi: 'chieu' });
+  assert.deepEqual([chieu.start.dateTime, chieu.end.dateTime], ['2026-11-03T13:00:00', '2026-11-03T17:00:00']);
+  assert.deepEqual(thanSuKien({ tieu_de: 'Soạn', han_ngay: '2026-11-03', buoi: 'ca_ngay' }).start, { date: '2026-11-03' });
+  assert.deepEqual(thanSuKien({ tieu_de: 'Soạn', han_ngay: '2026-11-03', buoi: null }).start, { date: '2026-11-03' });
+  assert.equal(thanSuKien({ tieu_de: 'Họp', han_ngay: '2026-11-03', gio_hen: '09:30', buoi: 'chieu' }).start.dateTime, '2026-11-03T09:30:00');
+  assert.match(thanTask({ tieu_de: 'Soạn', han_ngay: '2026-11-03', buoi: 'chieu' }).notes, /Buổi: chiều/);
   assert.equal(thanSuKien({ tieu_de: 'Nộp', han_ngay: '2026-10-12', mau: '9' }).colorId, '9');
   assert.equal('colorId' in thanSuKien({ tieu_de: 'Nộp', han_ngay: '2026-10-12' }), false);
 });

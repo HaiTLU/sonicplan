@@ -6,7 +6,7 @@ import { ghiSuKien } from '../du-an.js';
 import { docHoSo, nhayCam } from '../ghi-nho.js';
 import { chuanMau } from '../mau.js';
 import { docTichHop } from '../tich-hop.js';
-import { cat, json, loi, ngayVN } from '../tien-ich.js';
+import { cat, DS_BUOI, json, loi, ngayVN } from '../tien-ich.js';
 import { themViec } from '../viec.js';
 import { laChu } from './chung.js';
 import { chuanTepTuy, dsDinhKemTuDong } from '../tho-claude.js';
@@ -23,7 +23,7 @@ async function dsViec(env, tc, url) {
   const trangThai = url.searchParams.get('trang_thai') === 'xong' ? 'xong' : 'mo';
   const thuTu = trangThai === 'xong' ? 'xong_luc DESC' : 'sao DESC, han_ngay IS NULL, han_ngay, thu_tu IS NULL, thu_tu, gio_hen IS NULL, gio_hen, id DESC';
   const { results } = await env.CSDL.prepare(
-    `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.trang_thai, v.tin_nhan_id, v.tao_luc, v.xong_luc,
+    `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.buoi, v.trang_thai, v.tin_nhan_id, v.tao_luc, v.xong_luc,
        t.nguon AS tin_nguon, t.nguoi_gui AS tin_nguoi_gui, t.nhom AS tin_nhom,
        v.du_an_id, v.nhom, v.nguon, v.mau, v.sao, v.do_nang, v.han_goc, v.so_lan_doi, d.ten AS du_an_ten, d.mau AS du_an_mau, d.icon AS du_an_icon, d.anh_khoa AS du_an_anh
      FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id LEFT JOIN du_an d ON d.id = v.du_an_id
@@ -49,6 +49,12 @@ export function kiemViec(than, { batBuocTieuDe }) {
     if (than.gio_hen && !GIO.test(than.gio_hen)) return { loi: 'Giờ hẹn sai dạng, ví dụ 14:30.' };
     ra.gio_hen = than.gio_hen || null;
   }
+  // Buổi chỉ có nghĩa khi chưa có giờ cụ thể: đặt giờ thì bỏ buổi, để lịch không có hai nguồn mâu thuẫn.
+  if ('buoi' in than) {
+    if (than.buoi && !DS_BUOI.includes(than.buoi)) return { loi: 'Buổi không hợp lệ.' };
+    ra.buoi = than.buoi || null;
+  }
+  if (ra.gio_hen) ra.buoi = null;
   if ('trang_thai' in than) {
     if (!['mo', 'xong', 'huy'].includes(than.trang_thai)) return { loi: 'Trạng thái không hợp lệ.' };
     ra.trang_thai = than.trang_thai;
@@ -109,7 +115,7 @@ export async function suaViec(env, tc, id, than) {
   const bayGio = new Date().toISOString();
   const gan = cot.map((c, i) => `${c} = ?${i + 3}`);
   // Đổi tên, hạn hoặc giờ thì báo cho lượt đồng bộ cập nhật Google Tasks và Lịch.
-  if (['tieu_de', 'han_ngay', 'gio_hen', 'ghi_chu', 'mau', 'du_an_id'].some((c) => c in k.viec)) gan.push('can_dong_bo = 1');
+  if (['tieu_de', 'han_ngay', 'gio_hen', 'buoi', 'ghi_chu', 'mau', 'du_an_id'].some((c) => c in k.viec)) gan.push('can_dong_bo = 1');
   // Người dùng tự đặt hạn mới: bỏ đếm số lần tự dời.
   if ('han_ngay' in k.viec) gan.push('so_lan_doi = 0');
   const giaTri = cot.map((c) => k.viec[c]);

@@ -4,6 +4,7 @@
 // Không sử dụng Claude Code hoặc hạn mức gói Max.
 
 import { chuanHoaGhiNho } from './ghi-nho.js';
+import { DS_BUOI } from './tien-ich.js';
 import { chayAiNgoai } from './tich-hop.js';
 import { trichBienBan } from './ghi-am-hop.js';
 import { TamDungHanMuc, docHetHanMuc, ghiHetHanMuc, laHetHanMucNgay } from './han-muc-ai.js';
@@ -21,6 +22,7 @@ const KHUON_VIEC = {
           tieu_de: { type: 'string' },
           han_ngay: { type: ['string', 'null'] },
           gio_hen: { type: ['string', 'null'] },
+          buoi: { type: ['string', 'null'], enum: ['sang', 'chieu', 'ca_ngay', null] },
           ghi_chu: { type: ['string', 'null'] },
           tin_so: { type: ['integer', 'null'] },
           uu_tien: { type: ['string', 'null'] },
@@ -41,7 +43,7 @@ const KHUON_VIEC = {
       type: 'array',
       items: {
         type: 'object',
-        properties: { tieu_de: { type: 'string' }, tin_so: { type: ['integer', 'null'] }, han_ngay: { type: ['string', 'null'] }, gio_hen: { type: ['string', 'null'] }, ghi_chu: { type: ['string', 'null'] } },
+        properties: { tieu_de: { type: 'string' }, tin_so: { type: ['integer', 'null'] }, han_ngay: { type: ['string', 'null'] }, gio_hen: { type: ['string', 'null'] }, buoi: { type: ['string', 'null'], enum: ['sang', 'chieu', 'ca_ngay', null] }, ghi_chu: { type: ['string', 'null'] } },
         required: ['tieu_de'],
       },
     },
@@ -99,6 +101,7 @@ export function loiNhacTachViec(tin, homNay, tenNguoiDung, daCo = [], ghiNho = [
     'Thư gửi nhiều người thì chỉ lấy phần giao cho người dùng hoặc cho tất cả người nhận. Bỏ qua việc của người khác, chào hỏi, cảm ơn, quảng cáo, bản tin, thông báo tự động, hóa đơn, trừ khi có hạn người dùng phải làm. Chỉ dùng thông tin có trong tin, không suy diễn.',
     `Hôm nay là ${homNay} (giờ Việt Nam). Hiểu "mai", "thứ Sáu", "tuần sau" theo giờ gửi của tin đó, đổi sang ngày cụ thể dạng YYYY-MM-DD.`,
     'gio_hen dạng HH:MM 24 giờ nếu tin nêu giờ cụ thể (ví dụ "trước 14h chiều nay" thì 14:00, "2h chiều" thì 14:00; giờ 1-6 không ghi "sáng" là buổi chiều: "5h30" thì 17:30), không nêu thì null.',
+    'buoi: chỉ điền khi tin nêu buổi hoặc "cả ngày" mà KHÔNG nêu giờ cụ thể: "sáng mai", "sáng nay", "buổi sáng" thì "sang"; "chiều mai", "chiều nay", "buổi chiều" thì "chieu"; "cả ngày", "suốt ngày" thì "ca_ngay". Đã có gio_hen thì buoi để null (giờ thắng buổi); không nêu buổi thì null. Hệ thống tự xếp sáng vào 8h-12h, chiều vào 13h-17h trên lịch. Han_ngay vẫn theo nguyên tắc 9.',
     'tieu_de: bắt đầu bằng động từ, nêu rõ đối tượng, tối thiểu 4 từ, tiếng Việt CÓ DẤU, tối đa 80 ký tự, không biểu tượng. Sửa lỗi gõ của tin gốc, KHÔNG sao chép nguyên lỗi ("mua nùc" thì viết đúng chữ). Nếu không dựng được tên rõ ràng từ nội dung tin thì KHÔNG tạo việc đó.',
     'ghi_chu: với Zalo ghi tên cuộc trò chuyện và người gửi; với thư ghi 1-2 câu tóm tắt ngữ cảnh (ai yêu cầu, để làm gì, chi tiết như địa điểm, số lượng, tài liệu hoặc tệp đính kèm), rồi ghi "Nguồn: thư của <người gửi>, tiêu đề <tiêu đề>".',
     'Danh sách "Đã có sẵn" là việc đã nằm trong danh sách việc của người dùng. Nếu một việc trong tin có cùng nội dung với mục đã có, dù diễn đạt khác, thì KHÔNG trích lại. Chỉ trích lại khi tin nêu thông tin mới (đổi giờ, đổi hạn, việc khác hẳn).',
@@ -155,6 +158,7 @@ export function docKetQuaViec(phanHoi) {
       tieu_de: v.tieu_de.trim().slice(0, 200),
       han_ngay: /^\d{4}-\d{2}-\d{2}$/.test(v.han_ngay || '') ? v.han_ngay : null,
       gio_hen: /^([01]\d|2[0-3]):[0-5]\d$/.test(v.gio_hen || '') ? v.gio_hen : null,
+      buoi: !/^([01]\d|2[0-3]):[0-5]\d$/.test(v.gio_hen || '') && DS_BUOI.includes(v.buoi) ? v.buoi : null,
       ghi_chu: typeof v.ghi_chu === 'string' ? v.ghi_chu.slice(0, 1000) : null,
       tin_so: Number.isInteger(v.tin_so) ? v.tin_so : null,
       uu_tien: ['cao', 'vua', 'thap'].includes(v.uu_tien) ? v.uu_tien : null,
@@ -177,6 +181,7 @@ export function docPhanVan(ds) {
       tin_so: Number.isInteger(v.tin_so) ? v.tin_so : null,
       han_ngay: /^\d{4}-\d{2}-\d{2}$/.test(v.han_ngay || '') ? v.han_ngay : null,
       gio_hen: /^([01]\d|2[0-3]):[0-5]\d$/.test(v.gio_hen || '') ? v.gio_hen : null,
+      buoi: !/^([01]\d|2[0-3]):[0-5]\d$/.test(v.gio_hen || '') && DS_BUOI.includes(v.buoi) ? v.buoi : null,
       ghi_chu: typeof v.ghi_chu === 'string' ? v.ghi_chu.trim().slice(0, 600) : null,
     }));
 }
