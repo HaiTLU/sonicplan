@@ -35,6 +35,13 @@ export function gioVN(thoiDiem = new Date()) {
   return new Date(new Date(thoiDiem).getTime() + LECH_VN_MS).getUTCHours();
 }
 
+// Ngày YYYY-MM-DD có thật trên lịch (loại 2026-11-31, 2026-02-30). Lịch Google từ chối ngày không có thật.
+export function ngayCoThat(ngay) {
+  if (typeof ngay !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(ngay)) return false;
+  const d = new Date(`${ngay}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === ngay;
+}
+
 export function congNgay(ngay, soNgay) {
   const d = new Date(`${ngay}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + soNgay);

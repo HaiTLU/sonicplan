@@ -4,7 +4,7 @@
 // Không sử dụng Claude Code hoặc hạn mức gói Max.
 
 import { chuanHoaGhiNho } from './ghi-nho.js';
-import { DS_BUOI } from './tien-ich.js';
+import { DS_BUOI, ngayCoThat } from './tien-ich.js';
 import { chayAiNgoai } from './tich-hop.js';
 import { trichBienBan } from './ghi-am-hop.js';
 import { TamDungHanMuc, docHetHanMuc, ghiHetHanMuc, laHetHanMucNgay } from './han-muc-ai.js';
@@ -156,7 +156,7 @@ export function docKetQuaViec(phanHoi) {
     .filter((v) => v && typeof v.tieu_de === 'string' && v.tieu_de.trim())
     .map((v) => ({
       tieu_de: v.tieu_de.trim().slice(0, 200),
-      han_ngay: /^\d{4}-\d{2}-\d{2}$/.test(v.han_ngay || '') ? v.han_ngay : null,
+      han_ngay: ngayCoThat(v.han_ngay) ? v.han_ngay : null,
       gio_hen: /^([01]\d|2[0-3]):[0-5]\d$/.test(v.gio_hen || '') ? v.gio_hen : null,
       buoi: !/^([01]\d|2[0-3]):[0-5]\d$/.test(v.gio_hen || '') && DS_BUOI.includes(v.buoi) ? v.buoi : null,
       ghi_chu: typeof v.ghi_chu === 'string' ? v.ghi_chu.slice(0, 1000) : null,
@@ -179,7 +179,7 @@ export function docPhanVan(ds) {
     .map((v) => ({
       tieu_de: v.tieu_de.trim().slice(0, 200),
       tin_so: Number.isInteger(v.tin_so) ? v.tin_so : null,
-      han_ngay: /^\d{4}-\d{2}-\d{2}$/.test(v.han_ngay || '') ? v.han_ngay : null,
+      han_ngay: ngayCoThat(v.han_ngay) ? v.han_ngay : null,
       gio_hen: /^([01]\d|2[0-3]):[0-5]\d$/.test(v.gio_hen || '') ? v.gio_hen : null,
       buoi: !/^([01]\d|2[0-3]):[0-5]\d$/.test(v.gio_hen || '') && DS_BUOI.includes(v.buoi) ? v.buoi : null,
       ghi_chu: typeof v.ghi_chu === 'string' ? v.ghi_chu.trim().slice(0, 600) : null,

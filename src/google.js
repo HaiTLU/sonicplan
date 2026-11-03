@@ -5,7 +5,7 @@ import { chuTuHtml } from './nhan-thu.js';
 import { goiNgoai } from './goi-ngoai.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu, luuTep, luuTin, TEP_TOI_DA } from './hop-tin.js';
 import { docTichHop, luuTichHop, xoaTichHop } from './tich-hop.js';
-import { BUOI, congNgay, khungGio, ngayVN } from './tien-ich.js';
+import { BUOI, congNgay, khungGio, ngayCoThat, ngayVN } from './tien-ich.js';
 import { chuanCauHinh, dauVet, ganNhan } from './google-nhan.js';
 import { ghiSuKien } from './du-an.js';
 
@@ -172,6 +172,14 @@ export function viecTuSuKien(sk, viec = {}, ch = chuanCauHinh(null), homNay = ng
   const doi = hanNgay !== (viec.han_ngay ?? null) || gioHen !== (viec.gio_hen ?? null) || buoi !== (viec.buoi ?? null)
     || tieuDe !== (viec.tieu_de ?? '') || (ghiChu || null) !== (viec.ghi_chu || null);
   return { han_ngay: hanNgay, gio_hen: gioHen, buoi, tieu_de: tieuDe, ghi_chu: ghiChu, doi };
+}
+
+// PATCH gộp từng trường vào sự kiện cũ: sự kiện cả ngày đổi sang có giờ (hoặc ngược lại) mà không xóa
+// trường kia thì Lịch trả 400 "Invalid start time". Gửi null để xóa trường không còn dùng.
+export function thanSuaSuKien(viec) {
+  const sk = thanSuKien(viec);
+  const doiMoc = (m) => (m.dateTime ? { date: null, ...m } : { dateTime: null, timeZone: null, ...m });
+  return { colorId: null, ...sk, start: doiMoc(sk.start), end: doiMoc(sk.end) };
 }
 
 // ---- Đăng nhập và mã truy cập ----
@@ -374,7 +382,7 @@ export async function docCauHinhNhan(env, tc) {
   return chuanCauHinh(await docCaiDat(env, tc, 'google_nhan'));
 }
 
-async function dongBoViec(env, tc, token) {
+export async function dongBoViec(env, tc, token) {
   const bayGio = new Date().toISOString();
   const ch = await docCauHinhNhan(env, tc);
   const hn = ngayVN();
@@ -384,6 +392,8 @@ async function dongBoViec(env, tc, token) {
   const gangXong = `(v.trang_thai = 'mo' OR (v.trang_thai = 'xong' AND v.xong_luc >= '${bay}'))`;
   let dayLen = 0;
   let veLai = 0;
+  const loiViec = []; // lỗi theo từng việc: một việc hỏng không được chặn các việc sau
+  const thu = async (v, f) => { try { await f(); } catch (e) { loiViec.push(`#${v.id} (${v.han_ngay || '-'} ${v.gio_hen || v.buoi || ''}): ${e.message}`.replace(/ +\)/, ')')); } };
 
   // Việc mới sang Tasks (trừ khi chỉ dùng Lịch).
   const moi = ch.che_do === 'lich' ? [] : (await env.CSDL.prepare(
@@ -430,7 +440,7 @@ async function dongBoViec(env, tc, token) {
   const daDoi = (await env.CSDL.prepare(
     `SELECT ${COT_VIEC_GG} WHERE v.to_chuc_id = ?1 AND ${gangXong} AND v.can_dong_bo = 1 LIMIT 25`,
   ).bind(tc).all()).results;
-  for (const v of daDoi) {
+  for (const v of daDoi) await thu(v, async () => {
     const g = gan(v);
     const dung = { ...v, tieu_de: g.tieu_de, ghi_chu: g.ghi_chu, mau: g.mau };
     let capNhatLich = null; // `updated` của sự kiện sau khi ta ghi: lần kéo Lịch về sau bỏ qua thay đổi này
@@ -441,11 +451,11 @@ async function dongBoViec(env, tc, token) {
     }
     if (v.lich_event_id) {
       const dich = `www.googleapis.com/calendar/v3/calendars/primary/events/${v.lich_event_id}`;
-      if (!v.han_ngay || ch.che_do === 'tasks') {
+      if (!ngayCoThat(v.han_ngay) || ch.che_do === 'tasks') {
         await goiGoogle(token, dich, { method: 'DELETE' }).catch((e) => { if (e.trangThai !== 404 && e.trangThai !== 410) throw e; });
         await env.CSDL.prepare('UPDATE viec SET lich_event_id = NULL WHERE id = ?1').bind(v.id).run();
       } else {
-        const r = await goiGoogle(token, dich, { method: 'PATCH', body: { colorId: null, ...thanSuKien(dung) } }).catch(async (e) => {
+        const r = await goiGoogle(token, dich, { method: 'PATCH', body: thanSuaSuKien(dung) }).catch(async (e) => {
           if (e.trangThai !== 404 && e.trangThai !== 410) throw e;
           await env.CSDL.prepare('UPDATE viec SET lich_event_id = NULL WHERE id = ?1').bind(v.id).run(); // sự kiện đã bị xóa: tạo lại ở bước dưới
           return null;
@@ -454,17 +464,17 @@ async function dongBoViec(env, tc, token) {
       }
     }
     await env.CSDL.prepare('UPDATE viec SET can_dong_bo = 0, nhan_gg = ?2, lich_cap_nhat = COALESCE(?3, lich_cap_nhat) WHERE id = ?1').bind(v.id, dauVet(g), capNhatLich).run();
-  }
+  });
 
   // Lịch: việc còn mở có ngày hạn thành sự kiện (trừ khi chỉ dùng Tasks).
   const canLich = ch.che_do === 'tasks' ? [] : (await env.CSDL.prepare(
     `SELECT ${COT_VIEC_GG} WHERE v.to_chuc_id = ?1 AND v.trang_thai = 'mo' AND v.han_ngay IS NOT NULL AND v.lich_event_id IS NULL ORDER BY v.han_ngay LIMIT 25`,
-  ).bind(tc).all()).results;
-  for (const v of canLich) {
+  ).bind(tc).all()).results.filter((v) => ngayCoThat(v.han_ngay)); // ngày không có thật thì Lịch trả 400 và kẹt cả lượt
+  for (const v of canLich) await thu(v, async () => {
     const g = gan(v);
     const s = await goiGoogle(token, 'www.googleapis.com/calendar/v3/calendars/primary/events', { method: 'POST', body: thanSuKien({ ...v, tieu_de: g.tieu_de, ghi_chu: g.ghi_chu, mau: g.mau }) });
     await env.CSDL.prepare('UPDATE viec SET lich_event_id = ?1, nhan_gg = ?2, lich_cap_nhat = ?5 WHERE id = ?3 AND to_chuc_id = ?4').bind(s.id, dauVet(g), v.id, tc, s.updated || null).run();
-  }
+  });
   // Việc xong hoặc hủy thì gỡ sự kiện, trừ khi bật nhãn Xong (khi đó sự kiện giữ lại, đổi màu xám).
   const giuXong = ch.bat.includes('xong') && ch.che_do !== 'tasks';
   const canGo = (await env.CSDL.prepare(
@@ -482,6 +492,7 @@ async function dongBoViec(env, tc, token) {
       await env.CSDL.prepare('UPDATE viec SET lich_event_id = NULL WHERE id = ?1').bind(v.id).run();
     }
   }
+  if (loiViec.length) throw new Error(`${loiViec.length} việc lỗi: ${loiViec.slice(0, 2).join('; ')}`);
   return { dayLen, veLai, lich: canLich.length };
 }
 
@@ -673,7 +684,7 @@ export async function dongBoGoogle(env, tc, { thu = true, viec = true } = {}) {
   if (!token) return null;
   const kq = { thu: 0, day_len: 0, ve_lai: 0, lich: 0, lich_ve: 0, tep: 0, loi: [] };
   const lam = async (ten, f) => {
-    try { await f(); } catch (e) { kq.loi.push(`${ten}: ${String(e.message).slice(0, 100)}`); }
+    try { await f(); } catch (e) { kq.loi.push(`${ten}: ${String(e.message).slice(0, 220)}`); }
   };
   if (thu) await lam('Gmail', async () => { kq.thu = await dongBoGmail(env, tc, token); });
   // Kéo Lịch về trước khi đẩy: sự kiện sửa sau việc thì thắng, việc sửa sau thì lần đẩy ngay sau ghi đè sự kiện.
