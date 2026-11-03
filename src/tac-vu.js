@@ -63,7 +63,7 @@ export const CAC_TAC_VU = {
         const kq = await dongBoGoogle(env, id);
         if (!kq) continue;
         thu += kq.thu;
-        viec += kq.day_len + kq.ve_lai;
+        viec += kq.day_len + kq.ve_lai + kq.lich_ve;
         loi.push(...kq.loi);
       } catch (e) {
         await ghiTinHieu(env, id, 'google', `Lỗi ${String(e.message).slice(0, 120)}`);
