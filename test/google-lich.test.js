@@ -29,7 +29,12 @@ test('viecTuSuKien: cả ngày bỏ giờ; khung 8-12h, 13-17h thành buổi; đ
     { tieu_de: 'B', han_ngay: '2026-11-04', gio_hen: null, buoi: 'sang' },
     { tieu_de: 'C', han_ngay: '2026-11-04', gio_hen: null, buoi: null },
     { tieu_de: 'D', han_ngay: '2026-11-04', gio_hen: null, buoi: 'ca_ngay' },
-  ]) assert.equal(viecTuSuKien(thanSuKien(viec), viec).doi, false, viec.tieu_de);
+  ]) {
+    // Lịch Google trả giờ kèm độ lệch múi giờ; thanSuKien gửi giờ trần kèm timeZone, nên thêm +07:00 như Lịch làm.
+    const sk = thanSuKien(viec);
+    for (const m of [sk.start, sk.end]) if (m.dateTime) m.dateTime += '+07:00';
+    assert.equal(viecTuSuKien(sk, viec).doi, false, viec.tieu_de);
+  }
 });
 
 test('viecTuSuKien: nhãn do ganNhan thêm không rò vào tên việc, sửa tên thì lấy tên mới', () => {
