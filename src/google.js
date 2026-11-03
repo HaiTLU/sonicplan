@@ -230,6 +230,58 @@ async function layTruyCap(env, tc) {
   return kq.access_token;
 }
 
+// ---- Lịch của tài khoản Google thứ hai (thanglong.edu.vn): chỉ đọc, sự kiện mới thành việc ----
+
+export const QUYEN_LICH_DOC = 'https://www.googleapis.com/auth/calendar.readonly';
+
+export function taoDiaChiDangNhapTlu(clientId, goiLai, state) {
+  const q = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: goiLai,
+    response_type: 'code',
+    scope: ['openid', 'email', QUYEN_LICH_DOC].join(' '),
+    access_type: 'offline',
+    // Chọn đúng tài khoản thanglong, không dùng lại tài khoản Google chính.
+    prompt: 'consent select_account',
+    state,
+  });
+  return `${DIA_CHI_DANG_NHAP}?${q}`;
+}
+
+export async function hoanTatDangNhapTlu(env, tc, code, goiLai) {
+  const client = await docTichHop(env, tc, 'google_client');
+  if (!client) throw new Error('Chưa khai Client ID và Secret ở thẻ Google.');
+  const kq = await doiMa(client, { grant_type: 'authorization_code', code, redirect_uri: goiLai });
+  if (!kq.refresh_token) throw new Error('Google không trả khóa làm mới. Gỡ quyền của ứng dụng ở myaccount.google.com/permissions bằng tài khoản đó rồi chọn lại.');
+  if (!String(kq.scope || '').includes(QUYEN_LICH_DOC)) throw new Error('Chưa tick quyền xem Lịch ở màn hình Google. Chọn lại tài khoản và tick quyền đó.');
+  const email = emailTuIdToken(kq.id_token);
+  await luuTichHop(env, tc, 'google_tlu', { refresh_token: kq.refresh_token, email, truy_cap: kq.access_token, het_han: Date.now() + (kq.expires_in - 120) * 1000 });
+  // Đổi sang tài khoản khác thì mốc cũ không dùng được: kéo lại từ đầu.
+  await env.CSDL.prepare(`DELETE FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = ?2`).bind(tc, KHOA_LICH_TLU_SYNC).run();
+  await ghiTinHieu(env, tc, 'lich_tlu', 'Vừa nối xong, chờ lượt kéo đầu tiên');
+  return email;
+}
+
+export async function layTruyCapTlu(env, tc) {
+  const [client, tk] = [await docTichHop(env, tc, 'google_client'), await docTichHop(env, tc, 'google_tlu')];
+  if (!client || !tk) return null;
+  if (tk.truy_cap && tk.het_han > Date.now()) return tk.truy_cap;
+  const kq = await doiMa(client, { grant_type: 'refresh_token', refresh_token: tk.refresh_token });
+  await luuTichHop(env, tc, 'google_tlu', { ...tk, truy_cap: kq.access_token, het_han: Date.now() + (kq.expires_in - 120) * 1000 });
+  return kq.access_token;
+}
+
+// Gỡ kết nối: việc đã tạo giữ nguyên.
+export async function goKetNoiTlu(env, tc) {
+  const tk = await docTichHop(env, tc, 'google_tlu');
+  if (tk?.refresh_token) await goiNgoai(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(tk.refresh_token)}`, { method: 'POST' }).catch(() => {});
+  await xoaTichHop(env, tc, 'google_tlu');
+  await env.CSDL.batch([
+    env.CSDL.prepare('DELETE FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = ?2').bind(tc, KHOA_LICH_TLU_SYNC),
+    env.CSDL.prepare('DELETE FROM tin_hieu WHERE to_chuc_id = ?1 AND nguon = ?2').bind(tc, 'lich_tlu'),
+  ]);
+}
+
 // ---- Nháp thư Gmail (không bao giờ gửi) ----
 
 const RE_EMAIL = /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/;
@@ -499,6 +551,7 @@ export async function dongBoViec(env, tc, token) {
 // ---- Lịch về: sự kiện sửa, xóa hoặc tạo mới trên Google Lịch thì việc đổi theo ----
 
 const KHOA_LICH_SYNC = 'google_lich_sync';
+const KHOA_LICH_TLU_SYNC = 'google_lich_tlu_sync';
 const TRANG_LICH_TOI_DA = 30;
 
 // Sự kiện mới trên Lịch có đáng thành việc không: bỏ sự kiện lặp, loại đặc biệt (sinh nhật, nghỉ phép...),
@@ -513,13 +566,9 @@ export function suKienThanhViec(sk, homNay) {
   return Boolean(ngay) && ngay >= congNgay(homNay, -1) && String(sk.summary || '').trim() !== '';
 }
 
-// Kéo thay đổi từ calendars/primary bằng syncToken. Lần đầu chỉ ghi mốc (không biến cả lịch cũ thành việc);
-// từ lần sau, sự kiện mới mới tạo việc. `goi` thay được khi kiểm thử.
-export async function keoLichVe(env, tc, token, { goi = goiGoogle } = {}) {
-  const ch = await docCauHinhNhan(env, tc);
-  const hn = ngayVN();
-  const moc = await docCaiDat(env, tc, KHOA_LICH_SYNC);
-  const lanDau = !moc;
+// Kéo các trang sự kiện của calendars/primary từ mốc `moc` (rỗng: kéo từ đầu). Trả về { ds, mocMoi }, hoặc null nếu mốc
+// hết hạn (410): đã xóa mốc, lần sau kéo lại từ đầu.
+async function keoTrangLich(env, tc, token, goi, khoaMoc, moc) {
   const ds = [];
   let trang = null;
   let mocMoi = null;
@@ -529,8 +578,7 @@ export async function keoLichVe(env, tc, token, { goi = goiGoogle } = {}) {
     try {
       kq = await goi(token, `www.googleapis.com/calendar/v3/calendars/primary/events?${q}`);
     } catch (e) {
-      // 410: mốc hết hạn. Xóa mốc, lần sau kéo lại từ đầu.
-      if (e.trangThai === 410) { await ghiCaiDat(env, tc, KHOA_LICH_SYNC, ''); return { ve: 0, tao: 0, huy: 0 }; }
+      if (e.trangThai === 410) { await ghiCaiDat(env, tc, khoaMoc, ''); return null; }
       throw e;
     }
     ds.push(...(kq.items || []));
@@ -539,6 +587,19 @@ export async function keoLichVe(env, tc, token, { goi = goiGoogle } = {}) {
     if (!trang && !mocMoi) break;
   }
   if (!mocMoi) throw new Error('Lịch trả quá nhiều trang, chưa lấy được mốc đồng bộ');
+  return { ds, mocMoi };
+}
+
+// Kéo thay đổi từ calendars/primary bằng syncToken. Lần đầu chỉ ghi mốc (không biến cả lịch cũ thành việc);
+// từ lần sau, sự kiện mới mới tạo việc. `goi` thay được khi kiểm thử.
+export async function keoLichVe(env, tc, token, { goi = goiGoogle } = {}) {
+  const ch = await docCauHinhNhan(env, tc);
+  const hn = ngayVN();
+  const moc = await docCaiDat(env, tc, KHOA_LICH_SYNC);
+  const lanDau = !moc;
+  const keo = await keoTrangLich(env, tc, token, goi, KHOA_LICH_SYNC, moc);
+  if (!keo) return { ve: 0, tao: 0, huy: 0 };
+  const { ds, mocMoi } = keo;
 
   const r = { ve: 0, tao: 0, huy: 0 };
   const bay = new Date().toISOString();
@@ -607,6 +668,66 @@ export async function keoLichVe(env, tc, token, { goi = goiGoogle } = {}) {
     r.ve++;
   }
   await ghiCaiDat(env, tc, KHOA_LICH_SYNC, mocMoi);
+  return r;
+}
+
+// Lịch của tài khoản thanglong (chỉ đọc, không ghi ngược): sự kiện mới thành việc (nguon = 'lich_tlu'), sửa thì việc đổi theo,
+// xóa thì việc chuyển huy. Việc vẫn đẩy sang Lịch gmail như việc thường (lich_event_id là sự kiện bên gmail, không lẫn
+// với lich_tlu_event_id). Khác keoLichVe: lần đầu cũng tạo việc cho sự kiện từ hôm qua trở đi.
+export async function keoLichTlu(env, tc, token, { goi = goiGoogle } = {}) {
+  const ch = await docCauHinhNhan(env, tc);
+  const hn = ngayVN();
+  const keo = await keoTrangLich(env, tc, token, goi, KHOA_LICH_TLU_SYNC, await docCaiDat(env, tc, KHOA_LICH_TLU_SYNC));
+  const r = { ve: 0, tao: 0, huy: 0 };
+  if (!keo) return r;
+  const bay = new Date().toISOString();
+  for (const sk of keo.ds) {
+    const v = await env.CSDL.prepare(
+      `SELECT id, tieu_de, ghi_chu, han_ngay, gio_hen, buoi, trang_thai, cap_nhat_luc, can_dong_bo, nguon, mau
+       FROM viec WHERE to_chuc_id = ?1 AND lich_tlu_event_id = ?2`,
+    ).bind(tc, sk.id).first();
+
+    if (!v) {
+      if (!suKienThanhViec(sk, hn)) continue;
+      const moi = viecTuSuKien(sk, {}, ch, hn);
+      if (!moi) continue;
+      // Cùng lời mời nằm cả hai lịch, hoặc đã có việc tay cùng tên cùng ngày: không nhân đôi.
+      const trung = await env.CSDL.prepare(
+        `SELECT 1 AS co FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay = ?2 AND lower(trim(tieu_de)) = lower(trim(?3)) LIMIT 1`,
+      ).bind(tc, moi.han_ngay, moi.tieu_de).first();
+      if (trung) continue;
+      const dong = await env.CSDL.prepare(
+        `INSERT INTO viec (to_chuc_id, tieu_de, ghi_chu, han_ngay, gio_hen, buoi, trang_thai, tao_luc, cap_nhat_luc, nguon, lich_tlu_event_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'mo', ?7, ?7, 'lich_tlu', ?8) RETURNING id`,
+      ).bind(tc, moi.tieu_de, moi.ghi_chu, moi.han_ngay, moi.gio_hen, moi.buoi, bay, sk.id).first();
+      await ghiSuKien(env, tc, dong.id, 'tao', `Từ Lịch thanglong: ${moi.tieu_de}`).catch(() => {});
+      r.tao++; r.ve++;
+      continue;
+    }
+
+    if (sk.status === 'cancelled') {
+      if (v.trang_thai === 'mo') {
+        // lich_event_id giữ nguyên để bước đẩy việc gỡ sự kiện bên gmail.
+        await env.CSDL.prepare("UPDATE viec SET trang_thai = 'huy', can_dong_bo = 0, cap_nhat_luc = ?1 WHERE id = ?2 AND to_chuc_id = ?3").bind(bay, v.id, tc).run();
+        await ghiSuKien(env, tc, v.id, 'huy_lich', `Xóa sự kiện trên Lịch thanglong: ${v.tieu_de}`).catch(() => {});
+        r.huy++; r.ve++;
+      }
+      continue;
+    }
+    if (v.trang_thai !== 'mo') continue;
+    // Bên sửa sau thắng: việc sửa sau sự kiện thì giữ việc.
+    if (sk.updated && String(v.cap_nhat_luc) > sk.updated) continue;
+    const moi = viecTuSuKien(sk, v, ch, hn);
+    if (!moi?.doi) continue;
+    await env.CSDL.prepare(
+      `UPDATE viec SET tieu_de = ?1, ghi_chu = ?2, han_ngay = ?3, gio_hen = ?4, buoi = ?5, cap_nhat_luc = ?6, can_dong_bo = 1
+       WHERE id = ?7 AND to_chuc_id = ?8`,
+    ).bind(moi.tieu_de, moi.ghi_chu, moi.han_ngay, moi.gio_hen, moi.buoi, sk.updated || bay, v.id, tc).run();
+    await env.CSDL.prepare('DELETE FROM nhac_da_gui WHERE viec_id = ?1').bind(v.id).run().catch(() => {});
+    await ghiSuKien(env, tc, v.id, 'doi_lich', `Sửa trên Lịch thanglong: ${moi.tieu_de} | ${moi.han_ngay}${moi.gio_hen ? ` ${moi.gio_hen}` : ''}`).catch(() => {});
+    r.ve++;
+  }
+  await ghiCaiDat(env, tc, KHOA_LICH_TLU_SYNC, keo.mocMoi);
   return r;
 }
 
@@ -682,13 +803,20 @@ export async function dongBoGoogle(env, tc, { thu = true, viec = true } = {}) {
     throw e;
   }
   if (!token) return null;
-  const kq = { thu: 0, day_len: 0, ve_lai: 0, lich: 0, lich_ve: 0, tep: 0, loi: [] };
+  const kq = { thu: 0, day_len: 0, ve_lai: 0, lich: 0, lich_ve: 0, lich_tlu: 0, tep: 0, loi: [] };
   const lam = async (ten, f) => {
     try { await f(); } catch (e) { kq.loi.push(`${ten}: ${String(e.message).slice(0, 220)}`); }
   };
   if (thu) await lam('Gmail', async () => { kq.thu = await dongBoGmail(env, tc, token); });
   // Kéo Lịch về trước khi đẩy: sự kiện sửa sau việc thì thắng, việc sửa sau thì lần đẩy ngay sau ghi đè sự kiện.
   if (viec) await lam('Lịch về', async () => { kq.lich_ve = (await keoLichVe(env, tc, token)).ve; });
+  // Lịch thanglong (nếu đã nối): việc mới tạo ở đây sẽ được đẩy ngay trong bước dưới.
+  if (viec) await lam('Lịch thanglong', async () => {
+    const tokenTlu = await layTruyCapTlu(env, tc);
+    if (!tokenTlu) return;
+    kq.lich_tlu = (await keoLichTlu(env, tc, tokenTlu)).ve;
+    await ghiTinHieu(env, tc, 'lich_tlu', `Đã kéo xong${kq.lich_tlu ? `, ${kq.lich_tlu} việc mới hoặc đổi` : ', không có gì mới'}`);
+  }).catch(() => {});
   if (viec) await lam('Tasks, Lịch', async () => { const r = await dongBoViec(env, tc, token); kq.day_len = r.dayLen; kq.ve_lai = r.veLai; kq.lich = r.lich; });
   if (viec) await lam('Drive', async () => { kq.tep = await dongBoDrive(env, tc, token); });
   await ghiTinHieu(env, tc, 'google', kq.loi.length ? `Lỗi ${kq.loi.join('; ')}` : `Đồng bộ xong: ${kq.thu} thư, ${kq.day_len} việc sang Google, ${kq.ve_lai} việc xong về${kq.lich_ve ? `, ${kq.lich_ve} việc đổi theo Lịch` : ''}${kq.tep ? `, ${kq.tep} tệp lên Drive` : ''}`);

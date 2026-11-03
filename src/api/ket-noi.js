@@ -2,7 +2,7 @@
 // Mỗi nhóm nhận (yeuCau, env, phien, url) và trả Response, hoặc null nếu địa chỉ không thuộc nhóm này.
 import { datThuMucHop, goKetNoiHop, hoanTatDangNhapHop, quetHop, taoDiaChiDangNhapHop } from '../ghi-am-hop.js';
 import { kiemCauHinhGithub, thuGithub } from '../github.js';
-import { diaChiGoiLai, goKetNoiGoogle, hoanTatDangNhap, kiemClient, taoDiaChiDangNhap } from '../google.js';
+import { diaChiGoiLai, goKetNoiGoogle, goKetNoiTlu, hoanTatDangNhap, hoanTatDangNhapTlu, kiemClient, taoDiaChiDangNhap, taoDiaChiDangNhapTlu } from '../google.js';
 import { docCaiDat, ghiCaiDat } from '../hop-tin.js';
 import { dongBoKho, goKetNoiKho, hoanTatDangNhapKho, taoDiaChiDangNhapKho } from '../kho.js';
 import { goMaNhanViec, taoMaNhanViec } from '../nhan-ngoai.js';
@@ -34,8 +34,8 @@ async function layKetNoi(env, tc, url, phien) {
   } catch {}
   // Đã có thư thật về sau lần xác nhận thì không cần hiện nút xác nhận nữa.
   if (xacNhan && th.thu && th.thu.lan_cuoi > xacNhan.luc) xacNhan = null;
-  const [tichAi, tichWebhook, tichClient, tichGoogle, tichGithub, tichKho, tichHop, bot] = await Promise.all([
-    ...['ai', 'webhook', 'google_client', 'google', 'github', 'kho_drive', 'hop_drive'].map((loai) => giaiTichHop(env, cai[KHOA_TICH_HOP[loai]], loai)),
+  const [tichAi, tichWebhook, tichClient, tichGoogle, tichGithub, tichKho, tichHop, tichTlu, bot] = await Promise.all([
+    ...['ai', 'webhook', 'google_client', 'google', 'github', 'kho_drive', 'hop_drive', 'google_tlu'].map((loai) => giaiTichHop(env, cai[KHOA_TICH_HOP[loai]], loai)),
     layBot(env),
   ]);
   const maNoi = bot ? cai.telegram_ma_noi || (await maNoiTelegram(env, tc)) : null;
@@ -50,6 +50,7 @@ async function layKetNoi(env, tc, url, phien) {
     nhan_viec: { co: Boolean(cai.nhan_viec_bam), dia_chi: `${url.origin}/nhan/viec`, lan_cuoi: th['api-vao'] || null },
     google: { co_client: Boolean(tichClient), client_id: tichClient?.client_id || null, da_noi: tichGoogle ? { email: tichGoogle.email || null, co_drive: Boolean(tichGoogle.co_drive) } : null, dia_chi_goi_lai: diaChiGoiLai(url.origin), lan_cuoi: th.google || null },
     kho_drive: { da_noi: tichKho ? { email: tichKho.email || null } : null, lan_cuoi: th.kho || null, thu_muc: maThuMucKho(cai.kho_drive_thu_muc) },
+    lich_tlu: { da_noi: tichTlu ? { email: tichTlu.email || null } : null, lan_cuoi: th.lich_tlu || null },
     hop: { da_noi: tichHop ? { email: tichHop.email || null } : null, thu_muc: thuMucHop(cai.hop_thu_muc), lan_cuoi: th.hop || null },
     thu: { dia_chi: env.EMAIL_DOMAIN && maNhan ? `${maNhan}@${env.EMAIL_DOMAIN}` : null, lan_cuoi: th.thu || null, xac_nhan: xacNhan },
     zalo: { khoa: khoaTheo('zalo'), lan_cuoi: th.zalo || null },
@@ -195,6 +196,20 @@ export async function xuLyKetNoi(yeuCau, env, phien, url) {
     await goKetNoiHop(env, tc);
     return json({ ok: true });
   }
+  // Lịch của tài khoản thanglong: chỉ đọc, sự kiện mới thành việc.
+  if (p === '/api/lich-tlu/bat-dau' && m === 'GET') {
+    if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức nối được Lịch thanglong.');
+    const client = await docTichHop(env, tc, 'google_client');
+    if (!client) return loi(400, 'Chưa khai Client ID và Secret ở thẻ Google.');
+    const state = maNgauNhien(24);
+    await ghiCaiDat(env, tc, 'google_state', `${state}.${Date.now() + 10 * 60000}.tlu`);
+    return Response.redirect(taoDiaChiDangNhapTlu(client.client_id, diaChiGoiLai(url.origin), state), 302);
+  }
+  if (p === '/api/ket-noi/lich-tlu' && m === 'DELETE') {
+    if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức làm được việc này.');
+    await goKetNoiTlu(env, tc);
+    return json({ ok: true });
+  }
   if (p === '/api/google/bat-dau' && m === 'GET') {
     if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức nối được Google.');
     const client = await docTichHop(env, tc, 'google_client');
@@ -209,11 +224,13 @@ export async function xuLyKetNoi(yeuCau, env, phien, url) {
     await env.CSDL.prepare(`DELETE FROM cai_dat WHERE to_chuc_id = ?1 AND khoa = 'google_state'`).bind(tc).run();
     const laKho = dich === 'kho';
     const laHop = dich === 'hop';
-    const veTrang = (thongBao) => Response.redirect(`${url.origin}/?${laKho ? 'kho' : laHop ? 'hop' : 'google'}=${encodeURIComponent(thongBao)}#ket-noi`, 302);
+    const laTlu = dich === 'tlu';
+    const veTrang = (thongBao) => Response.redirect(`${url.origin}/?${laKho ? 'kho' : laHop ? 'hop' : laTlu ? 'lich_tlu' : 'google'}=${encodeURIComponent(thongBao)}#ket-noi`, 302);
     if (url.searchParams.get('error')) return veTrang(url.searchParams.get('error') === 'access_denied' ? 'Bạn đã từ chối ở màn hình Google.' : `Google báo lỗi: ${url.searchParams.get('error')}`);
     if (!state || state !== url.searchParams.get('state') || Date.now() > Number(han)) return veTrang('Phiên đăng nhập đã hết hạn, bấm nút đăng nhập lại.');
     try {
       if (laKho) await hoanTatDangNhapKho(env, tc, url.searchParams.get('code'), diaChiGoiLai(url.origin));
+      else if (laTlu) await hoanTatDangNhapTlu(env, tc, url.searchParams.get('code'), diaChiGoiLai(url.origin));
       else if (laHop) await hoanTatDangNhapHop(env, tc, url.searchParams.get('code'), diaChiGoiLai(url.origin));
       else await hoanTatDangNhap(env, tc, url.searchParams.get('code'), diaChiGoiLai(url.origin));
       return veTrang('ok');
