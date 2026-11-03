@@ -136,6 +136,39 @@ export async function veKetNoi(goc, { moi = false } = {}) {
     loiKho ? h('p', { class: 'canh-bao-nho', text: kho.lan_cuoi.ghi_chu }) : null,
     ...khoiKho,
   );
+  // Lịch của tài khoản thanglong: chỉ đọc, sự kiện mới thành việc (không ghi gì lên lịch đó).
+  const tlu = kn.lich_tlu || { da_noi: null, lan_cuoi: null };
+  const ketQuaTlu = new URLSearchParams(location.search).get('lich_tlu');
+  if (ketQuaTlu) {
+    history.replaceState(null, '', `${location.pathname}#ket-noi`);
+    if (ketQuaTlu === 'ok') bao('Đã nối Lịch thanglong. Sự kiện mới trên lịch đó sẽ thành việc trong vòng 5 phút.');
+    else bao(ketQuaTlu, { loi: true });
+  }
+  const loiTlu = tlu.lan_cuoi?.ghi_chu?.startsWith('Lỗi');
+  const khoiTlu = [];
+  if (tlu.da_noi) {
+    khoiTlu.push(
+      hangTaiKhoan(tlu.da_noi.email || 'Tài khoản Google', tlu.lan_cuoi ? `${tlu.lan_cuoi.ghi_chu}, ${luc(tlu.lan_cuoi.lan_cuoi)}` : 'Chờ lượt kéo đầu tiên'),
+      h('p', { class: 'ghi-nho-kn' }, 'Mỗi 5 phút, sự kiện mới trên lịch này thành việc; sửa hoặc xóa sự kiện thì việc đổi theo. Hệ thống chỉ đọc, không sửa hay xóa gì trên lịch thanglong. Sự kiện lặp lại, lời mời đã từ chối và sự kiện cũ hơn một ngày được bỏ qua.'),
+      laChuGg ? h('div', { class: 'hang-nut' },
+        h('a', { class: 'nut nut-phu', href: '/api/lich-tlu/bat-dau' }, 'Đổi tài khoản'),
+        h('button', { class: 'nut nut-phu', type: 'button', onclick: async () => { await api('/api/ket-noi/lich-tlu', { method: 'DELETE' }); bao('Đã gỡ Lịch thanglong. Việc đã tạo vẫn giữ nguyên.'); ve(); } }, 'Gỡ kết nối')) : null,
+    );
+  } else if (!gg.co_client) {
+    khoiTlu.push(h('p', { class: 'mo-ta', text: 'Khai Client ID và Secret ở thẻ Google trước. Lịch thanglong dùng chung chúng, không cần tạo thêm gì ở Google Cloud.' }));
+  } else {
+    khoiTlu.push(
+      h('p', { class: 'mo-ta', text: 'Bấm nút, chọn tài khoản thanglong.edu.vn và tick quyền xem Lịch. Việc được giao qua lời mời họp chỉ gửi vào tài khoản đó sẽ tự hiện ở đây.' }),
+      h('p', { class: 'canh-bao-nho', text: 'Nếu Google báo ứng dụng bị chặn, quản trị Google Workspace của Trường cần cho phép ứng dụng này, hoặc chia sẻ lịch thanglong sang tài khoản Gmail chính.' }),
+      laChuGg ? h('div', { class: 'hang-nut' }, h('a', { class: 'nut nut-chinh', href: '/api/lich-tlu/bat-dau' }, icon('lich'), 'Nối Lịch thanglong')) : null,
+    );
+  }
+  const theTlu = h('section', { class: 'bang the-kn rong' },
+    dau('lich', 'Lịch thanglong', 'Lịch Google của tài khoản thanglong.edu.vn (chỉ đọc). Sự kiện mới trên đó thành việc trong Sonicplan.',
+      tlu.da_noi ? (loiTlu ? 'do' : 'xanh') : 'xam', tlu.da_noi ? (loiTlu ? 'Đang lỗi' : 'Đã nối') : 'Chưa nối'),
+    loiTlu ? h('p', { class: 'canh-bao-nho', text: tlu.lan_cuoi.ghi_chu }) : null,
+    ...khoiTlu,
+  );
   // Ghi âm và biên bản họp: một thư mục Drive (có thể ở tài khoản khác), mỗi cuộc họp thành một tin trong Hộp tin.
   const hop = kn.hop || { da_noi: null, thu_muc: null, lan_cuoi: null };
   const ketQuaHop = new URLSearchParams(location.search).get('hop');
@@ -401,7 +434,7 @@ export async function veKetNoi(goc, { moi = false } = {}) {
 
   const nhomThe = [
     ['Tài khoản Google', [['google', theGoogle], ['kho', theKho]]],
-    ['Tin vào', [['zalo', theZalo], ['hop', theHop], ['telegram', theTele]]],
+    ['Tin vào', [['zalo', theZalo], ['hop', theHop], ['lich-tlu', theTlu], ['telegram', theTele]]],
     ['Gửi ra', [['thong-bao', theTb], ['lich', theLich], ['api', theApi]]],
     ['Hệ thống', [['claude-may', theTho], ['nen', theNen]]],
   ];
