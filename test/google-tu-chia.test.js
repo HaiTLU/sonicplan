@@ -14,6 +14,7 @@ test('noiDong: tu-chia chia theo giờ hoặc buổi; chế độ cũ trả lạ
   assert.equal(noiDong({ han_ngay: ngay, buoi: 'ca-ngay' }, 'tu-chia'), 'tasks');
   assert.equal(noiDong({}, 'tu-chia'), 'tasks');
   assert.equal(noiDong({ gio_hen: '10:00' }, 'tu-chia'), 'tasks', 'có giờ mà không có ngày thì không đặt lịch được');
+  assert.equal(noiDong({ han_ngay: ngay, nguon: 'lich' }, 'tu-chia'), 'lich');
   for (const cd of ['ca-hai', 'tasks', 'lich']) assert.equal(noiDong({ han_ngay: ngay, gio_hen: '10:00' }, cd), cd);
   assert.equal(chuanCauHinh({ che_do: 'tu-chia' }).che_do, 'tu-chia');
   assert.equal(chuanCauHinh({ che_do: 'la' }).che_do, 'ca-hai');
