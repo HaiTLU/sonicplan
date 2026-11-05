@@ -54,12 +54,16 @@ export async function layTinNguCanh(env, tc, viec) {
   const tu = new Date(t0 - KHOANG_NGAY).toISOString();
   const den = new Date(t0 + KHOANG_NGAY).toISOString();
   const cot = 'id, nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem';
+  // Lấy các tin GẦN tin gốc nhất (không phải tin sớm nhất trong cửa sổ), rồi xếp lại theo thời gian.
+  // Cuộc trò chuyện dài hơn TOI_DA_TIN tin trong 6 ngày thì cách cũ cắt mất chính tin gốc.
+  const gan = `ORDER BY ABS(CAST(strftime('%s', thoi_diem) AS INTEGER) - CAST(strftime('%s', ?7) AS INTEGER)), id LIMIT ${TOI_DA_TIN}`;
   let cau;
-  if (goc.ma_hoi_thoai) cau = env.CSDL.prepare(`SELECT ${cot} FROM tin_nhan WHERE to_chuc_id = ?1 AND nguon = ?2 AND ma_hoi_thoai = ?3 AND thoi_diem BETWEEN ?4 AND ?5 ORDER BY thoi_diem LIMIT ${TOI_DA_TIN}`).bind(tc, goc.nguon, goc.ma_hoi_thoai, tu, den);
-  else if (goc.nhom) cau = env.CSDL.prepare(`SELECT ${cot} FROM tin_nhan WHERE to_chuc_id = ?1 AND nguon = ?2 AND nhom = ?3 AND thoi_diem BETWEEN ?4 AND ?5 ORDER BY thoi_diem LIMIT ${TOI_DA_TIN}`).bind(tc, goc.nguon, goc.nhom, tu, den);
-  else if (goc.tieu_de) cau = env.CSDL.prepare(`SELECT ${cot} FROM tin_nhan WHERE to_chuc_id = ?1 AND nguon = ?2 AND tieu_de IN (?3, ?4) AND thoi_diem BETWEEN ?5 AND ?6 ORDER BY thoi_diem LIMIT ${TOI_DA_TIN}`).bind(tc, goc.nguon, goc.tieu_de, tuaDe(goc.tieu_de), tu, den);
-  else cau = env.CSDL.prepare(`SELECT ${cot} FROM tin_nhan WHERE to_chuc_id = ?1 AND nguon = ?2 AND nguoi_gui = ?3 AND thoi_diem BETWEEN ?4 AND ?5 ORDER BY thoi_diem LIMIT ${TOI_DA_TIN}`).bind(tc, goc.nguon, goc.nguoi_gui, tu, den);
-  const { results } = await cau.all();
+  if (goc.ma_hoi_thoai) cau = env.CSDL.prepare(`SELECT ${cot} FROM tin_nhan WHERE to_chuc_id = ?1 AND nguon = ?2 AND ma_hoi_thoai = ?3 AND thoi_diem BETWEEN ?4 AND ?5 ${gan}`).bind(tc, goc.nguon, goc.ma_hoi_thoai, tu, den, null, goc.thoi_diem);
+  else if (goc.nhom) cau = env.CSDL.prepare(`SELECT ${cot} FROM tin_nhan WHERE to_chuc_id = ?1 AND nguon = ?2 AND nhom = ?3 AND thoi_diem BETWEEN ?4 AND ?5 ${gan}`).bind(tc, goc.nguon, goc.nhom, tu, den, null, goc.thoi_diem);
+  else if (goc.tieu_de) cau = env.CSDL.prepare(`SELECT ${cot} FROM tin_nhan WHERE to_chuc_id = ?1 AND nguon = ?2 AND tieu_de IN (?3, ?6) AND thoi_diem BETWEEN ?4 AND ?5 ${gan}`).bind(tc, goc.nguon, goc.tieu_de, tu, den, tuaDe(goc.tieu_de), goc.thoi_diem);
+  else cau = env.CSDL.prepare(`SELECT ${cot} FROM tin_nhan WHERE to_chuc_id = ?1 AND nguon = ?2 AND nguoi_gui = ?3 AND thoi_diem BETWEEN ?4 AND ?5 ${gan}`).bind(tc, goc.nguon, goc.nguoi_gui, tu, den, null, goc.thoi_diem);
+  const kq = await cau.all();
+  const results = [...kq.results].sort((a, b) => (a.thoi_diem < b.thoi_diem ? -1 : a.thoi_diem > b.thoi_diem ? 1 : a.id - b.id));
   return { goc, quanh: results.length ? results : [goc] };
 }
 
@@ -109,15 +113,20 @@ export async function dsDinhKemTuDong(env, tc, viecList, hoi = null) {
   return ra.map(({ tin_nhan_id: tin, ...t }) => { const am = laTepAmThanh(t); return { ...t, ghi_am: am, luong: luong.get(tin) || null, bo_san: am || luong.get(tin) === 'doanh_nghiep' }; });
 }
 
+// duAnTen: một tên, danh sách tên (nhiều việc thuộc nhiều dự án) hoặc rỗng. Mục khớp tên dự án xếp trước mục chung (ghim, người, quyết định)
+// để không bị cắt khỏi giới hạn khi tổ chức có nhiều ghi nhớ.
 export async function layGhiNhoSonicplan(env, tc, duAnTen, gioiHan = 15) {
+  const ten = [...new Set((Array.isArray(duAnTen) ? duAnTen : [duAnTen]).map((x) => String(x || '').trim()).filter(Boolean))].slice(0, 5);
+  const khop = ten.map((_, i) => `tieu_de LIKE '%' || ?${i + 3} || '%'`).join(' OR ');
   const { results } = await env.CSDL.prepare(
-    `SELECT loai, tieu_de, noi_dung FROM ghi_nho WHERE to_chuc_id = ?1 AND (ghim = 1 OR loai IN ('nguoi', 'quyet_dinh') OR (?2 IS NOT NULL AND tieu_de LIKE '%' || ?2 || '%'))
-     ORDER BY ghim DESC, cap_nhat_luc DESC LIMIT ?3`,
-  ).bind(tc, duAnTen || null, gioiHan).all();
+    `SELECT loai, tieu_de, noi_dung FROM ghi_nho WHERE to_chuc_id = ?1 AND (ghim = 1 OR loai IN ('nguoi', 'quyet_dinh')${khop ? ` OR ${khop}` : ''})
+     ORDER BY ${khop ? `CASE WHEN ${khop} THEN 0 ELSE 1 END, ` : ''}ghim DESC, cap_nhat_luc DESC LIMIT ?2`,
+  ).bind(tc, gioiHan, ...ten).all();
   // Thêm mục khớp tên dự án trong nội dung (FTS5, không dấu); giữ nguyên thứ tự các mục đã chọn ở trên.
-  if (duAnTen && results.length < gioiHan) {
+  for (const t of ten) {
+    if (results.length >= gioiHan) break;
     const co = new Set(results.map((r) => `${r.loai}|${r.tieu_de}`));
-    for (const r of await timGhiNho(env, tc, duAnTen, gioiHan)) {
+    for (const r of await timGhiNho(env, tc, t, gioiHan)) {
       if (results.length >= gioiHan) break;
       if (!co.has(`${r.loai}|${r.tieu_de}`)) results.push({ loai: r.loai, tieu_de: r.tieu_de, noi_dung: r.noi_dung });
     }
