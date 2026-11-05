@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { d1, dungCsdl } from './csdl-thu.js';
-import { khacDuAn, themViec, timNghiTrung, timTrung, viecGiongKhiThemTay } from '../src/viec.js';
+import { docViecDaSua, khacDuAn, themViec, timNghiTrung, timTrung, viecGiongKhiThemTay } from '../src/viec.js';
 import { doGiong } from '../src/tien-ich.js';
 
 function moiTruong() {
@@ -129,6 +129,23 @@ test('thêm tay trùng việc đang mở: cảnh báo kèm danh sách việc gi�
   assert.equal(giong.length, 1);
   assert.equal(giong[0].id, cu);
   assert.deepEqual(await viecGiongKhiThemTay(env, 'tc1', 'Dọn kho thiết bị'), []);
+});
+
+test('vòng học: việc bị hủy sau khi bị gắn cờ nghi trùng thì dòng học ghi rõ, việc hủy thường thì không', async () => {
+  const { db, env } = moiTruong();
+  db.exec("INSERT INTO tin_nhan (id, to_chuc_id, nguon, ma_goc, noi_dung, thoi_diem, tao_luc) VALUES (1,'tc1','zalo','m1','Gửi bản hợp đồng đã ký','x','x')");
+  db.exec("INSERT INTO viec (id, to_chuc_id, tieu_de, trang_thai, tin_nhan_id, nguon, tao_luc, cap_nhat_luc) VALUES (1,'tc1','Gửi bản hợp đồng đã ký','huy',1,'zalo','x','x'),(2,'tc1','Việc huỷ thường','huy',1,'zalo','x','x')");
+  const luc = bay();
+  const ev = db.prepare("INSERT INTO viec_su_kien (to_chuc_id, viec_id, loai, noi_dung, luc) VALUES ('tc1', ?, ?, ?, ?)");
+  ev.run(1, 'nghi_trung', 'Có thể trùng việc #9 "Gửi hợp đồng cho đối tác" (giống 62%)', luc);
+  ev.run(1, 'huy', 'Gửi bản hợp đồng đã ký', luc);
+  ev.run(2, 'huy', 'Việc huỷ thường', luc);
+  const ds = await docViecDaSua(env, 'tc1');
+  assert.equal(ds.length, 2);
+  const co = ds.find((d) => d.startsWith('- Hủy việc: "Gửi bản hợp đồng đã ký"'));
+  const khong = ds.find((d) => d.startsWith('- Hủy việc: "Việc huỷ thường"'));
+  assert.match(co, /từng bị gắn cờ nghi trùng: "Có thể trùng việc #9/);
+  assert.doesNotMatch(khong, /nghi trùng/);
 });
 
 test.todo('nghi trùng: người dùng bấm gộp hoặc giữ cả hai thì ghi sự kiện cho vòng học (cần giao diện, làm ở bước sau)');

@@ -220,6 +220,7 @@ const TEN_SUA = { huy: 'Hủy việc', sua_ten: 'Sửa tên việc', doi_du_an: 
 export async function docViecDaSua(env, toChucId, toiDa = 10, tinHienTai = null) {
   const { results } = await env.CSDL.prepare(
     `SELECT e.loai, e.noi_dung, e.ly_do, e.luc, v.tieu_de, t.noi_dung AS tin,
+       (SELECT n.noi_dung FROM viec_su_kien n WHERE n.viec_id = e.viec_id AND n.to_chuc_id = e.to_chuc_id AND n.loai = 'nghi_trung' ORDER BY n.id DESC LIMIT 1) AS nghi_trung,
        t.nguon, t.nhom, t.nguoi_gui, t.ma_hoi_thoai FROM viec_su_kien e
      JOIN viec v ON v.id = e.viec_id AND v.to_chuc_id = e.to_chuc_id LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id AND t.to_chuc_id = e.to_chuc_id
      WHERE e.to_chuc_id = ?1 AND e.luc >= ?2 AND e.loai IN ('huy', 'sua_ten', 'doi_du_an', 'doi_nhom', 'sua_han')
@@ -244,7 +245,9 @@ export async function docViecDaSua(env, toChucId, toiDa = 10, tinHienTai = null)
     const chiTiet = r.loai === 'huy' ? JSON.stringify(motDong(chinh || r.tieu_de, 80)) : JSON.stringify(motDong(chinh, 120));
     const phamVi = JSON.stringify({ nguon: motDong(r.nguon, 40), nhom: motDong(r.nhom, 80), nguoi_gui: motDong(r.nguoi_gui, 80), ma_hoi_thoai: motDong(r.ma_hoi_thoai, 80) });
     if (r.tra_loi != null) return `- Anh đã chọn: ${JSON.stringify({ cau_hoi: motDong(r.cau_hoi, 200), tra_loi: motDong(r.tra_loi, 200) })}${tin}; phạm vi: ${phamVi}`;
-    return `- ${TEN_SUA[r.loai]}: ${chiTiet}${lyDo ? `, lý do: ${JSON.stringify(motDong(lyDo, 100))}` : ''}${tin}; phạm vi: ${phamVi}`;
+    // Việc bị hủy mà trước đó đã bị gắn cờ nghi trùng: tín hiệu "việc này là bản trùng" cho lần tách sau.
+    const nghi = r.loai === 'huy' && r.nghi_trung ? `, từng bị gắn cờ nghi trùng: ${JSON.stringify(motDong(r.nghi_trung, 140))}` : '';
+    return `- ${TEN_SUA[r.loai]}: ${chiTiet}${lyDo ? `, lý do: ${JSON.stringify(motDong(lyDo, 100))}` : ''}${nghi}${tin}; phạm vi: ${phamVi}`;
   });
 }
 
