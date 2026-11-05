@@ -29,10 +29,13 @@ export function moTinh(thuMuc) {
   const goc = resolve(thuMuc);
   let tieuDe = {};
   try { tieuDe = docTieuDeAnToan(readFileSync(resolve(goc, '_headers'), 'utf8')); } catch { /* không có _headers thì thôi */ }
-  const docTep = async (d) => {
+  // Trả { etag, doc } mà chưa đọc nội dung: nếu trình duyệt đã có bản y hệt (If-None-Match khớp ETag
+  // từ kích thước + thời điểm sửa) thì trả 304, khỏi đọc đĩa và khỏi gửi lại cả trăm KB mã và kiểu dáng.
+  const moTep = async (d) => {
     try {
-      if (!(await stat(d)).isFile()) return null;
-      return await readFile(d);
+      const tt = await stat(d);
+      if (!tt.isFile()) return null;
+      return { etag: `W/"${tt.size.toString(16)}-${Math.floor(tt.mtimeMs).toString(16)}"`, doc: () => readFile(d) };
     } catch {
       return null;
     }
@@ -48,14 +51,19 @@ export function moTinh(thuMuc) {
       if (ten.endsWith('/')) ten += 'index.html';
       const d = resolve(goc, `.${ten}`);
       if (d !== goc && !d.startsWith(goc + sep)) return new Response('Không tìm thấy', { status: 404 });
-      let noiDung = await docTep(d);
+      let tep = await moTep(d);
       let duoi = extname(d);
-      if (!noiDung && !duoi) {
-        noiDung = await docTep(resolve(goc, 'index.html'));
+      if (!tep && !duoi) {
+        tep = await moTep(resolve(goc, 'index.html'));
         duoi = '.html';
       }
-      if (!noiDung) return new Response('Không tìm thấy', { status: 404 });
-      return new Response(yeuCau.method === 'HEAD' ? null : noiDung, { headers: { 'content-type': KIEU[duoi] || 'application/octet-stream', ...tieuDe } });
+      if (!tep) return new Response('Không tìm thấy', { status: 404 });
+      const dau = { 'content-type': KIEU[duoi] || 'application/octet-stream', etag: tep.etag, ...tieuDe };
+      // Phông và ảnh ít đổi: giữ trong trình duyệt. Mã, kiểu dáng, trang: src/index.js đặt no-cache (luôn hỏi lại, nay trả 304 nhanh).
+      if (/^\.(woff2?|ttf|png|jpe?g|webp|ico|svg)$/.test(duoi)) dau['cache-control'] = duoi.startsWith('.woff') ? 'public, max-age=2592000' : 'public, max-age=86400';
+      const chuaDoi = (yeuCau.headers.get('if-none-match') || '').split(',').some((e) => e.trim() === tep.etag);
+      if (chuaDoi) return new Response(null, { status: 304, headers: dau });
+      return new Response(yeuCau.method === 'HEAD' ? null : await tep.doc(), { headers: dau });
     },
   };
 }
