@@ -4,7 +4,7 @@
 // Không sử dụng Claude Code hoặc hạn mức gói Max.
 
 import { chuanHoaGhiNho } from './ghi-nho.js';
-import { DS_BUOI, ngayCoThat } from './tien-ich.js';
+import { cat, DS_BUOI, doGiong, ngayCoThat } from './tien-ich.js';
 import { chayAiNgoai } from './tich-hop.js';
 import { trichBienBan } from './ghi-am-hop.js';
 import { TamDungHanMuc, docHetHanMuc, ghiHetHanMuc, laHetHanMucNgay } from './han-muc-ai.js';
@@ -318,11 +318,22 @@ export const NHAN_NHOM = { 1: 'AI tự làm được', 2: 'AI chuẩn bị, bạ
 export const NHOM_THEO_SO = { 1: 'claude_tu_lam', 2: 'claude_chuan_bi', 3: 'anh_tu_lam' };
 
 // Phân một việc vào 3 nhóm và soạn các bước nên làm. Trả { nhom, ghi_them } hoặc ném lỗi.
-export async function goiYViec(env, viec, boiCanh, tuyChon = {}) {
+// ngCanh (tùy chọn): { duAn, nghiTrung, daXong: [tiêu đề] } lấy từ Sonicplan. Chữ trong đó là dữ liệu, bọc JSON và cắt ngắn.
+export function dongNguCanhGoiY(ngCanh) {
+  if (!ngCanh) return [];
+  const d = [];
+  if (ngCanh.duAn) d.push(`Dự án của việc: ${JSON.stringify(cat(ngCanh.duAn, 80))}`);
+  if (ngCanh.nghiTrung) d.push(`Nghi trùng (hệ thống gắn cờ): ${JSON.stringify(cat(ngCanh.nghiTrung, 160))}`);
+  if (ngCanh.daXong?.length) d.push(`Việc giống đã xong gần đây: ${JSON.stringify(ngCanh.daXong.slice(0, 3).map((t) => cat(t, 80)))}`);
+  return d;
+}
+
+export async function goiYViec(env, viec, boiCanh, tuyChon = {}, ngCanh = null) {
   const he = [
     'Bạn là trợ lý của người dùng. Với một việc mới, hãy phân nhóm và soạn gợi ý để họ xong việc.',
     'nhom: 1 = AI tự làm được toàn bộ (soạn văn bản, tra cứu, tổng hợp, làm bảng); 2 = AI chỉ chuẩn bị, cần người dùng quyết định hoặc ký (tờ trình, duyệt, trả lời đối tác); 3 = người dùng phải tự làm (họp, gặp người, gọi điện, đi lại). Chọn nhóm sát nhất.',
     'lyDo: một câu. cacBuoc: 3-5 bước ngắn nên làm để xong việc, theo thứ tự, tính cả hạn và việc đang mở. banNhap: bản nháp ngắn (dưới 600 ký tự) nếu việc cần soạn chữ như tin nhắn trả lời hay email, còn không thì để trống.',
+    'Nếu đầu vào có dòng "Nghi trùng", bước đầu là kiểm tra việc đó và gộp nếu đúng là một. Nếu có "Việc giống đã xong gần đây", nhắc người dùng xem lại cách đã làm, không bịa nội dung của chúng. Dòng "Dự án của việc" chỉ dùng để hiểu ngữ cảnh.',
     'Chỉ dùng thông tin có trong đầu vào, không suy diễn. AI chỉ soạn nháp, không tự gửi ra ngoài. Viết tiếng Việt dễ hiểu, không biểu tượng, dùng gạch ngắn. Chỉ trả JSON.',
   ].join('\n');
   const nguoiDung = [
@@ -330,6 +341,7 @@ export async function goiYViec(env, viec, boiCanh, tuyChon = {}) {
     `Hạn: ${viec.han_ngay || 'chưa có'}`,
     `Ghi chú của việc: ${viec.ghi_chu || '(không có)'}`,
     `Các việc khác đang mở: ${JSON.stringify(boiCanh.slice(0, 40))}`,
+    ...dongNguCanhGoiY(ngCanh),
   ].join('\n');
   const tra = await chayAi(env, tuyChon, [{ role: 'system', content: he }, { role: 'user', content: nguoiDung }], { maxTokens: 900, nhietDo: 0.3, khuon: KHUON_GOI_Y });
   return docGoiY(tra);

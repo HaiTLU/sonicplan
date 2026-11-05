@@ -11,7 +11,7 @@ import { docHoSo, ghiNhoChoAi } from './ghi-nho.js';
 import { docGoiYLoiDan } from './loi-dan-tuan.js';
 import { laViecRo } from './viec.js';
 import { baoToChuc } from './telegram.js';
-import { congNgay, gioVN, ngayVN } from './tien-ich.js';
+import { congNgay, doGiong, gioVN, ngayVN } from './tien-ich.js';
 
 export async function cacToChuc(env) {
   const { results } = await env.CSDL.prepare('SELECT id, ten FROM to_chuc').all();
@@ -170,6 +170,22 @@ export async function baoCaoTuan(env, bayGio, { ep = false } = {}) {
 
 const SO_LAN_LOI = (ghiChu) => (String(ghiChu || '').match(/\[Gợi ý: lỗi/g) || []).length;
 
+// Ngữ cảnh riêng của từng việc cho lời gợi ý: tên dự án, cờ nghi trùng, vài việc giống đã xong gần đây. Lỗi ở đây không được chặn gợi ý.
+export async function nguCanhGoiY(env, tc, v, daXong = []) {
+  const ra = { duAn: null, nghiTrung: null, daXong: [] };
+  try {
+    if (v.du_an_id) ra.duAn = (await env.CSDL.prepare('SELECT ten FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(v.du_an_id, tc).first())?.ten || null;
+    ra.nghiTrung = (await env.CSDL.prepare("SELECT noi_dung FROM viec_su_kien WHERE viec_id = ?1 AND to_chuc_id = ?2 AND loai = 'nghi_trung' ORDER BY id DESC LIMIT 1").bind(v.id, tc).first())?.noi_dung || null;
+    ra.daXong = daXong
+      .map((x) => ({ t: x.tieu_de, d: doGiong(x.tieu_de, v.tieu_de) }))
+      .filter((x) => x.d >= 0.45 && x.d < 1)
+      .sort((a, b) => b.d - a.d).slice(0, 3).map((x) => x.t);
+  } catch (e) {
+    console.error('Ngữ cảnh gợi ý lỗi', v.id, e);
+  }
+  return ra;
+}
+
 // Mỗi giờ gợi ý tối đa 5 việc mới, mỗi việc một lần. AI lỗi hai lần thì bỏ hẳn việc đó.
 export async function goiYMoi(env, bayGio) {
   let soViec = 0;
@@ -180,7 +196,7 @@ export async function goiYMoi(env, bayGio) {
     const lg = await docLuong(env, tc.id);
     if (!lg.bat['goi-y']) continue;
     const { results } = await env.CSDL.prepare(
-      `SELECT id, tieu_de, han_ngay, ghi_chu FROM viec
+      `SELECT id, tieu_de, han_ngay, ghi_chu, du_an_id FROM viec
        WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND tao_luc >= ?2 AND (ghi_chu IS NULL OR ghi_chu NOT LIKE '%[Gợi ý] Nhóm%')
        ORDER BY id DESC LIMIT 40`,
     ).bind(tc.id, new Date(Date.parse(bayGio) - 60 * 86400000).toISOString()).all();
@@ -189,10 +205,13 @@ export async function goiYMoi(env, bayGio) {
     if (!chon.length) continue;
     const ngoai = await docTichHop(env, tc.id, 'ai');
     const hoSo = await docHoSo(env, tc.id);
+    const { results: daXong } = await env.CSDL.prepare(
+      "SELECT tieu_de FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'xong' AND xong_luc >= ?2 ORDER BY xong_luc DESC LIMIT 60",
+    ).bind(tc.id, new Date(Date.parse(bayGio) - 60 * 86400000).toISOString()).all();
     for (const v of chon) {
       try {
         const boiCanh = results.filter((x) => x.id !== v.id).map((x) => x.tieu_de);
-        const kq = await goiYViec(env, v, boiCanh, { ngoai, hoSo });
+        const kq = await goiYViec(env, v, boiCanh, { ngoai, hoSo }, await nguCanhGoiY(env, tc.id, v, daXong));
         await env.CSDL.prepare(
           `UPDATE viec SET ghi_chu = COALESCE(ghi_chu || char(10) || char(10), '') || ?3, nhom = ?4, cap_nhat_luc = ?5 WHERE id = ?1 AND to_chuc_id = ?2`,
         ).bind(v.id, tc.id, kq.ghi_them, NHOM_THEO_SO[kq.nhom], bayGio).run();
