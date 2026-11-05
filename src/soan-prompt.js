@@ -17,13 +17,15 @@ export function lienKetTin(goc) {
 }
 
 // Phần bối cảnh: chỉ dữ kiện có trong Sonicplan, không suy đoán.
-export function dungBoiCanh({ viecList, duAn, tins, ghiNho, tep, goc }) {
+// duAnTheoViec (tùy chọn): { [viec.id]: { ten, drive_link } }, mỗi việc dùng dự án của chính nó; không có thì dùng duAn chung.
+export function dungBoiCanh({ viecList, duAn, duAnTheoViec, tins, ghiNho, tep, goc }) {
   const d = ['## Bối cảnh', ''];
   viecList.forEach((v, i) => {
+    const da = duAnTheoViec ? duAnTheoViec[v.id] : duAn;
     d.push(`### Việc${viecList.length > 1 ? ` ${i + 1}` : ''}: ${v.tieu_de}`,
       `- Nhóm: ${NHAN_NHOM[v.nhom] || 'chưa xếp'}`,
       `- Hạn: ${v.han_ngay ? `${v.han_ngay}${v.gio_hen ? ` ${v.gio_hen}` : ''}` : 'chưa có'}`,
-      `- Dự án: ${duAn?.ten || 'chưa xếp dự án'}${duAn?.drive_link ? ` (thư mục Drive: ${duAn.drive_link})` : ''}`);
+      `- Dự án: ${da?.ten || 'chưa xếp dự án'}${da?.drive_link ? ` (thư mục Drive: ${da.drive_link})` : ''}`);
     if (v.ghi_chu) d.push('', 'Ghi chú của việc:', cat(v.ghi_chu, 3000));
     const t = tins[i];
     if (t?.goc) {
@@ -103,13 +105,19 @@ export async function soanPrompt(env, tc, viecIds, { dan = '', tepTuy = null, go
   if (results.some((v) => v.trang_thai !== 'mo')) return { ma: 400, loi: ids.length > 1 ? 'Có việc đã đóng, bỏ chọn việc đó.' : 'Việc này đã đóng.' };
   const viecList = ids.map((id) => results.find((v) => v.id === id));
   const duAnId = [...new Set(viecList.map((v) => v.du_an_id).filter(Boolean))];
-  const duAn = duAnId.length === 1 ? await env.CSDL.prepare('SELECT id, ten, drive_link FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(duAnId[0], tc).first() : null;
+  const duAnTheoDs = new Map();
+  for (const id of duAnId) {
+    const da = await env.CSDL.prepare('SELECT id, ten, drive_link FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+    if (da) duAnTheoDs.set(id, da);
+  }
+  // Mỗi việc một dự án riêng (việc không có dự án thì không mượn dự án của việc khác).
+  const duAnTheoViec = Object.fromEntries(viecList.map((v) => [v.id, duAnTheoDs.get(v.du_an_id) || null]));
   const tins = [];
   for (const v of viecList) tins.push(await layTinNguCanh(env, tc, v));
   const tep = await gomTep(env, tc, tins, tepTuy);
-  const ghiNho = await layGhiNhoSonicplan(env, tc, duAn?.ten);
+  const ghiNho = await layGhiNhoSonicplan(env, tc, [...duAnTheoDs.values()].map((d) => d.ten));
   const danGon = cat(String(dan || '').trim(), 2000);
-  const boiCanh = dungBoiCanh({ viecList, duAn, tins, ghiNho, tep, goc });
+  const boiCanh = dungBoiCanh({ viecList, duAnTheoViec, tins, ghiNho, tep, goc });
 
   const cauHinh = await docCauHinhTho(env, tc);
   const mo = chonModelChoViec(viecList, cauHinh);
