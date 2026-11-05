@@ -149,3 +149,46 @@ test('vòng học: việc bị hủy sau khi bị gắn cờ nghi trùng thì d�
 });
 
 test.todo('nghi trùng: người dùng bấm gộp hoặc giữ cả hai thì ghi sự kiện cho vòng học (cần giao diện, làm ở bước sau)');
+
+// ---- Giao diện: cờ nghi trùng trong danh sách việc, giữ cả hai, gộp ----
+import { xuLyApi } from '../src/api.js';
+
+const phien = { email: 'a@vi-du.vn', nguoi_dung: { id: 'nd' }, to_chuc: { id: 'tc1', vai_tro: 'chu' }, cac_to_chuc: [{ id: 'tc1' }] };
+async function goiApi(env, duong, tuyChon = {}) {
+  const url = new URL(`http://x${duong}`);
+  const kq = await xuLyApi(new Request(url, tuyChon), env, phien, url);
+  return { ma: kq.status, du: await kq.json() };
+}
+
+test('danh sách việc có nghi_trung; giữ cả hai thì cờ biến mất, chỉ gọi được khi đang có cờ', async () => {
+  const { db, env } = moiTruong();
+  const cu = themSan(db, 'Gửi hợp đồng cho đối tác');
+  const moi = (await themViec(env, 'tc1', { tieu_de: 'Gửi bản hợp đồng đã ký cho phòng kế toán' })).id;
+  const ds = (await goiApi(env, '/api/viec')).du.viec;
+  assert.match(ds.find((v) => v.id === moi).nghi_trung, new RegExp(`#${cu}`));
+  assert.equal(ds.find((v) => v.id === cu).nghi_trung, null);
+
+  // Việc không có cờ: 409, việc không tồn tại: 404.
+  assert.equal((await goiApi(env, `/api/viec/${cu}/giu-ca-hai`, { method: 'POST' })).ma, 409);
+  assert.equal((await goiApi(env, '/api/viec/9999/giu-ca-hai', { method: 'POST' })).ma, 404);
+
+  assert.equal((await goiApi(env, `/api/viec/${moi}/giu-ca-hai`, { method: 'POST' })).ma, 200);
+  const sau = (await goiApi(env, '/api/viec')).du.viec;
+  assert.equal(sau.find((v) => v.id === moi).nghi_trung, null);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM viec_su_kien WHERE loai = 'giu_ca_hai' AND viec_id = ?").get(moi).n, 1);
+  // Bấm lần hai khi cờ đã gỡ: không ghi thêm.
+  assert.equal((await goiApi(env, `/api/viec/${moi}/giu-ca-hai`, { method: 'POST' })).ma, 409);
+});
+
+test('gộp: hủy việc mới kèm lý do trùng thì dòng học của vòng học có cả lý do lẫn cờ nghi trùng', async () => {
+  const { db, env } = moiTruong();
+  themSan(db, 'Gửi hợp đồng cho đối tác');
+  db.exec("INSERT INTO tin_nhan (id, to_chuc_id, nguon, ma_goc, noi_dung, thoi_diem, tao_luc) VALUES (1,'tc1','zalo','m1','Gửi bản hợp đồng đã ký','x','x')");
+  const moi = (await themViec(env, 'tc1', { tieu_de: 'Gửi bản hợp đồng đã ký cho phòng kế toán' }, { tinNhanId: 1, nguon: 'zalo' })).id;
+  const kq = await goiApi(env, `/api/viec/${moi}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'huy', ly_do: 'Trùng việc #1' }) });
+  assert.equal(kq.ma, 200);
+  const ds = await docViecDaSua(env, 'tc1');
+  assert.equal(ds.length, 1);
+  assert.match(ds[0], /lý do: "Trùng việc #1"/);
+  assert.match(ds[0], /từng bị gắn cờ nghi trùng/);
+});

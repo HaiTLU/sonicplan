@@ -24,6 +24,7 @@ async function dsViec(env, tc, url) {
   const { results } = await env.CSDL.prepare(
     `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.buoi, v.trang_thai, v.tin_nhan_id, v.tao_luc, v.xong_luc,
        t.nguon AS tin_nguon, t.nguoi_gui AS tin_nguoi_gui, t.nhom AS tin_nhom,
+       (SELECT CASE WHEN e.loai = 'nghi_trung' THEN e.noi_dung END FROM viec_su_kien e WHERE e.viec_id = v.id AND e.to_chuc_id = v.to_chuc_id AND e.loai IN ('nghi_trung', 'giu_ca_hai') ORDER BY e.id DESC LIMIT 1) AS nghi_trung,
        v.du_an_id, v.nhom, v.nguon, v.mau, v.sao, v.do_nang, v.han_goc, v.so_lan_doi, d.ten AS du_an_ten, d.mau AS du_an_mau, d.icon AS du_an_icon, d.anh_khoa AS du_an_anh
      FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id LEFT JOIN du_an d ON d.id = v.du_an_id
      WHERE v.to_chuc_id = ?1 AND v.trang_thai = ?2 ORDER BY ${thuTu.replace(/\b(xong_luc|han_ngay|gio_hen|thu_tu|sao|id)\b/g, 'v.$1')} LIMIT 300`,
@@ -192,6 +193,17 @@ export async function xuLyViec(yeuCau, env, phien, url) {
       ra.push({ id, ten: t.name || 'tep', kich_thuoc: t.size });
     }
     return json({ tep: ra }, 201);
+  }
+  // Người dùng xem cờ nghi trùng và chọn giữ cả hai: ghi sự kiện để cờ biến mất và vòng học biết đó không phải bản trùng.
+  // (Chọn gộp thì giao diện hủy việc mới qua PATCH kèm lý do, nên không có đường riêng.)
+  if ((khop = p.match(/^\/api\/viec\/(\d+)\/giu-ca-hai$/)) && m === 'POST') {
+    const id = Number(khop[1]);
+    const v = await env.CSDL.prepare("SELECT id, tieu_de FROM viec WHERE id = ?1 AND to_chuc_id = ?2 AND trang_thai = 'mo'").bind(id, tc).first();
+    if (!v) return loi(404, 'Việc này không còn hoặc đã đóng.');
+    const co = await env.CSDL.prepare("SELECT loai FROM viec_su_kien WHERE viec_id = ?1 AND to_chuc_id = ?2 AND loai IN ('nghi_trung', 'giu_ca_hai') ORDER BY id DESC LIMIT 1").bind(id, tc).first();
+    if (co?.loai !== 'nghi_trung') return loi(409, 'Việc này không có cờ nghi trùng.');
+    await ghiSuKien(env, tc, id, 'giu_ca_hai', v.tieu_de);
+    return json({ ok: true });
   }
   // Một việc theo mã: trang mở thẳng việc khi bấm thông báo.
   if ((khop = p.match(/^\/api\/viec\/(\d+)$/)) && m === 'GET') {

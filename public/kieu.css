@@ -1571,3 +1571,7 @@ input, textarea, select, [contenteditable], pre, code, .oChep { user-select: tex
 
 /* Ẩn nhãn trên thẻ việc: giữ ngày giờ, bỏ nguồn, dự án và nhãn Claude cho gọn. */
 .an-nhan .the-viec .chan .nguon, .an-nhan .the-viec .chan .nhan-du-an, .an-nhan .the-viec .chan .nhan-claude { display: none; }
+
+/* Cờ nghi trùng trên thẻ việc */
+.the-viec .nghi-trung { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 6px 0 0; padding: 6px 8px; border: 1px dashed var(--vach-2); border-radius: 8px; font-size: 13px; color: var(--phu); }
+.the-viec .nghi-trung-chu { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
