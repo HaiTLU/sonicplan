@@ -35,6 +35,9 @@ async function dungDuLieu() {
     ('tc_thu', 'Gửi báo cáo tuần', date('now'), 'mo', 1, 2, '${luc(50)}', '${luc(50)}'),
     ('tc_thu', 'Chuẩn bị họp thứ Năm', date('now', '+2 days'), 'mo', NULL, 1, '${luc(20)}', '${luc(20)}'),
     ('tc_thu', 'Gọi lại cho Minh', NULL, 'xong', NULL, 3, '${luc(80)}', '${luc(10)}')`);
+  // Việc có cờ nghi trùng (hiện dòng gộp hoặc giữ cả hai trên thẻ việc).
+  db.exec(`INSERT INTO viec (to_chuc_id, tieu_de, han_ngay, trang_thai, tao_luc, cap_nhat_luc) VALUES ('tc_thu', 'Gửi bản báo cáo tuần cho cô Lan', date('now'), 'mo', '${luc(5)}', '${luc(5)}')`);
+  db.exec(`INSERT INTO viec_su_kien (to_chuc_id, viec_id, loai, noi_dung, luc) SELECT 'tc_thu', id, 'nghi_trung', 'Có thể trùng việc #1 "Gửi báo cáo tuần" (giống 62%)', '${luc(5)}' FROM viec WHERE tieu_de = 'Gửi bản báo cáo tuần cho cô Lan'`);
   db.exec(`INSERT INTO viec (to_chuc_id, tieu_de, han_ngay, trang_thai, nhom, tao_luc, cap_nhat_luc) VALUES ('tc_thu', 'Soạn nháp thư mời họp', date('now', '+1 day'), 'mo', 'claude_tu_lam', '${luc(40)}', '${luc(40)}')`);
   return env;
 }

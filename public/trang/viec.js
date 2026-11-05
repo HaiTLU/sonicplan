@@ -412,6 +412,26 @@ function moSuaHan(v, neo) {
   (v.han_ngay ? oGio : oNgay).focus();
 }
 
+// Cờ nghi trùng: hệ thống thấy việc này giống một việc đang mở. Gộp thì hủy việc này kèm lý do (để AI học), giữ thì ghi nhận hai việc khác nhau.
+function maViecTrung(chu) {
+  return /#(\d+)/.exec(String(chu || ''))?.[1] || null;
+}
+function dongNghiTrung(v) {
+  if (!v.nghi_trung || v.trang_thai !== 'mo') return null;
+  const ma = maViecTrung(v.nghi_trung);
+  const lamXong = async (viecLam) => {
+    try { await viecLam(); await S.napLaiViec?.(); } catch (e) { bao(e.message, { loi: true }); }
+  };
+  return h('div', { class: 'nghi-trung', role: 'group', 'aria-label': 'Có thể trùng việc khác' },
+    h('span', { class: 'nghi-trung-chu', text: v.nghi_trung }),
+    h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: 'Gộp, hủy việc này', title: 'Hủy việc này vì trùng việc kia', onclick: () => lamXong(async () => {
+      await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'huy', ly_do: ma ? `Trùng việc #${ma}` : 'Trùng việc khác' }) });
+      bao(`Đã gộp: hủy "${v.tieu_de}".`);
+    }) }),
+    h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: 'Giữ cả hai', onclick: () => lamXong(async () => { await api(`/api/viec/${v.id}/giu-ca-hai`, { method: 'POST' }); bao('Đã giữ cả hai việc.'); }) }),
+  );
+}
+
 function theViec(v, hn) {
   const o = h('input', { class: 'o-xong', type: 'checkbox', checked: v.trang_thai === 'xong', 'aria-label': `${v.trang_thai === 'xong' ? 'Mở lại' : 'Đánh dấu xong'}: ${v.tieu_de}` });
   const mau = mauViec(v);
@@ -422,6 +442,7 @@ function theViec(v, hn) {
     h('div', { style: 'min-width:0' },
       h('button', { class: 'ten-viec', type: 'button', text: v.tieu_de, onclick: () => moNganViec(v) }),
       v.ghi_chu ? h('p', { class: 'ghi', text: v.ghi_chu }) : null,
+      dongNghiTrung(v),
       h('div', { class: 'chan' },
         chipHan(v, hn),
         v.so_lan_doi ? h('span', { class: v.so_lan_doi >= 3 ? 'tre' : '', ...meo(`Việc tự dời sang ngày sau ${v.so_lan_doi} lần vì chưa xong cuối ngày. Hạn gốc ${v.han_goc ? ngayHienThi(v.han_goc) : 'không rõ'}. Sửa hạn để bỏ đếm.`) }, `Dời ${v.so_lan_doi} lần`) : null,
