@@ -25,3 +25,12 @@ test('phông được giữ trong trình duyệt, trang SPA vẫn trả index.ht
   assert.match(t.headers.get('content-type'), /text\/html/);
   assert.equal((await tinh.fetch(new Request('http://x/khong-co.js'))).status, 404);
 });
+
+import { tenDuongDan } from '../may-chu/chay.js';
+
+test('tên đường dẫn trong log không lộ mã bí mật', () => {
+  assert.equal(tenDuongDan('/lich/abc123secret.ics'), '/lich');
+  assert.equal(tenDuongDan('/nhan/zalo/tokenxyz'), '/nhan');
+  assert.equal(tenDuongDan('/api/viec/12?x=1'), '/api/viec');
+  assert.equal(tenDuongDan('/'), '/');
+});
