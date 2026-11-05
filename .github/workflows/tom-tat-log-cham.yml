@@ -1,0 +1,23 @@
+# Chạy tay: tóm tắt log "Yêu cầu chậm" của máy chủ (số lần, trung vị, p95, lớn nhất theo đường dẫn).
+# Chỉ đọc log, không chạm CSDL, chỉ in số tổng hợp theo đường dẫn đã rút gọn. Không chạy tự động.
+name: Tom tat log cham
+on:
+  workflow_dispatch:
+    inputs:
+      so_gio:
+        description: Số giờ gần nhất cần xem
+        default: "24"
+permissions:
+  contents: read
+jobs:
+  tom-tat:
+    runs-on: [self-hosted, sonicplan-may]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Tom tat
+        env:
+          SONICPLAN_DIR: ${{ vars.SONICPLAN_DIR }}
+          SONICPLAN_LAUNCHD: ${{ vars.SONICPLAN_LAUNCHD }}
+          SO_GIO: ${{ inputs.so_gio }}
+        run: python3 scripts/tom-tat-log-cham.py "${SO_GIO:-24}"
