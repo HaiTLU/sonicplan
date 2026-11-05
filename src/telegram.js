@@ -2,7 +2,7 @@
 // một lần ở trang Kết nối, mã được mã hóa rồi lưu trong D1. Mỗi tổ chức nối bằng cách bấm đường dẫn
 // t.me/<bot>?start=<mã nối> rồi bấm Start.
 
-import { traLoiTuBoNho } from './ai.js';
+import { chatTuDo, traLoiTuBoNho } from './ai.js';
 import { goiNgoai } from './goi-ngoai.js';
 import { tongHopChoToChuc } from './tong-hop.js';
 import { chonGhiNho, docHoSo, nhayCam } from './ghi-nho.js';
@@ -197,6 +197,17 @@ export function ghiNhoTuLenh(doiSo) {
   return { tieu_de: nd.split(/\s+/).slice(0, 8).join(' ').slice(0, 80), noi_dung: nd };
 }
 
+async function lenhChat(env, tc, cauHoi, tuyChon = {}) {
+  if (!cauHoi) return 'Gõ kèm câu hỏi hoặc yêu cầu, ví dụ: /chat giải thích từ ROI là gì?';
+  const [gn, viec] = await env.CSDL.batch([
+    env.CSDL.prepare('SELECT loai, tieu_de, noi_dung, ghim FROM ghi_nho WHERE to_chuc_id = ?1 ORDER BY ghim DESC, cap_nhat_luc DESC LIMIT 200').bind(tc),
+    env.CSDL.prepare(`SELECT tieu_de, han_ngay FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' ORDER BY id DESC LIMIT 30`).bind(tc),
+  ]);
+  const ghiNho = chonGhiNho(gn.results, cauHoi);
+  const viecDs = viec.results.map((v) => `- ${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay})` : ''}`);
+  return (await chatTuDo(env, cauHoi, ghiNho, viecDs, [], tuyChon)) || 'Em chưa trả lời được câu này.';
+}
+
 async function lenhViec(env, tc) {
   const { results } = await env.CSDL.prepare(
     `SELECT tieu_de, han_ngay, gio_hen FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' ORDER BY han_ngay IS NULL, han_ngay, gio_hen, id LIMIT 12`,
@@ -215,11 +226,14 @@ async function lenhHoi(env, tc, cauHoi) {
   return (await traLoiTuBoNho(env, cauHoi, ghiNho, viec.results.map((v) => `${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay})` : ''}`), { ngoai: await docTichHop(env, tc, 'ai'), hoSo: await docHoSo(env, tc) })) || 'Em chưa nhớ điều này.';
 }
 
-// Nhắn thường: AI đọc như một tin, thấy việc thì tạo việc và báo lại.
-async function nhanTinThuong(env, tc, van, tenNguoi, chat) {
+// Nhắn thường: AI đọc như một tin, thấy việc thì tạo việc; không thấy việc thì chat tự do.
+async function nhanTinThuong(env, tc, van, tenNguoi, chat, tuyChon = {}) {
   const kq = await xuLyVanBanTrucTiep(env, tc, { nguon: 'telegram', nguoi_gui: tenNguoi || 'Tôi', noi_dung: van });
   if (kq.tat) return 'Khâu đọc tin và tách việc đang tắt ở trang Luồng nên em chưa tạo việc được.';
-  if (!kq.viec.length) return 'Em chưa thấy việc nào trong tin này. Muốn em nhớ điều gì thì gõ /nho, muốn hỏi thì gõ /hoi.';
+  if (!kq.viec.length) {
+    // Không có việc → chat tự do, dùng ghi nhớ và việc đang mở làm ngữ cảnh.
+    return lenhChat(env, tc, van, tuyChon);
+  }
   const moi = kq.viec.filter((v) => !v.trung);
   const trung = kq.viec.length - moi.length;
   const phanHoi = [moi.length ? `Đã thêm ${moi.length} việc:\n${moi.map(dongViecTelegram).join('\n')}` : '', trung ? `${trung} việc đã có sẵn nên không thêm lại.` : ''].filter(Boolean).join('\n');
@@ -320,6 +334,7 @@ export async function nhanWebhook(yeuCau, env, ctx) {
     });
     return new Response('ok');
   }
+  if (lenh === 'chat') { lam(async () => lenhChat(env, toChuc.to_chuc_id, doiSo, { ngoai: await docTichHop(env, toChuc.to_chuc_id, 'ai'), hoSo: await docHoSo(env, toChuc.to_chuc_id) })); return new Response('ok'); }
   if (lenh === 'hoi') { lam(() => lenhHoi(env, toChuc.to_chuc_id, doiSo)); return new Response('ok'); }
   if (lenh === 'nho') {
     const g = ghiNhoTuLenh(doiSo);
@@ -346,10 +361,10 @@ export async function nhanWebhook(yeuCau, env, ctx) {
   }
   if (!lenh && String(doiSo).trim().length >= 4) {
     await ghiTinHieu(env, toChuc.to_chuc_id, 'telegram', 'Nhận tin nhắn');
-    lam(() => nhanTinThuong(env, toChuc.to_chuc_id, doiSo, [tin.from?.first_name, tin.from?.last_name].filter(Boolean).join(' '), chat));
+    lam(async () => nhanTinThuong(env, toChuc.to_chuc_id, doiSo, [tin.from?.first_name, tin.from?.last_name].filter(Boolean).join(' '), chat, { ngoai: await docTichHop(env, toChuc.to_chuc_id, 'ai'), hoSo: await docHoSo(env, toChuc.to_chuc_id) }));
     return new Response('ok');
   }
 
-  tra('Nhắn bình thường, ví dụ "mai 9h họp với chị Lan", em sẽ tạo việc.\n/viec - việc đang mở\n/nho <điều cần nhớ>\n/hoi <câu hỏi> - hỏi từ ghi nhớ\n/tonghop - bản tổng hợp việc, tin, rủi ro\n/tomtat - tóm tắt tin Zalo từ 0h hôm nay\n/tomtat 3h - tóm tắt 3 giờ qua');
+  tra('Nhắn bình thường, ví dụ "mai 9h họp với chị Lan", em sẽ tạo việc.\n/chat <câu hỏi> - hỏi đáp tự do như ChatGPT\n/viec - việc đang mở\n/nho <điều cần nhớ>\n/hoi <câu hỏi> - hỏi từ ghi nhớ\n/tonghop - bản tổng hợp việc, tin, rủi ro\n/tomtat - tóm tắt tin Zalo từ 0h hôm nay\n/tomtat 3h - tóm tắt 3 giờ qua');
   return new Response('ok');
 }

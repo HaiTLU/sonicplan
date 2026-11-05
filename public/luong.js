@@ -30,6 +30,7 @@ const NUT = [
   { id: 'canh-viec', nhom: 'chay', ten: 'Canh việc mất', icon: 'he-thong', ma_tv: 'canh-viec', bat_nhan: 'Canh việc biến mất', nguong: ['mat_viec', 'mat_viec_mo'], mo_ta: 'So danh sách việc mỗi giờ, báo kèm tên khi mất bất thường.' },
   { id: 'don-cuoi-ngay', nhom: 'chay', ten: 'Dọn cuối ngày', icon: 'lap', ma_tv: 'don-cuoi-ngay', bat_nhan: 'Dời việc chưa xong sang mai', mo_ta: 'Lúc 23h dời việc có hạn chưa xong sang ngày mai.' },
   { id: 'sao-luu', nhom: 'chay', ten: 'Sao lưu đêm', icon: 'kho', ma_tv: 'sao-luu', bat_nhan: 'Sao lưu mỗi đêm', mo_ta: 'Lúc 23h lưu việc, tin 90 ngày, tệp và ghi nhớ vào kho.' },
+  { id: 'hoc-hang-ngay', nhom: 'chay', ten: 'Học hằng ngày', icon: 'lich', ma_tv: 'hoc-hang-ngay', bat_nhan: 'Tổng hợp bài học mỗi tối', mo_ta: '23h: đọc lựa chọn, đề xuất lời dặn có phạm vi rõ; bạn duyệt trước khi thêm vào hồ sơ.' },
   { id: 'google-tasks', nhom: 'ra', ten: 'Google Tasks', icon: 'viec', den: 'google', theo_tv: 'dong-bo-google', so: ['tasks_google', 'việc đang mở trên Tasks'], mo_ta: 'Mỗi 5 phút: việc mới đẩy sang Google Tasks, đổi tên hay hạn thì cập nhật, việc xong ở đây thì đánh dấu xong bên đó. Việc bấm xong trong Google Tasks cũng về xong ở đây. Bật tắt ở nút Google.', lien_ket: ['viec', 'Mở trang Việc'] },
   { id: 'google-lich', nhom: 'ra', ten: 'Google Lịch', icon: 'lich', den: 'google', theo_tv: 'dong-bo-google', so: ['lich_google', 'việc có trên Lịch'], mo_ta: 'Mỗi 5 phút: việc còn mở có ngày hạn thành sự kiện Lịch (có giờ hẹn thì đặt đúng giờ), đổi hạn thì dời sự kiện, việc xong thì gỡ. Bật tắt ở nút Google.', lien_ket: ['viec', 'Mở trang Việc'] },
   { id: 'kho-drive', nhom: 'ra', ten: 'Kho Drive', icon: 'kho', den: 'kho', ma_tv: 'luu-kho', bat_nhan: 'Lưu vào Drive kho mỗi 5 phút', mo_ta: 'Một Google Drive riêng (có thể là tài khoản khác) giữ bản lưu: tin nhắn Zalo và thư theo ngày, tệp đính kèm, bộ nhớ AI và danh sách việc. Không xóa gì trên Drive.', lien_ket: ['ket-noi', 'Mở trang Kết nối'] },
@@ -40,6 +41,7 @@ const NUT = [
 const LIEN_KET = [
   ['zalo', 'ai'], ['google', 'ai'], ['hop', 'ai'], ['thu', 'ai'], ['telegram-vao', 'ai'], ['api-vao', 'ai'],
   ['ai', 'ghi-nho'], ['ai', 'viec'], ['ghi-nho', 'ai'],
+  ['viec', 'hoc-hang-ngay'], ['hoc-hang-ngay', 'ghi-nho'],
   ['viec', 'nhac-viec'], ['viec', 'giao-github'], ['viec', 'bao-viec-moi'], ['viec', 'ban-tin'], ['viec', 'bao-cao-tuan'], ['viec', 'canh-viec'], ['viec', 'don-cuoi-ngay'], ['viec', 'sao-luu'],
   ['nhac-viec', 'telegram-ra'], ['bao-viec-moi', 'telegram-ra'], ['ban-tin', 'telegram-ra'], ['bao-cao-tuan', 'telegram-ra'], ['canh-viec', 'telegram-ra'],
   ['viec', 'google-tasks'], ['google-tasks', 'viec'], ['viec', 'google-lich'],

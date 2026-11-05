@@ -1,6 +1,7 @@
 // Việc từng tác vụ hẹn giờ làm. Tác vụ chạy cho mọi tổ chức một lượt, ghi một dòng nhật ký chung.
 
 import { docLuong, dangYenLang } from './luong.js';
+import { hocHangNgay } from './hoc-hang-ngay.js';
 import { chamViecMoi } from './hieu-suat.js';
 import { moTaLucDatLai } from './han-muc-ai.js';
 import { donTepDaXoa } from './xoa-to-chuc.js';
@@ -27,6 +28,19 @@ export function dongViecMoi(v) {
 }
 
 export const CAC_TAC_VU = {
+  'hoc-hang-ngay': async (env, bayGio) => {
+    let so = 0;
+    const loi = [];
+    for (const tc of await cacToChuc(env)) {
+      if (!(await docLuong(env, tc.id)).bat['hoc-hang-ngay']) continue;
+      try {
+        const kq = await hocHangNgay(env, tc.id, bayGio);
+        if (!kq.bo_qua) so++;
+      } catch (e) { loi.push(`${tc.id}: ${String(e.message).slice(0, 100)}`); }
+    }
+    if (loi.length) throw new Error(`Học hằng ngày: ${loi.join('; ')}`);
+    return { so_muc: so, ghi_chu: `Đã tổng hợp lựa chọn cho ${so} tổ chức` };
+  },
   'tu-kiem': async (env, bayGio) => {
     await env.CSDL.prepare(
       `INSERT INTO tin_hieu (to_chuc_id, nguon, lan_cuoi, ghi_chu) VALUES ('', 'hen-gio', ?1, 'Tự kiểm mỗi giờ')
@@ -296,6 +310,7 @@ export const CAC_TAC_VU = {
           env.CSDL.prepare('SELECT * FROM nguon_chan WHERE to_chuc_id = ?1').bind(tc.id),
         ]);
         const banSao = {
+          cau_hoi_ai: (await env.CSDL.prepare('SELECT * FROM cau_hoi_ai WHERE to_chuc_id = ?1').bind(tc.id).all()).results,
           dashboard_de_xuat: (await env.CSDL.prepare('SELECT * FROM dashboard_de_xuat WHERE to_chuc_id = ?1').bind(tc.id).all()).results,
           to_chuc: tc, luc: bayGio, viec: viec.results, tin_nhan: tin.results, tep: tep.results, cai_dat: caiDat.results, ghi_nho: ghiNho.results,
           du_an: duAn.results, viec_su_kien: suKien.results, luot_claude: luotClaude.results, nguon_chan: chanTin.results,

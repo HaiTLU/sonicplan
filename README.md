@@ -4,6 +4,14 @@ Nền tảng tự động hóa công việc hằng ngày: gom tin Zalo và thư,
 
 Tiến độ và quyết định: `LO_TRINH.md`. Kế hoạch đầy đủ nằm trong thư mục chung của dự án trên Claude (`_EXPORTS/2026-10-11_NenTangTuDong_KeHoachXayDung.md`).
 
+## Học từ lựa chọn hằng ngày
+
+- Khi tách tin, AI đọc tối đa 10 ví dụ phù hợp trong 30 ngày: sửa/hủy việc và câu trả lời đã xác nhận, kể cả chọn không thêm việc. Tìm trong tối đa 300 sự kiện sửa và 300 câu trả lời, ưu tiên nội dung giống trong cùng bối cảnh; không suy đoán đồng ý từ im lặng.
+- Tác vụ `hoc-hang-ngay` chạy 23h giờ Việt Nam, bật/tắt tại trang Luồng. Không gọi AI nếu dữ liệu chưa thay đổi, chưa đủ 3 phản hồi hoặc còn đề xuất chờ duyệt. Có khóa chống chạy trùng và cho phép thử lại sau lỗi.
+- Đề xuất tối đa 5 lời dặn, chỉ vào hồ sơ sau khi chủ tổ chức duyệt. Giữ 200 quyết định duyệt/bỏ gần nhất để lọc đề xuất trùng; AI được xem 50 quyết định gần nhất để tránh diễn đạt lại cùng ý. Có thể sửa hoặc xóa lời dặn đã duyệt trong hồ sơ.
+- Mục Ghi nhớ hiển thị lần tổng hợp thành công và số việc bị sửa/hủy trong hai kỳ 7 ngày. Đây là chỉ số hành vi, không phải phép đo độ chính xác hay bằng chứng bài học giúp AI tiến bộ.
+- Dữ liệu dùng các bảng hiện có; không cần migration mới. Câu hỏi/câu trả lời được đưa vào xuất dữ liệu và sao lưu. Cần triển khai mã và nạp lại máy chủ để lịch mới có hiệu lực.
+
 ## Cấu trúc
 
 | Tệp | Làm gì |

@@ -1,6 +1,7 @@
 // Việc: thêm việc (có chống trùng), tách việc từ tin bằng AI.
 
 import { NHOM_THEO_SO, tachViec } from './ai.js';
+import { chonBaiHoc } from './chon-bai-hoc.js';
 import { ghiChuKeHoach } from './ai.js';
 import { docHoSo, ghiNhoChoAi, luuGhiNho } from './ghi-nho.js';
 import { laHetHanMucNgay } from './han-muc-ai.js';
@@ -165,18 +166,32 @@ export async function ghiLienKet(env, toChucId, lienKet, tin, viecMoIds) {
 
 // Các lần người dùng sửa hoặc hủy việc do AI tách trong 30 ngày qua, viết thành dòng ngắn để AI học lần tách sau (tối đa 10 dòng).
 const TEN_SUA = { huy: 'Hủy việc', sua_ten: 'Sửa tên việc', doi_du_an: 'Đổi dự án', doi_nhom: 'Đổi nhóm', sua_han: 'Sửa hạn' };
-export async function docViecDaSua(env, toChucId, toiDa = 10) {
+export async function docViecDaSua(env, toChucId, toiDa = 10, tinHienTai = null) {
   const { results } = await env.CSDL.prepare(
-    `SELECT e.loai, e.noi_dung, v.tieu_de, t.noi_dung AS tin FROM viec_su_kien e
-     JOIN viec v ON v.id = e.viec_id AND v.to_chuc_id = e.to_chuc_id LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id
+    `SELECT e.loai, e.noi_dung, e.luc, v.tieu_de, t.noi_dung AS tin,
+       t.nguon, t.nhom, t.nguoi_gui, t.ma_hoi_thoai FROM viec_su_kien e
+     JOIN viec v ON v.id = e.viec_id AND v.to_chuc_id = e.to_chuc_id LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id AND t.to_chuc_id = e.to_chuc_id
      WHERE e.to_chuc_id = ?1 AND e.luc >= ?2 AND e.loai IN ('huy', 'sua_ten', 'doi_du_an', 'doi_nhom', 'sua_han')
        AND COALESCE(v.nguon, 'tay') <> 'tay' AND COALESCE(e.noi_dung, '') NOT LIKE 'Gỡ vì%' ORDER BY e.id DESC LIMIT ?3`,
-  ).bind(toChucId, new Date(Date.now() - 30 * 86400000).toISOString(), toiDa).all();
-  return results.map((r) => {
+  ).bind(toChucId, new Date(Date.now() - 30 * 86400000).toISOString(), tinHienTai ? 300 : toiDa).all();
+  // Cả lựa chọn "giữ/thêm" và "bỏ" đều là phản hồi; im lặng không phải đồng ý.
+  const { results: traLoi } = await env.CSDL.prepare(
+    `SELECT q.loai, q.cau_hoi, q.tra_loi, q.tra_loi_luc AS luc,
+       COALESCE(t.noi_dung, q.tin_trich) AS tin, t.nguon, t.nhom, t.nguoi_gui, t.ma_hoi_thoai
+     FROM cau_hoi_ai q LEFT JOIN viec v ON v.id = q.viec_id AND v.to_chuc_id = q.to_chuc_id
+     LEFT JOIN tin_nhan t ON t.id = COALESCE(q.tin_nhan_id, v.tin_nhan_id) AND t.to_chuc_id = q.to_chuc_id
+     WHERE q.to_chuc_id = ?1 AND q.trang_thai = 'xong' AND q.tra_loi IS NOT NULL AND q.tra_loi_luc >= ?2
+     ORDER BY q.tra_loi_luc DESC, q.id DESC LIMIT ?3`,
+  ).bind(toChucId, new Date(Date.now() - 30 * 86400000).toISOString(), tinHienTai ? 300 : toiDa).all();
+  const tatCa = [...results, ...traLoi].sort((a, b) => String(b.luc).localeCompare(String(a.luc)));
+  const ds = tinHienTai ? chonBaiHoc(tatCa, tinHienTai, toiDa) : tatCa.slice(0, toiDa);
+  return ds.map((r) => {
     const [chinh, lyDo] = String(r.noi_dung || '').split(' | lý do: ');
     const tin = r.tin ? ` (tin gốc: "${cat(String(r.tin).replace(/\s+/g, ' '), 100)}")` : '';
     const chiTiet = r.loai === 'huy' ? `"${cat(chinh || r.tieu_de, 80)}"` : `${cat(chinh, 120)}`;
-    return `- ${TEN_SUA[r.loai]}: ${chiTiet}${lyDo ? `, lý do: ${cat(lyDo, 100)}` : ''}${tin}`;
+    const phamVi = JSON.stringify({ nguon: r.nguon, nhom: r.nhom, nguoi_gui: r.nguoi_gui, ma_hoi_thoai: r.ma_hoi_thoai });
+    if (r.tra_loi != null) return `- Anh đã chọn: ${JSON.stringify({ cau_hoi: r.cau_hoi, tra_loi: r.tra_loi })}${tin}; phạm vi: ${phamVi}`;
+    return `- ${TEN_SUA[r.loai]}: ${chiTiet}${lyDo ? `, lý do: ${cat(lyDo, 100)}` : ''}${tin}; phạm vi: ${phamVi}`;
   });
 }
 
@@ -221,7 +236,7 @@ async function chayLoTin(env, toChucId, tin, bayGio, khoa = null) {
       viecMo,
       duAn,
       ghiNho,
-      daSua: await docViecDaSua(env, toChucId).catch(() => []),
+      daSua: await docViecDaSua(env, toChucId, 10, tin).catch(() => []),
       baoLoi: (thongBao) => ghiTinHieu(env, toChucId, 'ai', `Dịch vụ AI ngoài lỗi, đã dùng AI có sẵn: ${thongBao}`),
     }));
   } catch (e) {
@@ -315,7 +330,7 @@ export async function tachViecChoToChuc(env, toChucId) {
     const { results: tin } = await env.CSDL.prepare(
       `UPDATE tin_nhan SET da_tach = 2, tach_luc = ?2
        WHERE id IN (SELECT id FROM tin_nhan WHERE to_chuc_id = ?1 AND da_tach = 0 AND (${KHOA_HOI_THOAI}) = ?3 ORDER BY id LIMIT 20)
-       RETURNING id, nguon, nguoi_gui, nhom, tieu_de, noi_dung, thoi_diem`,
+       RETURNING id, nguon, nguoi_gui, nhom, ma_hoi_thoai, tieu_de, noi_dung, thoi_diem`,
     ).bind(toChucId, bayGio, dau.khoa).all();
     if (!tin.length) continue; // lượt chạy song song vừa nhận cuộc này
     tin.sort((a, b) => a.id - b.id);

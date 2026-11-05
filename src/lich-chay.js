@@ -18,6 +18,7 @@ export const TAC_VU = [
   { ma: 'canh-viec', ten: 'Canh việc bị mất hàng loạt', lich: '0 * * * *', bat: true, giai_doan: 3 },
   { ma: 'don-cuoi-ngay', ten: 'Dời việc chưa xong sang mai', lich: '0 16 * * *', bat: true, giai_doan: 3 },
   { ma: 'sao-luu', ten: 'Sao lưu dữ liệu hằng đêm', lich: '0 16 * * *', bat: true, giai_doan: 3 },
+  { ma: 'hoc-hang-ngay', ten: 'Học từ lựa chọn mỗi ngày', lich: '0 16 * * *', bat: true, giai_doan: 3 },
 ];
 
 export function tacVuTheoLich(lich) {
