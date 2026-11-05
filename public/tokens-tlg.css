@@ -8,7 +8,7 @@
   --c-bg-alt: #f5f5f7;
   --c-bg-raised: #ffffff;
   --c-ink: #1d1d1f;
-  --c-ink-2: #6e6e73;
+  --c-ink-2: #5f5f64; /* chữ phụ đủ 4.5:1 trên --mat-3 (#ededed); dark mode giữ #a1a1a6 */
   --c-hairline: #d2d2d7;
   --c-accent: #000066;
   --c-accent-hover: #1a1a85;
