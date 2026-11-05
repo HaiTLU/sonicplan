@@ -1,0 +1,29 @@
+# Bấm tay: chạy scripts/thu-goi-y-ngu-canh.mjs bằng AI thật (Workers AI) trên runner tự host.
+# Tập lệnh dựng CSDL tạm trong bộ nhớ với vài việc mẫu, không đọc hay ghi dữ liệu Sonicplan thật.
+# Mỗi lần chạy gọi AI 3 lần, tính vào hạn mức Workers AI. Chỉ lấy CF_ACCOUNT_ID và CF_AI_TOKEN từ may-chu/.env, không nạp các khóa khác.
+name: Thu goi y ngu canh
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  thu:
+    runs-on: [self-hosted, sonicplan-may]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Chay thu bang AI that
+        env:
+          SONICPLAN_DIR: ${{ vars.SONICPLAN_DIR }}
+        run: |
+          set -euo pipefail
+          GOC="${SONICPLAN_DIR:-$HOME/sonicplan}"
+          lay() { grep -a "^$1=" "$GOC/may-chu/.env" | tail -1 | cut -d= -f2- | sed -e 's/^["'\'']//' -e 's/["'\'']$//'; }
+          CF_ACCOUNT_ID="$(lay CF_ACCOUNT_ID)"
+          CF_AI_TOKEN="$(lay CF_AI_TOKEN)"
+          if [ -z "$CF_ACCOUNT_ID" ] || [ -z "$CF_AI_TOKEN" ]; then echo "Không thấy CF_ACCOUNT_ID hoặc CF_AI_TOKEN trong may-chu/.env" >&2; exit 2; fi
+          echo "::add-mask::$CF_AI_TOKEN"
+          export CF_ACCOUNT_ID CF_AI_TOKEN
+          node -v
+          git log -1 --format='Mã nguồn thử: %h %s'
+          node scripts/thu-goi-y-ngu-canh.mjs
