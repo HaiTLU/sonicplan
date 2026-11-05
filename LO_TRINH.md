@@ -3,7 +3,7 @@
 Cập nhật: 05/11/2026. 5 phần cố định: Đang làm, Còn lại, Ưu tiên (anh xếp), Yêu cầu mới, Đã xong. Mỗi đợt một PR, xong đợt dừng báo anh.
 
 - Địa chỉ chạy thật: plan.sonicrec.app và plan.sonicapp.top; máy chủ chạy trên VPS `tlu-prod-web-02`, CSDL là tệp sqlite trên VPS (xem `TIEN-DO.md`).
-- Quyết định của anh phải giữ (11/10/2026): dự án cá nhân, coi như công ty riêng tên Sonicplan, không dùng phông, màu, tên hay tài nguyên của nơi anh làm việc; chỉ dùng Cloudflare (Worker, D1, Access), không dùng Supabase; không dùng n8n, chỉ lấy mô hình 5 luồng; làm sẵn cho nhiều khách để sau này bán; mỗi giai đoạn gửi kế hoạch và chờ duyệt rồi mới làm.
+- Quyết định của anh phải giữ (11/10/2026): dự án cá nhân, coi như công ty riêng tên Sonicplan, không dùng phông, màu, tên hay tài nguyên của nơi anh làm việc; chỉ dùng Cloudflare (Worker, D1, Access), không dùng Supabase (ghi chú 05/11/2026: thực tế máy chủ nay chạy trên VPS với CSDL sqlite, vẫn dùng Cloudflare Access; nếu anh muốn sửa quyết định này cho khớp thì báo Claude); không dùng n8n, chỉ lấy mô hình 5 luồng; làm sẵn cho nhiều khách để sau này bán; mỗi giai đoạn gửi kế hoạch và chờ duyệt rồi mới làm.
 - Trước khi bán phải có quyết định của anh về: lập công ty và ai đứng tên, hồ sơ dữ liệu cá nhân (Luật 91/2025/QH15), cách nhận thư (chuyển tiếp thay vì xin quyền Gmail), Zalo OA chính thức. Xem kế hoạch mục 4.
 
 ## 1. Đang làm
