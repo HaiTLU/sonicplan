@@ -1,9 +1,8 @@
-// Ca kiểm thử chống trùng việc (05/11/2026). Phần "hiện trạng" khóa hành vi hiện tại để bước sau (trạng thái "nghi trùng") đổi có chủ đích.
-// Phần test.todo là hành vi mong muốn, chưa làm. Chạy: npm test
+// Ca kiểm thử chống trùng việc (05/11/2026): hành vi giữ nguyên và trạng thái "nghi trùng" thêm ở bước 2. Chạy: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { d1, dungCsdl } from './csdl-thu.js';
-import { themViec, timTrung } from '../src/viec.js';
+import { khacDuAn, themViec, timNghiTrung, timTrung, viecGiongKhiThemTay } from '../src/viec.js';
 import { doGiong } from '../src/tien-ich.js';
 
 function moiTruong() {
@@ -26,24 +25,36 @@ test('hiện trạng: cùng ý nhưng diễn đạt khác thì không bị coi l
   assert.equal(timTrung('Chuyển bản ký cho đối tác', [{ id: 1, tieu_de: 'Gửi hợp đồng cho đối tác' }]), null);
 });
 
-test('hiện trạng: chỉ nhìn tiêu đề, cùng tiêu đề thì trùng dù khác dự án', async () => {
+test('khác dự án: cùng tiêu đề nhưng hai dự án khác nhau thì tạo việc riêng', async () => {
   const { db, env } = moiTruong();
   db.exec("INSERT INTO du_an (to_chuc_id, ten, tao_luc) VALUES ('tc1', 'A', 'x'), ('tc1', 'B', 'x')");
   const [a, b] = db.prepare('SELECT id FROM du_an ORDER BY id').all().map((r) => r.id);
   const id = themSan(db, 'Rà soát hợp đồng nhà cung cấp');
   db.prepare('UPDATE viec SET du_an_id = ? WHERE id = ?').run(a, id);
   const r = await themViec(env, 'tc1', { tieu_de: 'Rà soát hợp đồng nhà cung cấp' }, { duAnId: b });
-  assert.equal(r.trung, true);
-  assert.equal(r.id, id);
-  assert.equal(dem(db), 1);
+  assert.equal(r.trung, false);
+  assert.equal(dem(db), 2);
+  // Cùng dự án, hoặc một bên chưa có dự án, thì vẫn trùng như cũ.
+  assert.equal((await themViec(env, 'tc1', { tieu_de: 'Rà soát hợp đồng nhà cung cấp' }, { duAnId: a })).trung, true);
+  assert.equal((await themViec(env, 'tc1', { tieu_de: 'Rà soát hợp đồng nhà cung cấp' })).trung, true);
 });
 
-test('hiện trạng: trùng việc vừa xong trong 3 ngày thì bỏ tin mới, không tạo và không đổi gì', async () => {
+test('khacDuAn: chỉ khác khi cả hai bên đều có dự án', () => {
+  assert.equal(khacDuAn(1, 2), true);
+  assert.equal(khacDuAn(1, 1), false);
+  assert.equal(khacDuAn(null, 2), false);
+  assert.equal(khacDuAn(1, undefined), false);
+});
+
+test('trùng việc vừa xong trong 3 ngày: không tạo mới, để lại dấu trong lịch sử việc cũ', async () => {
   const { db, env } = moiTruong();
   const id = themSan(db, 'Nộp báo cáo kinh phí quý 3', { trangThai: 'xong', xongLuc: ngayTruoc(1) });
   const r = await themViec(env, 'tc1', { tieu_de: 'Nộp báo cáo kinh phí quý 3', han_ngay: '2099-01-01' });
-  assert.deepEqual(r, { id, trung: true });
+  assert.deepEqual(r, { id, trung: true, trung_xong: true });
   assert.equal(dem(db), 1);
+  const sk = db.prepare("SELECT viec_id, noi_dung FROM viec_su_kien WHERE loai = 'tin_trung_xong'").all();
+  assert.equal(sk.length, 1);
+  assert.equal(sk[0].viec_id, id);
 });
 
 test('hiện trạng: việc đã xong quá 3 ngày thì tạo việc mới', async () => {
@@ -75,9 +86,49 @@ test('hiện trạng: cùng cuộc trò chuyện hạ ngưỡng xuống 0,65', (
   assert.equal(timTrung('Gửi chị Lan bản báo giá', ds, 'nhom-b'), null);
 });
 
-// Hành vi mong muốn cho bước 2 (trạng thái "nghi trùng"). Chưa làm, chờ PR #155 gộp.
-test.todo('nghi trùng: giống từ 0,55 đến dưới ngưỡng thì tạo việc kèm cờ và gợi ý việc cũ');
-test.todo('nghi trùng: cùng tiêu đề nhưng khác dự án thì không tự coi là trùng');
-test.todo('nghi trùng: tin bị bỏ vì trùng việc vừa xong thì báo người dùng');
-test.todo('nghi trùng: thêm tay trùng việc đang mở thì cảnh báo, không chặn');
-test.todo('nghi trùng: người dùng bấm gộp hoặc giữ cả hai thì ghi sự kiện cho vòng học');
+test('nghi trùng: giống từ 0,55 đến dưới ngưỡng thì tạo việc kèm sự kiện và gợi ý việc cũ', async () => {
+  const { db, env } = moiTruong();
+  const cu = themSan(db, 'Gửi hợp đồng cho đối tác');
+  const tieuDe = 'Gửi bản hợp đồng đã ký cho phòng kế toán';
+  const diem = doGiong('Gửi hợp đồng cho đối tác', tieuDe);
+  assert.ok(diem >= 0.55 && diem < 0.8, `điểm ${diem} phải nằm trong vùng nghi trùng`);
+  const r = await themViec(env, 'tc1', { tieu_de: tieuDe });
+  assert.equal(r.trung, false);
+  assert.equal(r.nghi_trung.id, cu);
+  assert.equal(dem(db), 2);
+  const sk = db.prepare("SELECT viec_id, noi_dung FROM viec_su_kien WHERE loai = 'nghi_trung'").all();
+  assert.equal(sk.length, 1);
+  assert.equal(sk[0].viec_id, r.id);
+  assert.match(sk[0].noi_dung, new RegExp(`#${cu}`));
+});
+
+test('nghi trùng: việc khác hẳn thì không gắn cờ', async () => {
+  const { db, env } = moiTruong();
+  themSan(db, 'Gửi hợp đồng cho đối tác');
+  const r = await themViec(env, 'tc1', { tieu_de: 'Chuẩn bị phòng học cho khóa Marketing' });
+  assert.equal(r.trung, false);
+  assert.equal(r.nghi_trung, undefined);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM viec_su_kien WHERE loai = 'nghi_trung'").get().n, 0);
+});
+
+test('timNghiTrung: bỏ việc đã xong và việc khác dự án', () => {
+  const ds = [
+    { id: 1, tieu_de: 'Gửi hợp đồng cho đối tác', trang_thai: 'xong' },
+    { id: 2, tieu_de: 'Gửi hợp đồng cho đối tác', trang_thai: 'mo', du_an_id: 5 },
+  ];
+  const t = 'Gửi bản hợp đồng đã ký cho phòng kế toán';
+  assert.equal(timNghiTrung(t, ds, null, 6), null);
+  assert.equal(timNghiTrung(t, ds, null, 5)?.id, 2);
+  assert.equal(timNghiTrung(t, ds, null, null)?.id, 2);
+});
+
+test('thêm tay trùng việc đang mở: cảnh báo kèm danh sách việc giống, không chặn', async () => {
+  const { db, env } = moiTruong();
+  const cu = themSan(db, 'Gửi báo giá cho chị Lan');
+  const giong = await viecGiongKhiThemTay(env, 'tc1', 'Gửi báo giá cho chị Lan');
+  assert.equal(giong.length, 1);
+  assert.equal(giong[0].id, cu);
+  assert.deepEqual(await viecGiongKhiThemTay(env, 'tc1', 'Dọn kho thiết bị'), []);
+});
+
+test.todo('nghi trùng: người dùng bấm gộp hoặc giữ cả hai thì ghi sự kiện cho vòng học (cần giao diện, làm ở bước sau)');

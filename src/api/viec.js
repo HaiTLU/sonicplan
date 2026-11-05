@@ -7,7 +7,7 @@ import { docHoSo, nhayCam } from '../ghi-nho.js';
 import { chuanMau } from '../mau.js';
 import { docTichHop } from '../tich-hop.js';
 import { cat, DS_BUOI, json, loi, ngayCoThat, ngayVN } from '../tien-ich.js';
-import { themViec } from '../viec.js';
+import { themViec, viecGiongKhiThemTay } from '../viec.js';
 import { laChu } from './chung.js';
 import { chuanTepTuy, dsDinhKemTuDong } from '../tho-claude.js';
 import { hoiAi } from '../luong-thu.js';
@@ -84,9 +84,11 @@ export function kiemViec(than, { batBuocTieuDe }) {
 async function taoViec(env, tc, than) {
   const k = kiemViec(than, { batBuocTieuDe: true });
   if (k.loi) return loi(400, k.loi);
+  // Thêm tay luôn tạo việc; nếu giống việc đang mở thì chỉ cảnh báo trong kết quả, không chặn.
+  const giong = await viecGiongKhiThemTay(env, tc, k.viec.tieu_de, k.viec.du_an_id ?? null).catch(() => []);
   const kq = await themViec(env, tc, k.viec, { boQuaTrung: true, duAnId: k.viec.du_an_id ?? null, nguon: 'tay' });
   if (k.viec.mau && kq.id) await env.CSDL.prepare('UPDATE viec SET mau = ?1 WHERE id = ?2 AND to_chuc_id = ?3').bind(k.viec.mau, kq.id, tc).run();
-  return json({ id: kq.id }, 201);
+  return json({ id: kq.id, ...(giong.length ? { giong } : {}) }, 201);
 }
 
 // Lưu thứ tự tay của các thẻ trong một cột: ids theo thứ tự từ trên xuống.

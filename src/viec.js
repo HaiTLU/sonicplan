@@ -96,6 +96,53 @@ export function timTrung(tieuDe, cacViec, cungNguon = null) {
   return tot;
 }
 
+// Vùng nghi trùng: giống từ 0,55 nhưng chưa tới ngưỡng trùng thì vẫn tạo việc, gắn sự kiện "nghi_trung" kèm việc cũ để người dùng xem và gộp.
+// 0,55 là phỏng đoán, cần thử trên dữ liệu thật trước khi chỉnh.
+export const NGUONG_NGHI_TRUNG = 0.55;
+
+// Hai việc cùng có dự án mà khác dự án thì không phải một việc, dù tiêu đề giống. Thiếu dự án ở một bên thì vẫn so như cũ.
+export function khacDuAn(a, b) {
+  return Boolean(a && b && Number(a) !== Number(b));
+}
+
+// Việc đang mở giống nhất nằm trong vùng nghi trùng. Trả { ...viec, diem } hoặc null.
+export function timNghiTrung(tieuDe, cacViec, cungNguon = null, duAnId = null) {
+  let tot = null;
+  let diemTot = 0;
+  for (const v of cacViec) {
+    if (v.trang_thai && v.trang_thai !== 'mo') continue;
+    if (khacDuAn(duAnId, v.du_an_id)) continue;
+    const diem = doGiong(v.tieu_de, tieuDe);
+    const nguong = cungNguon && v.nguon_khoa === cungNguon ? NGUONG_TRUNG_CUNG_NGUON : NGUONG_TRUNG;
+    if (diem >= NGUONG_NGHI_TRUNG && diem < nguong && diem > diemTot) { tot = v; diemTot = diem; }
+  }
+  return tot ? { ...tot, diem: diemTot } : null;
+}
+
+// Việc đang mở trong 60 ngày và việc vừa xong 3 ngày, kèm khóa nguồn của tin đang xét, để so trùng.
+async function docUngVienTrung(env, toChucId, tinNhanId) {
+  const { results } = await env.CSDL.prepare(
+    `SELECT v.id, v.tieu_de, v.han_ngay, v.gio_hen, v.buoi, v.trang_thai, v.du_an_id, COALESCE(NULLIF(t.nhom, ''), NULLIF(t.tieu_de, ''), t.nguoi_gui) AS nguon_khoa
+     FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id
+     WHERE v.to_chuc_id = ?1 AND ((v.trang_thai = 'mo' AND v.tao_luc >= ?2) OR (v.trang_thai = 'xong' AND v.xong_luc >= ?3))`,
+  ).bind(toChucId, new Date(Date.now() - 60 * 86400000).toISOString(), new Date(Date.now() - 3 * 86400000).toISOString()).all();
+  const tinGoc = tinNhanId
+    ? await env.CSDL.prepare(`SELECT COALESCE(NULLIF(nhom, ''), NULLIF(tieu_de, ''), nguoi_gui) AS k FROM tin_nhan WHERE id = ?1 AND to_chuc_id = ?2`).bind(tinNhanId, toChucId).first()
+    : null;
+  return { results, cungNguon: tinGoc?.k || null };
+}
+
+// Cho việc thêm tay: chỉ cảnh báo, không chặn. Trả danh sách tối đa 3 việc đang mở giống từ 0,55 (cùng dự án hoặc thiếu dự án).
+export async function viecGiongKhiThemTay(env, toChucId, tieuDe, duAnId = null) {
+  const { results } = await docUngVienTrung(env, toChucId, null);
+  return results
+    .filter((v) => v.trang_thai === 'mo' && !khacDuAn(duAnId, v.du_an_id))
+    .map((v) => ({ id: v.id, tieu_de: v.tieu_de, diem: doGiong(v.tieu_de, tieuDe) }))
+    .filter((v) => v.diem >= NGUONG_NGHI_TRUNG)
+    .sort((a, b) => b.diem - a.diem)
+    .slice(0, 3);
+}
+
 // Việc trùng mà tin mới có hạn, giờ hoặc buổi khác: trả { han_ngay, gio_hen, buoi? } mới, không đổi gì thì null.
 // Chỉ nhận ngày không lùi về quá khứ để AI đọc nhầm ngày cũ trong tin không kéo việc về trước.
 export function doiHanKhiTrung(cu, moi, homNay = ngayVN()) {
@@ -110,18 +157,18 @@ export function doiHanKhiTrung(cu, moi, homNay = ngayVN()) {
 export async function themViec(env, toChucId, viec, { tinNhanId = null, boQuaTrung = false, duAnId = null, nguon = null } = {}) {
   // Có giờ mà chưa có ngày thì không để rơi vào "Chưa có hạn": hôm nay, hoặc mai nếu giờ đã qua.
   if (viec.gio_hen && !viec.han_ngay) viec = { ...viec, han_ngay: ngayChoGio(viec.gio_hen) };
+  let nghi = null;
   if (!boQuaTrung) {
     // So với việc đang mở trong 60 ngày và việc vừa xong 3 ngày, để tin nhắc lại việc cũ hoặc việc vừa làm không tạo việc mới.
-    const { results } = await env.CSDL.prepare(
-      `SELECT v.id, v.tieu_de, v.han_ngay, v.gio_hen, v.buoi, v.trang_thai, COALESCE(NULLIF(t.nhom, ''), NULLIF(t.tieu_de, ''), t.nguoi_gui) AS nguon_khoa
-       FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id
-       WHERE v.to_chuc_id = ?1 AND ((v.trang_thai = 'mo' AND v.tao_luc >= ?2) OR (v.trang_thai = 'xong' AND v.xong_luc >= ?3))`,
-    ).bind(toChucId, new Date(Date.now() - 60 * 86400000).toISOString(), new Date(Date.now() - 3 * 86400000).toISOString()).all();
-    const tinGoc = tinNhanId
-      ? await env.CSDL.prepare(`SELECT COALESCE(NULLIF(nhom, ''), NULLIF(tieu_de, ''), nguoi_gui) AS k FROM tin_nhan WHERE id = ?1 AND to_chuc_id = ?2`).bind(tinNhanId, toChucId).first()
-      : null;
-    const trung = timTrung(viec.tieu_de, results, tinGoc?.k || null);
-    if (trung?.trang_thai === 'xong') return { id: trung.id, trung: true };
+    const { results, cungNguon } = await docUngVienTrung(env, toChucId, tinNhanId);
+    // Khác dự án thì không coi là trùng (cả hai bên đều có dự án).
+    const ungVien = results.filter((v) => !khacDuAn(duAnId, v.du_an_id));
+    const trung = timTrung(viec.tieu_de, ungVien, cungNguon);
+    if (trung?.trang_thai === 'xong') {
+      // Bỏ tin mới vì việc vừa xong: để lại dấu trong lịch sử việc cũ, người dùng còn thấy tin đã đến.
+      await ghiSuKien(env, toChucId, trung.id, 'tin_trung_xong', `Tin mới nhắc lại việc này sau khi đã xong: ${viec.tieu_de}`, tinNhanId).catch(() => {});
+      return { id: trung.id, trung: true, trung_xong: true };
+    }
     if (trung) {
       // Tin sau đổi hạn hoặc giờ ("dời sang thứ 6", "chuyển 15h") thì cập nhật việc cũ, không để hạn mới bị bỏ.
       const doi = doiHanKhiTrung(trung, viec);
@@ -133,6 +180,7 @@ export async function themViec(env, toChucId, viec, { tinNhanId = null, boQuaTru
       }
       return { id: trung.id, trung: true, doi_han: Boolean(doi) };
     }
+    nghi = timNghiTrung(viec.tieu_de, results, cungNguon, duAnId);
   }
   const bayGio = new Date().toISOString();
   const dong = await env.CSDL.prepare(
@@ -140,8 +188,9 @@ export async function themViec(env, toChucId, viec, { tinNhanId = null, boQuaTru
      VALUES (?1, ?2, ?3, ?4, ?5, ?12, 'mo', ?6, ?7, ?7, ?8, ?9, ?10, ?11) RETURNING id`,
   ).bind(toChucId, viec.tieu_de, viec.ghi_chu || null, viec.han_ngay || null, viec.gio_hen || null, tinNhanId, bayGio, NHOM_THEO_SO[viec.nhom] || null, viec.uu_tien || null, duAnId, nguon || 'tay', viec.gio_hen ? null : viec.buoi || null).first();
   await ghiSuKien(env, toChucId, dong.id, 'tao', viec.tieu_de, tinNhanId).catch(() => {});
+  if (nghi) await ghiSuKien(env, toChucId, dong.id, 'nghi_trung', `Có thể trùng việc #${nghi.id} "${nghi.tieu_de}" (giống ${Math.round(nghi.diem * 100)}%)`, tinNhanId).catch(() => {});
   await baoSuKien(env, toChucId, dangViecMoi({ ...viec, id: dong.id }));
-  return { id: dong.id, trung: false };
+  return { id: dong.id, trung: false, ...(nghi ? { nghi_trung: { id: nghi.id, tieu_de: nghi.tieu_de, diem: nghi.diem } } : {}) };
 }
 
 // Ghi tiến độ vào ghi chú việc: người gửi, tiêu đề thư và tên các tệp đính kèm đã lưu. Không tự đóng việc.
@@ -290,7 +339,7 @@ async function chayLoTin(env, toChucId, tin, bayGio, khoa = null) {
         ? { loai: 'doi_han', tieu_de: `Đổi hạn: ${v.tieu_de}`, noi_dung: moTaViec(v, nguon), duong_dan: `#viec/${r.id}`, viec_id: r.id }
         : { loai: 'viec_moi', tieu_de: `Việc mới: ${v.tieu_de}`, noi_dung: moTaViec(v, nguon), duong_dan: `#viec/${r.id}`, viec_id: r.id });
     }
-    viecRa.push({ id: r.id, tieu_de: v.tieu_de, han_ngay: v.han_ngay || null, gio_hen: v.gio_hen || null, trung: r.trung });
+    viecRa.push({ id: r.id, tieu_de: v.tieu_de, han_ngay: v.han_ngay || null, gio_hen: v.gio_hen || null, trung: r.trung, ...(r.nghi_trung ? { nghi_trung: r.nghi_trung } : {}), ...(r.trung_xong ? { trung_xong: true } : {}) });
   }
   // Việc AI phân vân: không tự tạo, hỏi anh trên Telegram. Chỉ với tin trong hộp tin (tin Telegram là anh tự nhắn nên không phân vân).
   const daTao = new Set(viecRa.map((x) => chuanHoa(x.tieu_de)));
