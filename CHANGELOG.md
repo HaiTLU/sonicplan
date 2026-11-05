@@ -39,6 +39,7 @@ Memory của PM chuyển từ ThangLong_KB sang kho second-brain (18/10/2026). C
 - Workflow bấm tay `Tach lai tin`: đưa vài tin về hàng chờ tách việc trên Mac mini để AI đọc lại bằng bản mới.
 
 ### Sửa
+- Trợ năng: chữ phụ trên nền màu (`--mat-3`) ở giao diện sáng chỉ đạt 4.33:1, dưới ngưỡng WCAG AA 4.5:1 (nút "Tìm, chuyển mục" và chip "chưa" của trang Hiệu suất). Đổi token `--c-ink-2` bản sáng từ `#6e6e73` sang `#5f5f64`: 5.42:1 trên `--mat-3`, 6.35:1 trên nền trắng. Giao diện tối giữ nguyên, không đổi bố cục hay hành vi.
 - Lịch hẹn qua Zalo không lên Lịch: AI bỏ câu hẹn trong nhóm bạn bè như "a 5h30 nhé" vì coi là chuyện vặt. Lời nhắc thêm nguyên tắc 15: lịch hẹn có giờ của người dùng luôn là việc, kể cả việc riêng.
 - Giờ 1-6 viết trống không ("5h30", "4 giờ") hiểu là buổi chiều. Trước đây "a 5h30 nhé" gửi lúc 11:39 thành 05:30 sáng hôm sau. AI trả 05:30 trong khi chữ gốc là "5h30" thì code sửa thành 17:30.
 
