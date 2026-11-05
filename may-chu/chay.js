@@ -64,6 +64,14 @@ export function docBienWrangler(duongDan) {
   }
 }
 
+const NGUONG_CHAM_MS = 300;
+// Đường dẫn rút gọn để ghi log: /api/viec/12?x=1 -> /api/viec; /lich/<khóa>.ics -> /lich.
+export function tenDuongDan(url) {
+  const [goc, ...phan] = new URL(url, 'http://x').pathname.split('/').filter(Boolean);
+  if (!goc) return '/';
+  return goc === 'lich' || goc === 'nhan' ? `/${goc}` : `/${[goc, phan[0]].filter(Boolean).join('/')}`;
+}
+
 const laVongLap = (a = '') => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(a);
 
 export function taoMayChu(cauHinh = {}) {
@@ -139,9 +147,15 @@ export function taoMayChu(cauHinh = {}) {
         body: coThan ? Readable.toWeb(req) : undefined,
         duplex: coThan ? 'half' : undefined,
       });
+      const batDau = performance.now();
       const ra = await worker.fetch(yeuCau, env, ctx);
+      const mili = Math.round(performance.now() - batDau);
+      // Số đo thật: thời gian xử lý (chưa gồm truyền tải) hiện ở tab Network (cột Server Timing),
+      // và yêu cầu chậm ghi vào log để biết điểm nghẽn. Chỉ ghi phần đầu đường dẫn, không ghi mã bí mật trong /lich và /nhan.
+      if (mili >= NGUONG_CHAM_MS) console.warn(`Yêu cầu chậm ${mili}ms ${req.method} ${tenDuongDan(req.url)} -> ${ra.status}`);
       const dau = {};
       for (const [k, v] of ra.headers) if (k !== 'set-cookie') dau[k] = v;
+      dau['server-timing'] = `app;dur=${mili}`;
       const cookie = ra.headers.getSetCookie?.() || [];
       if (cookie.length) dau['set-cookie'] = cookie;
       res.writeHead(ra.status, dau);
