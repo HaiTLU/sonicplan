@@ -91,6 +91,7 @@ function thoiGianTep(f) {
 const CHE_DO_GG = [
   ['ca-hai', 'Cả Tasks và Lịch', 'Việc sang Tasks, việc có ngày thêm sự kiện Lịch (có giờ, có màu). Nếu bật lớp Tasks trong Lịch, một việc có thể hiện hai mục.'],
   ['tasks', 'Chỉ Tasks', 'Không tạo sự kiện Lịch, và gỡ các sự kiện Sonicplan đã tạo. Việc có hạn tự hiện trong Lịch qua lớp Tasks của Google, không bị trùng.'],
+  ['tu-chia', 'Tự chia: có giờ vào Lịch, còn lại vào Tasks', 'Mỗi việc chỉ vào một nơi, không hiện hai lần. Việc có giờ hẹn hoặc buổi sáng, chiều thành sự kiện Lịch; việc chỉ có ngày hoặc chưa có ngày thành Task (tích Xong bên Tasks). Lần đồng bộ đầu tự dọn bản thừa: xóa sự kiện của việc không giờ, xóa Task của việc đang mở có giờ (xóa Task không khôi phục được).'],
   ['lich', 'Chỉ sự kiện Lịch', 'Không tạo việc mới trên Tasks. Bấm xong bên Tasks sẽ không còn tác dụng với việc mới.'],
 ];
 export function khoiNhanGoogle() {
