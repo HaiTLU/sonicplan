@@ -426,7 +426,7 @@ function dongNghiTrung(v) {
     h('span', { class: 'nghi-trung-chu', text: v.nghi_trung }),
     h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: 'Gộp, hủy việc này', title: 'Hủy việc này vì trùng việc kia', onclick: () => lamXong(async () => {
       await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'huy', ly_do: ma ? `Trùng việc #${ma}` : 'Trùng việc khác' }) });
-      bao(`Đã gộp: hủy "${v.tieu_de}".`);
+      bao(`Đã gộp: hủy "${v.tieu_de}".`, { hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${v.id}`, { method: 'PATCH', body: JSON.stringify({ trang_thai: 'mo' }) }); await S.napLaiViec?.(); } } });
     }) }),
     h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: 'Giữ cả hai', onclick: () => lamXong(async () => { await api(`/api/viec/${v.id}/giu-ca-hai`, { method: 'POST' }); bao('Đã giữ cả hai việc.'); }) }),
   );
