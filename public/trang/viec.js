@@ -511,7 +511,7 @@ function veKhoiGoiY(khung, v) {
   khung.replaceChildren();
   if (!v) return;
   const kq = h('div', { class: 'goi-y-kq', 'aria-live': 'polite' });
-  const nut = h('button', { class: 'nut-phu', type: 'button', text: 'Gợi ý cách làm' });
+  const nut = h('button', { class: 'nut nut-phu', type: 'button', text: 'Gợi ý cách làm' });
   nut.addEventListener('click', async () => {
     nut.disabled = true;
     thay(kq, h('p', { class: 'mo', text: 'Đang soạn gợi ý...' }));
