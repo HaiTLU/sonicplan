@@ -8,6 +8,8 @@ import { coBiMat } from './rao-chan-hoc.js';
 export const LOAI_GHI_NHO = ['nguoi', 'du_an', 'quyet_dinh', 'su_that'];
 export const TOI_DA_MOI_LUOT = 10;
 const TOI_DA_DUA_VAO_AI = 30;
+// Chỉ nạp vào lời nhắc mục đã đủ tin (0.6 trở lên) hoặc do người ghim/duyệt, và chưa hết hiệu lực hay hết hạn.
+export const NGUONG_TIN_CAY = 0.6;
 
 // Số thẻ, mật khẩu, mã OTP, số giấy tờ: không bao giờ được nhớ.
 const SO_THE = /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/;
@@ -37,25 +39,50 @@ export function chuanHoaGhiNho(ds) {
 // Thêm mới hoặc cập nhật theo (loại, tiêu đề). Mục người dùng đã ghim hoặc sửa tay thì AI không ghi đè.
 export async function luuGhiNho(env, toChucId, ds, { tinNhanId = null, doTinCay = 'cao' } = {}) {
   const bayGio = new Date().toISOString();
+  const so_tin = doTinCay === 'cao' ? 0.8 : 0.4;
   let so = 0;
   for (const g of ds) {
+    const cu = await env.CSDL.prepare('SELECT id, noi_dung, tieu_de FROM ghi_nho WHERE to_chuc_id = ?1 AND loai = ?2 AND tieu_de = ?3').bind(toChucId, g.loai, g.tieu_de).first();
     const kq = await env.CSDL.prepare(
-      `INSERT INTO ghi_nho (to_chuc_id, loai, tieu_de, noi_dung, tin_nhan_id, nguon, do_tin_cay, tao_luc, cap_nhat_luc)
-       VALUES (?1, ?2, ?3, ?4, ?5, 'ai', ?6, ?7, ?7)
+      `INSERT INTO ghi_nho (to_chuc_id, loai, tieu_de, noi_dung, tin_nhan_id, nguon, do_tin_cay, do_tin_cay_so, tao_luc, cap_nhat_luc)
+       VALUES (?1, ?2, ?3, ?4, ?5, 'ai', ?6, ?8, ?7, ?7)
        ON CONFLICT (to_chuc_id, loai, tieu_de) DO UPDATE SET
-         noi_dung = excluded.noi_dung, tin_nhan_id = excluded.tin_nhan_id, cap_nhat_luc = excluded.cap_nhat_luc
+         noi_dung = excluded.noi_dung, tin_nhan_id = excluded.tin_nhan_id, cap_nhat_luc = excluded.cap_nhat_luc,
+         het_hieu_luc_luc = NULL,
+         so_lan_thay = ghi_nho.so_lan_thay + CASE WHEN ghi_nho.noi_dung = excluded.noi_dung THEN 1 ELSE 0 END,
+         do_tin_cay = CASE WHEN ghi_nho.noi_dung = excluded.noi_dung AND ghi_nho.so_lan_thay >= 2 THEN 'cao' ELSE excluded.do_tin_cay END,
+         do_tin_cay_so = CASE WHEN ghi_nho.noi_dung = excluded.noi_dung AND ghi_nho.so_lan_thay >= 2 THEN 0.8 ELSE excluded.do_tin_cay_so END
          WHERE ghi_nho.ghim = 0 AND ghi_nho.nguon = 'ai' AND (excluded.do_tin_cay = 'cao' OR ghi_nho.do_tin_cay = 'thap')`,
-    ).bind(toChucId, g.loai, g.tieu_de, g.noi_dung, tinNhanId, doTinCay, bayGio).run();
-    so += kq.meta.changes || 0;
+    ).bind(toChucId, g.loai, g.tieu_de, g.noi_dung, tinNhanId, doTinCay, bayGio, so_tin).run();
+    const doi = kq.meta.changes || 0;
+    // Nội dung khác bản cũ thì giữ bản cũ trong lịch sử.
+    if (doi && cu && cu.noi_dung !== g.noi_dung) await ghiLichSu(env, toChucId, cu.id, cu.tieu_de, cu.noi_dung, 'AI cập nhật', bayGio);
+    so += doi;
   }
   return so;
+}
+
+export async function ghiLichSu(env, toChucId, id, tieuDe, noiDung, lyDo, luc = new Date().toISOString()) {
+  await env.CSDL.prepare('INSERT INTO bo_nho_lich_su (to_chuc_id, ghi_nho_id, tieu_de, noi_dung, ly_do, luc) VALUES (?1, ?2, ?3, ?4, ?5, ?6)').bind(toChucId, id, tieuDe, noiDung, lyDo, luc).run();
+}
+
+// Xóa thật một mục: cả bản ghi (FTS đồng bộ qua trigger) lẫn lịch sử phiên bản.
+export async function xoaThatGhiNho(env, toChucId, id) {
+  const [a] = await env.CSDL.batch([
+    env.CSDL.prepare('DELETE FROM ghi_nho WHERE id = ?1 AND to_chuc_id = ?2').bind(id, toChucId),
+    env.CSDL.prepare('DELETE FROM bo_nho_lich_su WHERE ghi_nho_id = ?1 AND to_chuc_id = ?2').bind(id, toChucId),
+  ]);
+  return a.meta.changes || 0;
 }
 
 // Chọn ghi nhớ đưa cho AI: mục ghim, mục có tên xuất hiện trong lô tin, rồi mục mới cập nhật. Tối đa 30.
 export async function ghiNhoChoAi(env, toChucId, vanBan) {
   const { results } = await env.CSDL.prepare(
-    `SELECT loai, tieu_de, noi_dung, ghim FROM ghi_nho WHERE to_chuc_id = ?1 ORDER BY ghim DESC, cap_nhat_luc DESC LIMIT 300`,
-  ).bind(toChucId).all();
+    `SELECT loai, tieu_de, noi_dung, ghim FROM ghi_nho
+     WHERE to_chuc_id = ?1 AND het_hieu_luc_luc IS NULL AND (han_dung IS NULL OR han_dung >= ?2)
+       AND (ghim = 1 OR da_duyet = 1 OR COALESCE(do_tin_cay_so, 0.8) >= ?3)
+     ORDER BY ghim DESC, cap_nhat_luc DESC LIMIT 300`,
+  ).bind(toChucId, new Date().toISOString().slice(0, 10), NGUONG_TIN_CAY).all();
   return chonGhiNho(results, vanBan);
 }
 
@@ -127,4 +154,23 @@ export async function timGhiNho(env, toChucId, tuKhoa, gioiHan = 10) {
   if (!like) return [];
   const { results } = await env.CSDL.prepare('SELECT id, loai, tieu_de, noi_dung FROM ghi_nho WHERE to_chuc_id = ?1 AND (tieu_de LIKE ?2 OR noi_dung LIKE ?2) ORDER BY cap_nhat_luc DESC LIMIT ?3').bind(toChucId, `%${like}%`, gioiHan).all();
   return results;
+}
+
+// Nhật ký của một ngày từ bộ não (memory/daily, memory/sonicplan): vài dòng đầu mỗi tệp, tối đa ~1500 ký tự.
+// Là dữ liệu tham khảo, không phải lệnh. Trả mảng chuỗi (rỗng nếu chưa nối bộ não hoặc ngày đó không có gì).
+export async function nguCanhNgay(env, toChucId, ngay, toiDa = 1500) {
+  if (!env.SECOND_BRAIN?.doc || !/^\d{4}-\d{2}-\d{2}$/.test(String(ngay))) return [];
+  let kq;
+  try { kq = await env.SECOND_BRAIN.doc(toChucId); } catch { return []; }
+  const ra = [];
+  let con = toiDa;
+  for (const t of kq?.ds || []) {
+    if (!/^memory\/(daily|sonicplan)\//.test(t.duong_dan) || !t.duong_dan.includes(`/${ngay}`)) continue;
+    const chu = String(t.noi_dung || '').replace(/\s+\n/g, '\n').trim().slice(0, con);
+    if (!chu || nhayCam(chu)) continue;
+    ra.push(`[nhật ký ${ngay}] ${chu}`);
+    con -= chu.length;
+    if (con <= 0) break;
+  }
+  return ra;
 }

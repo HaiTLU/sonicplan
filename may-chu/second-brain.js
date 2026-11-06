@@ -3,6 +3,9 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 
 const GOC_CHO_PHEP = ['memory/projects', 'memory/context/bai-hoc'];
+// Nhật ký theo ngày: chỉ lấy tệp đặt tên YYYY-MM-DD... trong 14 ngày gần nhất (bỏ sessions, claude-mem, archive).
+const GOC_THEO_NGAY = ['memory/daily', 'memory/sonicplan'];
+const SO_NGAY_GIU = 14;
 const MAX_TEP = 300;
 const MAX_BYTES = 128 * 1024;
 const MAX_TONG = 4 * 1024 * 1024;
@@ -35,7 +38,8 @@ export function moSecondBrain({ thuMuc, toChucId, lamMoiMs = 60_000 } = {}) {
         if (!that.startsWith(goc + path.sep)) throw new Error('outside');
         return that;
       }
-      async function duyet(tuongDoi, sau = 0) {
+      const mocNgay = new Date(Date.now() - SO_NGAY_GIU * 86400000 + 7 * 3600000).toISOString().slice(0, 10);
+      async function duyet(tuongDoi, sau = 0, theoNgay = false) {
         if (sau > 8 || ds.length >= MAX_TEP || tong >= MAX_TONG || daXet >= 2000) return;
         const ten = await duongDanAnToan(tuongDoi);
         const muc = (await fs.readdir(ten, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
@@ -43,8 +47,9 @@ export function moSecondBrain({ thuMuc, toChucId, lamMoiMs = 60_000 } = {}) {
           if (++daXet > 2000 || ds.length >= MAX_TEP || tong >= MAX_TONG) break;
           if (entry.isSymbolicLink()) continue;
           const rel = `${tuongDoi}/${entry.name}`;
-          if (entry.isDirectory()) { await duyet(rel, sau + 1); continue; }
+          if (entry.isDirectory()) { if (!theoNgay) await duyet(rel, sau + 1); continue; }
           if (!entry.isFile() || !/\.md$/i.test(entry.name)) continue;
+          if (theoNgay && !(/^\d{4}-\d{2}-\d{2}/.test(entry.name) && entry.name.slice(0, 10) >= mocNgay)) continue;
           const file = await duongDanAnToan(rel);
           const handle = await fs.open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
           try {
@@ -66,6 +71,7 @@ export function moSecondBrain({ thuMuc, toChucId, lamMoiMs = 60_000 } = {}) {
         }
       }
       for (const rel of GOC_CHO_PHEP) await duyet(rel);
+      for (const rel of GOC_THEO_NGAY) { try { await duyet(rel, 0, true); } catch { /* thư mục chưa có thì bỏ qua */ } }
       ds.sort((a, b) => b.cap_nhat_luc.localeCompare(a.cap_nhat_luc));
       cache = { trang_thai: 'ok', doc_luc: docLuc, ds };
       ketQua = cache;

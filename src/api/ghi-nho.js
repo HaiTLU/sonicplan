@@ -1,6 +1,6 @@
 // API giao diện: Tổng hợp, hồ sơ và ghi nhớ.
 // Mỗi nhóm nhận (yeuCau, env, phien, url) và trả Response, hoặc null nếu địa chỉ không thuộc nhóm này.
-import { LOAI_GHI_NHO, TOI_DA_HO_SO, docHoSo, luuHoSo, truyVanFts } from '../ghi-nho.js';
+import { LOAI_GHI_NHO, TOI_DA_HO_SO, docHoSo, luuHoSo, truyVanFts, ghiLichSu, xoaThatGhiNho } from '../ghi-nho.js';
 import { json, loi } from '../tien-ich.js';
 import { docGoiYLoiDan, quyetGoiYLoiDan } from '../loi-dan-tuan.js';
 import { docTongHopCuoi, tongHopChoToChuc } from '../tong-hop.js';
@@ -13,10 +13,15 @@ async function dsGhiNho(env, tc, url) {
   const loai = url.searchParams.get('loai');
   const q = (url.searchParams.get('q') || '').trim().slice(0, 80);
   const moi = url.searchParams.get('moi') === '1';
+  const nguon = url.searchParams.get('nguon');
+  const ghim = url.searchParams.get('ghim') === '1';
+  const lech = Math.max(0, Number(url.searchParams.get('lech')) || 0);
   const dieuKien = ['to_chuc_id = ?1'];
   const thamSo = [tc];
   if (LOAI_GHI_NHO.includes(loai)) { thamSo.push(loai); dieuKien.push(`loai = ?${thamSo.length}`); }
   if (moi) dieuKien.push('da_duyet = 0 AND nguon = \'ai\'');
+  if (nguon === 'ai' || nguon === 'tay') { thamSo.push(nguon); dieuKien.push(`nguon = ?${thamSo.length}`); }
+  if (ghim) dieuKien.push('ghim = 1');
   if (q) {
     // Tìm bằng FTS5 (không dấu, nhiều từ); không ra hoặc lỗi thì rơi về LIKE như cũ.
     let idKhop = [];
@@ -37,10 +42,11 @@ async function dsGhiNho(env, tc, url) {
     }
   }
   const [ds, dem] = await env.CSDL.batch([
-    env.CSDL.prepare(`SELECT id, loai, tieu_de, noi_dung, nguon, do_tin_cay, ghim, da_duyet, tao_luc, cap_nhat_luc FROM ghi_nho WHERE ${dieuKien.join(' AND ')} ORDER BY ghim DESC, cap_nhat_luc DESC LIMIT 200`).bind(...thamSo),
+    env.CSDL.prepare(`SELECT id, loai, tieu_de, noi_dung, nguon, do_tin_cay, do_tin_cay_so, so_lan_thay, ghim, da_duyet, tao_luc, cap_nhat_luc FROM ghi_nho WHERE ${dieuKien.join(' AND ')} ORDER BY ghim DESC, cap_nhat_luc DESC LIMIT 61 OFFSET ${lech}`).bind(...thamSo),
     env.CSDL.prepare(`SELECT COUNT(*) AS tong, SUM(CASE WHEN da_duyet = 0 AND nguon = 'ai' THEN 1 ELSE 0 END) AS moi FROM ghi_nho WHERE to_chuc_id = ?1`).bind(tc),
   ]);
-  return { ghi_nho: ds.results, tong: dem.results[0].tong || 0, moi: dem.results[0].moi || 0 };
+  const con = ds.results.length > 60;
+  return { ghi_nho: ds.results.slice(0, 60), con, tong: dem.results[0].tong || 0, moi: dem.results[0].moi || 0 };
 }
 
 async function taoGhiNho(env, tc, du) {
@@ -77,9 +83,11 @@ async function suaGhiNho(env, tc, id, du) {
   if (du.da_duyet === true) dat.push('da_duyet = 1');
   if (!dat.length) return loi(400, 'Không có gì để sửa.');
   them('cap_nhat_luc', new Date().toISOString());
+  const truoc = (du.noi_dung !== undefined || du.tieu_de !== undefined) ? await env.CSDL.prepare('SELECT tieu_de, noi_dung FROM ghi_nho WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first() : null;
   try {
     const kq = await env.CSDL.prepare(`UPDATE ghi_nho SET ${[...new Set(dat)].join(', ')} WHERE id = ?1 AND to_chuc_id = ?2`).bind(...thamSo).run();
     if (!kq.meta.changes) return loi(404, 'Không thấy mục ghi nhớ này.');
+    if (truoc) await ghiLichSu(env, tc, id, truoc.tieu_de, truoc.noi_dung, 'Người dùng sửa');
   } catch (e) {
     if (/UNIQUE/i.test(String(e.message))) return loi(409, 'Đã có mục cùng loại và tiêu đề này.');
     throw e;
@@ -115,12 +123,15 @@ export async function xuLyGhiNho(yeuCau, env, phien, url) {
   if (p === '/api/ghi-nho' && m === 'POST') return taoGhiNho(env, tc, await yeuCau.json().catch(() => ({})));
   if (p === '/api/ghi-nho' && m === 'DELETE') {
     if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức xóa toàn bộ được.');
-    const kq = await env.CSDL.prepare('DELETE FROM ghi_nho WHERE to_chuc_id = ?1').bind(tc).run();
+    const [kq] = await env.CSDL.batch([
+      env.CSDL.prepare('DELETE FROM ghi_nho WHERE to_chuc_id = ?1').bind(tc),
+      env.CSDL.prepare('DELETE FROM bo_nho_lich_su WHERE to_chuc_id = ?1').bind(tc),
+    ]);
     return json({ da_xoa: kq.meta.changes || 0 });
   }
   if ((khop = p.match(/^\/api\/ghi-nho\/(\d+)$/)) && m === 'PATCH') return suaGhiNho(env, tc, Number(khop[1]), await yeuCau.json().catch(() => ({})));
   if ((khop = p.match(/^\/api\/ghi-nho\/(\d+)$/)) && m === 'DELETE') {
-    await env.CSDL.prepare('DELETE FROM ghi_nho WHERE id = ?1 AND to_chuc_id = ?2').bind(Number(khop[1]), tc).run();
+    await xoaThatGhiNho(env, tc, Number(khop[1]));
     return json({ ok: true });
   }
 

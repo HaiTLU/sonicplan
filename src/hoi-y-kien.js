@@ -127,12 +127,15 @@ async function luuBaiHoc(env, tc, r, tra, khac, bayGio) {
     ? `- Tin kiểu "${cat(r.tin_trich, 80)}" (AI phân vân việc "${cat(docDeXuat(r.de_xuat).tieu_de, 80)}"): anh chọn ${khac ? 'THÊM việc' : 'KHÔNG thêm'}`
     : `- Tin kiểu "${cat(r.tin_trich, 80)}": AI băn khoăn "${cat(r.cau_hoi, 100)}", anh chọn "${cat(tra, 80)}"${khac === false ? ' (đúng như AI đoán)' : ''}`;
   if (nhayCam(dong)) return;
-  const tieuDe = cat(`Anh trả lời ô hỏi ${TEN_LOAI[r.loai]}: ${r.boi_canh || 'chung'}`, 120);
+  const tieuDe = cat(`Cách anh xử lý ${TEN_LOAI[r.loai]}: ${r.boi_canh || 'chung'}`, 120);
   const cu = await env.CSDL.prepare(`SELECT noi_dung FROM ghi_nho WHERE to_chuc_id = ?1 AND loai = 'quyet_dinh' AND tieu_de = ?2`).bind(tc, tieuDe).first();
   const noiDung = [...String(cu?.noi_dung || '').split('\n').filter(Boolean), dong].slice(-3).join('\n').slice(-600);
   await env.CSDL.prepare(
-    `INSERT INTO ghi_nho (to_chuc_id, loai, tieu_de, noi_dung, nguon, da_duyet, tao_luc, cap_nhat_luc) VALUES (?1, 'quyet_dinh', ?2, ?3, 'tay', 1, ?4, ?4)
-     ON CONFLICT (to_chuc_id, loai, tieu_de) DO UPDATE SET noi_dung = excluded.noi_dung, nguon = 'tay', da_duyet = 1, cap_nhat_luc = excluded.cap_nhat_luc`,
+    `INSERT INTO ghi_nho (to_chuc_id, loai, tieu_de, noi_dung, nguon, da_duyet, do_tin_cay, do_tin_cay_so, tao_luc, cap_nhat_luc) VALUES (?1, 'quyet_dinh', ?2, ?3, 'ai', 0, 'thap', 0.4, ?4, ?4)
+     ON CONFLICT (to_chuc_id, loai, tieu_de) DO UPDATE SET noi_dung = excluded.noi_dung, cap_nhat_luc = excluded.cap_nhat_luc,
+       so_lan_thay = ghi_nho.so_lan_thay + 1,
+       do_tin_cay_so = CASE WHEN ghi_nho.so_lan_thay >= 2 THEN 0.8 ELSE ghi_nho.do_tin_cay_so END,
+       do_tin_cay = CASE WHEN ghi_nho.so_lan_thay >= 2 THEN 'cao' ELSE ghi_nho.do_tin_cay END`,
   ).bind(tc, tieuDe, noiDung, bayGio).run();
 }
 
