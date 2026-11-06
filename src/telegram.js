@@ -5,7 +5,7 @@
 import { chatTuDo, traLoiTuBoNho } from './ai.js';
 import { goiNgoai } from './goi-ngoai.js';
 import { tongHopChoToChuc } from './tong-hop.js';
-import { chonGhiNho, docHoSo, nhayCam } from './ghi-nho.js';
+import { chonGhiNho, docHoSo, nguCanhNgay, nhayCam } from './ghi-nho.js';
 import { apDungTraLoi, boCauHoi, danhDauDaGui, docCauHoiMoi, dungTinHoi, nutHoi, phanTichNutHoi, timCauHoiTheoTin } from './hoi-y-kien.js';
 import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { giaiMaEnv, maHoa } from './ma-hoa.js';
@@ -205,7 +205,7 @@ async function lenhChat(env, tc, cauHoi, tuyChon = {}) {
   ]);
   const ghiNho = chonGhiNho(gn.results, cauHoi);
   const viecDs = viec.results.map((v) => `- ${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay})` : ''}`);
-  return (await chatTuDo(env, cauHoi, ghiNho, viecDs, [], tuyChon)) || 'Em chưa trả lời được câu này.';
+  return (await chatTuDo(env, cauHoi, ghiNho, viecDs, [], { ...tuyChon, nhatKy: await nguCanhNgay(env, tc, ngayVN(), 700) })) || 'Em chưa trả lời được câu này.';
 }
 
 async function lenhViec(env, tc) {
@@ -223,7 +223,7 @@ async function lenhHoi(env, tc, cauHoi) {
     env.CSDL.prepare(`SELECT tieu_de, han_ngay FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' ORDER BY id DESC LIMIT 40`).bind(tc),
   ]);
   const ghiNho = chonGhiNho(gn.results, cauHoi);
-  return (await traLoiTuBoNho(env, cauHoi, ghiNho, viec.results.map((v) => `${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay})` : ''}`), { ngoai: await docTichHop(env, tc, 'ai'), hoSo: await docHoSo(env, tc) })) || 'Em chưa nhớ điều này.';
+  return (await traLoiTuBoNho(env, cauHoi, ghiNho, viec.results.map((v) => `${v.tieu_de}${v.han_ngay ? ` (hạn ${v.han_ngay})` : ''}`), { ngoai: await docTichHop(env, tc, 'ai'), hoSo: await docHoSo(env, tc), nhatKy: await nguCanhNgay(env, tc, ngayVN(), 700) })) || 'Em chưa nhớ điều này.';
 }
 
 // Nhắn thường: AI đọc như một tin, thấy việc thì tạo việc; không thấy việc thì chat tự do.

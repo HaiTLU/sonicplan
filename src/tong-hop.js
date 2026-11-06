@@ -1,7 +1,7 @@
 // Tổng hợp một lần: gom hồ sơ, ghi nhớ, việc, tin gần đây đưa AI viết bản tổng hợp, lưu bản cuối để xem lại.
 
 import { tongHopAi } from './ai.js';
-import { chonGhiNho, docHoSo } from './ghi-nho.js';
+import { chonGhiNho, docHoSo, nguCanhNgay } from './ghi-nho.js';
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
 import { docTichHop } from './tich-hop.js';
 import { ngayVN } from './tien-ich.js';
@@ -31,6 +31,7 @@ export async function tongHopChoToChuc(env, tc, bayGio = new Date().toISOString(
     viecQuaHan: viecMo.filter((v) => v.han_ngay && v.han_ngay < homNay).map((v) => v.tieu_de),
     viecXongTuan: xong.results.map((v) => v.tieu_de),
     tin: tin.results.reverse().map((t) => ({ nguon: t.nguon, tu: t.nguoi_gui, nhom: t.nhom || undefined, luc: t.thoi_diem, noi_dung: CAT(`${t.tieu_de ? `${t.tieu_de}: ` : ''}${t.noi_dung}`, 350) })),
+    nhatKy: await nguCanhNgay(env, tc, homNay, 1200),
     ghiNho: chonGhiNho(nho.results, `${viecMo.map((v) => v.tieu_de).join(' ')} ${tin.results.map((t) => `${t.nguoi_gui} ${t.nhom || ''}`).join(' ')}`),
   };
   if (!du.viecMo.length && !du.tin.length) return { luc: bayGio, noi_dung: 'Chưa có việc đang mở hay tin gần đây để tổng hợp.', trong: true };

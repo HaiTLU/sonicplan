@@ -93,3 +93,33 @@ test('API: lọc nguồn, ghim và phân trang 60 mục', async () => {
   assert.ok((await goi('?nguon=ai')).ghi_nho.every((g) => g.nguon === 'ai'));
   assert.equal((await goi('?nguon=ai&lech=0')).tong, 70);
 });
+
+import { chatTuDo, traLoiTuBoNho, tongHopAi } from '../src/ai.js';
+import { dungBoiCanh } from '../src/soan-prompt.js';
+
+const NK = ['[nhật ký 2026-11-06] Họp với chị Lan về khóa AI'];
+const envAi = (ghi) => ({ AI: { run: async (_m, tham) => { ghi.tham = tham; return { response: 'ok' }; } } });
+
+test('nhật ký ngày: vào bối cảnh soạn prompt, tổng hợp, chat và hỏi; không có thì không thêm mục', async () => {
+  const co = dungBoiCanh({ viecList: [{ id: 1, tieu_de: 'V', nhom: 'anh_tu_lam' }], duAn: null, tins: [{ goc: null, quanh: [] }], ghiNho: [], tep: [], goc: 'https://x', nhatKy: NK });
+  assert.match(co, /Nhật ký hôm nay trong bộ não/);
+  assert.ok(co.includes('chị Lan'));
+  const khong = dungBoiCanh({ viecList: [{ id: 1, tieu_de: 'V', nhom: 'anh_tu_lam' }], duAn: null, tins: [{ goc: null, quanh: [] }], ghiNho: [], tep: [], goc: 'https://x' });
+  assert.ok(!khong.includes('Nhật ký hôm nay'));
+
+  let g = {};
+  await tongHopAi(envAi(g), { homNay: '2026-11-06', viecMo: [], tin: [], nhatKy: NK });
+  assert.ok(g.tham.messages[1].content.includes('chị Lan'));
+  assert.match(g.tham.messages[0].content, /nhật ký/i);
+
+  g = {};
+  await chatTuDo(envAi(g), 'hôm nay sao?', [], [], [], { nhatKy: NK });
+  assert.ok(g.tham.messages[0].content.includes('chị Lan'));
+  g = {};
+  await chatTuDo(envAi(g), 'hôm nay sao?', [], [], [], {});
+  assert.ok(!g.tham.messages[0].content.includes('Nhật ký'));
+
+  g = {};
+  await traLoiTuBoNho(envAi(g), 'sao?', [], [], { nhatKy: NK });
+  assert.ok(g.tham.messages[1].content.includes('chị Lan'));
+});
