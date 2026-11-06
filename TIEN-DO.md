@@ -1,6 +1,6 @@
 # Tiến độ - Sonicplan
 
-Cập nhật: 11/10/2026.
+Cập nhật: 05/11/2026. Các mục đầu tệp (11/10) là lịch sử giai đoạn 0; phần hiện trạng mới nhất ở cuối tệp.
 
 ## Kế hoạch đợt
 
@@ -170,3 +170,14 @@ Cập nhật: 11/10/2026.
 - PR6 đã gộp. Đây là PR cuối trong kế hoạch 6 PR đã duyệt cho `/hoalac` - phân hệ xây dựng xong theo đúng kế hoạch gốc.
 - **27/10/2026: đã cấu hình Cloudflare Access Application riêng cho `/hoalac`.** Tạo ứng dụng self-hosted "Sonicplan - Hoa Lac", đích `plan.sonicrec.app/hoalac*` và `plan.sonicapp.top/hoalac*`, chính sách "Chi Hai" (chỉ email PM - "Chỉ anh Nam Hải" không dùng lại được vì là chính sách nội bộ của ứng dụng Sonicplan hiện có). AUD ghi vào `wrangler.jsonc` biến `ACCESS_UNG_DUNG`, commit `8be82d1` trên `main`. `may-chu/chay.js` đã whitelist biến này từ PR1, không cần sửa thêm.
 - Việc còn treo ngoài phạm vi mọi PR (chưa có PR nào giao đúng việc này, cần PM quyết định làm tiếp hay không): kiểm trình duyệt ba vai trò cho tab Ngân sách (UNVERIFIED từ PR5), lỗi `qlda_hop_dong` PUT COALESCE-trên-khóa-ngoại-nullable (ghi nhận từ PR4, chưa sửa), chưa chọn một trong ba bản TMĐT khác nhau làm số ngân sách thật (số vẫn để trống từ PR5).
+
+## Hiện trạng đến 05/11/2026
+
+Tổng hợp từ danh sách PR, commit và kiểm tra CI trên GitHub; chưa kiểm hệ thống đang chạy.
+
+- Đã gộp từ 28/10 đến 03/11: giao diện Liquid Glass v2 (#146), tìm ghi nhớ FTS5 (#142), vòng học tập hằng ngày (#143 đến #145), việc theo buổi sáng hoặc chiều (#147), sửa Lịch Google 400 (#148), lịch hai chiều (#150), lịch `thanglong` chỉ đọc (#151). Migration hiện tới 0047.
+- 05/11: #153 sửa tương phản chữ phụ, đưa CI `tro-nang` về xanh (đỏ trên main từ 01/11 sau #146).
+- Đang mở: #149 (chế độ đồng bộ Google `tu-chia`, chưa thử với Google thật, lượt đầu tự xóa Task không khôi phục được nên chưa gộp), #152 (Dependabot nâng wrangler 4.156.0, cần chạy lại CI), #134 (Copilot, bản nháp từ 23/10, chưa có kiểm tra CI nào).
+- Việc còn treo của /hoalac: kiểm tab Ngân sách trên trình duyệt ba vai trò (chưa làm); lỗi PUT `qlda_hop_dong` không xóa được khóa ngoại về trống; số ngân sách vẫn để trống chờ PM xác nhận một trong ba bản TMĐT.
+- Cần nhớ: CSDL thật là tệp sqlite trên VPS, tự áp migration qua `may-chu/cap-nhat.sh`; D1 khai báo trong `wrangler.jsonc` không phải CSDL thật. Bộ kiểm có hai tệp (`may-chu`, `tram-claude`) lỗi trên Node 26 khi chạy trong sandbox; chạy ngoài sandbox đạt.
+- Chưa thử với Google thật: lịch hai chiều (#150, #151) theo dõi nhật ký đồng bộ vài ngày đầu; chế độ `tu-chia` (#149).

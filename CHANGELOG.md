@@ -4,6 +4,23 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 
 ## [Chưa phát hành]
 
+Cập nhật 05/11/2026: bổ sung các đợt đã gộp từ 26/10 đến 03/11 mà trước đây chưa ghi (migration 0038 đến 0047). Các mục này viết lại từ thông điệp commit và mô tả PR, chưa kiểm lại từng dòng với mã.
+
+### Thêm (đợt 26/10 đến 03/11)
+- Phân hệ Viện Hòa Lạc `/hoalac` (PR #135 đến #140, migration 0038 đến 0042): tổ chức có phạm vi truy cập riêng và vai trò đối tác; WBS, Gantt, đường găng (CPM), baseline, Kanban; RAID (rủi ro, vấn đề, thay đổi, quyết định, bài học); pháp lý, hợp đồng, các bên liên quan, RACI, văn bản, họp; ngân sách và EVM (số tiền để trống chờ xác nhận bản TMĐT); mốc dự án lên lịch `.ics`. Có ứng dụng Cloudflare Access riêng (biến `ACCESS_UNG_DUNG`).
+- Tìm ghi nhớ bằng FTS5, bộ nhớ hai tầng (#142, migration 0043).
+- Vòng học tập hằng ngày từ việc người dùng sửa, có lý do sửa và rào chắn chống lời dặn độc hại (#143 đến #145, migration 0044).
+- Việc chưa có giờ lên lịch theo buổi sáng hoặc chiều (#147, migration 0045).
+- Lịch hai chiều: sự kiện Google Lịch đổi thì việc đổi theo, kéo bằng `syncToken` mỗi 5 phút, bên sửa sau thắng (#150, migration 0046).
+- Nối thêm lịch `thanglong` chỉ đọc, sự kiện mới thành việc (#151, migration 0047).
+
+### Đổi (đợt 26/10 đến 03/11)
+- Giao diện: hệ thiết kế Thăng Long Liquid Glass v2 (#146).
+
+### Sửa (đợt 26/10 đến 03/11)
+- Google Lịch lỗi 400 "Invalid start time" khi việc đổi từ cả ngày sang có giờ; một việc lỗi không còn chặn các việc sau (#148).
+- `/hoalac` từ chối nhầm người thuộc nhiều tổ chức (chọn tổ chức theo phạm vi đường dẫn).
+
 Memory của PM chuyển từ ThangLong_KB sang kho second-brain (18/10/2026). Có migration 0034 (bảng `cau_hoi_ai`), 0035 (cột `de_xuat`, `tin_nhan_id`) và 0036 (bảng `prompt_claude`).
 
 ### Đổi lớn
