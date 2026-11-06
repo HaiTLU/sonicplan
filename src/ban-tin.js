@@ -7,7 +7,7 @@ import { laHetHanMucNgay } from './han-muc-ai.js';
 import { docCaiDat } from './hop-tin.js';
 import { docLuong } from './luong.js';
 import { docTichHop } from './tich-hop.js';
-import { docHoSo, ghiNhoChoAi } from './ghi-nho.js';
+import { docHoSo, ghiNhoChoAi, nguCanhNgay } from './ghi-nho.js';
 import { docGoiYLoiDan } from './loi-dan-tuan.js';
 import { laViecRo } from './viec.js';
 import { baoToChuc } from './telegram.js';
@@ -91,7 +91,9 @@ export async function banTinNgay(env, bayGio, { ep = false } = {}) {
           env.CSDL.prepare(`SELECT tieu_de, han_ngay, gio_hen, uu_tien FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' ORDER BY han_ngay IS NULL, han_ngay, gio_hen LIMIT 40`).bind(tc.id).all(),
           ghiNhoChoAi(env, tc.id, results.map((v) => v.tieu_de).join(' ')),
         ]);
-        const keHoach = await keHoachNgayAi(env, moRong.results, gn, homNay, { ngoai: await docTichHop(env, tc.id, 'ai'), hoSo: await docHoSo(env, tc.id) });
+        const homQua = ngayVN(new Date(Date.parse(bayGio) - 86400000).toISOString());
+        const nhatKy = [...(await nguCanhNgay(env, tc.id, homQua, 1200)), ...(await nguCanhNgay(env, tc.id, homNay, 600))];
+        const keHoach = await keHoachNgayAi(env, moRong.results, [...gn, ...nhatKy], homNay, { ngoai: await docTichHop(env, tc.id, 'ai'), hoSo: await docHoSo(env, tc.id) });
         if (keHoach) noiDung += `\n\nKế hoạch hôm nay:\n${keHoach}`;
       } catch (e) {
         console.error('Lập kế hoạch ngày lỗi', e);
@@ -172,7 +174,7 @@ const SO_LAN_LOI = (ghiChu) => (String(ghiChu || '').match(/\[Gợi ý: lỗi/g)
 
 // Ngữ cảnh riêng của từng việc cho lời gợi ý: tên dự án, cờ nghi trùng, vài việc giống đã xong gần đây. Lỗi ở đây không được chặn gợi ý.
 export async function nguCanhGoiY(env, tc, v, daXong = []) {
-  const ra = { duAn: null, nghiTrung: null, daXong: [] };
+  const ra = { duAn: null, nghiTrung: null, daXong: [], nhatKy: [] };
   try {
     if (v.du_an_id) ra.duAn = (await env.CSDL.prepare('SELECT ten FROM du_an WHERE id = ?1 AND to_chuc_id = ?2').bind(v.du_an_id, tc).first())?.ten || null;
     ra.nghiTrung = (await env.CSDL.prepare("SELECT noi_dung FROM viec_su_kien WHERE viec_id = ?1 AND to_chuc_id = ?2 AND loai = 'nghi_trung' ORDER BY id DESC LIMIT 1").bind(v.id, tc).first())?.noi_dung || null;
@@ -180,6 +182,7 @@ export async function nguCanhGoiY(env, tc, v, daXong = []) {
       .map((x) => ({ t: x.tieu_de, d: doGiong(x.tieu_de, v.tieu_de) }))
       .filter((x) => x.d >= 0.45 && x.d < 1)
       .sort((a, b) => b.d - a.d).slice(0, 3).map((x) => x.t);
+    ra.nhatKy = await nguCanhNgay(env, tc, ngayVN(new Date().toISOString()), 700);
   } catch (e) {
     console.error('Ngữ cảnh gợi ý lỗi', v.id, e);
   }

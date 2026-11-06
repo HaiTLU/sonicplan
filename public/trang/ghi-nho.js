@@ -9,17 +9,23 @@ const LOAI_NHO = { nguoi: 'Người', du_an: 'Dự án', quyet_dinh: 'Quyết đ
 
 export async function veGhiNho(goc) {
   const n = trang.nho;
+  n.lech = 0;
   const oTim = h('input', { type: 'search', placeholder: 'Tìm trong ghi nhớ…', value: n.q, 'aria-label': 'Tìm ghi nhớ' });
   const chip = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(n.loai === ma), onclick: () => { n.loai = ma; veGhiNho(goc); } }, nhan);
   const ds = h('div', { class: 'ds-nho' }, ...[1, 2, 3].map(() => h('div', { class: 'bang the-nho' }, xuong(16, '40%'), xuong(14, '90%'))));
-  const dauMuc = h('div', { class: 'thanh-loc' }, chip('tat-ca', 'Tất cả'), chip('moi', 'Mới, chờ duyệt'), ...Object.entries(LOAI_NHO).map(([ma, nhan]) => chip(ma, nhan)), h('label', { class: 'o-tim' }, icon('tim'), oTim));
+  const chonNguon = h('select', { 'aria-label': 'Lọc theo nguồn', onchange: (e) => { n.nguon = e.target.value; nap(); } },
+    ...[['tat-ca', 'Mọi nguồn'], ['ai', 'AI tự nhớ'], ['tay', 'Tôi viết hoặc sửa']].map(([ma, nhan]) => h('option', { value: ma, text: nhan, selected: n.nguon === ma })));
+  const chonTheo = h('select', { 'aria-label': 'Cách xếp', onchange: (e) => { n.theo = e.target.value; nap(); } },
+    ...[['loai', 'Xếp theo loại'], ['ngay', 'Xếp theo ngày']].map(([ma, nhan]) => h('option', { value: ma, text: nhan, selected: n.theo === ma })));
+  const nutGhim = h('button', { class: 'chip', type: 'button', 'aria-pressed': String(n.ghim), onclick: () => { n.ghim = !n.ghim; veGhiNho(goc); } }, 'Đã ghim');
+  const dauMuc = h('div', { class: 'thanh-loc' }, chip('tat-ca', 'Tất cả'), chip('moi', 'Mới, chờ duyệt'), ...Object.entries(LOAI_NHO).map(([ma, nhan]) => chip(ma, nhan)), nutGhim, chonNguon, chonTheo, h('label', { class: 'o-tim' }, icon('tim'), oTim));
   let hen;
   oTim.addEventListener('input', () => { clearTimeout(hen); hen = setTimeout(() => { n.q = oTim.value.trim(); nap(); }, 300); });
 
   const oLoai = h('select', { 'aria-label': 'Loại' }, ...Object.entries(LOAI_NHO).map(([ma, nhan]) => h('option', { value: ma, text: nhan })));
   const oTieu = h('input', { type: 'text', placeholder: 'Tiêu đề, ví dụ: Chị Lan', maxlength: '120', required: true, 'aria-label': 'Tiêu đề' });
   const oNoi = h('input', { type: 'text', placeholder: 'Điều cần nhớ, ví dụ: Trưởng phòng đào tạo', maxlength: '600', required: true, 'aria-label': 'Nội dung' });
-  const form = h('form', { class: 'bang them-nho' }, oLoai, oTieu, oNoi, h('button', { class: 'nut nut-chinh', type: 'submit' }, icon('cong'), 'Thêm'));
+  const form = h('form', { class: 'them-nho' }, oLoai, oTieu, oNoi, h('button', { class: 'nut nut-chinh', type: 'submit' }, icon('cong'), 'Thêm'));
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
@@ -50,7 +56,7 @@ export async function veGhiNho(goc) {
     capNhatDem();
     oHoSo.focus();
   } }, 'Chèn khung mẫu');
-  const hopHoc = h('section', { class: 'bang' }, h('h3', { text: 'Học từ lựa chọn của bạn' }));
+  const hopHoc = h('div', { class: 'noi-khoi' });
   api('/api/hoc-hang-ngay').then((r) => {
     hopHoc.append(
       h('p', { text: `Những lần bạn sửa việc hoặc trả lời AI được dùng khi gặp tin cùng bối cảnh. ${r.bat ? 'Mỗi tối lúc 23h, hệ thống tổng hợp lời dặn để bạn duyệt.' : 'Tổng hợp hằng ngày đang tắt; bạn có thể bật trong trang Luồng.'}` }),
@@ -74,13 +80,15 @@ export async function veGhiNho(goc) {
     });
   }).catch(() => {});
   napGoiY();
-  const theHoSo = h('section', { class: 'bang ho-so' },
-    h('h3', { text: 'Hồ sơ của bạn' }),
+  const theHoSo = h('div', { class: 'noi-khoi ho-so' },
     h('p', { class: 'mo-ta', text: 'Vài dòng giúp AI hiểu bạn là ai và ai là ai trong công việc. AI đọc hồ sơ này mỗi lần tách việc, gợi ý, lập kế hoạch ngày và trả lời trên Telegram. Không ghi mật khẩu hay số thẻ.' }),
     oHoSo,
     h('div', { class: 'hang-nut' }, nutHoSo, nutKhung, demHoSo),
   );
-  thay(goc, hopHoc, theHoSo, hopGoiY, h('p', { class: 'tom-tat-phu', style: 'margin-bottom:14px', text: 'Hệ thống tự nhớ người, dự án và quyết định từ tin đến, rồi dùng lại khi đọc tin sau. Mục mới do AI thêm có nhãn chờ duyệt: bấm dấu tích nếu đúng, sửa hoặc xóa nếu sai.' }), form, dauMuc, ds);
+  const khoiGap = (tieuDe, ...con) => h('details', { class: 'bang khoi-gap' }, h('summary', { text: tieuDe }), ...con);
+  const nutThem = h('button', { class: 'nut nut-phu', type: 'button', text: 'Xem thêm', hidden: true });
+  thay(goc, hopGoiY, h('p', { class: 'tom-tat-phu', style: 'margin-bottom:10px', text: 'Hệ thống tự nhớ người, dự án và quyết định từ tin đến, rồi dùng lại khi đọc tin sau. Mục AI mới thêm cần bạn duyệt: bấm dấu tích nếu đúng, sửa hoặc xóa nếu sai. Mục AI mới thấy một lần chưa được đưa vào lời nhắc cho tới khi lặp lại hoặc bạn duyệt.' }), dauMuc, ds, h('div', { class: 'hang-nut', style: 'justify-content:center;margin:12px 0' }, nutThem),
+    khoiGap('Thêm một ghi nhớ', form), khoiGap('Hồ sơ của bạn', theHoSo), khoiGap('Học từ lựa chọn của bạn', hopHoc));
 
   async function hanhDong(id, thanDu, thongBao) {
     try {
@@ -91,67 +99,94 @@ export async function veGhiNho(goc) {
       bao(err.message, { loi: true });
     }
   }
+  const ngayNgan = (iso) => (iso ? new Date(iso).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '');
+  // Xóa là xóa thật; hoàn tác tạo lại mục với cùng loại, tiêu đề, nội dung (lịch sử phiên bản không khôi phục).
+  async function xoa(g) {
+    try {
+      await api(`/api/ghi-nho/${g.id}`, { method: 'DELETE' });
+      bao(`Đã xóa "${g.tieu_de}".`, { hanhDong: { nhan: 'Hoàn tác', lam: async () => {
+        try { await api('/api/ghi-nho', { method: 'POST', body: JSON.stringify({ loai: g.loai, tieu_de: g.tieu_de, noi_dung: g.noi_dung }) }); nap(); } catch (err) { bao(err.message, { loi: true }); }
+      } } });
+      nap();
+    } catch (err) {
+      bao(err.message, { loi: true });
+    }
+  }
   function the(g) {
     const tren = h('div', { class: 'dau-nho' },
       h('span', { class: 'nhan-nho', text: LOAI_NHO[g.loai] }),
       g.nguon === 'ai' && !g.da_duyet ? h('span', { class: 'nhan-nho moi', text: 'Mới, chờ duyệt' }) : null,
-      g.do_tin_cay === 'thap' && !g.da_duyet ? h('span', { class: 'nhan-nho thap', text: 'AI dự phòng, cần kiểm' }) : null,
+      (g.do_tin_cay_so ?? 0.8) < 0.6 && !g.da_duyet && !g.ghim ? h('span', { class: 'nhan-nho thap', text: 'Chưa đủ tin, AI chưa dùng' }) : null,
     );
     const noi = h('p', { class: 'noi-nho', text: g.noi_dung });
+    const tieu = h('h3', { text: g.tieu_de });
     const nut = (nhan, ten, lam, loiNut = false) => h('button', { class: `nut-icon${loiNut ? ' nguy' : ''}`, type: 'button', title: nhan, 'aria-label': nhan, onclick: lam }, icon(ten));
     const hang = h('div', { class: 'tac-nho' },
       g.nguon === 'ai' && !g.da_duyet ? nut('Đúng, giữ lại', 'xong', () => hanhDong(g.id, { da_duyet: true })) : null,
       nut(g.ghim ? 'Bỏ ghim' : 'Ghim', 'ghim', () => hanhDong(g.id, { ghim: !g.ghim })),
       nut('Sửa', 'sua', () => sua()),
-      nut('Xóa', 'xoa', async () => {
-        try {
-          await api(`/api/ghi-nho/${g.id}`, { method: 'DELETE' });
-          bao('Đã xóa.');
-          nap();
-        } catch (err) {
-          bao(err.message, { loi: true });
-        }
-      }, true),
+      nut('Xóa', 'xoa', () => xoa(g), true),
     );
-    const el = h('article', { class: `bang the-nho${g.ghim ? ' ghim' : ''}` }, h('div', { class: 'hang-nho' }, tren, hang), h('h3', { text: g.tieu_de }), noi);
+    const meta = h('p', { class: 'meta-nho', text: `${g.nguon === 'ai' ? 'AI tự nhớ' : 'Bạn viết hoặc sửa'} · cập nhật ${ngayNgan(g.cap_nhat_luc)}${g.so_lan_thay > 1 ? ` · gặp lại ${g.so_lan_thay} lần` : ''}` });
+    const el = h('article', { class: `bang the-nho${g.ghim ? ' ghim' : ''}` }, h('div', { class: 'hang-nho' }, tren, hang), tieu, noi, meta);
     el._td = () => ({ nhan: `Thao tác với ghi nhớ ${g.tieu_de}`, muc: [
       g.nguon === 'ai' && !g.da_duyet ? { nhan: 'Đúng, giữ lại', lam: () => hanhDong(g.id, { da_duyet: true }) } : null,
       { nhan: g.ghim ? 'Bỏ ghim' : 'Ghim', lam: () => hanhDong(g.id, { ghim: !g.ghim }) },
-      { nhan: 'Sửa nội dung', lam: () => sua() },
+      { nhan: 'Sửa', lam: () => sua() },
       { nhan: 'Sao chép nội dung', lam: () => chepChu(g.noi_dung) },
       { vach: true },
-      { nhan: 'Xóa', nguy: true, lam: async () => {
-        if (!confirm(`Xóa ghi nhớ "${g.tieu_de}"?`)) return;
-        try { await api(`/api/ghi-nho/${g.id}`, { method: 'DELETE' }); bao('Đã xóa.'); nap(); } catch (err) { bao(err.message, { loi: true }); }
-      } },
+      { nhan: 'Xóa', nguy: true, lam: () => xoa(g) },
     ] });
     function sua() {
+      const oT = h('input', { type: 'text', maxlength: '120', 'aria-label': 'Sửa tiêu đề', value: g.tieu_de });
       const o = h('textarea', { rows: '3', maxlength: '600', 'aria-label': 'Sửa nội dung' });
       o.value = g.noi_dung;
-      const luu = h('button', { class: 'nut nut-chinh nut-nho', type: 'button', text: 'Lưu', onclick: () => hanhDong(g.id, { noi_dung: o.value }, 'Đã lưu.') });
-      const huy = h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: 'Hủy', onclick: () => noi.replaceWith(noi) });
-      huy.onclick = () => { khung.replaceWith(noi); };
-      const khung = h('div', { class: 'sua-nho' }, o, h('div', { class: 'tac-nho' }, luu, huy));
+      const luu = h('button', { class: 'nut nut-chinh nut-nho', type: 'button', text: 'Lưu', onclick: () => hanhDong(g.id, { tieu_de: oT.value, noi_dung: o.value }, 'Đã lưu.') });
+      const huy = h('button', { class: 'nut nut-phu nut-nho', type: 'button', text: 'Hủy', onclick: () => { khung.replaceWith(noi); tieu.hidden = false; } });
+      const khung = h('div', { class: 'sua-nho' }, oT, o, h('div', { class: 'tac-nho' }, luu, huy));
+      tieu.hidden = true;
       noi.replaceWith(khung);
       o.focus();
     }
     return el;
   }
-  async function nap() {
+  const nhomTheo = (ds1) => {
+    const m = new Map();
+    for (const g of ds1) {
+      const k = n.theo === 'ngay' ? ngayNgan(g.cap_nhat_luc) : (LOAI_NHO[g.loai] || g.loai);
+      if (!m.has(k)) m.set(k, []);
+      m.get(k).push(g);
+    }
+    return m;
+  };
+  let daTai = [];
+  function ve(kq) {
+    if (!daTai.length) {
+      thay(ds, h('div', { class: 'bang trong-trai', style: 'min-height:260px' }, icon('ghi-nho'), h('h3', { text: kq.tong ? 'Không có mục nào khớp' : 'Chưa nhớ gì' }), h('p', { text: kq.tong ? 'Thử bỏ bộ lọc hoặc đổi từ khóa.' : 'Khi có tin mới, hệ thống tự ghi lại người, dự án và quyết định ở đây. Bạn cũng thêm tay được ở khối "Thêm một ghi nhớ" bên dưới.' })));
+    } else {
+      const khoi = [];
+      for (const [ten, muc] of nhomTheo(daTai)) khoi.push(h('section', { class: 'nhom-nho' }, h('h2', { class: 'tieu-nhom-nho', text: `${ten} (${muc.length})` }), h('div', { class: 'ds-nho' }, ...muc.map(the))));
+      thay(ds, ...khoi);
+    }
+    nutThem.hidden = !kq.con;
+  }
+  async function nap(them = false) {
     try {
+      if (!them) { n.lech = 0; daTai = []; }
       const tham = new URLSearchParams();
       if (n.loai === 'moi') tham.set('moi', '1');
       else if (n.loai !== 'tat-ca') tham.set('loai', n.loai);
       if (n.q) tham.set('q', n.q);
+      if (n.nguon !== 'tat-ca') tham.set('nguon', n.nguon);
+      if (n.ghim) tham.set('ghim', '1');
+      if (n.lech) tham.set('lech', String(n.lech));
       const kq = await api(`/api/ghi-nho${tham.size ? `?${tham}` : ''}`);
-      if (!kq.ghi_nho.length) {
-        thay(ds, h('div', { class: 'bang trong-trai', style: 'min-height:260px' }, icon('ghi-nho'), h('h3', { text: kq.tong ? 'Không có mục nào khớp' : 'Chưa nhớ gì' }), h('p', { text: kq.tong ? 'Thử bỏ bộ lọc hoặc đổi từ khóa.' : 'Khi có tin mới, hệ thống tự ghi lại người, dự án và quyết định ở đây. Anh cũng thêm tay được ở ô phía trên.' })));
-        return;
-      }
-      thay(ds, ...kq.ghi_nho.map(the));
+      daTai = daTai.concat(kq.ghi_nho);
+      ve(kq);
     } catch (e) {
-      thay(ds, khungLoi(e, nap));
+      thay(ds, khungLoi(e, () => nap()));
     }
   }
+  nutThem.addEventListener('click', () => { n.lech = daTai.length; nap(true); });
   nap();
 }

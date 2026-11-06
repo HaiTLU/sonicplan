@@ -504,6 +504,27 @@ tayKeo.addEventListener('keydown', (e) => {
 ngan.prepend(tayKeo);
 let viecDangSua = null;
 let mauDangChon = null;
+
+// Gợi ý cách làm theo yêu cầu: một lần bấm là một lần gọi AI; chỉ hiển thị, không ghi vào việc.
+function veKhoiGoiY(khung, v) {
+  khung.hidden = !v;
+  khung.replaceChildren();
+  if (!v) return;
+  const kq = h('div', { class: 'goi-y-kq', 'aria-live': 'polite' });
+  const nut = h('button', { class: 'nut nut-phu', type: 'button', text: 'Gợi ý cách làm' });
+  nut.addEventListener('click', async () => {
+    nut.disabled = true;
+    thay(kq, h('p', { class: 'mo', text: 'Đang soạn gợi ý...' }));
+    try {
+      const r = await api(`/api/viec/${v.id}/goi-y`, { method: 'POST' });
+      const nguon = [...(r.nguon.ghi_nho || []).map((t) => `ghi nhớ "${t}"`), r.nguon.nhat_ky ? 'nhật ký hôm nay' : null, r.nguon.viec_giong?.length ? 'việc giống đã xong' : null, r.nguon.du_an ? `dự án ${r.nguon.du_an}` : null].filter(Boolean);
+      thay(kq, h('pre', { class: 'goi-y-chu', text: r.goi_y }), h('p', { class: 'mo', text: nguon.length ? `Dựa trên: ${nguon.join('; ')}.` : 'Chưa có ghi nhớ liên quan, gợi ý chỉ dựa trên tên việc.' }));
+    } catch (err) {
+      thay(kq, h('p', { class: 'loi-form', text: err.message }));
+    } finally { nut.disabled = false; }
+  });
+  khung.append(nut, kq);
+}
 export function moNganViec(v, macDinh = {}) {
   viecDangSua = v;
   formViec.reset();
@@ -521,6 +542,7 @@ export function moNganViec(v, macDinh = {}) {
   mauDangChon = du.mau || null;
   thay(document.getElementById('mau-viec-hang'), oChonMau(h, mauDangChon, (m) => { mauDangChon = m; }, { coKhong: true, nhan: 'Màu riêng của việc' }));
   if (!S.duAnDs.length) api('/api/du-an').then((r) => { S.duAnDs = r.du_an; thay(chon, h('option', { value: '', text: 'Chưa xếp dự án' }), ...S.duAnDs.map((d) => h('option', { value: String(d.id), text: d.ten }))); chon.value = du.du_an_id ? String(du.du_an_id) : ''; }).catch(() => {});
+  veKhoiGoiY(document.getElementById('khoi-goi-y'), v && v.trang_thai === 'mo' ? v : null);
   veKhoiClaude(document.getElementById('khoi-claude'), v, { h, api, bao, luc, icon });
   ngan.showModal();
   formViec.elements.tieu_de.focus();

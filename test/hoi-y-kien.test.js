@@ -70,8 +70,11 @@ test('trả lời giờ: sửa việc, ghi lần sửa cho AI học, nhớ bài 
   assert.equal(db.prepare('SELECT gio_hen FROM viec WHERE id = 1').get().gio_hen, '17:30');
   const sua = await docViecDaSua(env, 'tc1');
   assert.match(sua[0], /Sửa hạn: "giờ 05:30 -> 17:30", lý do: "anh trả lời ô hỏi"/);
-  const nho = db.prepare("SELECT * FROM ghi_nho WHERE tieu_de LIKE 'Anh trả lời ô hỏi giờ hẹn%'").get();
-  assert.equal(nho.nguon, 'tay');
+  const nho = db.prepare("SELECT * FROM ghi_nho WHERE tieu_de LIKE 'Cách anh xử lý giờ hẹn%'").get();
+  // Bài học từ một câu trả lời chưa đủ tin: AI ghi, chờ lặp lại hoặc người duyệt mới đưa vào lời nhắc.
+  assert.equal(nho.nguon, 'ai');
+  assert.equal(nho.da_duyet, 0);
+  assert.ok(nho.do_tin_cay_so < 0.6);
   assert.match(nho.noi_dung, /a 5h30 nhé.*anh chọn "17:30"/);
   assert.equal(await apDungTraLoi(env, 'tc1', id, { chi_so: 0 }), null);
 });
@@ -92,7 +95,7 @@ test('trả lời bằng chữ: giờ đọc từ chữ, chữ lạ thì giữ �
     return apDungTraLoi(env, 'tc1', id2, { chi_so: 0 });
   })();
   assert.match(kq2.thongbao, /giữ nguyên/);
-  const nho = db.prepare("SELECT noi_dung FROM ghi_nho WHERE tieu_de LIKE 'Anh trả lời ô hỏi giờ hẹn%'").get();
+  const nho = db.prepare("SELECT noi_dung FROM ghi_nho WHERE tieu_de LIKE 'Cách anh xử lý giờ hẹn%'").get();
   assert.equal(nho.noi_dung.split('\n').length, 2, 'cùng bối cảnh gộp vào một mục');
   assert.match(nho.noi_dung, /đúng như AI đoán/);
 });
@@ -191,7 +194,7 @@ test('bấm Thêm: tạo việc từ đề xuất và nhớ; bấm Không: khôn
   assert.match((await apDungTraLoi(env, 'tc1', b, { chu: 'không' })).thongbao, /Đã bỏ qua tin này/);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM viec').get().n, 1, 'Không thì không tạo việc');
   assert.equal(await apDungTraLoi(env, 'tc1', a, { chi_so: 1 }), null);
-  const nho = db.prepare("SELECT noi_dung FROM ghi_nho WHERE tieu_de LIKE 'Anh trả lời ô hỏi có thêm việc không%'").get();
+  const nho = db.prepare("SELECT noi_dung FROM ghi_nho WHERE tieu_de LIKE 'Cách anh xử lý có thêm việc không%'").get();
   assert.match(nho.noi_dung, /trà sữa.*anh chọn THÊM việc/);
   assert.match(nho.noi_dung, /thầy Hùng.*KHÔNG thêm/);
 });

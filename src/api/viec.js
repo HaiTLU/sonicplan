@@ -1,9 +1,10 @@
 // API giao diện: Việc cần làm và soạn prompt cho Claude.
 // Mỗi nhóm nhận (yeuCau, env, phien, url) và trả Response, hoặc null nếu địa chỉ không thuộc nhóm này.
-import { chayAi } from '../ai.js';
+import { chayAi, goiYViec, NHAN_NHOM } from '../ai.js';
+import { nguCanhGoiY } from '../ban-tin.js';
 import { dsPrompt, soanPrompt } from '../soan-prompt.js';
 import { ghiSuKien } from '../du-an.js';
-import { docHoSo, nhayCam } from '../ghi-nho.js';
+import { docHoSo, nhayCam, timGhiNho } from '../ghi-nho.js';
 import { chuanMau } from '../mau.js';
 import { docTichHop } from '../tich-hop.js';
 import { cat, DS_BUOI, json, loi, ngayCoThat, ngayVN } from '../tien-ich.js';
@@ -204,6 +205,22 @@ export async function xuLyViec(yeuCau, env, phien, url) {
     if (co?.loai !== 'nghi_trung') return loi(409, 'Việc này không có cờ nghi trùng.');
     await ghiSuKien(env, tc, id, 'giu_ca_hai', v.tieu_de);
     return json({ ok: true });
+  }
+  // Gợi ý cách làm một việc theo yêu cầu (bấm nút trong ngăn việc): không ghi gì vào việc, chỉ trả gợi ý kèm nguồn đã dùng.
+  if ((khop = p.match(/^\/api\/viec\/(\d+)\/goi-y$/)) && m === 'POST') {
+    const v = await env.CSDL.prepare("SELECT id, tieu_de, han_ngay, ghi_chu, du_an_id FROM viec WHERE id = ?1 AND to_chuc_id = ?2 AND trang_thai = 'mo'").bind(Number(khop[1]), tc).first();
+    if (!v) return loi(404, 'Việc này không còn hoặc đã đóng.');
+    const { results: daXong } = await env.CSDL.prepare("SELECT tieu_de FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'xong' ORDER BY xong_luc DESC LIMIT 60").bind(tc).all();
+    const { results: dangMo } = await env.CSDL.prepare("SELECT tieu_de FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND id != ?2 ORDER BY id DESC LIMIT 40").bind(tc, v.id).all();
+    const nc = await nguCanhGoiY(env, tc, v, daXong);
+    const gn = await timGhiNho(env, tc, v.tieu_de, 3);
+    nc.ghiNho = gn.map((x) => `${x.tieu_de}: ${x.noi_dung}`);
+    try {
+      const kq = await goiYViec(env, v, dangMo.map((x) => x.tieu_de), { ngoai: await docTichHop(env, tc, 'ai'), hoSo: await docHoSo(env, tc) }, nc);
+      return json({ nhom: kq.nhom, nhan_nhom: NHAN_NHOM[kq.nhom], goi_y: kq.ghi_them, nguon: { ghi_nho: gn.map((x) => x.tieu_de), nhat_ky: nc.nhatKy.length > 0, viec_giong: nc.daXong, du_an: nc.duAn } });
+    } catch (e) {
+      return loi(502, `Chưa gợi ý được: ${String(e.message || e).slice(0, 150)}`);
+    }
   }
   // Một việc theo mã: trang mở thẳng việc khi bấm thông báo.
   if ((khop = p.match(/^\/api\/viec\/(\d+)$/)) && m === 'GET') {
