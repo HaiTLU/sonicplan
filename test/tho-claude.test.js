@@ -381,3 +381,17 @@ test('PATH cho Claude có python3 đủ thư viện: /usr/local/bin và bản py
   assert.ok(p.indexOf('/opt/py/bin') < p.indexOf('/usr/bin')); // bản python chỉ định đứng trước hệ thống
 });
 
+
+test('ghi nhớ KB: các dòng "Anh trả lời ô hỏi" gom dưới tiêu đề riêng, vẫn đọc lại đủ', async () => {
+  const { docGhiNhoMd, dungGhiNhoMd } = await import('../src/tho-claude.js');
+  const ds = [
+    { loai: 'quyet_dinh', tieu_de: 'Dùng Sonnet', noi_dung: 'Mức medium', ghim: 0 },
+    { loai: 'quyet_dinh', tieu_de: 'Anh trả lời ô hỏi có phải việc không: Lan', noi_dung: 'Đúng là việc', ghim: 0 },
+    { loai: 'quyet_dinh', tieu_de: 'Anh trả lời ô hỏi có thêm việc không: Lớp K5', noi_dung: 'THÊM việc', ghim: 0 },
+  ];
+  const md = dungGhiNhoMd(ds);
+  assert.ok(md.indexOf('### Cách anh trả lời ô hỏi') > md.indexOf('Dùng Sonnet'));
+  assert.equal(md.split('### Cách anh trả lời ô hỏi').length, 2);
+  assert.deepEqual(docGhiNhoMd(md), ds);
+  assert.ok(!dungGhiNhoMd([ds[0]]).includes('###'));
+});

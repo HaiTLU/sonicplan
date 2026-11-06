@@ -137,6 +137,7 @@ export async function layGhiNhoSonicplan(env, tc, duAnTen, gioiHan = 15) {
 const gio = (iso) => (iso ? new Date(Date.parse(iso) + 7 * 3600000).toISOString().replace('T', ' ').slice(0, 16) : '');
 const cat = (s, n) => String(s || '').slice(0, n);
 
+const LA_TRA_LOI_O_HOI = /^Anh trả lời ô hỏi/;
 const TEN_LOAI = { nguoi: 'Người', du_an: 'Dự án', quyet_dinh: 'Quyết định', su_that: 'Sự thật' };
 
 // memory/projects/Sonicplan_GhiNho.md: ghi nhớ trong Sonicplan, gom theo loại. Dòng "Tự sinh lúc" là dòng duy nhất đổi khi nội dung không đổi.
@@ -148,8 +149,13 @@ export function dungGhiNhoMd(ds, bayGio = new Date()) {
   for (const loai of Object.keys(TEN_LOAI)) {
     const muc = ds.filter((g) => g.loai === loai);
     if (!muc.length) continue;
+    const dong = (g) => `- **${cat(g.tieu_de, 120)}**${g.ghim ? ' (ghim)' : ''}: ${cat(String(g.noi_dung).replace(/\s+/g, ' '), 600)}`;
+    // Các dòng "Anh trả lời ô hỏi..." do hệ thống ghi mỗi lần PM bấm; gom dưới tiêu đề nhỏ cho khỏi lẫn với quyết định thật.
+    // Vẫn là mục ghi nhớ nguyên dạng (docGhiNhoMd đọc lại được, bỏ qua tiêu đề ###).
+    const traLoi = muc.filter((g) => LA_TRA_LOI_O_HOI.test(g.tieu_de));
     d.push(`## ${TEN_LOAI[loai]}`, '');
-    for (const g of muc) d.push(`- **${cat(g.tieu_de, 120)}**${g.ghim ? ' (ghim)' : ''}: ${cat(String(g.noi_dung).replace(/\s+/g, ' '), 600)}`);
+    for (const g of muc) if (!traLoi.includes(g)) d.push(dong(g));
+    if (traLoi.length) d.push('', '### Cách anh trả lời ô hỏi', '', ...traLoi.map(dong));
     d.push('');
   }
   return `${d.join('\n').trimEnd()}\n`;
