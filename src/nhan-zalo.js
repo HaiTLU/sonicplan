@@ -1,6 +1,6 @@
 // Nhận tin và tệp Zalo từ chương trình trên máy Mac. Giữ đúng các địa chỉ và dạng dữ liệu
 // chương trình đang gửi (zalo-tong-hop, zalo-lenh, zalo-tomtat, zalo-tep), nên máy Mac chỉ cần
-// đổi N8N_WEBHOOK_URL và N8N_HEADER_VALUE trong tệp .env, không phải sửa mã.
+// đổi ZALO_WEBHOOK_URL và ZALO_HEADER_VALUE (tên cũ N8N_* vẫn được nhận) trong tệp .env, không phải sửa mã.
 
 import { tomTatTin } from './ai.js';
 import { ketThucGui, layLenhGui, taiTepGui } from './zalo-gui.js';
@@ -214,8 +214,9 @@ if [ ! -f "$THU_MUC/.env" ]; then
   exit 1
 fi
 cp "$THU_MUC/.env" "$THU_MUC/.env.truoc-sonicplan-$(date +%Y%m%d%H%M%S)"
-grep -vE '^(N8N_WEBHOOK_URL|N8N_HEADER_NAME|N8N_HEADER_VALUE|N8N_POLL_URL|N8N_SUMMARY_URL|N8N_TEP_URL)=' "$THU_MUC/.env" > "$THU_MUC/.env.moi" || true
-printf 'N8N_WEBHOOK_URL=%s\\nN8N_HEADER_NAME=x-zalo-token\\nN8N_HEADER_VALUE=%s\\n' '${diaChi}' '${khoa}' >> "$THU_MUC/.env.moi"
+grep -vE '^(ZALO_|N8N_)(WEBHOOK_URL|HEADER_NAME|HEADER_VALUE|POLL_URL|SUMMARY_URL|TEP_URL)=' "$THU_MUC/.env" > "$THU_MUC/.env.moi" || true
+# Ghi cả tên mới ZALO_* và tên cũ N8N_*: bản chương trình cũ trên Mac chỉ đọc tên cũ.
+printf 'ZALO_WEBHOOK_URL=%s\\nZALO_HEADER_NAME=x-zalo-token\\nZALO_HEADER_VALUE=%s\\nN8N_WEBHOOK_URL=%s\\nN8N_HEADER_NAME=x-zalo-token\\nN8N_HEADER_VALUE=%s\\n' '${diaChi}' '${khoa}' '${diaChi}' '${khoa}' >> "$THU_MUC/.env.moi"
 mv "$THU_MUC/.env.moi" "$THU_MUC/.env"
 chmod 600 "$THU_MUC/.env"
 NHAN=$(launchctl list | awk '/zalo/ {print $3; exit}')
