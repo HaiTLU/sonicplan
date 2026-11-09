@@ -1,6 +1,7 @@
 // Các bản tin theo giờ: bản tin 8h sáng, nhắc 17h, báo cáo tuần thứ Hai, gợi ý cho việc mới.
 // Cả ba cùng chạy mỗi giờ và tự xem giờ Việt Nam; không đúng giờ thì trả bo_qua để khỏi ghi nhật ký.
 
+import { docThoiQuen } from './rut-kinh-nghiem.js';
 import { goiYViec, NHOM_THEO_SO } from './ai.js';
 import { keHoachNgayAi, phanTichTuanAi } from './ai.js';
 import { laHetHanMucNgay } from './han-muc-ai.js';
@@ -156,6 +157,13 @@ export async function baoCaoTuan(env, bayGio, { ep = false } = {}) {
       if (pt) dong.push('', `Phân tích:\n${pt}`);
     } catch (e) {
       console.error('Phân tích tuần lỗi', e);
+    }
+    // Thói quen rút ra từ lựa chọn của anh (nút Telegram, thao tác web); chỉ báo, không tự đổi gì.
+    try {
+      const tq = await docThoiQuen(env, tc.id);
+      if (tq?.thoi_quen?.length) dong.push('', `Thói quen rút ra từ lựa chọn của anh (${tq.thoi_quen.length}):`, ...tq.thoi_quen.slice(0, 5).map((t) => `- ${t.nhan}: ${t.so_lan}/${t.tong} việc`));
+    } catch (e) {
+      console.error('Thói quen lỗi', e);
     }
     // Đề xuất lời dặn mới từ các lần anh sửa việc; chỉ nhắc vào trang Ghi nhớ để duyệt, không tự đổi.
     try {

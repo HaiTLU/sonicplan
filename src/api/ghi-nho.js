@@ -5,6 +5,7 @@ import { json, loi } from '../tien-ich.js';
 import { docGoiYLoiDan, quyetGoiYLoiDan } from '../loi-dan-tuan.js';
 import { docTongHopCuoi, tongHopChoToChuc } from '../tong-hop.js';
 import { laChu } from './chung.js';
+import { ghiHanhDong } from '../nhat-ky-hanh-dong.js';
 import { trangThaiHoc } from '../hoc-hang-ngay.js';
 
 // ---- Ghi nhớ ----
@@ -117,6 +118,7 @@ export async function xuLyGhiNho(yeuCau, env, phien, url) {
     if (!laChu(phien)) return loi(403, 'Chỉ chủ tổ chức duyệt được lời dặn.');
     const b = await yeuCau.json().catch(() => ({}));
     const kq = await quyetGoiYLoiDan(env, tc, Number(b.chi_so), b.quyet, b.noi_dung, { id: phien.nguoi_dung.id, vai_tro: phien.to_chuc.vai_tro });
+    if (!kq.loi) await ghiHanhDong(env, tc, { nguon: 'web', loai: b.quyet === 'duyet' ? 'loi_dan_duyet' : 'loi_dan_bo', boiCanh: null });
     return kq.loi ? loi(400, kq.loi) : json(kq);
   }
   if (p === '/api/ghi-nho' && m === 'GET') return json(await dsGhiNho(env, tc, url));
