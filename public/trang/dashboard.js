@@ -161,6 +161,8 @@ class Dashboard {
     el.append(rows);render();
     const lessons=m.bai_hoc||[];
     if(lessons.length)el.append(h('details',{},h('summary',{},`Phản hồi từ ${lessons.length} lần sửa việc gần đây`),...lessons.slice(0,10).map(g=>h('div',{class:'db-note'},h('p',{},g.noi_dung||g.tieu_de||''),h('small',{},date(g.luc||g.tao_luc))))));
+    const tq=m.thoi_quen;
+    if(tq&&tq.thoi_quen&&tq.thoi_quen.length)el.append(h('details',{},h('summary',{},`Rút kinh nghiệm: ${tq.thoi_quen.length} thói quen từ lựa chọn của anh`),...tq.thoi_quen.map(t=>h('div',{class:'db-note'},h('p',{},`${t.nhan}: ${t.so_lan}/${t.tong} việc (${Math.round(t.ty_le*100)}%)`))),h('small',{},`Tính ${date(tq.luc)} từ ${tq.so_hanh_dong} hành động trong 14 ngày. Chỉ để xem; lời dặn đề xuất nằm ở trang Ghi nhớ.`)));
     if(own())el.append(h('details',{},h('summary',{},`Đề xuất bài học (${this.proposals.length})`),...this.proposals.map(p=>btn(`${p.tieu_de||p.nguon} · ${p.trang_thai}`,()=>this.proposalDialog(p)))));
     el.append(link('Quản lý toàn bộ trí nhớ','#ghi-nho'));
   }

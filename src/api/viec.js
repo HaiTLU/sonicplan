@@ -4,6 +4,7 @@ import { chayAi, goiYViec, NHAN_NHOM } from '../ai.js';
 import { nguCanhGoiY } from '../ban-tin.js';
 import { dsPrompt, soanPrompt } from '../soan-prompt.js';
 import { ghiSuKien } from '../du-an.js';
+import { ghiHanhDong } from '../nhat-ky-hanh-dong.js';
 import { docHoSo, nhayCam, timGhiNho } from '../ghi-nho.js';
 import { chuanMau } from '../mau.js';
 import { docTichHop } from '../tich-hop.js';
@@ -100,6 +101,7 @@ export async function sapXepViec(env, tc, than) {
   const cau = ids.map((id, i) => env.CSDL.prepare("UPDATE viec SET thu_tu = ?1 WHERE id = ?2 AND to_chuc_id = ?3 AND trang_thai = 'mo'").bind(i + 1, id, tc));
   if (env.CSDL.batch) await env.CSDL.batch(cau);
   else for (const c of cau) await c.run();
+  await ghiHanhDong(env, tc, { nguon: 'web', loai: 'web_sap_xep', sau: ids.slice(0, 3).join(','), boiCanh: null });
   return json({ ok: true });
 }
 
@@ -147,6 +149,15 @@ export async function suaViec(env, tc, id, than) {
     if ('nhom' in k.viec && (k.viec.nhom || null) !== (truoc.nhom || null)) await ghiSuKien(env, tc, id, 'doi_nhom', `${truoc.nhom || 'trống'} -> ${k.viec.nhom || 'trống'}`, null, lyDo).catch(() => {});
     if ('tieu_de' in k.viec && k.viec.tieu_de !== truoc.tieu_de) await ghiSuKien(env, tc, id, 'sua_ten', `${truoc.tieu_de} -> ${k.viec.tieu_de}`, null, lyDo).catch(() => {});
     if ('han_ngay' in k.viec && (k.viec.han_ngay || null) !== (truoc.han_ngay || null)) await ghiSuKien(env, tc, id, 'sua_han', `${truoc.han_ngay || 'trống'} -> ${k.viec.han_ngay || 'trống'}`, null, lyDo).catch(() => {});
+  }
+  if (truoc) {
+    const doi = [];
+    if (k.viec.trang_thai && k.viec.trang_thai !== truoc.trang_thai) doi.push([k.viec.trang_thai === 'xong' ? 'web_xong' : k.viec.trang_thai === 'mo' ? 'web_mo_lai' : 'web_huy', truoc.trang_thai, k.viec.trang_thai]);
+    if ('du_an_id' in k.viec && k.viec.du_an_id !== truoc.du_an_id) doi.push(['web_doi_du_an', truoc.du_an_id, k.viec.du_an_id]);
+    if ('nhom' in k.viec && (k.viec.nhom || null) !== (truoc.nhom || null)) doi.push(['web_doi_nhom', truoc.nhom, k.viec.nhom]);
+    if ('tieu_de' in k.viec && k.viec.tieu_de !== truoc.tieu_de) doi.push(['web_sua_ten', null, null]); // không lưu tiêu đề vào nhật ký
+    if ('han_ngay' in k.viec && (k.viec.han_ngay || null) !== (truoc.han_ngay || null)) doi.push(['web_sua_han', truoc.han_ngay, k.viec.han_ngay]);
+    for (const [loaiHd, a, b] of doi) await ghiHanhDong(env, tc, { nguon: 'web', loai: loaiHd, viecId: id, truoc: a, sau: b, lyDo: lyDo || null, luc: bayGio });
   }
   // Đổi hạn hoặc giờ thì cho phép nhắc lại theo mốc mới.
   if ('han_ngay' in k.viec || 'gio_hen' in k.viec) await env.CSDL.prepare('DELETE FROM nhac_da_gui WHERE viec_id = ?1').bind(id).run();
@@ -204,6 +215,7 @@ export async function xuLyViec(yeuCau, env, phien, url) {
     const co = await env.CSDL.prepare("SELECT loai FROM viec_su_kien WHERE viec_id = ?1 AND to_chuc_id = ?2 AND loai IN ('nghi_trung', 'giu_ca_hai') ORDER BY id DESC LIMIT 1").bind(id, tc).first();
     if (co?.loai !== 'nghi_trung') return loi(409, 'Việc này không có cờ nghi trùng.');
     await ghiSuKien(env, tc, id, 'giu_ca_hai', v.tieu_de);
+    await ghiHanhDong(env, tc, { nguon: 'web', loai: 'web_giu_ca_hai', viecId: id });
     return json({ ok: true });
   }
   // Gợi ý cách làm một việc theo yêu cầu (bấm nút trong ngăn việc): không ghi gì vào việc, chỉ trả gợi ý kèm nguồn đã dùng.

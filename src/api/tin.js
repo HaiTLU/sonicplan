@@ -5,6 +5,7 @@ import { anhCoSan, phucVuAnh } from '../anh-dai-dien.js';
 import { xepTinGuiDiVaoHoiThoai } from '../nhan-zalo.js';
 import { taoLenhGui, trangThaiGui } from '../zalo-gui.js';
 import { json, loi, ngayVN } from '../tien-ich.js';
+import { ghiHanhDong } from '../nhat-ky-hanh-dong.js';
 import { napTepNgoai } from '../zalo-ngoai.js';
 import { COT_DRIVE } from './chung.js';
 
@@ -73,7 +74,9 @@ async function chanTin(env, tc, than) {
   }
   const k = kiemChan(chan);
   if (k.loi) return loi(400, k.loi);
-  return json({ ok: true, ...(await chanNguon(env, tc, k.chan)), nhan: k.chan.nhan });
+  const kqChan = await chanNguon(env, tc, k.chan);
+  await ghiHanhDong(env, tc, { nguon: 'web', loai: 'web_chan_nguon', sau: `${k.chan.nguon}:${k.chan.loai}`, boiCanh: null }); // không ghi tên người hay nhóm
+  return json({ ok: true, ...kqChan, nhan: k.chan.nhan });
 }
 
 // ---- Zalo: danh sách hội thoại và tin theo dòng thời gian, giống ứng dụng Zalo ----

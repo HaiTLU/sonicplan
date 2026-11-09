@@ -2,6 +2,7 @@
 // một lần ở trang Kết nối, mã được mã hóa rồi lưu trong D1. Mỗi tổ chức nối bằng cách bấm đường dẫn
 // t.me/<bot>?start=<mã nối> rồi bấm Start.
 
+import { ghiHanhDong } from './nhat-ky-hanh-dong.js';
 import { chatTuDo, traLoiTuBoNho } from './ai.js';
 import { goiNgoai } from './goi-ngoai.js';
 import { tongHopChoToChuc } from './tong-hop.js';
@@ -106,11 +107,12 @@ export function phanTichNut(du) {
 
 // Áp một lựa chọn nút lên việc của tổ chức. Trả câu ghi lại dưới tin nhắn, hoặc null nếu không tìm thấy việc.
 export async function apDungNutViec(env, tc, { viec_id: id, hanh_dong: hanhDong }, bayGio = new Date().toISOString()) {
-  const v = await env.CSDL.prepare('SELECT id, tieu_de, han_ngay FROM viec WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+  const v = await env.CSDL.prepare('SELECT id, tieu_de, han_ngay, trang_thai FROM viec WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
   if (!v) return null;
   if (hanhDong === 'xong' || hanhDong === 'bo') {
     await env.CSDL.prepare(`UPDATE viec SET trang_thai = ?3, xong_luc = ?4, cap_nhat_luc = ?5 WHERE id = ?1 AND to_chuc_id = ?2`)
       .bind(id, tc, hanhDong === 'xong' ? 'xong' : 'huy', hanhDong === 'xong' ? bayGio : null, bayGio).run();
+    if (v.trang_thai === 'mo') await ghiHanhDong(env, tc, { nguon: 'telegram', loai: hanhDong === 'xong' ? 'nut_xong' : 'nut_bo', viecId: id, truoc: 'mo', sau: hanhDong === 'xong' ? 'xong' : 'huy', luc: bayGio });
     return hanhDong === 'xong' ? 'Đã đánh dấu xong.' : 'Đã bỏ việc này.';
   }
   const goc = v.han_ngay && v.han_ngay > ngayVN(bayGio) ? v.han_ngay : ngayVN(bayGio);
@@ -119,6 +121,7 @@ export async function apDungNutViec(env, tc, { viec_id: id, hanh_dong: hanhDong 
   await env.CSDL.prepare(`UPDATE viec SET han_ngay = ?3, cap_nhat_luc = ?4, can_dong_bo = 1 WHERE id = ?1 AND to_chuc_id = ?2`).bind(id, tc, moi, bayGio).run();
   // Hạn đổi thì lời nhắc cũ hết nghĩa: xóa dấu đã nhắc để nhắc lại theo hạn mới.
   await env.CSDL.prepare('DELETE FROM nhac_da_gui WHERE viec_id = ?1').bind(id).run();
+  if (v.trang_thai === 'mo') await ghiHanhDong(env, tc, { nguon: 'telegram', loai: hanhDong === 'mai' ? 'nut_doi_mai' : 'nut_doi_tuan', viecId: id, truoc: v.han_ngay, sau: moi, luc: bayGio });
   return `Đã dời sang ${moi.slice(8, 10)}/${moi.slice(5, 7)}.`;
 }
 
@@ -256,6 +259,7 @@ async function luotBamNut(env, ctx, cb) {
     let ketQua;
     if (nutH.chon === 'bo') { await boCauHoi(env, toChuc.to_chuc_id, [nutH.cau_hoi_id]); ketQua = { thongbao: 'Đã bỏ qua.' }; }
     else ketQua = await apDungTraLoi(env, toChuc.to_chuc_id, nutH.cau_hoi_id, { chi_so: nutH.chon });
+    if (ketQua?.thongbao) await ghiHanhDong(env, toChuc.to_chuc_id, { nguon: 'telegram', loai: nutH.chon === 'bo' ? 'hoi_bo_qua' : 'hoi_tra_loi', truoc: 'cau_hoi:' + nutH.cau_hoi_id, sau: nutH.chon === 'bo' ? null : 'lua_chon:' + nutH.chon, boiCanh: null });
     tra(ketQua?.thongbao || ketQua?.loi || 'Câu hỏi này đã được trả lời rồi.');
     if (ketQua?.thongbao) ctx.waitUntil(goiTelegram(bot.token, 'editMessageText', { chat_id: chat, message_id: cb.message.message_id, text: `${cb.message.text}\n${ketQua.thongbao}` }).catch(() => {}));
     return new Response('ok');

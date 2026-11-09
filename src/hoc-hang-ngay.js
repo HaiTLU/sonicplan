@@ -1,5 +1,6 @@
 import { docCaiDat, ghiCaiDat } from './hop-tin.js';
-import { deXuatLoiDan } from './loi-dan-tuan.js';
+import { deXuatLoiDan, themUngVienTuMau } from './loi-dan-tuan.js';
+import { doHieuQuaLoiDan, rutKinhNghiem } from './rut-kinh-nghiem.js';
 import { ngayVN } from './tien-ich.js';
 import { docLuong } from './luong.js';
 import { kiemUngVien } from './rao-chan-hoc.js';
@@ -65,7 +66,7 @@ export async function trangThaiHoc(env, tc, bayGio = new Date().toISOString()) {
   try { lanCuoi = JSON.parse(await docCaiDat(env, tc, 'hoc_hang_ngay_lan_cuoi')); } catch { /* chưa chạy */ }
   let tuTat = null;
   try { tuTat = JSON.parse(await docCaiDat(env, tc, KHOA_TU_TAT)); } catch { /* chưa tự tắt */ }
-  return { bat: (await docLuong(env, tc)).bat['hoc-hang-ngay'], lan_cuoi: lanCuoi, tu_tat: tuTat, gan, truoc, xa, so_tra_loi: tra.n,
+  return { bat: (await docLuong(env, tc)).bat['hoc-hang-ngay'], lan_cuoi: lanCuoi, tu_tat: tuTat, gan, truoc, xa, so_tra_loi: tra.n, hieu_qua_loi_dan: await doHieuQuaLoiDan(env, tc, bayGio).catch(() => []),
     luu_y: 'Đây là số việc AI tạo đã bị sửa hoặc hủy trong từng kỳ, không phải tỷ lệ chính xác. Việc chưa sửa có thể chưa được xem; hai kỳ chưa chứng minh tác dụng của bài học.' };
 }
 
@@ -124,7 +125,15 @@ export async function hocHangNgay(env, tc, bayGio = new Date().toISOString(), de
       await env.CSDL.prepare(`DELETE FROM cai_dat WHERE to_chuc_id=?1 AND khoa='hoc_hang_ngay_lan_cuoi' AND gia_tri=?2`).bind(tc, JSON.stringify({ ngay, luc: bayGio, dang_chay: true })).run();
       throw e;
     }
-    const ketQua = { ngay, luc: bayGio, cho_duyet: ds.length, so_tra_loi: thongKe.so_tra_loi };
+    // Rút kinh nghiệm từ nhật ký hành động: lỗi ở đây không được làm hỏng lượt học hằng ngày.
+    let thoiQuen = 0;
+    try {
+      const rut = await rutKinhNghiem(env, tc, bayGio);
+      thoiQuen = rut.thoi_quen.length;
+      const them = await themUngVienTuMau(env, tc, rut.loi_dan, bayGio);
+      ds = [...ds, ...them];
+    } catch (e) { console.error('Rút kinh nghiệm lỗi', e); }
+    const ketQua = { ngay, luc: bayGio, cho_duyet: ds.length, so_tra_loi: thongKe.so_tra_loi, thoi_quen: thoiQuen };
     await ghiCaiDat(env, tc, 'hoc_hang_ngay_lan_cuoi', JSON.stringify(ketQua));
     return ketQua;
   } finally {

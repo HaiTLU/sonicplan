@@ -88,3 +88,12 @@ test('dashboard lọc nhóm việc trước giới hạn, không che việc hôm
  const r=await(await call('/api/dashboard/core?mode=today')).json();assert.equal(r.viec.length,1);assert.equal(r.viec[0].tieu_de,'Hôm nay ưu tiên');assert.equal(r.so_lieu.viec_qua_han,110);
  assert.equal((await call('/api/dashboard/core?mode=invalid')).status,400);
 });
+
+test('dashboard memory trả thói quen đã tính, không lỗi khi chưa có',async()=>{
+ const {db,call}=setup();
+ assert.equal((await (await call('/api/dashboard/memory')).json()).thoi_quen,null);
+ const v={ngay:'2026-11-08',luc:'2026-11-08T16:00:00Z',so_hanh_dong:9,thoi_quen:[{ma:'hay_doi',nguon:'zalo',so_lan:6,tong:8,ty_le:0.75,nhan:'Việc Zalo hay bị dời hạn'}]};
+ db.prepare("INSERT INTO cai_dat(to_chuc_id,khoa,gia_tri) VALUES ('a','thoi_quen',?)").run(JSON.stringify(v));
+ const r=await (await call('/api/dashboard/memory')).json();
+ assert.equal(r.thoi_quen.thoi_quen[0].nhan,'Việc Zalo hay bị dời hạn');
+});

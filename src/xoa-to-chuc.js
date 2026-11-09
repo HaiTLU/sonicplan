@@ -11,7 +11,7 @@ export const GIU_NGAY = 30;
 // cuối có tep_id tham chiếu tới tep (khóa ngoại thật), xóa tep trước sẽ vỡ ràng buộc trên D1 thật.
 // qlda_giai_ngan cũng đứng trước qlda_ngan_sach_dong vì có ngan_sach_dong_id tham chiếu tới bảng đó.
 export const BANG_CUA_TO_CHUC = [
-  'dashboard_de_xuat', 'viec_su_kien', 'luot_claude', 'prompt_claude', 'nguon_chan', 'nhat_ky_truy_cap', 'kho_da_luu', 'ghi_nho', 'bo_nho_lich_su', 'cau_hoi_ai',
+  'dashboard_de_xuat', 'viec_su_kien', 'nhat_ky_hanh_dong', 'luot_claude', 'prompt_claude', 'nguon_chan', 'nhat_ky_truy_cap', 'kho_da_luu', 'ghi_nho', 'bo_nho_lich_su', 'cau_hoi_ai',
   'qlda_hop_viec', 'qlda_van_ban', 'qlda_thu_tuc_phu_thuoc', 'qlda_raci', 'qlda_hop_dong', 'qlda_hop', 'qlda_thu_tuc', 'qlda_ben_lien_quan',
   'qlda_giai_ngan', 'qlda_ngan_sach_dong', 'qlda_evm',
   'tep', 'viec', 'du_an',
