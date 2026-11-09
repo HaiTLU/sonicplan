@@ -98,10 +98,6 @@
 .hop-zalo .tin-zalo.toi .bong-chat, .hop-zalo .tin-zalo.toi .bong-chat .chu-tin, .hop-zalo .tin-zalo.toi .bong-chat strong { color: var(--tg-chu); }
 .hop-zalo .tin-zalo.toi .bong-chat .chu-tin.nhat { color: var(--tg-phu); }
 .hop-zalo .tin-zalo.toi .bong-chat .chu-tin a { color: var(--tg-lk); }
-/* Chữ tin mình gửi luôn lấy màu chữ của khung (đen ở sáng, gần trắng ở tối), không thừa hưởng màu từ luật chung bên apple.css/kieu.css. */
-.hop-zalo .tin-zalo.toi .bong-chat, .hop-zalo .tin-zalo.toi .bong-chat .chu-tin, .hop-zalo .tin-zalo.toi .bong-chat strong { color: var(--tg-chu); }
-.hop-zalo .tin-zalo.toi .bong-chat .chu-tin.nhat { color: var(--tg-phu); }
-.hop-zalo .tin-zalo.toi .bong-chat .chu-tin a { color: var(--tg-lk); }
 /* Tin giữa cụm: góc sát nhau. Tin cuối cụm: góc dưới thẳng và có đuôi. */
 .hop-zalo .tin-zalo.lien:not(.toi) .bong-chat { border-top-left-radius: 6px; }
 .hop-zalo .tin-zalo.toi.lien .bong-chat { border-top-left-radius: 12px; border-top-right-radius: 6px; }
