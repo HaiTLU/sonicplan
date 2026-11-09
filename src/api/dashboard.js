@@ -5,6 +5,7 @@ import { chayAi } from '../ai.js';
 import { chuanBoCucDashboard } from './tong-quan.js';
 import { docCaiDat } from '../hop-tin.js';
 import { docTichHop } from '../tich-hop.js';
+import { docThoiQuen } from '../rut-kinh-nghiem.js';
 
 export function locDuAn(url, alias = '') {
   const raw = url.searchParams.get('du_an') || 'all';
@@ -122,7 +123,8 @@ export async function xuLyDashboard(req, env, phien, url) {
       catch { second_brain={trang_thai:'stale',doc_luc:null,ds:[]}; }
     }
     const bai_hoc=await all(env,`SELECT id,viec_id,loai,noi_dung,luc FROM viec_su_kien WHERE to_chuc_id=? AND loai IN ('huy','doi_du_an','doi_nhom','sua_ten','sua_han') ORDER BY luc DESC LIMIT 30`,[tc]);
-    return json({ghi_nho,second_brain,bai_hoc});
+    const thoi_quen=await docThoiQuen(env,tc).catch(()=>null);
+    return json({ghi_nho,second_brain,bai_hoc,thoi_quen});
   }
   if(p.startsWith('/api/dashboard/proposals')) {
     if(!laChu(phien)) return loi(403,'Chỉ chủ tổ chức được xem và duyệt đề xuất.');

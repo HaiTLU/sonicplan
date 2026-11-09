@@ -78,6 +78,32 @@ export async function deXuatLoiDan(env, toChucId, bayGio = new Date().toISOStrin
   return (await docGoiYLoiDan(env, toChucId)).ds;
 }
 
+// Thêm ứng viên rút từ thói quen (src/rut-kinh-nghiem.js) vào danh sách chờ duyệt. Cùng rào chắn và hạn mức ngày như deXuatLoiDan;
+// không bao giờ tự áp vào hồ sơ. Trả danh sách dòng mới thật sự được thêm.
+export async function themUngVienTuMau(env, toChucId, dongMoi, bayGio = new Date().toISOString()) {
+  if (!dongMoi.length) return [];
+  const cu = await docCaiDat(env, toChucId, KHOA);
+  const moi = cu ? JSON.parse(cu) : { luc: null, ds: [] };
+  const hoSo = await docHoSo(env, toChucId);
+  const daQuyet = new Set((moi.da_quyet || []).map((x) => chuanHoa(x.noi_dung)));
+  const ngay = ngayVN(bayGio);
+  let dem = moi.ngay_dem === ngay ? moi.dem || 0 : 0;
+  const them = [];
+  for (const dong of dongMoi) {
+    if (nhayCam(dong) || daQuyet.has(chuanHoa(dong)) || chuanHoa(hoSo).includes(chuanHoa(dong)) || moi.ds.includes(dong) || them.includes(dong)) continue;
+    const kt = kiemUngVien({ noi_dung: dong, do_tin: DO_TIN_UNG_VIEN_MOI }, { soDaNhanHomNay: dem, nguongTin: DO_TIN_UNG_VIEN_MOI });
+    if (!kt.ok) continue;
+    them.push(dong);
+    dem++;
+  }
+  if (!them.length) return [];
+  const giaTri = JSON.stringify({ ...moi, luc: bayGio, ds: [...moi.ds, ...them], ngay_dem: ngay, dem });
+  const kq = cu == null
+    ? await env.CSDL.prepare('INSERT OR IGNORE INTO cai_dat (to_chuc_id,khoa,gia_tri) VALUES (?1,?2,?3)').bind(toChucId, KHOA, giaTri).run()
+    : await env.CSDL.prepare('UPDATE cai_dat SET gia_tri=?3 WHERE to_chuc_id=?1 AND khoa=?2 AND gia_tri=?4').bind(toChucId, KHOA, giaTri, cu).run();
+  return kq.meta.changes ? them : []; // phiên khác vừa đổi danh sách thì bỏ, lần sau thử lại
+}
+
 export async function docGoiYLoiDan(env, toChucId) {
   try {
     const v = JSON.parse((await docCaiDat(env, toChucId, KHOA)) || 'null');

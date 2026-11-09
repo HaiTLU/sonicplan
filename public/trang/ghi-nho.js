@@ -63,6 +63,7 @@ export async function veGhiNho(goc) {
       h('p', { text: r.lan_cuoi ? `Lần tổng hợp gần nhất: ${new Date(r.lan_cuoi.luc).toLocaleString('vi-VN')}.` : 'Chưa có lượt tổng hợp hằng ngày thành công.' }),
       h('p', { text: `7 ngày gần đây: ${r.so_tra_loi} câu trả lời; ${r.gan.da_sua}/${r.gan.so_viec} việc AI tạo đã bị sửa hoặc hủy. Kỳ 7 ngày trước: ${r.truoc.da_sua}/${r.truoc.so_viec}.` }),
       h('p', { class: 'mo-ta', text: r.luu_y }),
+      ...(r.hieu_qua_loi_dan || []).map((q) => h('p', { class: 'mo-ta', text: `Lời dặn "${q.noi_dung}": ` + (q.ket_luan === 'chua_du' ? 'chưa đủ số liệu để đo (cần 21 ngày sau khi duyệt và ít nhất 5 việc mỗi bên).' : `việc AI tạo bị sửa hoặc hủy ${q.truoc.da_sua}/${q.truoc.so_viec} trước, ${q.sau.da_sua}/${q.sau.so_viec} sau.${q.goi_y_go ? ' Chưa thấy giảm; bạn có thể xóa dòng này khỏi hồ sơ.' : ' Có giảm.'}`) })),
     );
   }).catch(() => hopHoc.append(h('p', { text: 'Chưa tải được tình trạng học. Hãy tải lại trang.' })));
   // Gợi ý hằng ngày; giữ nguyên các đề xuất đang chờ.

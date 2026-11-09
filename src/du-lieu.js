@@ -10,6 +10,7 @@ export const BANG_XUAT = [
   ['viec', 'SELECT * FROM viec WHERE to_chuc_id = ?1'],
   ['du_an', 'SELECT * FROM du_an WHERE to_chuc_id = ?1'],
   ['viec_su_kien', 'SELECT * FROM viec_su_kien WHERE to_chuc_id = ?1'],
+  ['nhat_ky_hanh_dong', 'SELECT * FROM nhat_ky_hanh_dong WHERE to_chuc_id = ?1'],
   ['tin_nhan', 'SELECT * FROM tin_nhan WHERE to_chuc_id = ?1'],
   ['tep', 'SELECT * FROM tep WHERE to_chuc_id = ?1'],
   ['dashboard_de_xuat', 'SELECT * FROM dashboard_de_xuat WHERE to_chuc_id = ?1'],

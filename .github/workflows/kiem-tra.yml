@@ -21,6 +21,7 @@ jobs:
       - run: npx wrangler deploy --dry-run --outdir .dung-thu
   tro-nang:
     # Kiểm tra trợ năng (WCAG 2.2 A, AA) bằng axe-core trên 13 trang, sáng và tối, máy tính và điện thoại.
+    # Ghim 24.04: ubuntu-latest đã lên 26.04, Playwright 1.56.1 chưa hỗ trợ.
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
