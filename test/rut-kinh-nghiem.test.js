@@ -89,6 +89,16 @@ test('rút kinh nghiệm: ra thói quen, đề xuất vào danh sách chờ duy�
   assert.equal((await themUngVienTuMau(env, 'tc1', rut.loi_dan, '2026-11-08T16:00:00Z')).length, 0);
   assert.ok(db);
 });
+test('thói quen đếm số việc khác nhau: một việc dời nhiều lần không thành thói quen', () => {
+  const dời = (viec, id) => ({ id, loai: 'nut_doi_mai', viec_id: viec, boi_canh: { nguon_viec: 'zalo' } });
+  assert.equal(phanTichThoiQuen([1, 2, 3, 4, 5].map((i) => dời(1, i))).length, 0);
+  const ra = phanTichThoiQuen([1, 2, 3, 4, 5].map((i) => dời(i, i)).concat([dời(1, 9)]));
+  assert.equal(ra[0].so_lan, 5);
+  assert.equal(ra[0].tong, 5);
+  // Việc dời rồi xong: chỉ tính kết cục cuối (xong).
+  const cuoi = phanTichThoiQuen([{ id: 1, loai: 'nut_doi_mai', viec_id: 1, boi_canh: { nguon_viec: 'zalo' } }, { id: 2, loai: 'nut_xong', viec_id: 1, boi_canh: { nguon_viec: 'zalo' } }], { mauToiThieu: 1 });
+  assert.deepEqual(cuoi.map((x) => x.ma), ['on_dinh']);
+});
 test('ứng viên chứa bí mật bị rào chắn chặn', async () => {
   const { env } = await dung();
   assert.deepEqual(await themUngVienTuMau(env, 'tc1', ['Việc tạo từ tin Zalo có mật khẩu wifi thì ghi vào hạn việc.']), []);
@@ -110,6 +120,9 @@ test('đo hiệu quả lời dặn: giảm, không giảm, chưa đủ ngày ho�
     { noi_dung: 'C', quyet: 'duyet', luc: '2026-10-20T00:00:00Z' },
   ] };
   db.prepare("INSERT INTO cai_dat (to_chuc_id, khoa, gia_tri) VALUES ('tc1', 'goi_y_loi_dan', ?)").run(JSON.stringify(guiY));
+  // Mới 15 ngày sau lúc duyệt: việc tạo ở ngày 13-14 chưa đủ 7 ngày để biết có bị sửa, nên chưa được kết luận.
+  const som = await doHieuQuaLoiDan(env, 'tc1', '2026-10-16T00:00:00Z');
+  assert.equal(som.find((x) => x.noi_dung === 'A').ket_luan, 'chua_du');
   let r = await doHieuQuaLoiDan(env, 'tc1', '2026-11-01T00:00:00Z');
   assert.deepEqual(r.map((x) => `${x.noi_dung}:${x.ket_luan}`), ['A:giam', 'C:chua_du']);
   // Thêm việc sau duyệt bị sửa nhiều thì thành không giảm.

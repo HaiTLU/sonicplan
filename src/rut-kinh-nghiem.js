@@ -23,9 +23,17 @@ const TEN_NGUON = { zalo: 'Zalo', gmail: 'Gmail', tay: 'tự nhập' };
 
 // Nhóm theo nguồn của việc. Kết cục = một trong các hành động trên; mẫu = loại kết cục chiếm đủ tỷ lệ.
 export function phanTichThoiQuen(hanhDong, { mauToiThieu = MAU_TOI_THIEU, tyLe = TY_LE_TOI_THIEU } = {}) {
-  const nhom = new Map();
+  // Mỗi việc chỉ tính một kết cục (hành động mới nhất của việc đó), để "6/8 việc" đúng là số việc: một việc bị dời 5 lần không thành thói quen.
+  const moiViec = new Map();
+  const khongViec = [];
   for (const h of hanhDong) {
     if (!KET_CUC.includes(h.loai)) continue;
+    if (h.viec_id == null) { khongViec.push(h); continue; }
+    const c = moiViec.get(h.viec_id);
+    if (!c || (h.id ?? 0) > (c.id ?? 0)) moiViec.set(h.viec_id, h);
+  }
+  const nhom = new Map();
+  for (const h of [...moiViec.values(), ...khongViec]) {
     const nguon = h.boi_canh?.nguon_viec || 'khong_ro';
     const g = nhom.get(nguon) || { doi: 0, bo: 0, xong: 0, im_lang: 0, tong: 0 };
     g.tong++;
