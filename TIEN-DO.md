@@ -170,3 +170,11 @@ Cập nhật: 11/10/2026.
 - PR6 đã gộp. Đây là PR cuối trong kế hoạch 6 PR đã duyệt cho `/hoalac` - phân hệ xây dựng xong theo đúng kế hoạch gốc.
 - **27/10/2026: đã cấu hình Cloudflare Access Application riêng cho `/hoalac`.** Tạo ứng dụng self-hosted "Sonicplan - Hoa Lac", đích `plan.sonicrec.app/hoalac*` và `plan.sonicapp.top/hoalac*`, chính sách "Chi Hai" (chỉ email PM - "Chỉ anh Nam Hải" không dùng lại được vì là chính sách nội bộ của ứng dụng Sonicplan hiện có). AUD ghi vào `wrangler.jsonc` biến `ACCESS_UNG_DUNG`, commit `8be82d1` trên `main`. `may-chu/chay.js` đã whitelist biến này từ PR1, không cần sửa thêm.
 - Việc còn treo ngoài phạm vi mọi PR (chưa có PR nào giao đúng việc này, cần PM quyết định làm tiếp hay không): kiểm trình duyệt ba vai trò cho tab Ngân sách (UNVERIFIED từ PR5), lỗi `qlda_hop_dong` PUT COALESCE-trên-khóa-ngoại-nullable (ghi nhận từ PR4, chưa sửa), chưa chọn một trong ba bản TMĐT khác nhau làm số ngân sách thật (số vẫn để trống từ PR5).
+
+## Rút kinh nghiệm từ lựa chọn (09/11/2026)
+
+- Đã gộp PR #167 (squash `5e47d8c`) và đã triển khai: máy chủ Sonicplan kéo đúng bản, migration 0049 đã áp, dịch vụ khởi động lại, `/api/suc-khoe` trả lời (nhật ký "Trien khai Mac" 09/11).
+- Gồm: nhật ký hành động ở Telegram và web, `rut-kinh-nghiem.js`, tác vụ 23h, mục Dashboard, báo cáo tuần, đo hiệu quả lời dặn đã duyệt. Test mới ở `test/rut-kinh-nghiem.test.js`, 46/46 đạt.
+- Lệch so với kế hoạch: lời dặn vẫn duyệt trên web (chưa có nút Duyệt hoặc Bỏ trên Telegram); hiệu quả lời dặn tính lúc đọc, không lưu vào `cai_dat`.
+- `may-chu.test.js` và `tram-claude.test.js` đạt (10/10 và 7/7) khi chạy ngoài sandbox; chỉ lỗi khi sandbox chặn mở cổng cục bộ. Chưa tái hiện được thông báo lỗi trong sandbox.
+- Chưa kiểm: Dashboard thật chưa hiện mục "Rút kinh nghiệm" vì `thoi_quen` còn `null` (tác vụ 23h chưa chạy từ lúc triển khai, và cần từ 5 việc khác nhau cùng một kết cục). Dùng vài ngày rồi xem lại; Dashboard chưa có dòng báo "chưa đủ mẫu".
