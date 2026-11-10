@@ -171,6 +171,12 @@ Cập nhật: 11/10/2026.
 - **27/10/2026: đã cấu hình Cloudflare Access Application riêng cho `/hoalac`.** Tạo ứng dụng self-hosted "Sonicplan - Hoa Lac", đích `plan.sonicrec.app/hoalac*` và `plan.sonicapp.top/hoalac*`, chính sách "Chi Hai" (chỉ email PM - "Chỉ anh Nam Hải" không dùng lại được vì là chính sách nội bộ của ứng dụng Sonicplan hiện có). AUD ghi vào `wrangler.jsonc` biến `ACCESS_UNG_DUNG`, commit `8be82d1` trên `main`. `may-chu/chay.js` đã whitelist biến này từ PR1, không cần sửa thêm.
 - Việc còn treo ngoài phạm vi mọi PR (chưa có PR nào giao đúng việc này, cần PM quyết định làm tiếp hay không): kiểm trình duyệt ba vai trò cho tab Ngân sách (UNVERIFIED từ PR5), lỗi `qlda_hop_dong` PUT COALESCE-trên-khóa-ngoại-nullable (ghi nhận từ PR4, chưa sửa), chưa chọn một trong ba bản TMĐT khác nhau làm số ngân sách thật (số vẫn để trống từ PR5).
 
+## Ghi nhớ: nhật ký ngày (06/11/2026)
+
+- PR #165 (độ tin cậy, nhật ký, gợi ý cách làm), #166 (gom dòng "Anh trả lời ô hỏi") đã gộp; triển khai VPS thành công (25a2e57), `/api/suc-khoe` ok, migration 0048 đã áp (cột `do_tin_cay_so`).
+- Nhật ký hôm nay nối vào tổng hợp, soạn prompt, `/chat`, `/hoi`; `npm run kiem` 538/538 đạt.
+- second-brain PR #123: `sonicplan-nhap.py` ghi `memory/sonicplan/NGÀY.md`. Cần chạy script một lần ở bản chính ~/Brain/second-brain sau khi kéo main để có tệp đầu tiên (hook tự chạy theo chu kỳ 6 giờ).
+
 ## Rút kinh nghiệm từ lựa chọn (09/11/2026)
 
 - Đã gộp PR #167 (squash `5e47d8c`) và đã triển khai: máy chủ Sonicplan kéo đúng bản, migration 0049 đã áp, dịch vụ khởi động lại, `/api/suc-khoe` trả lời (nhật ký "Trien khai Mac" 09/11).
