@@ -16,6 +16,10 @@ test('đủ mẫu và đủ tỷ lệ thì ra thói quen', () => {
   assert.equal(r[0].ma, 'hay_doi');
   assert.equal(r[0].nguon, 'zalo');
 });
+test('nguồn lịch có nhãn tiếng Việt có dấu', () => {
+  const r = phanTichThoiQuen(lap('nut_xong', 5, 'lich'));
+  assert.equal(r[0].nhan, 'Việc Lịch thường được làm xong, giữ cách tách hiện tại');
+});
 test('thiếu mẫu thì không kết luận', () => {
   assert.deepEqual(phanTichThoiQuen(lap('nut_bo', 4)), []);
 });

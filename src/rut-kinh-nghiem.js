@@ -19,7 +19,7 @@ const LOAI_IM_LANG = ['im_lang'];
 const KET_CUC = [...LOAI_DOI, ...LOAI_BO, ...LOAI_XONG, ...LOAI_IM_LANG];
 
 const NHAN_NGUON = { zalo: 'tin Zalo', gmail: 'tin Gmail' };
-const TEN_NGUON = { zalo: 'Zalo', gmail: 'Gmail', tay: 'tự nhập' };
+const TEN_NGUON = { zalo: 'Zalo', gmail: 'Gmail', lich: 'Lịch', tay: 'tự nhập' };
 
 // Nhóm theo nguồn của việc. Kết cục = một trong các hành động trên; mẫu = loại kết cục chiếm đủ tỷ lệ.
 export function phanTichThoiQuen(hanhDong, { mauToiThieu = MAU_TOI_THIEU, tyLe = TY_LE_TOI_THIEU } = {}) {
