@@ -7,6 +7,7 @@ Ghi theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số t
 Memory của PM chuyển từ ThangLong_KB sang kho second-brain (18/10/2026). Có migration 0034 (bảng `cau_hoi_ai`), 0035 (cột `de_xuat`, `tin_nhan_id`) và 0036 (bảng `prompt_claude`).
 
 ### Đổi lớn
+- Dashboard: mục "Rút kinh nghiệm" luôn hiện một dòng trạng thái. Chưa có số liệu (tác vụ 23h chưa chạy) thì báo "chưa có số liệu"; đã chạy mà chưa đủ 5 việc cùng kết cục thì báo "chưa đủ mẫu" kèm số hành động trong 14 ngày.
 - Ô "AI của bạn" ở trang Kết nối chọn sẵn nhiều hãng (PM dặn 19/10/2026): Claude (Anthropic), OpenAI, Google Gemini, OpenRouter, DeepSeek, Groq, Mistral, xAI, hoặc hãng khác tương thích OpenAI. Chọn hãng là điền sẵn địa chỉ và mô hình gợi ý, sửa được; khóa vẫn lưu mã hóa theo tổ chức, kiểm trước khi lưu, lỗi thì quay về Claude Code rồi Workers AI. Không đổi phía máy chủ, không thêm lần gọi AI. Chưa kiểm bằng khóa thật của từng hãng: tên mô hình do hãng đổi, sai thì sửa ở ô Mô hình.
 - Gỡ hẳn lớp FPT AI (PM dặn 19/10/2026): không còn ô chọn nhà cung cấp AI, ô nhập khóa FPT và nút "Tắt hẳn Claude" ở trang Kết nối. AI chạy như trước: Claude Code, rồi Workers AI. Tệp `du-lieu/khoa-fpt.enc` và `du-lieu/nha-cung-cap-ai.json` (nếu đã tạo) không còn dùng, xóa tay được.
 - Khung báo lỗi trang: lỗi kiểu "Cannot read properties of undefined" (tab còn mã cũ sau khi máy chủ lên bản mới) thì nút đổi thành "Tải lại trang" và tải lại thật, không chỉ chạy lại mã cũ.
