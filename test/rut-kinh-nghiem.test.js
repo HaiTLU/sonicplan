@@ -20,6 +20,9 @@ test('nguồn lịch có nhãn tiếng Việt có dấu', () => {
   const r = phanTichThoiQuen(lap('nut_xong', 5, 'lich'));
   assert.equal(r[0].nhan, 'Việc Lịch thường được làm xong, giữ cách tách hiện tại');
 });
+test('nguồn lịch có câu lời dặn riêng', () => {
+  assert.match(loiDanTuThoiQuen({ ma: 'hay_bo', nguon: 'lich' }), /^Việc tạo từ sự kiện lịch hay bị bỏ/);
+});
 test('thiếu mẫu thì không kết luận', () => {
   assert.deepEqual(phanTichThoiQuen(lap('nut_bo', 4)), []);
 });
@@ -31,7 +34,7 @@ test('hai nguồn tách riêng', () => {
   assert.deepEqual(r.map((x) => `${x.ma}:${x.nguon}`).sort(), ['hay_bo:gmail', 'on_dinh:zalo']);
 });
 test('mọi câu lời dặn sinh ra đều qua rào chắn và có chủ đề cho phép', () => {
-  for (const ma of ['hay_doi', 'hay_bo', 'im_lang']) for (const nguon of ['zalo', 'gmail']) {
+  for (const ma of ['hay_doi', 'hay_bo', 'im_lang']) for (const nguon of ['zalo', 'gmail', 'lich']) {
     const dong = loiDanTuThoiQuen({ ma, nguon });
     assert.ok(doanChuDe(dong), dong);
     assert.equal(kiemUngVien({ noi_dung: dong, do_tin: 0.3 }, { nguongTin: 0.3 }).ok, true, dong);

@@ -18,7 +18,7 @@ const LOAI_XONG = ['nut_xong', 'web_xong'];
 const LOAI_IM_LANG = ['im_lang'];
 const KET_CUC = [...LOAI_DOI, ...LOAI_BO, ...LOAI_XONG, ...LOAI_IM_LANG];
 
-const NHAN_NGUON = { zalo: 'tin Zalo', gmail: 'tin Gmail' };
+const NHAN_NGUON = { zalo: 'tin Zalo', gmail: 'tin Gmail', lich: 'sự kiện lịch' };
 const TEN_NGUON = { zalo: 'Zalo', gmail: 'Gmail', lich: 'Lịch', tay: 'tự nhập' };
 
 // Nhóm theo nguồn của việc. Kết cục = một trong các hành động trên; mẫu = loại kết cục chiếm đủ tỷ lệ.
