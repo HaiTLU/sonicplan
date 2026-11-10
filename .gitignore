@@ -12,3 +12,5 @@ may-chu.log
 cloudflared.log
 du-lieu-cuoi.sql
 out-hoalac.sql
+.claude/nhat-ky/
+__pycache__/
