@@ -21,7 +21,8 @@ test('nguồn lịch có nhãn tiếng Việt có dấu', () => {
   assert.equal(r[0].nhan, 'Việc Lịch thường được làm xong, giữ cách tách hiện tại');
 });
 test('nguồn lịch có câu lời dặn riêng', () => {
-  assert.match(loiDanTuThoiQuen({ ma: 'hay_bo', nguon: 'lich' }), /^Việc tạo từ sự kiện lịch hay bị bỏ/);
+  assert.match(loiDanTuThoiQuen({ ma: 'hay_bo', nguon: 'lich' }), /^Việc tạo từ sự kiện lịch hay bị bỏ: chỉ tạo việc khi nội dung có/);
+  assert.match(loiDanTuThoiQuen({ ma: 'hay_bo', nguon: 'zalo' }), /^Việc tạo từ tin Zalo hay bị bỏ: chỉ tạo việc khi tin có/);
 });
 test('thiếu mẫu thì không kết luận', () => {
   assert.deepEqual(phanTichThoiQuen(lap('nut_bo', 4)), []);

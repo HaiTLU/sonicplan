@@ -57,9 +57,10 @@ export function phanTichThoiQuen(hanhDong, { mauToiThieu = MAU_TOI_THIEU, tyLe =
 export function loiDanTuThoiQuen(t) {
   const n = NHAN_NGUON[t.nguon];
   if (!n) return null;
-  if (t.ma === 'hay_doi') return `Việc tạo từ ${n} hay bị dời hạn: đặt hạn việc muộn hơn, hoặc để trống hạn khi tin không nói rõ ngày.`;
-  if (t.ma === 'hay_bo') return `Việc tạo từ ${n} hay bị bỏ: chỉ tạo việc khi tin có người giao việc hoặc có hạn rõ.`;
-  if (t.ma === 'im_lang') return `Việc tạo từ ${n} thường không ai đụng tới: chỉ tạo việc khi tin có hạn việc rõ hoặc người nhận lời.`;
+  const tin = t.nguon === 'lich' ? 'nội dung' : 'tin'; // sự kiện lịch không phải "tin"
+  if (t.ma === 'hay_doi') return `Việc tạo từ ${n} hay bị dời hạn: đặt hạn việc muộn hơn, hoặc để trống hạn khi ${tin} không nói rõ ngày.`;
+  if (t.ma === 'hay_bo') return `Việc tạo từ ${n} hay bị bỏ: chỉ tạo việc khi ${tin} có người giao việc hoặc có hạn rõ.`;
+  if (t.ma === 'im_lang') return `Việc tạo từ ${n} thường không ai đụng tới: chỉ tạo việc khi ${tin} có hạn việc rõ hoặc người nhận lời.`;
   return null;
 }
 
