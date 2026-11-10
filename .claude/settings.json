@@ -1,9 +1,99 @@
 {
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash(ls *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(npm test*)",
+      "Bash(node --test *)",
+      "Bash(python3 -m unittest *)",
+      "Edit(./TIEN-DO.md)"
+    ],
+    "ask": [
+      "Bash(wrangler deploy*)",
+      "Bash(npx wrangler deploy*)",
+      "Bash(npm run deploy*)",
+      "Bash(bash may-chu/cap-nhat.sh*)",
+      "Bash(docker *)",
+      "Bash(ssh *)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./.dev.vars)",
+      "Read(./may-chu/.env)",
+      "Read(./du-lieu/**)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)",
+      "Bash(rm -rf *)",
+      "Bash(sudo *)",
+      "Bash(git push --force *)",
+      "Bash(git reset --hard *)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
         "matcher": "Bash",
-        "hooks": [{ "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/chan-dung-rong.py\"" }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/chan-dung-rong.py\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/chan-lenh-nguy-hiem.py\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/chan-khoa-bi-mat.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/ghi-nhat-ky-cong-cu.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/luu-truoc-khi-nen.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/nhac-tien-do.py\"",
+            "timeout": 5
+          }
+        ]
       }
     ]
   }

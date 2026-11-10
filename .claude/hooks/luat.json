@@ -1,0 +1,16 @@
+{
+  "lenh_cam": [
+    {
+      "mau": "\\bdocker\\s+(compose\\s+)?(down\\s+-v|volume\\s+rm|system\\s+prune)",
+      "ly_do": "Lệnh Docker này xóa dữ liệu (volume) của CSDL."
+    },
+    {
+      "mau": "\\b(DROP\\s+(TABLE|DATABASE|SCHEMA)|TRUNCATE)\\b",
+      "ly_do": "Lệnh SQL này xóa dữ liệu không quay lại được."
+    },
+    {
+      "mau": "\\bssh\\s+[^\\n]*\\b(rm|docker\\s+rm)\\b",
+      "ly_do": "Không xóa tệp hay container trên máy chủ từ xa."
+    }
+  ]
+}
