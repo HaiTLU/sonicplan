@@ -197,4 +197,5 @@ Cập nhật: 11/10/2026.
 
 - PM tự cập nhật 13 việc quá hạn tháng 8 của Hòa Lạc trên trang.
 - Khi có danh sách email BGH: thêm vai trò `xem`, sửa Cloudflare Access, chụp ba khổ với vai trò đó.
-- Đợt sau: trang tổng hợp BGH và ô cập nhật tuần, cập nhật bằng lời qua Telegram, hợp đồng gắn đợt thanh toán, kho hồ sơ R2.
+- 12/11/2026: làm trang Báo cáo BGH (nhánh `claude/trang-bgh`, migration 0051 bảng `qlda_cap_nhat_tuan`): tab mới, đèn tính tự động, mốc tới, việc quá hạn, rủi ro cao, cập nhật tuần do AI soạn nháp (AI lỗi thì ra bản mẫu từ số liệu), chủ dự án sửa và lưu. 9 test mới. Bỏ dòng "việc xong 7 ngày qua": chưa có mốc tin được lúc việc chuyển sang xong. Bỏ Chart.js (hai dự án, thanh tiến độ là đủ).
+- Đợt sau: cập nhật bằng lời qua Telegram, hợp đồng gắn đợt thanh toán, kho hồ sơ R2.

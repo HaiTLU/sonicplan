@@ -194,3 +194,40 @@
   .tab-hoalac { overflow-x: auto; flex-wrap: nowrap; width: 100%; padding-bottom: 0.2rem; }
   .tab-hoalac button { flex: 0 0 auto; }
 }
+
+/* Báo cáo Ban Giám hiệu: mỗi dự án một mục, nền đặc, đọc trong một lượt cuộn. */
+.dau-bgh h2 { font-size: 1.25rem; margin: 0 0 0.25rem; }
+.ghi-chu-bgh { font-size: 0.82rem; opacity: 0.75; margin: 0.3rem 0 0; }
+.muc-bgh {
+  background: var(--nen, #fff);
+  border: 1px solid var(--vien, #e5e5ea);
+  border-radius: 16px;
+  padding: 1rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.tien-do-bgh { display: grid; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 0.5rem; }
+.tien-do-bgh strong { font-size: 1.6rem; line-height: 1.2; }
+.tien-do-bgh span { font-size: 0.85rem; opacity: 0.75; }
+.tien-do-bgh .tien-do { grid-column: 1 / -1; height: 6px; }
+.luoi-bgh { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 1rem; }
+.cot-bgh h3, .cap-nhat-bgh h3 { font-size: 0.85rem; margin: 0 0 0.35rem; opacity: 0.8; }
+.cot-bgh ul { margin: 0; padding-left: 1.1rem; font-size: 0.9rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.cot-bgh time { font-variant-numeric: tabular-nums; font-weight: 600; }
+.cot-bgh .trong { padding: 0; font-size: 0.88rem; }
+.nhan-gang { margin-left: 0.4rem; font-size: 0.72rem; padding: 0.05rem 0.45rem; border-radius: 999px; background: rgba(255,59,48,.15); color: #d70015; white-space: nowrap; }
+.diem-rui-ro { font-size: 0.8rem; opacity: 0.7; }
+.cap-nhat-bgh { border-top: 1px solid var(--vien, #e5e5ea); padding-top: 0.7rem; }
+.chu-cap-nhat { white-space: pre-wrap; margin: 0; font-size: 0.92rem; line-height: 1.55; }
+.soan-bgh { flex-direction: column; align-items: stretch; }
+.soan-bgh textarea { width: 100%; box-sizing: border-box; min-height: 9rem; flex: none; }
+.nhan-o-bgh { font-weight: 600; }
+.hang-nut-bgh { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.hang-nut-bgh button { min-height: 2.25rem; }
+.chi-doc .soan-bgh { display: none; }
+@media print {
+  .dau-trang-hoalac, .soan-bgh, .nut-mo-du-an { display: none; }
+  .muc-bgh { break-inside: avoid; }
+}
+.soan-bgh .nut-mo-du-an { background: transparent; color: var(--nhan, #0a84ff); border: 1px solid var(--nhan, #0a84ff); }

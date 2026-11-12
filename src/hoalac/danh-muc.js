@@ -4,11 +4,10 @@
 // tên dự án, vì số liệu tổng gồm cả hạng mục không gán cho họ.
 import { json, loi, docThan } from '../tien-ich.js';
 import { quenThanhVien } from '../phien.js';
+import { chiTietDuAn, dauTuan, docCapNhatMoi, homNayVN, luuCapNhat, soanNhap } from './cap-nhat-tuan.js';
 
 export const LOAI_DU_AN = ['xay_dung', 'nghien_cuu'];
 const DIEM_RUI_RO_CAO = 15;
-
-const homNayVN = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
 
 // Màu thẻ: đỏ khi có việc quá hạn nằm trên đường găng, hoặc từ 3 rủi ro cao; vàng khi có quá hạn
 // hoặc rủi ro cao; còn lại xanh.
@@ -48,10 +47,21 @@ async function theDuAn(env, tc, homNay) {
     rui_ro_cao: ruiRo?.so || 0,
     moc_toi: moc.results,
   };
-  return { ...so, mau: mauThe(so) };
+  return { ...so, mau: mauThe(so), ...(await chiTietDuAn(env, tc, homNay, DIEM_RUI_RO_CAO)) };
 }
 
 export async function xuLyDanhMuc(yeuCau, env, phien, p, m) {
+  // Cập nhật tuần cho trang BGH: chỉ chủ của dự án đang mở (cổng chung ở api.js còn cho thành viên,
+  // đối tác ghi, nên phải tự chặn ở đây).
+  if (p === '/api/hoalac/cap-nhat-tuan' || p === '/api/hoalac/cap-nhat-tuan/soan-nhap') {
+    if (phien.to_chuc.vai_tro !== 'chu') return loi(403, 'Chỉ chủ dự án được soạn và lưu cập nhật tuần.');
+    if (p === '/api/hoalac/cap-nhat-tuan' && m === 'PUT') return luuCapNhat(env, phien, await docThan(yeuCau));
+    if (p === '/api/hoalac/cap-nhat-tuan/soan-nhap' && m === 'POST') {
+      const tc = phien.to_chuc.id;
+      return json(await soanNhap(env, phien, await theDuAn(env, tc, homNayVN())));
+    }
+    return loi(405, 'Phương thức không hỗ trợ.');
+  }
   if (p !== '/api/hoalac/danh-muc') return null;
 
   if (m === 'GET') {
@@ -66,9 +76,10 @@ export async function xuLyDanhMuc(yeuCau, env, phien, p, m) {
       const tt = thongTin.find((x) => x.id === t.id);
       if (!tt) continue;
       const the = { id: t.id, ten: tt.ten, loai_du_an: tt.loai_du_an, phan_bat: tt.phan_bat, vai_tro: t.vai_tro };
-      duAn.push(t.vai_tro === 'doi_tac' ? the : { ...the, ...(await theDuAn(env, t.id, homNay)) });
+      if (t.vai_tro === 'doi_tac') { duAn.push(the); continue; }
+      duAn.push({ ...the, ...(await theDuAn(env, t.id, homNay)), cap_nhat: (await docCapNhatMoi(env, t.id)) || null });
     }
-    return json({ du_an: duAn });
+    return json({ du_an: duAn, tuan_nay: dauTuan(homNay) });
   }
 
   if (m === 'POST') {

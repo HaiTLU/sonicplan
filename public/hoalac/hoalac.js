@@ -40,9 +40,9 @@ async function chinh() {
   // localStorage) chỉ dùng khi còn nằm trong danh mục; không thì mở dự án đầu tiên. Gọi danh mục khi
   // chưa gắn x-to-chuc, vì máy chủ trả 403 cho dự án không còn thuộc người dùng.
   const daLuu = duAnDaLuu();
-  let duAn;
+  let duAn, tuanNay;
   try {
-    ({ du_an: duAn } = await api('/api/hoalac/danh-muc'));
+    ({ du_an: duAn, tuan_nay: tuanNay } = await api('/api/hoalac/danh-muc'));
   } catch (e) {
     thay(goc, khungLoi(e));
     return;
@@ -63,6 +63,7 @@ async function chinh() {
 
   const moTab = {
     'tong-quan': () => veTongQuan(goc, duAn, dangMo),
+    bgh: () => veBgh(goc, duAn, dangMo, tuanNay),
     kanban: () => taiVaVe(goc, chiXem || chiDoc, 'kanban'),
     gantt: () => taiVaVe(goc, chiXem, 'gantt'),
     raid: () => taiVaVeRaid(goc),
@@ -78,7 +79,9 @@ async function chinh() {
     cacTab.push(nut);
     nut.onclick = () => { chonTab(nut, cacTab); moTab[ma](); };
   }
-  const dau = cacTab[0];
+  // ?tab=... mở đúng tab (khi chuyển dự án từ trang BGH); Ban Giám hiệu (vai trò xem) mở thẳng trang BGH.
+  const tabUrl = new URLSearchParams(location.search).get('tab') || (chiDoc ? 'bgh' : '');
+  const dau = cacTab.find((t) => t.id === `tab-${tabUrl}`) || cacTab[0];
   chonTab(dau, cacTab);
   await moTab[dau.id.slice(4)]();
 }
@@ -87,12 +90,12 @@ async function chinh() {
 // Đối tác: RAID, Ngân sách, Bàn giao trả 403 cho mọi thao tác (không có cơ chế gán theo dòng), và
 // Tổng quan không có số liệu cho họ, nên chỉ còn Kanban, Gantt, Pháp lý (vePhapLy() tự ẩn 5 mục còn lại).
 const TAB_MAC_DINH = {
-  xay_dung: ['tong-quan', 'kanban', 'gantt', 'raid', 'phap-ly', 'ngan-sach'],
-  nghien_cuu: ['tong-quan', 'kanban', 'gantt', 'raid', 'ban-giao', 'ngan-sach'],
+  xay_dung: ['tong-quan', 'bgh', 'kanban', 'gantt', 'raid', 'phap-ly', 'ngan-sach'],
+  nghien_cuu: ['tong-quan', 'bgh', 'kanban', 'gantt', 'raid', 'ban-giao', 'ngan-sach'],
 };
 function tabDuocBat(da) {
   const rieng = String(da.phan_bat || '').split(',').map((x) => x.trim()).filter(Boolean);
-  const bat = rieng.length ? ['tong-quan', ...rieng] : (TAB_MAC_DINH[da.loai_du_an] || TAB_MAC_DINH.xay_dung);
+  const bat = rieng.length ? ['tong-quan', 'bgh', ...rieng] : (TAB_MAC_DINH[da.loai_du_an] || TAB_MAC_DINH.xay_dung);
   if (da.vai_tro === 'doi_tac') {
     const conLai = bat.filter((x) => ['kanban', 'gantt', 'phap-ly'].includes(x));
     return conLai.length ? conLai : ['kanban'];
@@ -112,9 +115,9 @@ function veChonDuAn(duAn, dangMo) {
   chon.onchange = () => moDuAn(chon.value);
 }
 
-function moDuAn(id) {
+function moDuAn(id, tab = '') {
   datDuAn(id);
-  location.href = `/hoalac?du-an=${encodeURIComponent(id)}`;
+  location.href = `/hoalac?du-an=${encodeURIComponent(id)}${tab ? `&tab=${tab}` : ''}`;
 }
 
 // Vai trò xem: máy chủ đã trả 403 cho mọi lệnh ghi (src/hoalac/api.js); ở đây chỉ ẩn ô nhập, nút
@@ -162,6 +165,90 @@ function veTongQuan(goc, duAn, dangMo) {
       h('button', { type: 'submit' }, 'Tạo dự án'))
     : null;
   thay(goc, h('div', { class: 'khung-raid' }, h('div', { class: 'luoi-du-an' }, ...the), taoMoi));
+}
+
+// Báo cáo Ban Giám hiệu: mỗi dự án một mục đọc được trong một lượt cuộn (học mẫu cập nhật trạng thái
+// của Asana): đèn, tiến độ, mốc tới, việc quá hạn, rủi ro cao, bản cập nhật tuần chủ dự án đã lưu.
+// Đèn luôn tính từ số liệu ở máy chủ, không cho sửa tay. Chủ dự án đang mở thấy ô soạn: AI soạn nháp
+// (chỉ trả chữ, không lưu), anh sửa rồi bấm lưu thì BGH mới thấy.
+function veBgh(goc, duAn, dangMo, tuanNay) {
+  // Ngày nhập tay sai định dạng thì in nguyên chữ, không để Intl ném lỗi làm trắng cả trang.
+  const ngay = (s) => { const d = new Date(s); return Number.isNaN(d.getTime()) ? String(s ?? '') : fmt.ngayNgan.format(d); };
+  const danhSach = (tieuDe, ds, trong, dong) => h('div', { class: 'cot-bgh' },
+    h('h3', { text: tieuDe }),
+    ds.length ? h('ul', {}, ...ds.map(dong)) : h('p', { class: 'trong', text: trong }));
+  const muc = duAn.filter((x) => x.mau != null).map((x) => {
+    const cn = x.cap_nhat;
+    const cuTuan = cn && cn.tuan !== tuanNay;
+    return h('section', { class: 'muc-bgh', 'aria-labelledby': `bgh-${x.id}` },
+      h('div', { class: 'dau-the-du-an' },
+        h('h2', { id: `bgh-${x.id}`, text: x.ten }),
+        h('span', { class: `nhan-trang-thai nhan-${x.mau}`, text: TEN_MAU[x.mau] })),
+      h('div', { class: 'tien-do-bgh' },
+        h('strong', { text: `${x.tien_do_pt}%` }), h('span', { text: 'tiến độ chung' }),
+        h('div', { class: 'tien-do', role: 'progressbar', 'aria-valuenow': x.tien_do_pt, 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-label': `Tiến độ ${x.ten}` },
+          h('div', { class: 'tien-do-trong', style: `width:${x.tien_do_pt}%` }))),
+      h('div', { class: 'luoi-bgh' },
+        danhSach('Mốc sắp tới', x.moc_toi, 'Chưa có mốc nào phía trước.',
+          (m) => h('li', {}, h('time', { text: ngay(m.ngay) }), ' ', m.ten)),
+        danhSach(`Việc quá hạn (${x.qua_han})`, x.qua_han_ds, 'Không có việc quá hạn.',
+          (v) => h('li', {}, h('time', { text: ngay(v.ngay) }), ' ', v.ten, v.gang ? h('span', { class: 'nhan-gang', text: 'đường găng' }) : null)),
+        danhSach(`Rủi ro cao (${x.rui_ro_cao})`, x.rui_ro_ds, 'Không có rủi ro cao.',
+          (r) => h('li', {}, r.ten, h('span', { class: 'diem-rui-ro', text: ` ${r.diem} điểm` })))),
+      h('div', { class: 'cap-nhat-bgh' },
+        h('h3', { text: 'Cập nhật tuần' }),
+        cn ? h('p', { class: 'chu-cap-nhat', text: cn.noi_dung }) : h('p', { class: 'trong', text: 'Chưa có bản cập nhật nào.' }),
+        cn ? h('p', { class: 'ghi-chu-bgh', text: `Tuần từ ${fmt.ngayDai.format(new Date(cn.tuan))}${cuTuan ? ' (chưa có bản tuần này)' : ''}, cập nhật ${new Date(cn.cap_nhat_luc).toLocaleString('vi-VN')}` }) : null),
+      x.vai_tro === 'chu' ? oSoanCapNhat(x, dangMo, cuTuan || !cn ? '' : cn.noi_dung) : null,
+    );
+  });
+  thay(goc, h('div', { class: 'khung-raid' },
+    h('div', { class: 'dau-bgh' },
+      h('h2', { text: 'Báo cáo Ban Giám hiệu' }),
+      h('p', { class: 'ghi-chu-bgh', text: `Tuần từ ${fmt.ngayDai.format(new Date(tuanNay))}. Đèn tính tự động: đỏ khi có việc quá hạn trên đường găng hoặc từ 3 rủi ro cao; vàng khi có việc quá hạn hoặc rủi ro cao.` })),
+    ...muc));
+}
+
+// Ô soạn cập nhật tuần, chỉ cho chủ dự án. Máy chủ nhận lệnh cho dự án đang mở (x-to-chuc), nên dự án
+// khác phải mở trước.
+function oSoanCapNhat(x, dangMo, banTuanNay) {
+  if (x.id !== dangMo.id) {
+    return h('button', { type: 'button', class: 'nut-mo-du-an', onclick: () => moDuAn(x.id, 'bgh') }, 'Mở dự án này để viết cập nhật tuần');
+  }
+  const o = h('textarea', { id: 'o-cap-nhat', rows: 8, maxlength: 4000, placeholder: 'Bấm "AI soạn nháp" hoặc tự viết, rồi sửa và lưu.' });
+  o.value = banTuanNay;
+  const ghiChu = h('p', { class: 'ghi-chu-bgh', 'aria-live': 'polite' });
+  const nutNhap = h('button', { type: 'button', class: 'nut-mo-du-an', onclick: async () => {
+    nutNhap.disabled = true;
+    ghiChu.textContent = 'Đang soạn nháp...';
+    try {
+      const r = await api('/api/hoalac/cap-nhat-tuan/soan-nhap', { method: 'POST', body: '{}' });
+      o.value = r.noi_dung;
+      ghiChu.textContent = r.ai ? 'AI đã soạn nháp từ số liệu. Anh đọc, sửa rồi bấm lưu.' : 'Chưa gọi được AI, đây là bản dựng thẳng từ số liệu. Anh sửa rồi bấm lưu.';
+    } catch (e) {
+      ghiChu.textContent = '';
+      bao(e.message, true);
+    } finally {
+      nutNhap.disabled = false;
+    }
+  } }, 'AI soạn nháp');
+  const nutLuu = h('button', { type: 'submit' }, 'Lưu cho BGH xem');
+  return h('form', { class: 'form-raid soan-bgh', onsubmit: async (e) => {
+    e.preventDefault();
+    nutLuu.disabled = true;
+    try {
+      await api('/api/hoalac/cap-nhat-tuan', { method: 'PUT', body: JSON.stringify({ noi_dung: o.value }) });
+      bao('Đã lưu bản cập nhật tuần.');
+      const { du_an: moi, tuan_nay: tuan } = await api('/api/hoalac/danh-muc');
+      veBgh(document.getElementById('goc'), moi, dangMo, tuan);
+    } catch (err) {
+      bao(err.message, true);
+    } finally {
+      nutLuu.disabled = false;
+    }
+  } },
+  h('label', { for: 'o-cap-nhat', class: 'nhan-o-bgh' }, 'Bản cập nhật tuần này (chỉ chủ dự án thấy ô này)'),
+  o, h('div', { class: 'hang-nut-bgh' }, nutNhap, nutLuu), ghiChu);
 }
 
 async function taoDuAn(e) {
