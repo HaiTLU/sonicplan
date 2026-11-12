@@ -31,12 +31,12 @@ Hệ quả khác:
 
 - [x] Bước 0. Chuẩn bị (nhánh `claude/du-an-nhieu-du-an`, hợp đồng `.claude/hop-dong/du-an-nhieu-du-an.json`)
 - [x] Bước 1. Kiểm bảng chấm điểm: `docs/261112_SonicPlan_SoSanhPhanMemQLDA.md`
-- [ ] Bước 2. Nhiều dự án (PR 1)
-- [ ] Bước 3. Trang danh mục và trang BGH (PR 2)
-- [ ] Bước 4. Vai trò `xem`, Cloudflare Access
-- [ ] Bước 5. Nhập dữ liệu thật
-- [ ] Bước 6. Nhắc việc, cập nhật bằng lời
-- [ ] Bước 7. Triển khai, kiểm, báo cáo
+- [x] Bước 2. Nhiều dự án (PR 177, migration 0050)
+- [x] Bước 3. Trang danh mục (gộp vào PR 177); trang BGH riêng và ô cập nhật tuần chưa làm
+- [x] Bước 4. Vai trò `xem` có trong mã; PM chọn tạm chỉ mình PM đăng nhập, chưa sửa Cloudflare Access
+- [x] Bước 5. Nhập dữ liệu thật (Hòa Lạc 53 hạng mục, Ipsos 9 mốc sau khi bỏ mốc trùng M1)
+- [x] Bước 6. Nhắc việc 8h qua Telegram (PR 178); cập nhật bằng lời chưa làm
+- [x] Bước 7. Triển khai, kiểm trang thật khổ 2560 và 768 trên Chrome của PM, báo cáo; khổ 390 UNVERIFIED (cửa sổ không thu nhỏ dưới 768)
 
 ---
 

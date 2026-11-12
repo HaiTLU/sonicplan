@@ -184,3 +184,17 @@ Cập nhật: 11/10/2026.
 - Lệch so với kế hoạch: lời dặn vẫn duyệt trên web (chưa có nút Duyệt hoặc Bỏ trên Telegram); hiệu quả lời dặn tính lúc đọc, không lưu vào `cai_dat`.
 - `may-chu.test.js` và `tram-claude.test.js` đạt (10/10 và 7/7) khi chạy ngoài sandbox; chỉ lỗi khi sandbox chặn mở cổng cục bộ. Chưa tái hiện được thông báo lỗi trong sandbox.
 - Chưa kiểm: Dashboard thật chưa hiện mục "Rút kinh nghiệm" vì `thoi_quen` còn `null` (tác vụ 23h chưa chạy từ lúc triển khai, và cần từ 5 việc khác nhau cùng một kết cục). Dùng vài ngày rồi xem lại; Dashboard chưa có dòng báo "chưa đủ mẫu".
+
+## Khu Dự án nhiều dự án (12/11/2026)
+
+- PR 177 (gộp `ec379fe`): migration 0050, mỗi dự án là một tổ chức `pham_vi_truy_cap='hoalac'`, chọn bằng header `x-to-chuc`; tab Bàn giao; test tách dữ liệu hai dự án.
+- Nhập dữ liệu thật trên VPS (sao lưu `du-lieu/sonicplan.sqlite.truoc-du-an-261112` trước): Hòa Lạc 53 hạng mục, Ipsos 9 mốc, bên liên quan, bàn giao. Số tiền để trống.
+- Bỏ mốc trùng M1 của Ipsos (id 69, chép ghi chú sang id 57), sao lưu `truoc-bo-moc-trung-261112` trước.
+- PR 178 (gộp `23d6800`): tác vụ `nhac-du-an` lúc 8h giờ Việt Nam, gửi mốc 7 ngày tới, việc quá hạn, thủ tục chờ, bàn giao sắp hạn; tin thử đã gửi tới PM ("2 dự án, gửi 1/1 nơi nhận").
+- Kiểm trang thật trên Chrome của PM: khổ 2560 và 768 thấy đủ hai thẻ dự án; phát hiện nhãn trạng thái tràn sang thẻ bên do trùng lớp `cham-mau` với `kieu.css`, sửa ở nhánh `claude/sua-nhan-trang-thai`. Khổ 390 chưa chụp được (cửa sổ Chrome không thu dưới 768).
+
+## Bước tiếp (khu Dự án)
+
+- PM tự cập nhật 13 việc quá hạn tháng 8 của Hòa Lạc trên trang.
+- Khi có danh sách email BGH: thêm vai trò `xem`, sửa Cloudflare Access, chụp ba khổ với vai trò đó.
+- Đợt sau: trang tổng hợp BGH và ô cập nhật tuần, cập nhật bằng lời qua Telegram, hợp đồng gắn đợt thanh toán, kho hồ sơ R2.

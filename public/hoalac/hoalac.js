@@ -136,7 +136,7 @@ function veTongQuan(goc, duAn, dangMo) {
     return h('article', { class: `the-du-an${x.id === dangMo.id ? ' dang-mo' : ''}` },
       h('div', { class: 'dau-the-du-an' },
         h('h2', { text: x.ten }),
-        coSo ? h('span', { class: `cham-mau cham-${x.mau}`, text: TEN_MAU[x.mau] }) : null,
+        coSo ? h('span', { class: `nhan-trang-thai nhan-${x.mau}`, text: TEN_MAU[x.mau] }) : null,
       ),
       h('div', { class: 'loai-du-an', text: TEN_LOAI_DU_AN[x.loai_du_an] || '' }),
       coSo ? h('div', { class: 'so-du-an' },
