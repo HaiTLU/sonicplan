@@ -156,10 +156,11 @@
 .dau-the-du-an { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; }
 .dau-the-du-an h2 { font-size: 1.05rem; margin: 0; line-height: 1.3; }
 .loai-du-an { font-size: 0.8rem; opacity: 0.7; margin-top: -0.3rem; }
-.cham-mau { font-size: 0.78rem; padding: 0.15rem 0.6rem; border-radius: 999px; white-space: nowrap; }
-.cham-xanh { background: rgba(52,199,89,.15); color: #2a9d44; }
-.cham-vang { background: rgba(255,159,10,.15); color: #b36b00; }
-.cham-do { background: rgba(255,59,48,.15); color: #d70015; }
+/* Không dùng tên cham-mau: kieu.css đã dùng tên đó cho chấm màu 9px, nhãn chữ sẽ bị ép hẹp và tràn. */
+.dau-the-du-an .nhan-trang-thai { flex: none; }
+.nhan-xanh { background: rgba(52,199,89,.15); color: #2a9d44; }
+.nhan-vang { background: rgba(255,159,10,.15); color: #b36b00; }
+.nhan-do { background: rgba(255,59,48,.15); color: #d70015; }
 .so-du-an { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
 .so-du-an div { display: flex; flex-direction: column; }
 .so-du-an strong { font-size: 1.4rem; line-height: 1.2; }
