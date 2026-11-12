@@ -13,6 +13,7 @@ import { giaiMaEnv, maHoa } from './ma-hoa.js';
 import { docTichHop } from './tich-hop.js';
 import { bam, congNgay, maNgauNhien, ngayVN, sangUTC } from './tien-ich.js';
 import { xuLyVanBanTrucTiep } from './viec.js';
+import { nutDeXuat, phanTichNutDeXuat, taoDeXuat, xuLyDeXuat } from './hoalac/de-xuat.js';
 
 // Thiết lập chung của hệ thống nằm ở cai_dat với to_chuc_id rỗng.
 const HE_THONG = '';
@@ -254,6 +255,18 @@ async function luotBamNut(env, ctx, cb) {
   const toChuc = chat && (await env.CSDL.prepare(`SELECT to_chuc_id FROM cai_dat WHERE khoa = 'telegram_chat_id' AND gia_tri = ?1`).bind(chat).first());
   const bot = await layBot(env);
   const tra = (van) => ctx.waitUntil(goiTelegram(bot.token, 'answerCallbackQuery', { callback_query_id: cb.id, text: van }).catch(() => {}));
+  const nutD = nut || nutH ? null : phanTichNutDeXuat(cb.data);
+  if (nutD && toChuc) {
+    // Đề xuất cập nhật dự án (lệnh /duan): chỉ trong trò chuyện riêng (nối bằng mã của chủ tài khoản),
+    // chỉ người gửi lệnh duyệt được; máy chủ kiểm lại quyền chủ dự án.
+    if (cb.message?.chat?.type !== 'private') { tra('Chỉ duyệt được trong trò chuyện riêng với bot.'); return new Response('ok'); }
+    let kq;
+    try { kq = await xuLyDeXuat(env, toChuc.to_chuc_id, nutD.id, String(cb.from?.id || ''), nutD.chon); }
+    catch (e) { console.error('Duyệt đề xuất lỗi', e); kq = { loi: 'Chưa ghi được, đề xuất vẫn chờ. Bấm lại sau.' }; }
+    tra(kq.thongbao || kq.loi);
+    if (kq.thongbao) ctx.waitUntil(goiTelegram(bot.token, 'editMessageText', { chat_id: chat, message_id: cb.message.message_id, text: `${cb.message.text}\n${kq.thongbao}` }).catch(() => {}));
+    return new Response('ok');
+  }
   if (!(nut || nutH) || !toChuc) { tra('Nút này không còn dùng được.'); return new Response('ok'); }
   if (nutH) {
     let ketQua;
@@ -339,6 +352,19 @@ export async function nhanWebhook(yeuCau, env, ctx) {
     return new Response('ok');
   }
   if (lenh === 'chat') { lam(async () => lenhChat(env, toChuc.to_chuc_id, doiSo, { ngoai: await docTichHop(env, toChuc.to_chuc_id, 'ai'), hoSo: await docHoSo(env, toChuc.to_chuc_id) })); return new Response('ok'); }
+  if (lenh === 'duan') {
+    // Trong nhóm, ai cũng gõ được lệnh; trò chuyện riêng chỉ nối được bằng mã chủ tài khoản lấy trên trang.
+    if (tin.chat?.type !== 'private') { lam(async () => 'Lệnh /duan chỉ dùng trong trò chuyện riêng với bot.'); return new Response('ok'); }
+    lam(async () => {
+      const kq = await taoDeXuat(env, toChuc.to_chuc_id, doiSo, String(tin.from?.id || ''), { ngoai: await docTichHop(env, toChuc.to_chuc_id, 'ai') });
+      if (kq.loi) return kq.loi;
+      if (!kq.de_xuat.length) return 'Em không thấy điều gì cần cập nhật vào dự án trong tin này.';
+      await goiBot(env, 'sendMessage', { chat_id: chat, text: `Có ${kq.de_xuat.length} đề xuất cập nhật dự án. Bấm Duyệt thì mới ghi vào dự án; Bỏ qua thì không ghi gì.` });
+      for (const d of kq.de_xuat) await goiBot(env, 'sendMessage', { chat_id: chat, text: d.mo_ta.slice(0, 3900), reply_markup: { inline_keyboard: nutDeXuat(d.id) } });
+      return null;
+    });
+    return new Response('ok');
+  }
   if (lenh === 'hoi') { lam(() => lenhHoi(env, toChuc.to_chuc_id, doiSo)); return new Response('ok'); }
   if (lenh === 'nho') {
     const g = ghiNhoTuLenh(doiSo);
@@ -369,6 +395,6 @@ export async function nhanWebhook(yeuCau, env, ctx) {
     return new Response('ok');
   }
 
-  tra('Nhắn bình thường, ví dụ "mai 9h họp với chị Lan", em sẽ tạo việc.\n/chat <câu hỏi> - hỏi đáp tự do như ChatGPT\n/viec - việc đang mở\n/nho <điều cần nhớ>\n/hoi <câu hỏi> - hỏi từ ghi nhớ\n/tonghop - bản tổng hợp việc, tin, rủi ro\n/tomtat - tóm tắt tin Zalo từ 0h hôm nay\n/tomtat 3h - tóm tắt 3 giờ qua');
+  tra('Nhắn bình thường, ví dụ "mai 9h họp với chị Lan", em sẽ tạo việc.\n/chat <câu hỏi> - hỏi đáp tự do như ChatGPT\n/viec - việc đang mở\n/nho <điều cần nhớ>\n/hoi <câu hỏi> - hỏi từ ghi nhớ\n/duan <tin nhắn hoặc biên bản họp> - đề xuất cập nhật dự án, bấm Duyệt mới ghi\n/tonghop - bản tổng hợp việc, tin, rủi ro\n/tomtat - tóm tắt tin Zalo từ 0h hôm nay\n/tomtat 3h - tóm tắt 3 giờ qua');
   return new Response('ok');
 }
