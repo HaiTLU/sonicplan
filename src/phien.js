@@ -9,6 +9,11 @@ import { kiemDangNhap } from './xac-thuc.js';
 const NHO_MS = 30000;
 const nho = new Map();
 
+// Quên bộ nhớ của một email (gọi ngay sau khi đổi quyền thành viên của chính người đó, ví dụ vừa tạo dự án).
+export function quenThanhVien(email) {
+  nho.delete(email);
+}
+
 async function docThanhVien(env, email) {
   const co = nho.get(email);
   if (co && Date.now() - co.luc < NHO_MS) return co.dong;
@@ -45,7 +50,7 @@ export async function xacDinhPhien(yeuCau, env, phamViMuon) {
     email: email.email,
     nguoi_dung: { id: dong.nguoi_dung_id, ten: dong.ten_nguoi_dung },
     to_chuc: { id: dong.to_chuc_id, ten: dong.ten_to_chuc, goi: dong.goi, pham_vi_truy_cap: dong.pham_vi_truy_cap, vai_tro: dong.vai_tro },
-    cac_to_chuc: results.map((r) => ({ id: r.to_chuc_id, ten: r.ten_to_chuc })),
+    cac_to_chuc: results.map((r) => ({ id: r.to_chuc_id, ten: r.ten_to_chuc, pham_vi_truy_cap: r.pham_vi_truy_cap, vai_tro: r.vai_tro })),
   };
 }
 

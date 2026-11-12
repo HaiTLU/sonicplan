@@ -107,3 +107,10 @@ export function cat(chuoi, toiDa) {
   const s = String(chuoi ?? '');
   return s.length > toiDa ? `${s.slice(0, toiDa - 1)}…` : s;
 }
+
+// Đọc thân JSON của yêu cầu; thân hỏng hoặc không phải object (null, số, mảng) thì trả {} để các
+// route đọc than.x không ném lỗi 500.
+export async function docThan(yeuCau) {
+  const than = await yeuCau.json().catch(() => null);
+  return than && typeof than === 'object' && !Array.isArray(than) ? than : {};
+}

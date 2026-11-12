@@ -1,5 +1,5 @@
 // Giao diện Viện Hòa Lạc: bảng Kanban (kéo-thả đổi trạng thái) và lịch Gantt rút gọn (thanh theo CPM).
-import { api, bao, fmt, h, khungLoi, thay } from './chung.js';
+import { api, bao, datDuAn, duAnDaLuu, fmt, h, khungLoi, thay } from './chung.js';
 
 const CAC_TRANG_THAI = [
   { ma: 'chua_lam', ten: 'Chưa làm' },
@@ -36,46 +36,143 @@ let nganSachSub = 'dong';
 
 async function chinh() {
   const goc = document.getElementById('goc');
-  let toi;
+  // Danh mục dự án dựng ở máy chủ từ đúng các dự án người dùng là thành viên. Lựa chọn cũ (URL hoặc
+  // localStorage) chỉ dùng khi còn nằm trong danh mục; không thì mở dự án đầu tiên. Gọi danh mục khi
+  // chưa gắn x-to-chuc, vì máy chủ trả 403 cho dự án không còn thuộc người dùng.
+  const daLuu = duAnDaLuu();
+  let duAn;
   try {
-    toi = await api('/api/toi');
+    ({ du_an: duAn } = await api('/api/hoalac/danh-muc'));
   } catch (e) {
     thay(goc, khungLoi(e));
     return;
   }
-  document.getElementById('ten-to-chuc').textContent = toi.to_chuc.ten;
-  const chiXem = toi.to_chuc.vai_tro === 'doi_tac';
-  document.getElementById('tieu-de').textContent = `Quản lý dự án${chiXem ? ' (chỉ xem phần được giao)' : ''}`;
-
-  const tabKanban = document.getElementById('tab-kanban');
-  const tabGantt = document.getElementById('tab-gantt');
-  const tabRaid = document.getElementById('tab-raid');
-  const tabPhapLy = document.getElementById('tab-phap-ly');
-  const tabNganSach = document.getElementById('tab-ngan-sach');
-  const moKanban = () => taiVaVe(goc, chiXem, 'kanban');
-  const moGantt = () => taiVaVe(goc, chiXem, 'gantt');
-  const moPhapLy = () => taiVaVePhapLy(goc, chiXem);
-  if (chiXem) {
-    // Đối tác: RAID và Ngân sách trả 403 cho mọi thao tác (không có cơ chế gán theo dòng), không gọi API
-    // và không cho thấy hai tab này. Pháp lý vẫn còn vì đối tác được xem đúng thủ tục được gán (404 nếu
-    // không), nhưng vePhapLy() tự ẩn 5 mục còn lại.
-    tabRaid.remove();
-    tabNganSach.remove();
-    const cacTab = [tabKanban, tabGantt, tabPhapLy];
-    tabKanban.onclick = () => { chonTab(tabKanban, cacTab); moKanban(); };
-    tabGantt.onclick = () => { chonTab(tabGantt, cacTab); moGantt(); };
-    tabPhapLy.onclick = () => { chonTab(tabPhapLy, cacTab); moPhapLy(); };
-  } else {
-    const cacTab = [tabKanban, tabGantt, tabRaid, tabPhapLy, tabNganSach];
-    const moRaid = () => taiVaVeRaid(goc);
-    const moNganSach = () => taiVaVeNganSach(goc);
-    tabKanban.onclick = () => { chonTab(tabKanban, cacTab); moKanban(); };
-    tabGantt.onclick = () => { chonTab(tabGantt, cacTab); moGantt(); };
-    tabRaid.onclick = () => { chonTab(tabRaid, cacTab); moRaid(); };
-    tabPhapLy.onclick = () => { chonTab(tabPhapLy, cacTab); moPhapLy(); };
-    tabNganSach.onclick = () => { chonTab(tabNganSach, cacTab); moNganSach(); };
+  if (!duAn.length) {
+    thay(goc, khungLoi(new Error('Tài khoản này chưa thuộc dự án nào.')));
+    return;
   }
-  await moKanban();
+  const dangMo = duAn.find((x) => x.id === daLuu) || duAn[0];
+  datDuAn(dangMo.id);
+  veChonDuAn(duAn, dangMo);
+
+  // doi_tac: chỉ thấy hạng mục, thủ tục được gán. xem (Ban Giám hiệu): thấy hết, không sửa được gì.
+  const chiXem = dangMo.vai_tro === 'doi_tac';
+  const chiDoc = dangMo.vai_tro === 'xem';
+  document.getElementById('tieu-de').textContent = `Quản lý dự án${chiXem ? ' (chỉ xem phần được giao)' : chiDoc ? ' (chỉ xem)' : ''}`;
+  if (chiDoc) batChiDoc(goc);
+
+  const moTab = {
+    'tong-quan': () => veTongQuan(goc, duAn, dangMo),
+    kanban: () => taiVaVe(goc, chiXem || chiDoc, 'kanban'),
+    gantt: () => taiVaVe(goc, chiXem, 'gantt'),
+    raid: () => taiVaVeRaid(goc),
+    'phap-ly': () => taiVaVePhapLy(goc, chiXem),
+    'ban-giao': () => taiVaVeBanGiao(goc),
+    'ngan-sach': () => taiVaVeNganSach(goc),
+  };
+  const bat = tabDuocBat(dangMo);
+  const cacTab = [];
+  for (const ma of Object.keys(moTab)) {
+    const nut = document.getElementById(`tab-${ma}`);
+    if (!bat.includes(ma)) { nut.remove(); continue; }
+    cacTab.push(nut);
+    nut.onclick = () => { chonTab(nut, cacTab); moTab[ma](); };
+  }
+  const dau = cacTab[0];
+  chonTab(dau, cacTab);
+  await moTab[dau.id.slice(4)]();
+}
+
+// Tab mặc định theo loại dự án; to_chuc.phan_bat (danh sách cách nhau bằng dấu phẩy) ghi đè khi có.
+// Đối tác: RAID, Ngân sách, Bàn giao trả 403 cho mọi thao tác (không có cơ chế gán theo dòng), và
+// Tổng quan không có số liệu cho họ, nên chỉ còn Kanban, Gantt, Pháp lý (vePhapLy() tự ẩn 5 mục còn lại).
+const TAB_MAC_DINH = {
+  xay_dung: ['tong-quan', 'kanban', 'gantt', 'raid', 'phap-ly', 'ngan-sach'],
+  nghien_cuu: ['tong-quan', 'kanban', 'gantt', 'raid', 'ban-giao', 'ngan-sach'],
+};
+function tabDuocBat(da) {
+  const rieng = String(da.phan_bat || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const bat = rieng.length ? ['tong-quan', ...rieng] : (TAB_MAC_DINH[da.loai_du_an] || TAB_MAC_DINH.xay_dung);
+  if (da.vai_tro === 'doi_tac') {
+    const conLai = bat.filter((x) => ['kanban', 'gantt', 'phap-ly'].includes(x));
+    return conLai.length ? conLai : ['kanban'];
+  }
+  return bat;
+}
+
+function veChonDuAn(duAn, dangMo) {
+  const ten = document.getElementById('ten-to-chuc');
+  const khung = document.getElementById('khung-chon-du-an');
+  const chon = document.getElementById('chon-du-an');
+  document.title = `${dangMo.ten} - Quản lý dự án`;
+  if (duAn.length < 2) { ten.textContent = dangMo.ten; return; }
+  ten.hidden = true;
+  khung.hidden = false;
+  thay(chon, duAn.map((x) => h('option', { value: x.id, selected: x.id === dangMo.id, text: x.ten })));
+  chon.onchange = () => moDuAn(chon.value);
+}
+
+function moDuAn(id) {
+  datDuAn(id);
+  location.href = `/hoalac?du-an=${encodeURIComponent(id)}`;
+}
+
+// Vai trò xem: máy chủ đã trả 403 cho mọi lệnh ghi (src/hoalac/api.js); ở đây chỉ ẩn ô nhập, nút
+// và khóa ô chọn trạng thái để người xem không bấm nhầm rồi gặp lỗi.
+function batChiDoc(goc) {
+  document.body.classList.add('chi-doc');
+  const khoa = () => { for (const s of goc.querySelectorAll('.hang-dong-raid select')) s.disabled = true; };
+  new MutationObserver(khoa).observe(goc, { childList: true, subtree: true });
+}
+
+const TEN_LOAI_DU_AN = { xay_dung: 'Xây dựng', nghien_cuu: 'Nghiên cứu' };
+const TEN_MAU = { xanh: 'Đúng tiến độ', vang: 'Cần chú ý', do: 'Chậm, có rủi ro' };
+
+// Tổng quan: mỗi dự án một thẻ (học trang danh mục của Monday, Asana): màu trạng thái, % tiến độ,
+// việc quá hạn, rủi ro cao, 3 mốc tới. Đây cũng là trang Ban Giám hiệu xem.
+function veTongQuan(goc, duAn, dangMo) {
+  const the = duAn.map((x) => {
+    const coSo = x.mau != null;
+    return h('article', { class: `the-du-an${x.id === dangMo.id ? ' dang-mo' : ''}` },
+      h('div', { class: 'dau-the-du-an' },
+        h('h2', { text: x.ten }),
+        coSo ? h('span', { class: `cham-mau cham-${x.mau}`, text: TEN_MAU[x.mau] }) : null,
+      ),
+      h('div', { class: 'loai-du-an', text: TEN_LOAI_DU_AN[x.loai_du_an] || '' }),
+      coSo ? h('div', { class: 'so-du-an' },
+        h('div', {}, h('strong', { text: `${x.tien_do_pt}%` }), h('span', { text: 'tiến độ' })),
+        h('div', {}, h('strong', { text: String(x.qua_han) }), h('span', { text: x.qua_han_gang ? `quá hạn (${x.qua_han_gang} trên đường găng)` : 'quá hạn' })),
+        h('div', {}, h('strong', { text: String(x.rui_ro_cao) }), h('span', { text: 'rủi ro cao' })),
+      ) : null,
+      coSo ? h('div', { class: 'tien-do' }, h('div', { class: 'tien-do-trong', style: `width:${x.tien_do_pt}%` })) : null,
+      coSo ? h('div', { class: 'moc-toi' },
+        h('h3', { text: 'Mốc sắp tới' }),
+        x.moc_toi.length
+          ? h('ul', {}, ...x.moc_toi.map((m) => h('li', {}, h('time', { text: fmt.ngayNgan.format(new Date(m.ngay)) }), ' ', m.ten)))
+          : h('p', { class: 'trong', text: 'Chưa có mốc nào phía trước.' }),
+      ) : null,
+      x.id === dangMo.id ? h('p', { class: 'nhan-dang-mo', text: 'Đang mở' })
+        : h('button', { type: 'button', class: 'nut-mo-du-an', onclick: () => moDuAn(x.id) }, 'Mở dự án này'),
+    );
+  });
+  const taoMoi = dangMo.vai_tro === 'chu'
+    ? h('form', { class: 'form-raid', onsubmit: (e) => taoDuAn(e) },
+      h('input', { name: 'ten', required: true, placeholder: 'Tên dự án mới', 'aria-label': 'Tên dự án mới' }),
+      oChon('loai_du_an', Object.entries(TEN_LOAI_DU_AN), 'xay_dung'),
+      h('button', { type: 'submit' }, 'Tạo dự án'))
+    : null;
+  thay(goc, h('div', { class: 'khung-raid' }, h('div', { class: 'luoi-du-an' }, ...the), taoMoi));
+}
+
+async function taoDuAn(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  try {
+    const { id } = await api('/api/hoalac/danh-muc', { method: 'POST', body: JSON.stringify({ ten: fd.get('ten'), loai_du_an: fd.get('loai_du_an') }) });
+    moDuAn(id);
+  } catch (err) {
+    bao(err.message, true);
+  }
 }
 
 function chonTab(chon, cacTab) {
@@ -465,6 +562,51 @@ function veHopDong(ds, dsBen, lamMoi) {
     );
   });
   return h('div', {}, form, ...list);
+}
+
+// ---------- Bàn giao: sản phẩm đơn vị thuê ngoài phải nộp (dự án nghiên cứu, ví dụ Ipsos) ----------
+const TEN_TRANG_THAI_BAN_GIAO = { chua_giao: 'Chưa giao', da_giao: 'Đã giao', dang_xem: 'Đang xem', yeu_cau_sua: 'Yêu cầu sửa', da_duyet: 'Đã duyệt' };
+
+async function taiVaVeBanGiao(goc) {
+  try {
+    const [{ ban_giao }, { ben_lien_quan }] = await Promise.all([api('/api/hoalac/ban-giao'), api('/api/hoalac/ben-lien-quan')]);
+    thay(goc, veBanGiao(ban_giao, ben_lien_quan, () => taiVaVeBanGiao(goc)));
+  } catch (e) {
+    thay(goc, khungLoi(e));
+  }
+}
+
+function veBanGiao(ds, dsBen, lamMoi) {
+  const form = h('form', { class: 'form-raid', onsubmit: (e) => guiForm(e, '/api/hoalac/ban-giao', lamMoi) },
+    h('input', { name: 'ten', placeholder: 'Tên sản phẩm bàn giao', required: true }),
+    dsBen.length ? oChon('ben_giao_id', [['', 'Bên giao (tùy chọn)'], ...dsBen.map((b) => [b.id, b.ten])]) : null,
+    h('label', {}, 'Hạn ', h('input', { name: 'han', type: 'date' })),
+    h('button', { type: 'submit' }, 'Thêm sản phẩm'),
+  );
+  if (!ds.length) return h('div', { class: 'khung-raid' }, form, h('p', { class: 'trong' }, 'Chưa có sản phẩm bàn giao nào.'));
+  const homNay = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+  const tenBen = (id) => dsBen.find((b) => b.id === id)?.ten;
+  const list = ds.map((x) => {
+    const tre = x.han && x.han < homNay && !['da_giao', 'da_duyet'].includes(x.trang_thai);
+    const chon = oChon('trang_thai', Object.entries(TEN_TRANG_THAI_BAN_GIAO), x.trang_thai);
+    chon.onchange = async () => {
+      const than = { trang_thai: chon.value };
+      if (chon.value === 'da_giao' && !x.ngay_giao) than.ngay_giao = homNay;
+      try { await api(`/api/hoalac/ban-giao/${x.id}`, { method: 'PUT', body: JSON.stringify(than) }); await lamMoi(); } catch (err) { bao(err.message, true); }
+    };
+    return h('div', { class: `the-raid${tre ? ' tre-han' : ''}` },
+      h('div', { class: 'dau-the-raid' }, h('strong', { text: x.ten }),
+        h('span', { class: `nhan-trang-thai nhan-ban-giao-${x.trang_thai}`, text: TEN_TRANG_THAI_BAN_GIAO[x.trang_thai] })),
+      h('p', { class: 'chi-tiet-raid' }, [
+        x.han ? `Hạn: ${fmt.ngayNgan.format(new Date(x.han))}${tre ? ' (quá hạn)' : ''}` : 'Chưa có hạn',
+        x.ben_giao_id ? `Bên giao: ${tenBen(x.ben_giao_id) || x.ben_giao_id}` : '',
+        x.ngay_giao ? `Đã nộp: ${fmt.ngayNgan.format(new Date(x.ngay_giao))}` : '',
+      ].filter(Boolean).join(' · ')),
+      x.mo_ta ? h('p', { class: 'chi-tiet-raid', text: x.mo_ta }) : null,
+      h('div', { class: 'hang-dong-raid' }, chon, h('button', { type: 'button', onclick: () => xoaRaid(`/api/hoalac/ban-giao/${x.id}`, lamMoi) }, 'Xóa')),
+    );
+  });
+  return h('div', { class: 'khung-raid' }, form, ...list);
 }
 
 const TEN_TRANG_THAI_THU_TUC = { todo: 'Chưa làm', doing: 'Đang làm', wait: 'Đang chờ', done: 'Xong', block: 'Bị chặn' };

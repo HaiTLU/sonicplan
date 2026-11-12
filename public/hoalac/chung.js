@@ -24,10 +24,34 @@ export function thay(el, ...con) {
   el.replaceChildren(...con.flat().filter((c) => c != null && c !== false));
 }
 
+// Dự án đang mở: mỗi dự án là một tổ chức phạm vi 'hoalac'. Gửi kèm mọi yêu cầu qua tiêu đề x-to-chuc;
+// máy chủ chỉ nhận khi người dùng là thành viên dự án đó (src/phien.js), nên giá trị lưu ở trình duyệt
+// không mở được dự án của người khác.
+const KHOA_DU_AN = 'hoalac.du_an';
+let duAnHienTai = '';
+
+export function duAnDaLuu() {
+  const tuUrl = new URLSearchParams(location.search).get('du-an');
+  if (tuUrl) return tuUrl;
+  try { return localStorage.getItem(KHOA_DU_AN) || ''; } catch { return ''; }
+}
+
+export function datDuAn(id) {
+  duAnHienTai = id || '';
+  try {
+    if (duAnHienTai) localStorage.setItem(KHOA_DU_AN, duAnHienTai);
+    else localStorage.removeItem(KHOA_DU_AN);
+  } catch { /* trình duyệt chặn lưu: vẫn chạy, chỉ không nhớ lựa chọn */ }
+}
+
 export async function api(duongDan, tuyChon = {}) {
   const ph = await fetch(duongDan, {
     ...tuyChon,
-    headers: { accept: 'application/json', ...(tuyChon.body ? { 'content-type': 'application/json' } : {}) },
+    headers: {
+      accept: 'application/json',
+      ...(tuyChon.body ? { 'content-type': 'application/json' } : {}),
+      ...(duAnHienTai ? { 'x-to-chuc': duAnHienTai } : {}),
+    },
   });
   const duLieu = await ph.json().catch(() => ({}));
   if (!ph.ok) throw new Error(duLieu.loi || 'Không đọc được dữ liệu. Tải lại trang để thử lại.');

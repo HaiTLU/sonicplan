@@ -7,7 +7,7 @@
   <meta name="color-scheme" content="light dark">
   <script src="/tema.js"></script>
   <meta name="description" content="Quản lý dự án Viện Đào tạo, Nghiên cứu Công nghệ cao và Đổi mới sáng tạo, Khu CNC Hòa Lạc.">
-  <title>Dự án Viện Hòa Lạc</title>
+  <title>Quản lý dự án</title>
   <meta name="theme-color" content="#020a14" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#fbfbfd" media="(prefers-color-scheme: light)">
   <link rel="icon" href="/bieu-tuong.svg" type="image/svg+xml">
@@ -24,13 +24,19 @@
       <div>
         <strong id="tieu-de">Quản lý dự án</strong>
         <span id="ten-to-chuc" class="ten-to-chuc"></span>
+        <label id="khung-chon-du-an" class="chon-du-an" hidden>
+          <span class="an-chu">Chọn dự án</span>
+          <select id="chon-du-an"></select>
+        </label>
       </div>
     </div>
     <nav class="tab-hoalac" aria-label="Chế độ xem">
-      <button id="tab-kanban" type="button" aria-current="true">Bảng Kanban</button>
+      <button id="tab-tong-quan" type="button">Tổng quan</button>
+      <button id="tab-kanban" type="button">Bảng Kanban</button>
       <button id="tab-gantt" type="button">Lịch Gantt</button>
       <button id="tab-raid" type="button">RAID</button>
       <button id="tab-phap-ly" type="button">Pháp lý</button>
+      <button id="tab-ban-giao" type="button">Bàn giao</button>
       <button id="tab-ngan-sach" type="button">Ngân sách</button>
     </nav>
   </header>
