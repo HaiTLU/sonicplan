@@ -46,6 +46,7 @@ export const BANG_XUAT = [
   ['qlda_ngan_sach_dong', 'SELECT * FROM qlda_ngan_sach_dong WHERE to_chuc_id = ?1'],
   ['qlda_giai_ngan', 'SELECT * FROM qlda_giai_ngan WHERE to_chuc_id = ?1'],
   ['qlda_evm', 'SELECT * FROM qlda_evm WHERE to_chuc_id = ?1'],
+  ['qlda_san_pham_ban_giao', 'SELECT * FROM qlda_san_pham_ban_giao WHERE to_chuc_id = ?1'],
 ];
 
 export async function xuatDuLieu(env, tc, luc = new Date().toISOString()) {
