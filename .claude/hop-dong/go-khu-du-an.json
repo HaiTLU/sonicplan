@@ -1,0 +1,35 @@
+{
+  "id": "go-khu-du-an",
+  "muc_dich": "Gỡ hẳn khu Dự án /hoalac: bỏ mã, test, trang; migration xóa 28 bảng qlda_* và 2 tổ chức tc_hoalac, tc_ipsos. Giữ tính năng du_an cũ.",
+  "duong_dan_duoc_sua": [
+    "src/api.js",
+    "src/index.js",
+    "src/tac-vu.js",
+    "src/lich-chay.js",
+    "src/telegram.js",
+    "src/thong-bao.js",
+    "src/du-lieu.js",
+    "src/xoa-to-chuc.js",
+    "wrangler.jsonc",
+    "test/khung.test.js",
+    "migrations/0055_go_khu_du_an.sql",
+    "src/hoalac",
+    "public/hoalac",
+    "scripts/nhap-hoalac.mjs",
+    "test"
+  ],
+  "lenh_kiem": [
+    "npm test"
+  ],
+  "han_muc": {
+    "usd": 5,
+    "phut": 30,
+    "loai": "nho"
+  },
+  "dau_ra": [],
+  "can_phan_bien": true,
+  "bo_qua_kiem": [
+    "memory/*"
+  ],
+  "tao_luc": "2026-11-13T21:49:49"
+}

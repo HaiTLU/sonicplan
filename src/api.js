@@ -16,7 +16,6 @@ import { xuLyKetNoi } from './api/ket-noi.js';
 import { xuLyApiThongBao } from './thong-bao.js';
 import { xuLyHieuSuat } from './hieu-suat.js';
 import { xuLyGame } from './game.js';
-import { xuLyHoaLac } from './hoalac/api.js';
 import { loi } from './tien-ich.js';
 
 // Giữ đường dẫn cũ cho nơi khác đang nhập từ đây.
@@ -32,7 +31,6 @@ export async function xuLyApi(yeuCau, env, phien, url) {
   if (p === '/api/thong-bao' || p.startsWith('/api/thong-bao/')) return xuLyApiThongBao(yeuCau, env, phien, url);
   if (p.startsWith('/api/hieu-suat')) return xuLyHieuSuat(yeuCau, env, phien.to_chuc.id, p);
   if (p === '/api/game' || p.startsWith('/api/game/')) return xuLyGame(yeuCau, env, phien.to_chuc.id, p);
-  if (p.startsWith('/api/hoalac/')) return xuLyHoaLac(yeuCau, env, phien, url);
 
   for (const nhom of [xuLyDashboard, xuLyClaudeMay, xuLyTongQuan, xuLyTin, xuLyViec, xuLyDuAn, xuLyLuong, xuLyGhiNho, xuLyGoogleNhan, xuLyTep, xuLyKetNoi]) {
     const kq = await nhom(yeuCau, env, phien, url);

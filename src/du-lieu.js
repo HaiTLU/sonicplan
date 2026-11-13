@@ -24,34 +24,6 @@ export const BANG_XUAT = [
   ['cai_dat', `SELECT khoa, gia_tri FROM cai_dat WHERE to_chuc_id = ?1 AND khoa NOT LIKE 'tich_hop%' AND khoa NOT LIKE '%ma_noi%' AND khoa NOT LIKE '%bam%' AND khoa <> 'google_state'`],
   ['thong_bao', 'SELECT loai, tieu_de, noi_dung, viec_id, tao_luc, da_doc_luc FROM thong_bao WHERE to_chuc_id = ?1'],
   ['nhat_ky_chay', 'SELECT * FROM nhat_ky_chay WHERE to_chuc_id = ?1 ORDER BY id DESC LIMIT 2000'],
-  // RAID của Viện Hòa Lạc (rủi ro, vấn đề, thay đổi, quyết định, bài học): phải có trong bản sao lưu trước khi
-  // xoaToChuc() xóa 5 bảng này, không thì dữ liệu RAID mất hẳn, không khôi phục được trong 30 ngày như đã hứa.
-  ['qlda_rui_ro', 'SELECT * FROM qlda_rui_ro WHERE to_chuc_id = ?1'],
-  ['qlda_van_de', 'SELECT * FROM qlda_van_de WHERE to_chuc_id = ?1'],
-  ['qlda_thay_doi', 'SELECT * FROM qlda_thay_doi WHERE to_chuc_id = ?1'],
-  ['qlda_quyet_dinh', 'SELECT * FROM qlda_quyet_dinh WHERE to_chuc_id = ?1'],
-  ['qlda_bai_hoc', 'SELECT * FROM qlda_bai_hoc WHERE to_chuc_id = ?1'],
-  // Pháp lý/Hợp đồng/Các bên của Viện Hòa Lạc (PR4): cùng lý do, phải có trong bản sao lưu trước khi
-  // xoaToChuc() xóa các bảng này.
-  ['qlda_ben_lien_quan', 'SELECT * FROM qlda_ben_lien_quan WHERE to_chuc_id = ?1'],
-  ['qlda_raci', 'SELECT * FROM qlda_raci WHERE to_chuc_id = ?1'],
-  ['qlda_hop_dong', 'SELECT * FROM qlda_hop_dong WHERE to_chuc_id = ?1'],
-  ['qlda_thu_tuc', 'SELECT * FROM qlda_thu_tuc WHERE to_chuc_id = ?1'],
-  ['qlda_thu_tuc_phu_thuoc', 'SELECT * FROM qlda_thu_tuc_phu_thuoc WHERE to_chuc_id = ?1'],
-  ['qlda_van_ban', 'SELECT * FROM qlda_van_ban WHERE to_chuc_id = ?1'],
-  ['qlda_hop', 'SELECT * FROM qlda_hop WHERE to_chuc_id = ?1'],
-  ['qlda_hop_viec', 'SELECT * FROM qlda_hop_viec WHERE to_chuc_id = ?1'],
-  // Ngân sách & EVM của Viện Hòa Lạc (PR5): cùng lý do, phải có trong bản sao lưu trước khi
-  // xoaToChuc() xóa các bảng này.
-  ['qlda_ngan_sach_dong', 'SELECT * FROM qlda_ngan_sach_dong WHERE to_chuc_id = ?1'],
-  ['qlda_giai_ngan', 'SELECT * FROM qlda_giai_ngan WHERE to_chuc_id = ?1'],
-  ['qlda_dot_thanh_toan', 'SELECT * FROM qlda_dot_thanh_toan WHERE to_chuc_id = ?1'],
-  ['qlda_evm', 'SELECT * FROM qlda_evm WHERE to_chuc_id = ?1'],
-  ['qlda_san_pham_ban_giao', 'SELECT * FROM qlda_san_pham_ban_giao WHERE to_chuc_id = ?1'],
-  ['qlda_cap_nhat_tuan', 'SELECT * FROM qlda_cap_nhat_tuan WHERE to_chuc_id = ?1'],
-  ['qlda_de_xuat', 'SELECT * FROM qlda_de_xuat WHERE to_chuc_id = ?1'],
-  ['qlda_ho_so', 'SELECT * FROM qlda_ho_so WHERE to_chuc_id = ?1'],
-  ['qlda_ho_so_phien_ban', 'SELECT * FROM qlda_ho_so_phien_ban WHERE to_chuc_id = ?1'],
 ];
 
 export async function xuatDuLieu(env, tc, luc = new Date().toISOString()) {
