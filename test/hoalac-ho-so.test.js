@@ -196,3 +196,19 @@ test('khóa kho tệp chỉ có UUID và đuôi dù tên tiếng Việt dài; t�
   assert.equal(TEP.m.size, truoc);
   assert.equal((await ds(env)).length, 1);
 });
+
+test('biểu mẫu sửa gửi đủ ba trường gắn: bỏ gắn, xóa hạn, xóa mô tả, đổi tên và thư mục trong một lần', async () => {
+  const { env } = moiEnv();
+  const { id } = await (await taiLen(env, CHU, { thu_muc: 'hop_dong', ten: 'Cu', hop_dong_id: 1, han_hieu_luc: '2027-01-01', mo_ta: 'mo ta cu' })).json();
+  const r = await goi(env, TV, `/api/hoalac/ho-so/${id}`, { method: 'PUT', body: JSON.stringify({
+    ten: 'Moi', thu_muc: 'van_ban', mo_ta: '', han_hieu_luc: null, thu_tuc_id: null, hop_dong_id: null, ban_giao_id: null,
+  }) });
+  assert.equal(r.status, 200, await r.clone().text());
+  const [h] = await ds(env);
+  assert.deepEqual([h.ten, h.thu_muc, h.mo_ta, h.han_hieu_luc, h.hop_dong_id, h.ten_hop_dong], ['Moi', 'van_ban', '', null, null, null]);
+  const r2 = await goi(env, TV, `/api/hoalac/ho-so/${id}`, { method: 'PUT', body: JSON.stringify({ hop_dong_id: 1, thu_tuc_id: null, ban_giao_id: null }) });
+  assert.equal(r2.status, 200);
+  assert.equal((await ds(env))[0].ten_hop_dong, 'HD A');
+  const r3 = await goi(env, XEM, `/api/hoalac/ho-so/${id}`, { method: 'PUT', body: JSON.stringify({ ten: 'X' }) });
+  assert.equal(r3.status, 403);
+});

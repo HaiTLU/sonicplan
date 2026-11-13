@@ -740,11 +740,14 @@ async function moTepHoSo(pbId, ten, xem) {
   }
 }
 
-function oGanHoSo(gan) {
+function oGanHoSo(gan, giaTri = '') {
   const nhom = [['thu_tuc_id', 'Thủ tục', gan.thu_tuc], ['hop_dong_id', 'Hợp đồng', gan.hop_dong], ['ban_giao_id', 'Sản phẩm bàn giao', gan.ban_giao]]
     .filter(([, , ds]) => ds.length)
     .map(([k, nhan, ds]) => h('optgroup', { label: nhan }, ...ds.map((x) => h('option', { value: `${k}:${x.id}` }, x.ten))));
-  return nhom.length ? h('select', { name: 'gan', 'aria-label': 'Gắn với mục' }, h('option', { value: '' }, 'Gắn với (tùy chọn)'), ...nhom) : null;
+  if (!nhom.length) return null;
+  const chon = h('select', { name: 'gan', 'aria-label': 'Gắn với mục' }, h('option', { value: '' }, 'Gắn với (tùy chọn)'), ...nhom);
+  chon.value = giaTri;
+  return chon;
 }
 
 function kiemCoTep(tep) {
@@ -788,10 +791,37 @@ function veHoSo(ds, gan, lamMoi, veLai) {
     ? h('p', { class: 'canh-bao-ho-so', text: `${canhBao.filter((x) => x.tinh_trang_han === 'het_han').length} hồ sơ đã hết hạn, ${canhBao.filter((x) => x.tinh_trang_han === 'sap_het_han').length} hồ sơ hết hạn trong 30 ngày.` })
     : null;
   if (!loc_ds.length) return h('div', { class: 'khung-raid' }, form, loc, dauTrang, h('p', { class: 'trong' }, ds.length ? 'Thư mục này chưa có hồ sơ.' : 'Chưa có hồ sơ nào. Chọn tệp ở trên để tải lên.'));
-  return h('div', { class: 'khung-raid' }, form, loc, dauTrang, ...loc_ds.map((x) => theHoSo(x, lamMoi)));
+  return h('div', { class: 'khung-raid' }, form, loc, dauTrang, ...loc_ds.map((x) => theHoSo(x, lamMoi, gan)));
 }
 
-function theHoSo(x, lamMoi) {
+// Biểu mẫu sửa thông tin hồ sơ (tên, thư mục, mục gắn, hạn, mô tả). Gửi đủ ba trường gắn để đổi hoặc bỏ gắn.
+function formSuaHoSo(x, gan, lamMoi, dong) {
+  const giaTriGan = x.thu_tuc_id ? `thu_tuc_id:${x.thu_tuc_id}` : x.hop_dong_id ? `hop_dong_id:${x.hop_dong_id}` : x.ban_giao_id ? `ban_giao_id:${x.ban_giao_id}` : '';
+  return h('form', { class: 'form-raid form-ho-so form-sua-ho-so', onsubmit: async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const than = { ten: fd.get('ten'), thu_muc: fd.get('thu_muc'), mo_ta: fd.get('mo_ta'), han_hieu_luc: fd.get('han_hieu_luc') || null };
+    if (fd.has('gan')) {
+      const [k, v] = (fd.get('gan') || ':').split(':');
+      for (const t of ['thu_tuc_id', 'hop_dong_id', 'ban_giao_id']) than[t] = t === k ? Number(v) : null;
+    }
+    const nut = e.target.querySelector('button[type=submit]');
+    nut.disabled = true;
+    try { await api(`/api/hoalac/ho-so/${x.id}`, { method: 'PUT', body: JSON.stringify(than) }); bao('Đã lưu thông tin hồ sơ.'); await lamMoi(); } catch (err) {
+      bao(err.message, true); nut.disabled = false;
+    }
+  } },
+    h('input', { name: 'ten', required: true, maxlength: 300, value: x.ten, 'aria-label': 'Tên hồ sơ' }),
+    h('label', {}, 'Thư mục ', oChon('thu_muc', Object.entries(TEN_THU_MUC), x.thu_muc)),
+    oGanHoSo(gan, giaTriGan),
+    h('label', {}, 'Hiệu lực đến ', h('input', { name: 'han_hieu_luc', type: 'date', value: x.han_hieu_luc || '' })),
+    h('input', { name: 'mo_ta', placeholder: 'Mô tả (tùy chọn)', value: x.mo_ta || '' }),
+    h('button', { type: 'submit' }, 'Lưu'),
+    h('button', { type: 'button', onclick: dong }, 'Hủy'),
+  );
+}
+
+function theHoSo(x, lamMoi, gan) {
   const chon = oChon('trang_thai', Object.entries(TEN_TRANG_THAI_HO_SO), x.trang_thai);
   chon.setAttribute('aria-label', `Trạng thái phiên bản ${x.so}`);
   chon.onchange = async () => {
@@ -817,14 +847,20 @@ function theHoSo(x, lamMoi) {
       lichSu.hidden = false;
     } catch (err) { bao(err.message, true); }
   };
-  const gan = x.ten_thu_tuc ? `Thủ tục: ${x.ten_thu_tuc}` : x.ten_hop_dong ? `Hợp đồng: ${x.ten_hop_dong}` : x.ten_ban_giao ? `Bàn giao: ${x.ten_ban_giao}` : '';
+  const khungSua = h('div', { hidden: true });
+  const moSua = () => {
+    if (!khungSua.hidden) { khungSua.hidden = true; return; }
+    thay(khungSua, formSuaHoSo(x, gan, lamMoi, () => { khungSua.hidden = true; }));
+    khungSua.hidden = false;
+  };
+  const tenGan = x.ten_thu_tuc ? `Thủ tục: ${x.ten_thu_tuc}` : x.ten_hop_dong ? `Hợp đồng: ${x.ten_hop_dong}` : x.ten_ban_giao ? `Bàn giao: ${x.ten_ban_giao}` : '';
   const nhanHan = x.tinh_trang_han === 'het_han' ? h('span', { class: 'nhan-han nhan-han-het', text: 'Đã hết hạn' })
     : x.tinh_trang_han === 'sap_het_han' ? h('span', { class: 'nhan-han nhan-han-sap', text: 'Sắp hết hạn' }) : null;
   return h('div', { class: `the-raid the-ho-so${x.tinh_trang_han === 'het_han' ? ' tre-han' : x.tinh_trang_han === 'sap_het_han' ? ' sap-het-han' : ''}` },
     h('div', { class: 'dau-the-raid' }, h('strong', { text: x.ten }),
       h('span', { class: `nhan-trang-thai nhan-ho-so-${x.trang_thai}`, text: `v${x.so} · ${TEN_TRANG_THAI_HO_SO[x.trang_thai]}` }), nhanHan),
     h('p', { class: 'chi-tiet-raid' }, [
-      TEN_THU_MUC[x.thu_muc], gan,
+      TEN_THU_MUC[x.thu_muc], tenGan,
       x.han_hieu_luc ? `Hiệu lực đến ${ngayDu(x.han_hieu_luc)}` : '',
       `${x.ten_tep} (${coTep(x.kich_thuoc)})`,
       x.doi_luc ? `Nhãn đổi ${ngayDu(x.doi_luc)} bởi ${x.doi_boi}` : '',
@@ -834,7 +870,9 @@ function theHoSo(x, lamMoi) {
       h('button', { type: 'button', onclick: () => moTepHoSo(x.pb_id, x.ten_tep, false) }, 'Tải về'),
       xemDuoc(x.ten_tep) ? h('button', { type: 'button', onclick: () => moTepHoSo(x.pb_id, x.ten_tep, true) }, 'Xem') : null,
       h('button', { type: 'button', onclick: moLichSu }, 'Lịch sử')),
-    h('div', { class: 'hang-dong-raid' }, chon, tepMoi, h('button', { type: 'button', onclick: () => tepMoi.click() }, 'Tải bản mới')),
+    h('div', { class: 'hang-dong-raid' }, chon, tepMoi, h('button', { type: 'button', onclick: () => tepMoi.click() }, 'Tải bản mới'),
+      h('button', { type: 'button', onclick: moSua }, 'Sửa thông tin')),
+    khungSua,
     lichSu,
   );
 }
