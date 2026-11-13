@@ -45,6 +45,7 @@ export const BANG_XUAT = [
   // xoaToChuc() xóa các bảng này.
   ['qlda_ngan_sach_dong', 'SELECT * FROM qlda_ngan_sach_dong WHERE to_chuc_id = ?1'],
   ['qlda_giai_ngan', 'SELECT * FROM qlda_giai_ngan WHERE to_chuc_id = ?1'],
+  ['qlda_dot_thanh_toan', 'SELECT * FROM qlda_dot_thanh_toan WHERE to_chuc_id = ?1'],
   ['qlda_evm', 'SELECT * FROM qlda_evm WHERE to_chuc_id = ?1'],
   ['qlda_san_pham_ban_giao', 'SELECT * FROM qlda_san_pham_ban_giao WHERE to_chuc_id = ?1'],
   ['qlda_cap_nhat_tuan', 'SELECT * FROM qlda_cap_nhat_tuan WHERE to_chuc_id = ?1'],

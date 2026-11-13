@@ -184,6 +184,24 @@
 .nhan-ban-giao-yeu_cau_sua { background: rgba(255,159,10,.15); color: #b36b00; }
 .nhan-ban-giao-da_duyet { background: rgba(52,199,89,.15); color: #2a9d44; }
 
+/* Đợt thanh toán: ô cảnh báo ở đầu mục, mỗi đợt một thẻ con trong thẻ hợp đồng. */
+.o-canh-bao { border: 1px solid rgba(255,159,10,.45); background: rgba(255,159,10,.10); border-radius: 12px; padding: 0.75rem 1rem; margin-bottom: 0.75rem; }
+.o-canh-bao ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+.o-canh-bao li { margin: 0.2rem 0; font-size: 0.9rem; }
+.ds-dot { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.5rem 0; }
+.the-dot { border: 1px solid var(--vien, #e5e5ea); border-radius: 10px; padding: 0.6rem 0.8rem; }
+.the-dot.tre-han { border-left: 3px solid #ff3b30; }
+.the-dot .hang-dong-raid { flex-wrap: wrap; }
+.nhac-dot { font-size: 0.85rem; color: #b36b00; margin: 0.3rem 0; }
+.mo-tra summary { cursor: pointer; padding: 0.3rem 0.6rem; border: 1px solid var(--vien, #e5e5ea); border-radius: 8px; font-size: 0.85rem; list-style: none; }
+.mo-tra[open] { flex-basis: 100%; }
+.mo-tra .form-raid { margin-top: 0.5rem; }
+.nhan-dot-cho { background: rgba(142,142,147,.18); }
+.nhan-dot-da_de_nghi { background: rgba(10,132,255,.15); color: #0a84ff; }
+.nhan-dot-da_tra { background: rgba(52,199,89,.15); color: #2a9d44; }
+.nhan-dot-huy { background: rgba(142,142,147,.18); text-decoration: line-through; }
+.chi-doc .mo-tra, .chi-doc .hang-dong-raid select { display: none; }
+
 /* Vai trò xem (Ban Giám hiệu): ẩn ô nhập và nút sửa, xóa; máy chủ vẫn chặn mọi lệnh ghi. */
 .chi-doc .form-raid, .chi-doc .hang-dong-raid button { display: none; }
 .chi-doc .the-kanban { cursor: default; }

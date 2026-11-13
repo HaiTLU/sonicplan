@@ -29,6 +29,7 @@ let phapLySub = 'thu_tuc';
 
 const CAC_MUC_NGAN_SACH = [
   { ma: 'dong', ten: 'Dòng ngân sách' },
+  { ma: 'dot_tra', ten: 'Đợt thanh toán' },
   { ma: 'giai_ngan', ten: 'Giải ngân' },
   { ma: 'evm', ten: 'EVM' },
 ];
@@ -785,10 +786,14 @@ function tienOrChuaThongNhat(so, donVi) {
 
 async function taiVaVeNganSach(goc) {
   try {
-    const [ns, gn, evm] = await Promise.all([
+    const [ns, gn, evm, tt, hd, hm, bg] = await Promise.all([
       api('/api/hoalac/ngan-sach'), api('/api/hoalac/giai-ngan'), api('/api/hoalac/evm'),
+      api('/api/hoalac/dot-thanh-toan'), api('/api/hoalac/hop-dong'), api('/api/hoalac/hang-muc'), api('/api/hoalac/ban-giao'),
     ]);
-    thay(goc, veNganSach(goc, { ngan_sach: ns.ngan_sach, giai_ngan: gn.giai_ngan, evm: evm.evm }));
+    thay(goc, veNganSach(goc, {
+      ngan_sach: ns.ngan_sach, giai_ngan: gn.giai_ngan, evm: evm.evm,
+      dot_tra: tt.dot_thanh_toan, canh_bao: tt.canh_bao, hop_dong: hd.hop_dong, hang_muc: hm.hang_muc, ban_giao: bg.ban_giao,
+    }));
   } catch (e) {
     thay(goc, khungLoi(e));
   }
@@ -800,12 +805,13 @@ function veNganSach(goc, d) {
       type: 'button',
       'aria-current': ma === nganSachSub ? 'true' : null,
       onclick: () => { nganSachSub = ma; thay(goc, veNganSach(goc, d)); },
-      text: `${ten} (${d[ma === 'dong' ? 'ngan_sach' : ma].length})`,
+      text: `${ten} (${d[ma === 'dong' ? 'ngan_sach' : ma].length})${ma === 'dot_tra' && d.canh_bao.length ? ` - ${d.canh_bao.length} cảnh báo` : ''}`,
     })),
   );
   const lamMoi = () => taiVaVeNganSach(goc);
   const noiDung = {
     dong: () => veDongNganSach(d.ngan_sach, lamMoi),
+    dot_tra: () => veDotThanhToan(d, lamMoi),
     giai_ngan: () => veGiaiNgan(d.giai_ngan, d.ngan_sach, lamMoi),
     evm: () => veEvm(d.evm, lamMoi),
   }[nganSachSub]();
@@ -848,6 +854,125 @@ function veDongNganSach(ds, lamMoi) {
     ),
   ));
   return h('div', {}, form, ...list);
+}
+
+// ---------- Đợt thanh toán của hợp đồng (cảnh báo tính ở máy chủ: src/hoalac/thanh-toan.js) ----------
+const TEN_TRANG_THAI_DOT = { cho: 'Chờ', da_de_nghi: 'Đã đề nghị', da_tra: 'Đã trả', huy: 'Hủy' };
+const TEN_CANH_BAO = { qua_han: 'Quá hạn', sap_den_han: 'Sắp đến hạn', du_dieu_kien: 'Đủ điều kiện, chưa đề nghị', lech_gia_tri: 'Tổng các đợt lệch giá trị hợp đồng' };
+const homNayVN = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+const ngayVN = (s) => fmt.ngayNgan.format(new Date(`${s}T00:00:00Z`));
+
+async function ghiDot(duongDan, method, than, lamMoi) {
+  try {
+    await api(duongDan, { method, body: than ? JSON.stringify(than) : undefined });
+    await lamMoi();
+  } catch (err) { bao(err.message, true); }
+}
+
+function veOCanhBao(ds) {
+  if (!ds.length) return h('p', { class: 'trong' }, 'Không có cảnh báo thanh toán.');
+  return h('div', { class: 'o-canh-bao', role: 'status' },
+    h('strong', {}, `${ds.length} cảnh báo thanh toán`),
+    h('ul', {}, ...ds.map((c) => h('li', {}, c.loai === 'lech_gia_tri'
+      ? `${c.ten_hop_dong}: ${TEN_CANH_BAO[c.loai]} (đợt ${tienOrChuaThongNhat(c.tong_dot)} / hợp đồng ${tienOrChuaThongNhat(c.gia_tri)}${c.du_so ? '' : ', còn đợt chưa có số'})`
+      : `${c.ten} - ${c.ten_hop_dong}: ${TEN_CANH_BAO[c.loai]}${c.han ? `, hạn ${ngayVN(c.han)}` : ''}`))),
+  );
+}
+
+function veDotThanhToan(d, lamMoi) {
+  const canhBao = veOCanhBao(d.canh_bao);
+  if (!d.hop_dong.length) return h('div', {}, canhBao, h('p', { class: 'trong' }, 'Chưa có hợp đồng. Thêm hợp đồng trước (mục Pháp lý - Hợp đồng).'));
+  const tenHm = (id) => d.hang_muc.find((x) => x.id === id)?.ten;
+  const tenBg = (id) => d.ban_giao.find((x) => x.id === id)?.ten;
+  const tuyChonLienKet = [['', 'Điều kiện: không gắn'],
+    ...d.hang_muc.map((x) => [`hm:${x.id}`, `Hạng mục: ${x.ten}`]),
+    ...d.ban_giao.map((x) => [`bg:${x.id}`, `Bàn giao: ${x.ten}`])];
+  const homNay = homNayVN();
+
+  const formThem = (hd) => h('form', {
+    class: 'form-raid',
+    onsubmit: async (e) => {
+      e.preventDefault();
+      const f = e.target.elements;
+      const than = { hop_dong_id: hd.id, ten: f.ten.value.trim() };
+      if (f.so_tien.value !== '') than.so_tien = Number(f.so_tien.value);
+      if (f.han.value) than.han = f.han.value;
+      if (f.dieu_kien.value.trim()) than.dieu_kien = f.dieu_kien.value.trim();
+      const lk = f.lien_ket.value;
+      if (lk.startsWith('hm:')) than.hang_muc_id = Number(lk.slice(3));
+      if (lk.startsWith('bg:')) than.ban_giao_id = Number(lk.slice(3));
+      await ghiDot('/api/hoalac/dot-thanh-toan', 'POST', than, lamMoi);
+    },
+  },
+    h('input', { name: 'ten', placeholder: 'Tên đợt (ví dụ: Tạm ứng)', required: true }),
+    h('input', { name: 'so_tien', type: 'number', step: '0.001', min: '0', placeholder: 'Số tiền (để trống nếu chưa thống nhất)' }),
+    h('label', {}, 'Hạn ', h('input', { name: 'han', type: 'date' })),
+    oChon('lien_ket', tuyChonLienKet, ''),
+    h('input', { name: 'dieu_kien', placeholder: 'Ghi chú điều kiện' }),
+    h('button', { type: 'submit' }, 'Thêm đợt'),
+  );
+
+  const theDot = (x) => {
+    const loi = d.canh_bao.filter((c) => c.dot_id === x.id);
+    const dieuKien = [
+      x.hang_muc_id ? `Hạng mục: ${tenHm(x.hang_muc_id) || x.hang_muc_id}` : '',
+      x.ban_giao_id ? `Bàn giao: ${tenBg(x.ban_giao_id) || x.ban_giao_id}` : '',
+      x.dieu_kien,
+    ].filter(Boolean).join(' · ');
+    const hangNut = [];
+    if (x.trang_thai === 'da_tra') {
+      hangNut.push(h('button', { type: 'button', onclick: () => confirm('Bỏ đánh dấu đã trả? Dòng giải ngân đi kèm sẽ bị gỡ.') && ghiDot(`/api/hoalac/dot-thanh-toan/${x.id}/bo-tra`, 'POST', null, lamMoi) }, 'Bỏ đã trả'));
+    } else {
+      const chon = oChon('trang_thai', [['cho', 'Chờ'], ['da_de_nghi', 'Đã đề nghị'], ['huy', 'Hủy']], x.trang_thai);
+      chon.onchange = () => ghiDot(`/api/hoalac/dot-thanh-toan/${x.id}`, 'PUT', { trang_thai: chon.value }, lamMoi);
+      hangNut.push(chon);
+      if (x.trang_thai !== 'huy') {
+        hangNut.push(h('details', { class: 'mo-tra' },
+          h('summary', {}, 'Đã trả'),
+          h('form', {
+            class: 'form-raid',
+            onsubmit: async (e) => {
+              e.preventDefault();
+              const f = e.target.elements;
+              const than = { so_tien: Number(f.so_tien.value), ngay: f.ngay.value };
+              if (f.ngan_sach_dong_id && f.ngan_sach_dong_id.value) than.ngan_sach_dong_id = Number(f.ngan_sach_dong_id.value);
+              await ghiDot(`/api/hoalac/dot-thanh-toan/${x.id}/tra`, 'POST', than, lamMoi);
+            },
+          },
+            h('input', { name: 'so_tien', type: 'number', step: '0.001', min: '0', required: true, placeholder: 'Số tiền đã trả', value: x.so_tien != null ? String(x.so_tien) : null }),
+            h('input', { name: 'ngay', type: 'date', required: true, value: homNay }),
+            d.ngan_sach.length ? oChon('ngan_sach_dong_id', [['', 'Dòng ngân sách (tùy chọn)'], ...d.ngan_sach.map((n) => [n.id, n.ten])]) : null,
+            h('button', { type: 'submit' }, 'Ghi đã trả và tạo giải ngân'),
+          ),
+        ));
+      }
+      hangNut.push(h('button', { type: 'button', onclick: () => xoaRaid(`/api/hoalac/dot-thanh-toan/${x.id}`, lamMoi) }, 'Xóa'));
+    }
+    return h('div', { class: `the-dot${loi.some((c) => c.loai === 'qua_han') ? ' tre-han' : ''}` },
+      h('div', { class: 'dau-the-raid' },
+        h('strong', { text: x.ten }),
+        h('span', { class: `nhan-trang-thai nhan-dot-${x.trang_thai}`, text: TEN_TRANG_THAI_DOT[x.trang_thai] })),
+      h('p', { class: 'chi-tiet-raid' }, [
+        tienOrChuaThongNhat(x.so_tien),
+        x.han ? `Hạn: ${ngayVN(x.han)}` : 'Chưa có hạn',
+        x.ngay_tra ? `Đã trả: ${ngayVN(x.ngay_tra)}` : '',
+      ].filter(Boolean).join(' · ')),
+      dieuKien ? h('p', { class: 'chi-tiet-raid', text: `Điều kiện: ${dieuKien}` }) : null,
+      loi.length ? h('p', { class: 'nhac-dot', text: loi.map((c) => TEN_CANH_BAO[c.loai]).join(' · ') }) : null,
+      h('div', { class: 'hang-dong-raid' }, ...hangNut),
+    );
+  };
+
+  const theHd = d.hop_dong.map((hd) => {
+    const dots = d.dot_tra.filter((x) => x.hop_dong_id === hd.id);
+    return h('div', { class: 'the-raid' },
+      h('div', { class: 'dau-the-raid' }, h('strong', { text: hd.ten }),
+        h('span', { class: 'chi-tiet-raid', text: hd.gia_tri != null ? `Giá trị: ${tienOrChuaThongNhat(hd.gia_tri, hd.don_vi_tien)}` : 'Giá trị chưa thống nhất' })),
+      dots.length ? h('div', { class: 'ds-dot' }, ...dots.map(theDot)) : h('p', { class: 'trong' }, 'Chưa có đợt thanh toán.'),
+      formThem(hd),
+    );
+  });
+  return h('div', {}, canhBao, ...theHd);
 }
 
 function veGiaiNgan(ds, dsDong, lamMoi) {

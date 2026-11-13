@@ -1,10 +1,13 @@
 // Nhắc việc hằng ngày cho khu Dự án (các tổ chức phạm vi 'hoalac'): mốc trong 7 ngày tới, việc quá hạn,
-// (việc tạm dừng không tính là quá hạn), thủ tục pháp lý đang chờ hoặc vướng, sản phẩm bàn giao sắp đến hạn hoặc đã quá hạn.
+// (việc tạm dừng không tính là quá hạn), thủ tục pháp lý đang chờ hoặc vướng, sản phẩm bàn giao sắp đến hạn hoặc đã quá hạn,
+// đợt thanh toán sắp đến hạn, quá hạn hoặc đủ điều kiện mà chưa đề nghị (tên đợt đi qua cheSoTien).
 // Dự án không có nhóm Telegram riêng, nên tin gửi vào nhóm của tổ chức chính (phạm vi 'chung')
 // mà chủ dự án cũng là chủ. Không ghi số tiền trong tin.
 
 import { baoToChuc } from '../telegram.js';
 import { congNgay, gioVN, ngayVN } from '../tien-ich.js';
+import { canhBaoThanhToan } from './thanh-toan.js';
+import { cheSoTien } from './de-xuat.js';
 
 const GIO_GUI = 8; // giờ Việt Nam
 const TOI_DA_DONG = 5;
@@ -32,11 +35,16 @@ export async function soanNhacDuAn(env, toChucId, homNay) {
     `SELECT ten, han FROM qlda_san_pham_ban_giao WHERE to_chuc_id = ?1 AND trang_thai = 'chua_giao'
      AND han IS NOT NULL AND han <= ?2 ORDER BY han, id`, sau7);
 
+  // Lệch giá trị hợp đồng chỉ báo trên trang vì phải nêu số tiền.
+  const LY_DO = { qua_han: 'đã quá hạn', sap_den_han: 'sắp đến hạn', du_dieu_kien: 'đủ điều kiện, chưa đề nghị' };
+  const thanhToan = (await canhBaoThanhToan(env, toChucId, homNay)).filter((c) => LY_DO[c.loai]);
+
   return [
     khoi('Mốc trong 7 ngày tới', moc, (m) => `- ${m.ten} (${ngayNgan(m.ngay_ket_thuc)})`),
     khoi('Việc quá hạn', quaHan, (v) => `- ${v.ten} (hạn ${ngayNgan(v.ngay_ket_thuc)}${v.phu_trach ? `, ${v.phu_trach}` : ''})`),
     khoi('Thủ tục đang chờ hoặc vướng', thuTuc, (t) => `- ${t.ten} (${t.trang_thai === 'block' ? 'vướng' : 'đang chờ'})`),
     khoi('Bàn giao sắp đến hạn hoặc quá hạn', banGiao, (b) => `- ${b.ten} (hạn ${ngayNgan(b.han)}${b.han < homNay ? ', đã quá' : ''})`),
+    khoi('Đợt thanh toán', thanhToan, (c) => `- ${cheSoTien(c.ten)} - HĐ ${cheSoTien(c.ten_hop_dong)} (${LY_DO[c.loai]}${c.han ? `, hạn ${ngayNgan(c.han)}` : ''})`),
   ].filter(Boolean).join('\n\n');
 }
 
