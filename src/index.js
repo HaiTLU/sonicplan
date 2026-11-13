@@ -39,13 +39,7 @@ export default {
       const lich = url.pathname.match(/^\/lich\/([a-z0-9]{20,64})\.ics$/);
       if (lich && yeuCau.method === 'GET') return docLich(env, lich[1], url);
 
-      // Phần /hoalac (Viện Hòa Lạc) cách ly hẳn khỏi phần còn lại: tổ chức phạm vi 'hoalac' chỉ
-      // vào được đúng đường dẫn này, và đường dẫn này chỉ nhận tổ chức phạm vi 'hoalac'. Tính trước
-      // khi xác định phiên để một người thuộc nhiều tổ chức (ví dụ vừa chủ tổ chức thường vừa chủ
-      // Hòa Lạc) vẫn được chọn đúng tổ chức Hòa Lạc khi gọi đường dẫn này, không chỉ chọn tổ chức
-      // thêm trước nhất.
-      const duongHoaLac = url.pathname === '/hoalac' || url.pathname.startsWith('/hoalac/') || url.pathname === '/api/hoalac' || url.pathname.startsWith('/api/hoalac/');
-      const phien = await xacDinhPhien(yeuCau, env, duongHoaLac ? 'hoalac' : undefined);
+      const phien = await xacDinhPhien(yeuCau, env);
       if (!phien.duoc) {
         console.warn('Từ chối:', phien.ly_do, url.pathname);
         if (!url.pathname.startsWith('/api/') && phien.ma === 403) return trangChuaMoi();
@@ -55,14 +49,6 @@ export default {
       // Chống giả mạo yêu cầu từ trang khác (OWASP ASVS V3/V4): lệnh ghi phải đến từ chính trang này.
       if (url.pathname.startsWith('/api/') && !['GET', 'HEAD'].includes(yeuCau.method) && !cungNguon(yeuCau, url)) {
         return loi(403, 'Yêu cầu không đến từ trang Sonicplan.');
-      }
-
-      if (phien.to_chuc.pham_vi_truy_cap === 'hoalac') {
-        if (!duongHoaLac && !url.pathname.startsWith('/api/toi') && url.pathname !== '/api/thong-bao' && !url.pathname.startsWith('/api/thong-bao/')) {
-          return loi(403, 'Tài khoản này chỉ dùng được phần Viện Hòa Lạc.');
-        }
-      } else if (duongHoaLac) {
-        return loi(403, 'Tài khoản này không thuộc Viện Hòa Lạc.');
       }
 
       // Chạy ngay một tác vụ hẹn giờ (nút "Chạy ngay" ở trang Luồng và Nhật ký). Chỉ chủ tổ chức.
@@ -76,13 +62,7 @@ export default {
       if (url.pathname.startsWith('/api/tram/')) return xuLyApiTram(yeuCau, env, phien, url);
       if (url.pathname.startsWith('/api/')) return xuLyApi(yeuCau, env, phien, url);
       // Trang, mã và kiểu dáng luôn hỏi lại máy chủ trước khi dùng bản lưu, để bản mới lên ngay.
-      // Phần /hoalac có bundle riêng (public/hoalac/), không dùng SPA fallback của bundle chính:
-      // mọi đường dẫn trang (không có đuôi tệp) dưới /hoalac trả về đúng public/hoalac/index.html.
-      let yeuCauTinh = yeuCau;
-      if (duongHoaLac && !/\.[a-z0-9]+$/i.test(url.pathname)) {
-        const u2 = new URL(url); u2.pathname = '/hoalac/index.html';
-        yeuCauTinh = new Request(u2, yeuCau);
-      }
+      const yeuCauTinh = yeuCau;
       const tinh = await env.ASSETS.fetch(yeuCauTinh);
       if (/\.(?:js|css|html|webmanifest)$|\/$/.test(new URL(yeuCauTinh.url).pathname)) {
         const ra = new Response(tinh.body, tinh);
@@ -119,18 +99,12 @@ export default {
 async function docLich(env, khoa, url) {
   const toChucId = await toChucTheoKhoa(env, khoa, 'lich');
   if (!toChucId) return new Response('Không tìm thấy lịch', { status: 404 });
-  const [viec, moc, toChuc] = await env.CSDL.batch([
+  const [viec, toChuc] = await env.CSDL.batch([
     env.CSDL.prepare(`SELECT id, tieu_de, ghi_chu, han_ngay, gio_hen, buoi FROM viec WHERE to_chuc_id = ?1 AND trang_thai = 'mo' AND han_ngay IS NOT NULL`).bind(toChucId),
-    // Mốc dự án (/hoalac): la_moc=1, ngày lấy từ ngay_ket_thuc, hoặc ngay_bat_dau nếu chưa có ngày kết thúc.
-    env.CSDL.prepare(
-      `SELECT id, ten, mo_ta, COALESCE(ngay_ket_thuc, ngay_bat_dau) AS han_ngay FROM qlda_hang_muc
-       WHERE to_chuc_id = ?1 AND la_moc = 1 AND COALESCE(ngay_ket_thuc, ngay_bat_dau) IS NOT NULL`,
-    ).bind(toChucId),
     env.CSDL.prepare('SELECT ten FROM to_chuc WHERE id = ?1').bind(toChucId),
     env.CSDL.prepare('UPDATE khoa_truy_cap SET dung_luc = ?2 WHERE ma_bam = ?1').bind(await bam(khoa), new Date().toISOString()),
   ]);
-  const cacMoc = moc.results.map((m) => ({ id: m.id, tieu_de: `Mốc: ${m.ten}`, ghi_chu: m.mo_ta, han_ngay: m.han_ngay, gio_hen: null, loai: 'moc' }));
-  const ics = taoIcs([...viec.results, ...cacMoc], { ten: `Việc - ${toChuc.results[0]?.ten || 'Sonicplan'}`, mien: url.hostname });
+  const ics = taoIcs(viec.results, { ten: `Việc - ${toChuc.results[0]?.ten || 'Sonicplan'}`, mien: url.hostname });
   return new Response(ics, { headers: { 'content-type': 'text/calendar; charset=utf-8', 'cache-control': 'no-store' } });
 }
 

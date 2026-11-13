@@ -17,18 +17,16 @@ export const LOAI_THONG_BAO = {
   doi_han: 'Việc đổi hạn theo tin mới',
   gio_hen: 'Việc tới giờ hẹn',
   claude: 'Claude hỏi lại hoặc làm xong',
-  hoalac_rui_ro: 'Viện Hòa Lạc: rủi ro mới hoặc mức độ cao',
-  hoalac_thay_doi: 'Viện Hòa Lạc: yêu cầu thay đổi chờ duyệt',
 };
 
-// Loại thông báo chỉ dành cho chủ/thành viên tổ chức Hòa Lạc, không cho đối tác thấy (đối tác dùng
-// chung /api/thong-bao với phần còn lại của tổ chức - CLAUDE.md: đối tác không thấy RAID).
-const AN_VOI_DOI_TAC = ['hoalac_rui_ro', 'hoalac_thay_doi'];
+// Loại thông báo không cho đối tác thấy (đối tác dùng chung /api/thong-bao với phần còn lại của tổ chức).
+// Hiện trống: hai loại RAID của khu Dự án đã bỏ cùng khu Dự án (13/11/2026); giữ cơ chế cho loại sau này.
+const AN_VOI_DOI_TAC = [];
 
 // dang_ky_day chỉ gắn với tổ chức, không gắn với người/vai trò cụ thể, nên không biết thiết bị đăng ký
-// là của chủ, thành viên hay đối tác. Hai loại RAID này chỉ báo trong chuông (nơi /api/thong-bao đã lọc
-// theo vai trò ở AN_VOI_DOI_TAC), không đẩy ra thiết bị để tránh lộ tiêu đề/nội dung cho đối tác.
-const KHONG_DAY = ['hoalac_rui_ro', 'hoalac_thay_doi'];
+// là của chủ, thành viên hay đối tác. Loại nào chỉ được báo trong chuông (nơi /api/thong-bao đã lọc
+// theo vai trò ở AN_VOI_DOI_TAC) thì thêm vào đây để không đẩy ra thiết bị. Hiện trống.
+const KHONG_DAY = [];
 
 // Chỉ gửi tới dịch vụ đẩy của trình duyệt lớn, không để địa chỉ tùy ý biến máy chủ thành nơi gọi đi bất kỳ đâu.
 const MIEN_DAY = ['.googleapis.com', '.mozilla.com', '.push.apple.com', '.notify.windows.com'];

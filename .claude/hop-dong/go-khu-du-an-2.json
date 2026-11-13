@@ -1,0 +1,57 @@
+{
+  "id": "go-khu-du-an-2",
+  "muc_dich": "Gỡ hẳn khu Dự án /hoalac: bỏ mã, test, trang; migration xóa 28 bảng qlda_* và 2 tổ chức tc_hoalac, tc_ipsos. Giữ tính năng du_an cũ.",
+  "duong_dan_duoc_sua": [
+    "migrations/0055_go_khu_du_an.sql",
+    "public/hoalac/chung.js",
+    "public/hoalac/hoalac.css",
+    "public/hoalac/hoalac.js",
+    "public/hoalac/index.html",
+    "scripts/nhap-hoalac.mjs",
+    "src/api.js",
+    "src/du-lieu.js",
+    "src/hoalac/api.js",
+    "src/hoalac/cap-nhat-tuan.js",
+    "src/hoalac/danh-muc.js",
+    "src/hoalac/de-xuat.js",
+    "src/hoalac/ho-so.js",
+    "src/hoalac/nhac.js",
+    "src/hoalac/quyen.js",
+    "src/hoalac/thanh-toan.js",
+    "src/hoalac/wbs.js",
+    "src/index.js",
+    "src/lich-chay.js",
+    "src/tac-vu.js",
+    "src/telegram.js",
+    "src/thong-bao.js",
+    "src/xoa-to-chuc.js",
+    "test/hoalac-bgh.test.js",
+    "test/hoalac-de-xuat.test.js",
+    "test/hoalac-du-an.test.js",
+    "test/hoalac-ho-so.test.js",
+    "test/hoalac-ngan-sach.test.js",
+    "test/hoalac-nhac.test.js",
+    "test/hoalac-nhap.test.js",
+    "test/hoalac-phap-ly.test.js",
+    "test/hoalac-quyen.test.js",
+    "test/hoalac-raid.test.js",
+    "test/hoalac-thanh-toan.test.js",
+    "test/hoalac-wbs.test.js",
+    "test/khung.test.js",
+    "wrangler.jsonc"
+  ],
+  "lenh_kiem": [
+    "npm test"
+  ],
+  "han_muc": {
+    "usd": 5,
+    "phut": 30,
+    "loai": "nho"
+  },
+  "dau_ra": [],
+  "can_phan_bien": true,
+  "bo_qua_kiem": [
+    "memory/*"
+  ],
+  "tao_luc": "2026-11-13T21:50:03"
+}

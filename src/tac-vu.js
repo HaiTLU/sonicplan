@@ -12,7 +12,6 @@ import { docCaiDat, ghiCaiDat, ghiTinHieu } from './hop-tin.js';
 import { dongBoKho } from './kho.js';
 import { quetHop } from './ghi-am-hop.js';
 import { nhacViec } from './nhac-viec.js';
-import { nhacDuAn } from './hoalac/nhac.js';
 import { bamNutDuocChua, baoToChuc } from './telegram.js';
 import { docTichHop } from './tich-hop.js';
 import { bam, cat, congNgay, gioVN, ngayVN } from './tien-ich.js';
@@ -260,7 +259,6 @@ export const CAC_TAC_VU = {
   },
 
   'nhac-viec': nhacViec,
-  'nhac-du-an': nhacDuAn,
   'ban-tin': banTinNgay,
   'goi-y': goiYMoi,
   'cham-viec': chamViecMoi,

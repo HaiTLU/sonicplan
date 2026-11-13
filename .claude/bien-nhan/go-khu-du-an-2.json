@@ -1,0 +1,60 @@
+{
+  "id": "go-khu-du-an-2",
+  "trang_thai": "DAT",
+  "luc": "2026-11-13T21:50:10",
+  "sha256_hop_dong": "ffd50b108f0a8ca628d50fbc4e2417e7a4d03db614dc21d5d7645e920660e7b8",
+  "lenh_kiem": [
+    {
+      "lenh": "npm test",
+      "ma_thoat": 0,
+      "dau_ra_cuoi": "n mỗi ngày, tải dữ liệu ghi mỗi lần, tách theo tổ chức (22.313417ms)\n✔ tin mình gửi đi và tin người kia cùng mã hội thoại nằm chung một mục, theo thứ tự thời gian (19.967125ms)\n✔ tin cũ chưa có mã hội thoại vẫn gom theo tên và mở được bằng địa chỉ cũ (1.316208ms)\n✔ tên đổi trên Zalo thì mục hiện tên mới nhất của người kia (0.764208ms)\n✔ máy Mac gửi thread_id thì lưu thành mã hội thoại có loại; thiếu thì để trống (0.928334ms)\n✔ vá chương trình Zalo: thêm thread_id và tên người nhận, chạy lại không đổi, mã lạ thì từ chối (0.590708ms)\n✔ Google báo Client Secret sai: thông báo tiếng Việt chỉ đúng chỗ sửa (0.652375ms)\n✔ tin cũ mình gửi dưới tên mình: xếp vào cuộc trò chuyện duy nhất quanh đó, mơ hồ thì để nguyên (1.495292ms)\n✔ chuyển tay tin mình gửi sang đúng người: chỉ đụng tin chưa có mã, không đụng nhóm hay tin đã xếp (1.445584ms)\n✔ khung tin đang mở lấy được tin mới hơn bằng sau_id, không lặp tin cũ (1.041041ms)\n✔ tin cũ chưa có mã cùng tên nhóm với một cuộc đã có mã thì nhập chung một mục (1.741709ms)\n✔ Google báo secret sai bằng mô tả khác mã lỗi vẫn ra thông báo tiếng Việt (0.355083ms)\n✔ tin tệp chat riêng (không mã, không tieu_de) nhập chung với cuộc trò chuyện của người gửi, không hiện hai mục (1.131834ms)\n✔ chỉ chủ tổ chức gửi được; mã hội thoại phải đúng dạng; phải có chữ hoặc tệp; giới hạn độ dài và số tệp (45.933417ms)\n✔ tạo lệnh, máy Mac lấy một lần, tải tệp khi đang gửi, báo xong; lệnh khác tổ chức không lấy được (30.253917ms)\n✔ lệnh chờ quá 3 phút thì bỏ, không gửi muộn; lệnh đã lấy mà im lặng thì báo không rõ đã gửi chưa (25.07825ms)\n✔ gửi dồn dập quá 20 lần trong 10 phút thì từ chối (45.294458ms)\n✔ ảnh, tệp, thu hồi, nhãn dán, bình chọn (1.036208ms)\n✔ thẻ liên kết, danh thiếp, cuộc gọi (0.797916ms)\n✔ chữ có liên kết được tách, bỏ dấu câu cuối (0.233208ms)\n✔ chỉ tải từ máy chủ Zalo (0.142209ms)\n✔ dòng xem nhanh: tin đặc biệt thành câu ngắn (0.4855ms)\nℹ tests 470\nℹ suites 0\nℹ pass 469\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 1\nℹ duration_ms 6771.904417\n"
+    }
+  ],
+  "tep_ngoai_pham_vi": [],
+  "dau_ra_thieu": [],
+  "tep": {
+    "migrations/0055_go_khu_du_an.sql": "d0fde6eacfe4e2f589ae379510ecef595340e9a63b400e23be8ba837e311d0da",
+    "public/hoalac/chung.js": "DA-XOA",
+    "public/hoalac/hoalac.css": "DA-XOA",
+    "public/hoalac/hoalac.js": "DA-XOA",
+    "public/hoalac/index.html": "DA-XOA",
+    "scripts/nhap-hoalac.mjs": "DA-XOA",
+    "src/api.js": "ab63a80f5af5c7b1291513926c25b352ab9cbc1a1c665ae7fb355477c2f24213",
+    "src/du-lieu.js": "4dc9309b596d3917ae8e9ebeed1d36b60286d6ef292850f3dac4ec6501c2e5de",
+    "src/hoalac/api.js": "DA-XOA",
+    "src/hoalac/cap-nhat-tuan.js": "DA-XOA",
+    "src/hoalac/danh-muc.js": "DA-XOA",
+    "src/hoalac/de-xuat.js": "DA-XOA",
+    "src/hoalac/ho-so.js": "DA-XOA",
+    "src/hoalac/nhac.js": "DA-XOA",
+    "src/hoalac/quyen.js": "DA-XOA",
+    "src/hoalac/thanh-toan.js": "DA-XOA",
+    "src/hoalac/wbs.js": "DA-XOA",
+    "src/index.js": "fb8707f1f87d396601a5eeee584a1bc789e634d356576db9e88057f26e5f448c",
+    "src/lich-chay.js": "2f58d60e5920fada98d2e6c22a0453273760140b514dd11086c5051a40a02f9b",
+    "src/tac-vu.js": "da98a25bfefff46d127724f4e30ca032c1041d354657af53a0e4fb657382e365",
+    "src/telegram.js": "b7272c003cc855f60d3c3d648f3227afdfe092544a37ed0baa5fc2ab7ab68880",
+    "src/thong-bao.js": "adbf631e5320193b8f96ecfc0b1bbbacfb03abfa64ac59c5d7ef4df2b6c8820c",
+    "src/xoa-to-chuc.js": "0b3b8c16b6402f3d0c1c0adbd70a5bf007ab0b0a67a42151f46a665779eeec69",
+    "test/hoalac-bgh.test.js": "DA-XOA",
+    "test/hoalac-de-xuat.test.js": "DA-XOA",
+    "test/hoalac-du-an.test.js": "DA-XOA",
+    "test/hoalac-ho-so.test.js": "DA-XOA",
+    "test/hoalac-ngan-sach.test.js": "DA-XOA",
+    "test/hoalac-nhac.test.js": "DA-XOA",
+    "test/hoalac-nhap.test.js": "DA-XOA",
+    "test/hoalac-phap-ly.test.js": "DA-XOA",
+    "test/hoalac-quyen.test.js": "DA-XOA",
+    "test/hoalac-raid.test.js": "DA-XOA",
+    "test/hoalac-thanh-toan.test.js": "DA-XOA",
+    "test/hoalac-wbs.test.js": "DA-XOA",
+    "test/khung.test.js": "eb81bed71113d92e73eca068c42339699798289cb2bc63e804d7d534217ce342",
+    "wrangler.jsonc": "47c4ec90d90c72d2cd814cadc27bfdad948c991dd749dbc30895f8ef923555e8"
+  },
+  "phan_bien": {
+    "ket_luan": "APPROVED",
+    "bao_cao": "/Users/hainguyen/Brain/Software/sonic/wt-go-du-an/.claude/bien-nhan/phan-bien-go-khu-du-an.md",
+    "sha256_bao_cao": "44696600152a99e2a1299fcdb9da7e8ccd39db59b08eaa88d3ca6aa296cf9819",
+    "luc": "2026-11-13T21:53:43"
+  }
+}
