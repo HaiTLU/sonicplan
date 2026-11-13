@@ -19,7 +19,7 @@ import { xacDinhPhien } from '../src/phien.js';
 import { taoThongBao } from '../src/thong-bao.js';
 
 const GOC = resolve(fileURLToPath(import.meta.url), '../..');
-const TOI_DA_THAN = 30 * 1024 * 1024;
+const TOI_DA_THAN = 55 * 1024 * 1024; // kho hồ sơ nhận tệp tới 50 MB, cộng phần đầu multipart
 
 export function docEnv(duongDan) {
   const ra = {};

@@ -7,6 +7,7 @@
 import { baoToChuc } from '../telegram.js';
 import { congNgay, gioVN, ngayVN } from '../tien-ich.js';
 import { canhBaoThanhToan } from './thanh-toan.js';
+import { docHoSo } from './ho-so.js';
 import { cheSoTien } from './de-xuat.js';
 
 const GIO_GUI = 8; // giờ Việt Nam
@@ -35,6 +36,8 @@ export async function soanNhacDuAn(env, toChucId, homNay) {
     `SELECT ten, han FROM qlda_san_pham_ban_giao WHERE to_chuc_id = ?1 AND trang_thai = 'chua_giao'
      AND han IS NOT NULL AND han <= ?2 ORDER BY han, id`, sau7);
 
+  const hoSo = (await docHoSo(env, toChucId, homNay)).filter((h) => h.tinh_trang_han);
+
   // Lệch giá trị hợp đồng chỉ báo trên trang vì phải nêu số tiền.
   const LY_DO = { qua_han: 'đã quá hạn', sap_den_han: 'sắp đến hạn', du_dieu_kien: 'đủ điều kiện, chưa đề nghị' };
   const thanhToan = (await canhBaoThanhToan(env, toChucId, homNay)).filter((c) => LY_DO[c.loai]);
@@ -44,6 +47,7 @@ export async function soanNhacDuAn(env, toChucId, homNay) {
     khoi('Việc quá hạn', quaHan, (v) => `- ${v.ten} (hạn ${ngayNgan(v.ngay_ket_thuc)}${v.phu_trach ? `, ${v.phu_trach}` : ''})`),
     khoi('Thủ tục đang chờ hoặc vướng', thuTuc, (t) => `- ${t.ten} (${t.trang_thai === 'block' ? 'vướng' : 'đang chờ'})`),
     khoi('Bàn giao sắp đến hạn hoặc quá hạn', banGiao, (b) => `- ${b.ten} (hạn ${ngayNgan(b.han)}${b.han < homNay ? ', đã quá' : ''})`),
+    khoi('Hồ sơ hết hạn hoặc sắp hết hạn', hoSo, (h) => `- ${h.ten} (hạn ${ngayNgan(h.han_hieu_luc)}${h.tinh_trang_han === 'het_han' ? ', đã hết' : ''})`),
     khoi('Đợt thanh toán', thanhToan, (c) => `- ${cheSoTien(c.ten)} - HĐ ${cheSoTien(c.ten_hop_dong)} (${LY_DO[c.loai]}${c.han ? `, hạn ${ngayNgan(c.han)}` : ''})`),
   ].filter(Boolean).join('\n\n');
 }

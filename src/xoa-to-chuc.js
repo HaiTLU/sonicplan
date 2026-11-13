@@ -9,10 +9,11 @@ export const GIU_NGAY = 30;
 // Các bảng có cột to_chuc_id. Thêm bảng mới có cột này thì thêm vào đây (test/xoa-to-chuc.test.js kiểm đủ).
 // qlda_hop_viec, qlda_van_ban, qlda_hop_dong, qlda_hop, qlda_giai_ngan đứng trước 'tep' vì cả 4 bảng
 // cuối có tep_id tham chiếu tới tep (khóa ngoại thật), xóa tep trước sẽ vỡ ràng buộc trên D1 thật.
+// qlda_ho_so_phien_ban (tep_id, ho_so_id) và qlda_ho_so (thu_tuc_id, hop_dong_id, ban_giao_id) đứng đầu nhóm qlda.
 // qlda_giai_ngan cũng đứng trước qlda_ngan_sach_dong vì có ngan_sach_dong_id tham chiếu tới bảng đó.
 export const BANG_CUA_TO_CHUC = [
   'dashboard_de_xuat', 'viec_su_kien', 'nhat_ky_hanh_dong', 'luot_claude', 'prompt_claude', 'nguon_chan', 'nhat_ky_truy_cap', 'kho_da_luu', 'ghi_nho', 'bo_nho_lich_su', 'cau_hoi_ai',
-  'qlda_dot_thanh_toan', 'qlda_de_xuat', 'qlda_cap_nhat_tuan', 'qlda_san_pham_ban_giao', 'qlda_hop_viec', 'qlda_van_ban', 'qlda_thu_tuc_phu_thuoc', 'qlda_raci', 'qlda_hop_dong', 'qlda_hop', 'qlda_thu_tuc', 'qlda_ben_lien_quan',
+  'qlda_ho_so_phien_ban', 'qlda_ho_so', 'qlda_dot_thanh_toan', 'qlda_de_xuat', 'qlda_cap_nhat_tuan', 'qlda_san_pham_ban_giao', 'qlda_hop_viec', 'qlda_van_ban', 'qlda_thu_tuc_phu_thuoc', 'qlda_raci', 'qlda_hop_dong', 'qlda_hop', 'qlda_thu_tuc', 'qlda_ben_lien_quan',
   'qlda_giai_ngan', 'qlda_ngan_sach_dong', 'qlda_evm',
   'tep', 'viec', 'du_an',
   'tin_nhan', 'cai_dat', 'lenh_cho', 'khoa_truy_cap', 'ket_noi', 'tin_hieu', 'nhat_ky_chay', 'thanh_vien', 'thong_bao', 'dang_ky_day', 'anh_dai_dien', 'zalo_gui',

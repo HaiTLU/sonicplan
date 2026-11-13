@@ -9,6 +9,7 @@ import { capNhatCpm } from './wbs.js';
 import { taoThongBao } from '../thong-bao.js';
 import { xuLyDanhMuc } from './danh-muc.js';
 import { xuLyThanhToan } from './thanh-toan.js';
+import { xuLyHoSo } from './ho-so.js';
 
 // Mức rủi ro cao (ma trận 5x5, điểm từ 1 đến 25): từ 15 điểm trở lên thì báo, không phải mọi rủi ro.
 const DIEM_RUI_RO_CAO = 15;
@@ -55,6 +56,8 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
   if (danhMuc) return danhMuc;
   const thanhToan = await xuLyThanhToan(yeuCau, env, phien, p, m);
   if (thanhToan) return thanhToan;
+  const hoSo = await xuLyHoSo(yeuCau, env, phien, p, m);
+  if (hoSo) return hoSo;
 
   // ---------- Sản phẩm bàn giao (dự án thuê đơn vị nghiên cứu) ----------
   if (p === '/api/hoalac/ban-giao' && m === 'GET') {

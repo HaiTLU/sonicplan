@@ -1,5 +1,5 @@
 // Giao diện Viện Hòa Lạc: bảng Kanban (kéo-thả đổi trạng thái) và lịch Gantt rút gọn (thanh theo CPM).
-import { api, bao, datDuAn, duAnDaLuu, fmt, h, khungLoi, thay } from './chung.js';
+import { api, apiTep, bao, datDuAn, duAnDaLuu, fmt, h, khungLoi, layTep, thay } from './chung.js';
 
 const CAC_TRANG_THAI = [
   { ma: 'chua_lam', ten: 'Chưa làm' },
@@ -70,12 +70,14 @@ async function chinh() {
     raid: () => taiVaVeRaid(goc),
     'phap-ly': () => taiVaVePhapLy(goc, chiXem),
     'ban-giao': () => taiVaVeBanGiao(goc),
+    'ho-so': () => taiVaVeHoSo(goc),
     'ngan-sach': () => taiVaVeNganSach(goc),
   };
   const bat = tabDuocBat(dangMo);
   const cacTab = [];
   for (const ma of Object.keys(moTab)) {
     const nut = document.getElementById(`tab-${ma}`);
+    if (!nut) continue; // index.html cũ còn trong bộ nhớ đệm, chưa có nút tab mới
     if (!bat.includes(ma)) { nut.remove(); continue; }
     cacTab.push(nut);
     nut.onclick = () => { chonTab(nut, cacTab); moTab[ma](); };
@@ -91,8 +93,8 @@ async function chinh() {
 // Đối tác: RAID, Ngân sách, Bàn giao trả 403 cho mọi thao tác (không có cơ chế gán theo dòng), và
 // Tổng quan không có số liệu cho họ, nên chỉ còn Kanban, Gantt, Pháp lý (vePhapLy() tự ẩn 5 mục còn lại).
 const TAB_MAC_DINH = {
-  xay_dung: ['tong-quan', 'bgh', 'kanban', 'gantt', 'raid', 'phap-ly', 'ngan-sach'],
-  nghien_cuu: ['tong-quan', 'bgh', 'kanban', 'gantt', 'raid', 'ban-giao', 'ngan-sach'],
+  xay_dung: ['tong-quan', 'bgh', 'kanban', 'gantt', 'raid', 'phap-ly', 'ho-so', 'ngan-sach'],
+  nghien_cuu: ['tong-quan', 'bgh', 'kanban', 'gantt', 'raid', 'ban-giao', 'ho-so', 'ngan-sach'],
 };
 function tabDuocBat(da) {
   const rieng = String(da.phan_bat || '').split(',').map((x) => x.trim()).filter(Boolean);
@@ -695,6 +697,146 @@ function veBanGiao(ds, dsBen, lamMoi) {
     );
   });
   return h('div', { class: 'khung-raid' }, form, ...list);
+}
+
+// ---------- Kho hồ sơ: thư mục chuẩn, gắn mục, phiên bản, nhãn duyệt, hạn hiệu lực ----------
+const TEN_THU_MUC = { phap_ly: 'Pháp lý', hop_dong: 'Hợp đồng', van_ban: 'Văn bản', bien_ban_hop: 'Biên bản họp', ban_giao: 'Bàn giao', khac: 'Khác' };
+const TEN_TRANG_THAI_HO_SO = { du_thao: 'Dự thảo', cho_duyet: 'Chờ duyệt', da_duyet: 'Đã duyệt', het_hieu_luc: 'Hết hiệu lực' };
+const TEP_TOI_DA_MB = 50;
+let locThuMuc = '';
+const ngayDu = (s) => (s ? s.slice(0, 10).split('-').reverse().join('/') : '');
+const coTep = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+const xemDuoc = (ten) => /\.(pdf|png|jpe?g|gif|webp)$/i.test(ten || '');
+
+async function taiVaVeHoSo(goc) {
+  try {
+    const rong = (k) => () => ({ [k]: [] });
+    const [{ ho_so }, { thu_tuc }, { hop_dong }, { ban_giao }] = await Promise.all([
+      api('/api/hoalac/ho-so'),
+      api('/api/hoalac/thu-tuc').catch(rong('thu_tuc')),
+      api('/api/hoalac/hop-dong').catch(rong('hop_dong')),
+      api('/api/hoalac/ban-giao').catch(rong('ban_giao')),
+    ]);
+    const ve = () => thay(goc, veHoSo(ho_so, { thu_tuc, hop_dong, ban_giao }, () => taiVaVeHoSo(goc), ve));
+    ve();
+  } catch (e) {
+    thay(goc, khungLoi(e));
+  }
+}
+
+// Tải về (lưu tệp) hoặc xem trong thẻ mới. Mở thẻ trước khi chờ mạng để trình duyệt không chặn cửa sổ bật lên.
+async function moTepHoSo(pbId, ten, xem) {
+  const cuaSo = xem ? window.open('', '_blank') : null;
+  try {
+    const url = URL.createObjectURL(await layTep(`/api/hoalac/ho-so/phien-ban/${pbId}/tai${xem ? '?xem=1' : ''}`));
+    if (cuaSo) { cuaSo.opener = null; cuaSo.location = url; } else {
+      const a = h('a', { href: url, download: ten });
+      document.body.append(a); a.click(); a.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (err) {
+    cuaSo?.close();
+    bao(err.message, true);
+  }
+}
+
+function oGanHoSo(gan) {
+  const nhom = [['thu_tuc_id', 'Thủ tục', gan.thu_tuc], ['hop_dong_id', 'Hợp đồng', gan.hop_dong], ['ban_giao_id', 'Sản phẩm bàn giao', gan.ban_giao]]
+    .filter(([, , ds]) => ds.length)
+    .map(([k, nhan, ds]) => h('optgroup', { label: nhan }, ...ds.map((x) => h('option', { value: `${k}:${x.id}` }, x.ten))));
+  return nhom.length ? h('select', { name: 'gan', 'aria-label': 'Gắn với mục' }, h('option', { value: '' }, 'Gắn với (tùy chọn)'), ...nhom) : null;
+}
+
+function kiemCoTep(tep) {
+  if (tep && tep.size > TEP_TOI_DA_MB * 1048576) { bao(`Tệp lớn quá (tối đa ${TEP_TOI_DA_MB} MB).`, true); return false; }
+  return true;
+}
+
+function veHoSo(ds, gan, lamMoi, veLai) {
+  const form = h('form', { class: 'form-raid form-ho-so', onsubmit: async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    if (!kiemCoTep(fd.get('tep'))) return;
+    const g = fd.get('gan');
+    fd.delete('gan');
+    if (g) { const [k, v] = g.split(':'); fd.set(k, v); }
+    for (const k of ['ten', 'mo_ta', 'han_hieu_luc']) if (fd.get(k) === '') fd.delete(k);
+    const nut = e.target.querySelector('button[type=submit]');
+    nut.disabled = true; nut.textContent = 'Đang tải lên...';
+    try { await apiTep('/api/hoalac/ho-so', fd); bao('Đã tải hồ sơ lên.'); await lamMoi(); } catch (err) {
+      bao(err.message, true); nut.disabled = false; nut.textContent = 'Tải hồ sơ lên';
+    }
+  } },
+    h('input', { name: 'tep', type: 'file', required: true, 'aria-label': 'Chọn tệp (tối đa 50 MB)' }),
+    h('input', { name: 'ten', placeholder: 'Tên hồ sơ (trống thì lấy tên tệp)' }),
+    h('label', {}, 'Thư mục ', oChon('thu_muc', Object.entries(TEN_THU_MUC), locThuMuc || 'phap_ly')),
+    oGanHoSo(gan),
+    h('label', {}, 'Hiệu lực đến ', h('input', { name: 'han_hieu_luc', type: 'date' })),
+    h('label', {}, 'Trạng thái ', oChon('trang_thai', Object.entries(TEN_TRANG_THAI_HO_SO), 'du_thao')),
+    h('input', { name: 'mo_ta', placeholder: 'Mô tả (tùy chọn)' }),
+    h('button', { type: 'submit' }, 'Tải hồ sơ lên'),
+  );
+  const dem = (tm) => ds.filter((x) => !tm || x.thu_muc === tm).length;
+  const loc = h('div', { class: 'loc-ho-so', role: 'group', 'aria-label': 'Lọc theo thư mục' },
+    ...[['', 'Tất cả'], ...Object.entries(TEN_THU_MUC)].map(([tm, nhan]) => h('button', {
+      type: 'button', class: locThuMuc === tm ? 'dang-chon' : null, 'aria-pressed': locThuMuc === tm ? 'true' : 'false',
+      onclick: () => { locThuMuc = tm; veLai(); },
+    }, `${nhan} (${dem(tm)})`)));
+  const loc_ds = ds.filter((x) => !locThuMuc || x.thu_muc === locThuMuc);
+  const canhBao = ds.filter((x) => x.tinh_trang_han);
+  const dauTrang = canhBao.length
+    ? h('p', { class: 'canh-bao-ho-so', text: `${canhBao.filter((x) => x.tinh_trang_han === 'het_han').length} hồ sơ đã hết hạn, ${canhBao.filter((x) => x.tinh_trang_han === 'sap_het_han').length} hồ sơ hết hạn trong 30 ngày.` })
+    : null;
+  if (!loc_ds.length) return h('div', { class: 'khung-raid' }, form, loc, dauTrang, h('p', { class: 'trong' }, ds.length ? 'Thư mục này chưa có hồ sơ.' : 'Chưa có hồ sơ nào. Chọn tệp ở trên để tải lên.'));
+  return h('div', { class: 'khung-raid' }, form, loc, dauTrang, ...loc_ds.map((x) => theHoSo(x, lamMoi)));
+}
+
+function theHoSo(x, lamMoi) {
+  const chon = oChon('trang_thai', Object.entries(TEN_TRANG_THAI_HO_SO), x.trang_thai);
+  chon.setAttribute('aria-label', `Trạng thái phiên bản ${x.so}`);
+  chon.onchange = async () => {
+    try { await api(`/api/hoalac/ho-so/phien-ban/${x.pb_id}`, { method: 'PUT', body: JSON.stringify({ trang_thai: chon.value }) }); await lamMoi(); } catch (err) {
+      bao(err.message, true); chon.value = x.trang_thai;
+    }
+  };
+  const tepMoi = h('input', { type: 'file', hidden: true, 'aria-label': 'Chọn bản mới', onchange: async () => {
+    const tep = tepMoi.files[0];
+    if (!tep || !kiemCoTep(tep)) return;
+    const fd = new FormData();
+    fd.set('tep', tep);
+    try { await apiTep(`/api/hoalac/ho-so/${x.id}/phien-ban`, fd); bao(`Đã tải bản v${x.so + 1}.`); await lamMoi(); } catch (err) { bao(err.message, true); }
+  } });
+  const lichSu = h('div', { class: 'lich-su-ho-so', hidden: true });
+  const moLichSu = async () => {
+    if (!lichSu.hidden) { lichSu.hidden = true; return; }
+    try {
+      const { phien_ban } = await api(`/api/hoalac/ho-so/${x.id}/phien-ban`);
+      thay(lichSu, h('ul', {}, ...phien_ban.map((v) => h('li', {},
+        h('span', { text: `v${v.so} · ${TEN_TRANG_THAI_HO_SO[v.trang_thai]} · ${v.ten_tep} (${coTep(v.kich_thuoc)}) · tải lên ${ngayDu(v.tao_luc)} bởi ${v.tao_boi}${v.doi_luc ? ` · đổi nhãn ${ngayDu(v.doi_luc)} bởi ${v.doi_boi}` : ''}${v.ghi_chu ? ` · ${v.ghi_chu}` : ''}` }),
+        ' ', h('button', { type: 'button', onclick: () => moTepHoSo(v.id, v.ten_tep, false) }, 'Tải về')))));
+      lichSu.hidden = false;
+    } catch (err) { bao(err.message, true); }
+  };
+  const gan = x.ten_thu_tuc ? `Thủ tục: ${x.ten_thu_tuc}` : x.ten_hop_dong ? `Hợp đồng: ${x.ten_hop_dong}` : x.ten_ban_giao ? `Bàn giao: ${x.ten_ban_giao}` : '';
+  const nhanHan = x.tinh_trang_han === 'het_han' ? h('span', { class: 'nhan-han nhan-han-het', text: 'Đã hết hạn' })
+    : x.tinh_trang_han === 'sap_het_han' ? h('span', { class: 'nhan-han nhan-han-sap', text: 'Sắp hết hạn' }) : null;
+  return h('div', { class: `the-raid the-ho-so${x.tinh_trang_han === 'het_han' ? ' tre-han' : x.tinh_trang_han === 'sap_het_han' ? ' sap-het-han' : ''}` },
+    h('div', { class: 'dau-the-raid' }, h('strong', { text: x.ten }),
+      h('span', { class: `nhan-trang-thai nhan-ho-so-${x.trang_thai}`, text: `v${x.so} · ${TEN_TRANG_THAI_HO_SO[x.trang_thai]}` }), nhanHan),
+    h('p', { class: 'chi-tiet-raid' }, [
+      TEN_THU_MUC[x.thu_muc], gan,
+      x.han_hieu_luc ? `Hiệu lực đến ${ngayDu(x.han_hieu_luc)}` : '',
+      `${x.ten_tep} (${coTep(x.kich_thuoc)})`,
+      x.doi_luc ? `Nhãn đổi ${ngayDu(x.doi_luc)} bởi ${x.doi_boi}` : '',
+    ].filter(Boolean).join(' · ')),
+    x.mo_ta ? h('p', { class: 'chi-tiet-raid', text: x.mo_ta }) : null,
+    h('div', { class: 'hang-tai-ho-so' },
+      h('button', { type: 'button', onclick: () => moTepHoSo(x.pb_id, x.ten_tep, false) }, 'Tải về'),
+      xemDuoc(x.ten_tep) ? h('button', { type: 'button', onclick: () => moTepHoSo(x.pb_id, x.ten_tep, true) }, 'Xem') : null,
+      h('button', { type: 'button', onclick: moLichSu }, 'Lịch sử')),
+    h('div', { class: 'hang-dong-raid' }, chon, tepMoi, h('button', { type: 'button', onclick: () => tepMoi.click() }, 'Tải bản mới')),
+    lichSu,
+  );
 }
 
 const TEN_TRANG_THAI_THU_TUC = { todo: 'Chưa làm', doing: 'Đang làm', wait: 'Đang chờ', done: 'Xong', block: 'Bị chặn' };

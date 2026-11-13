@@ -58,6 +58,25 @@ export async function api(duongDan, tuyChon = {}) {
   return duLieu;
 }
 
+// Gửi biểu mẫu có tệp (multipart). Không đặt content-type để trình duyệt tự ghi ranh giới các phần.
+export async function apiTep(duongDan, fd) {
+  const ph = await fetch(duongDan, {
+    method: 'POST',
+    body: fd,
+    headers: { accept: 'application/json', ...(duAnHienTai ? { 'x-to-chuc': duAnHienTai } : {}) },
+  });
+  const duLieu = await ph.json().catch(() => ({}));
+  if (!ph.ok) throw new Error(duLieu.loi || (ph.status === 413 ? 'Tệp lớn quá (tối đa 50 MB).' : 'Không tải được tệp lên. Thử lại sau.'));
+  return duLieu;
+}
+
+// Lấy tệp qua fetch (để gửi kèm x-to-chuc, thẻ <a href> không gửi được), trả Blob.
+export async function layTep(duongDan) {
+  const ph = await fetch(duongDan, { headers: duAnHienTai ? { 'x-to-chuc': duAnHienTai } : {} });
+  if (!ph.ok) throw new Error((await ph.json().catch(() => ({}))).loi || 'Không lấy được tệp.');
+  return ph.blob();
+}
+
 export function bao(noiDung, loiPhai = false) {
   const vung = document.getElementById('vung-bao');
   const el = h('div', { class: `bao${loiPhai ? ' loi' : ''}`, text: noiDung });
