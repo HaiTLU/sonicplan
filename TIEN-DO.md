@@ -237,3 +237,10 @@ Cập nhật: 11/10/2026.
 - Phần đã chạy trên plan.sonicapp.top giữ nguyên, không xóa: khu Dự án, dữ liệu Hòa Lạc và Ipsos, đợt thanh toán, kho hồ sơ (PR 184), sửa thông tin hồ sơ (PR 185), Cache Rule Cloudflare.
 - Việc nhập hồ sơ pháp lý thật của Hòa Lạc dừng ở bước lập danh sách: chưa tải tệp nào, kho hồ sơ thật vẫn 0 hồ sơ.
 - Muốn gỡ khu Dự án khỏi Sonicplan thì phải có lệnh riêng của PM: sao lưu sqlite trước, trình danh sách cần xóa để PM duyệt.
+
+## Gỡ hẳn khu Dự án (13/11/2026) - XONG
+
+- Sao lưu trước: VPS `du-lieu/sonicplan.sqlite.truoc-go-du-an-261113`, bản chép ở `~/Brain/Software/sonic/sao-luu/`.
+- PR #186 đã gộp: bỏ mã, trang, test /hoalac; migration 0055 xóa 28 bảng qlda_* và tổ chức tc_hoalac, tc_ipsos.
+- VPS đã áp 0055: 0 bảng qlda, chỉ còn tc_namhai, integrity ok. /hoalac và /api/hoalac trả 404, trang chính chạy.
+- Còn lại (chưa duyệt gỡ): ứng dụng Cloudflare Access riêng của /hoalac và AUD trong ACCESS_UNG_DUNG; Cache Rule giữ theo PM.
