@@ -94,6 +94,8 @@ test('đã trả tạo đúng một dòng giải ngân, bấm lại 409; bỏ tr
   assert.equal(dot.trang_thai, 'da_tra');
   assert.equal(dot.giai_ngan_id, gn[0].id);
   assert.equal((await goi(env, CHU, `/api/hoalac/giai-ngan/${gn[0].id}`, { method: 'DELETE' })).status, 409);
+  const dsGn = (await (await goi(env, CHU, '/api/hoalac/giai-ngan')).json()).giai_ngan;
+  assert.equal(dsGn[0].dot_id, id, 'danh sách giải ngân trả dot_id để giao diện ẩn nút Xóa');
   assert.equal((await goi(env, CHU, `/api/hoalac/dot-thanh-toan/${id}`, { method: 'PUT', body: JSON.stringify({ ten: 'X' }) })).status, 409, 'đã trả thì không sửa');
   assert.equal((await goi(env, CHU, `/api/hoalac/dot-thanh-toan/${id}/bo-tra`, { method: 'POST' })).status, 200);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM qlda_giai_ngan').get().n, 0);

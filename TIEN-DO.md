@@ -208,4 +208,9 @@ Cập nhật: 11/10/2026.
 - Cảnh báo: quá hạn, sắp đến hạn 7 ngày, đủ điều kiện chưa đề nghị (hạng mục `xong` hoặc bàn giao `da_giao|dang_xem|da_duyet`), lệch giá trị (chỉ trên trang). Tin 8 giờ có mục "Đợt thanh toán", tên đi qua `cheSoTien`.
 - Giao diện: mục con "Đợt thanh toán" trong tab Ngân sách (tab này bật cho cả dự án xây dựng và nghiên cứu; tab Pháp lý chỉ có ở xây dựng).
 - Đã kiểm: `test/hoalac-thanh-toan.test.js` 10/10; `npm test` ngoài hộp cát 601 đạt, 0 lỗi, 1 bỏ qua (trong hộp cát `may-chu` và `tram-claude` bị node hủy, có cả trên bản chưa sửa).
-- Bước tiếp: phản biện, biên nhận, PR, sao lưu CSDL VPS, triển khai, chụp trang ba khổ.
+- Xong: `phan-bien-ma` APPROVED (lần 2), biên nhận đạt; PR #182 gộp thành `409322b`; VPS đã kéo `409322b`, bảng `qlda_dot_thanh_toan` và 2 chỉ mục có trên CSDL thật.
+- Sao lưu trước migration trên VPS: `du-lieu/sonicplan.sqlite.truoc-dot-thanh-toan-261113` (bản nhất quán qua `backup()`, integrity ok) và `...-261113-chepthuong`.
+- Đã chụp tab Ngân sách - Đợt thanh toán ở 1440, 800, 375 trên Chrome: không vỡ bố cục, không lỗi console. Chưa có hợp đồng nên chỉ thấy dòng "Chưa có hợp đồng".
+- Còn treo: nhập hợp đồng và đợt thật (cần PM cấp số tiền); chặn PUT giải ngân sửa số tiền của dòng đã gắn đợt; giao diện sửa đủ trường của đợt (hiện chỉ đổi trạng thái).
+- 13/11/2026 nhập dữ liệu thật Hòa Lạc (PM duyệt số): sao lưu trước `du-lieu/sonicplan.sqlite.truoc-hop-dong-hoalac-261113` (integrity ok). Nhập qua API trên Chrome của PM: HĐ 1 VNCC 106/TVXD/VNCC/2026, 850.000.000, 3 đợt 170/510/170 triệu (lần 1 đã trả, tạm ghi 15/05/2026 vì chưa có ngày thật - giải ngân id 1; lần 2 đã đề nghị; lần 3 chờ; chưa có hạn); HĐ 2 SAPP (BMC) và HĐ 3 dịch vụ cá nhân 26020203 để trống giá trị.
+- 13/11/2026 nhập Ipsos (PM chọn "dự thảo, để trống tiền"): sao lưu trước `du-lieu/sonicplan.sqlite.truoc-hop-dong-ipsos-261113` (integrity ok). HĐ 4 "Nghiên cứu thị trường TLU - Ipsos" trạng thái du_thao, giá trị trống; ghi chú nêu 2 mức giá v3 chưa VAT (2.293.080.000 / 2.788.080.000) và mốc 17/11, 25/11. Đợt 4 (70%) và đợt 5 (30%) chưa có số, chưa có hạn.
