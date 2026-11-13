@@ -243,4 +243,4 @@ Cập nhật: 11/10/2026.
 - Sao lưu trước: VPS `du-lieu/sonicplan.sqlite.truoc-go-du-an-261113`, bản chép ở `~/Brain/Software/sonic/sao-luu/`.
 - PR #186 đã gộp: bỏ mã, trang, test /hoalac; migration 0055 xóa 28 bảng qlda_* và tổ chức tc_hoalac, tc_ipsos.
 - VPS đã áp 0055: 0 bảng qlda, chỉ còn tc_namhai, integrity ok. /hoalac và /api/hoalac trả 404, trang chính chạy.
-- Còn lại (chưa duyệt gỡ): ứng dụng Cloudflare Access riêng của /hoalac và AUD trong ACCESS_UNG_DUNG; Cache Rule giữ theo PM.
+- Ứng dụng Cloudflare Access "Sonicplan - Hoa Lac" đã xóa (PM duyệt 13/11/2026); PR #187 để ACCESS_UNG_DUNG trống. Cache Rule giữ theo PM.
