@@ -5,6 +5,7 @@
 import { json, loi, docThan, ngayCoThat, congNgay } from '../tien-ich.js';
 import { laDoiTac } from './quyen.js';
 import { loaiXem } from '../xem-tep.js';
+import { KHO_TOI_DA } from '../hop-tin.js';
 
 export const THU_MUC = ['phap_ly', 'hop_dong', 'van_ban', 'bien_ban_hop', 'ban_giao', 'khac'];
 export const TRANG_THAI_HO_SO = ['du_thao', 'cho_duyet', 'da_duyet', 'het_hieu_luc'];
@@ -51,9 +52,14 @@ async function docBieuMau(yeuCau) {
 }
 
 // Lưu tệp vào kho tệp; trả { khoa, ten, loai, kich_thuoc }.
+// Khóa kho tệp chỉ gồm UUID và đuôi tệp: tên tiếng Việt có dấu dài có thể vượt 255 byte của tên tệp trên đĩa VPS.
+// Tên gốc nằm ở cột tep.ten. Trả null khi kho tệp đã chạm hạn mức chung (KHO_TOI_DA).
 async function luuTep(env, tc, tep, bayGio) {
-  const ten = String(tep.name || 'tep').replace(/[\\/\u0000-\u001f]/g, '_').slice(-150);
-  const khoa = `${tc}/ho-so/${bayGio.slice(0, 7)}/${crypto.randomUUID()}-${ten}`;
+  const daDung = (await env.CSDL.prepare('SELECT COALESCE(SUM(kich_thuoc), 0) AS tong FROM tep WHERE r2_khoa IS NOT NULL').first())?.tong ?? 0;
+  if (daDung + tep.size > KHO_TOI_DA) return null;
+  const ten = String(tep.name || 'tep').replace(/[\\/\u0000-\u001f]/g, '_').slice(-200);
+  const duoi = (/\.[A-Za-z0-9]{1,10}$/.exec(ten) || [''])[0].toLowerCase();
+  const khoa = `${tc}/ho-so/${bayGio.slice(0, 7)}/${crypto.randomUUID()}${duoi}`;
   const loai = tep.type || 'application/octet-stream';
   await env.TEP.put(khoa, await tep.arrayBuffer(), { httpMetadata: { contentType: loai } });
   return { khoa, ten, loai, kich_thuoc: tep.size };
@@ -98,7 +104,7 @@ export async function xuLyHoSo(yeuCau, env, phien, p, m) {
     if (bm.loi) return loi(bm.ma || 400, bm.loi);
     const f = bm.truong;
     const than = {
-      ten: (f.ten || '').trim() || bm.tep.name, thu_muc: f.thu_muc, mo_ta: f.mo_ta || '',
+      ten: (f.ten || '').trim() || String(bm.tep.name || '').slice(0, 300), thu_muc: f.thu_muc, mo_ta: f.mo_ta || '',
       han_hieu_luc: f.han_hieu_luc || null,
       thu_tuc_id: soNguyenHoacRong(f.thu_tuc_id), hop_dong_id: soNguyenHoacRong(f.hop_dong_id), ban_giao_id: soNguyenHoacRong(f.ban_giao_id),
     };
@@ -107,6 +113,7 @@ export async function xuLyHoSo(yeuCau, env, phien, p, m) {
     const sai = await kiemThongTin(env, tc, than, true);
     if (sai) return loi(400, sai);
     const t = await luuTep(env, tc, bm.tep, bayGio);
+    if (!t) return loi(507, 'Kho tệp đã đầy, báo quản trị dọn bớt tệp cũ.');
     try {
       await env.CSDL.batch([
         env.CSDL.prepare(
@@ -141,6 +148,7 @@ export async function xuLyHoSo(yeuCau, env, phien, p, m) {
     const trangThai = bm.truong.trang_thai || 'du_thao';
     if (!TRANG_THAI_HO_SO.includes(trangThai)) return loi(400, 'Trạng thái không hợp lệ.');
     const t = await luuTep(env, tc, bm.tep, bayGio);
+    if (!t) return loi(507, 'Kho tệp đã đầy, báo quản trị dọn bớt tệp cũ.');
     try {
       await env.CSDL.batch([
         env.CSDL.prepare(

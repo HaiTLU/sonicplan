@@ -178,3 +178,21 @@ test('hai bảng hồ sơ có trong danh sách xóa (trước tep và các bản
   assert.ok(vt('qlda_ho_so_phien_ban') < vt('qlda_ho_so'));
   for (const b of ['tep', 'qlda_thu_tuc', 'qlda_hop_dong', 'qlda_san_pham_ban_giao']) assert.ok(vt('qlda_ho_so') < vt(b), b);
 });
+
+test('khóa kho tệp chỉ có UUID và đuôi dù tên tiếng Việt dài; tên gốc vẫn giữ để tải về; kho đầy trả 507 và không ghi gì', async () => {
+  const { env, TEP, db } = moiEnv();
+  const tenDai = 'Quyết định phê duyệt điều chỉnh dự án đầu tư xây dựng '.repeat(6) + '.pdf';
+  const r = await taiLen(env, CHU, { thu_muc: 'phap_ly' }, 'abc', tenDai);
+  assert.equal(r.status, 201, await r.clone().text());
+  const [khoa] = [...TEP.m.keys()];
+  assert.match(khoa, /^tc-a\/ho-so\/\d{4}-\d{2}\/[0-9a-f-]{36}\.pdf$/);
+  const [h] = await ds(env);
+  assert.ok(h.ten.length <= 300);
+  assert.ok(h.ten_tep.endsWith('.pdf'));
+  db.exec(`INSERT INTO tep (to_chuc_id, ten, kich_thuoc, r2_khoa, tao_luc) VALUES ('tc-b', 'to', 9000000000, 'tc-b/to', 'x')`);
+  const truoc = TEP.m.size;
+  const r2 = await taiLen(env, CHU, { thu_muc: 'khac', ten: 'Them' });
+  assert.equal(r2.status, 507);
+  assert.equal(TEP.m.size, truoc);
+  assert.equal((await ds(env)).length, 1);
+});
