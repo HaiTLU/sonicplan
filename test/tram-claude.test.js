@@ -40,6 +40,22 @@ function dungPhong() {
 }
 const tin = (w, loai) => w.nhan.filter((t) => t.loai === loai);
 
+test('Phòng: model opusplan được chuyển cho trạm, model lạ thì bỏ', async () => {
+  const { phong, moi } = dungPhong();
+  const { khoa } = await phong.xuLy('tao-khoa');
+  const tram = moi('tram');
+  await phong.nhanTin(tram, JSON.stringify({ loai: 'chao', khoa, may: 'mac-mini', phien_ban: '1.0.0', claude: '2.1' }));
+  const nguoi = moi('nguoi');
+  await phong.nhanTin(nguoi, JSON.stringify({ loai: 'gui', noi_dung: 'Lập kế hoạch', model: 'opusplan', che_do: 'plan', ma_tam: 'a' }));
+  const dau = tin(tram, 'luot')[0];
+  assert.equal(dau.model, 'opusplan');
+  await phong.nhanTin(tram, JSON.stringify({ loai: 'su_kien', phien: dau.phien, luot: dau.luot, ds: [{ loai: 'xong', ket_qua: 'ok' }] }));
+  await phong.nhanTin(nguoi, JSON.stringify({ loai: 'gui', noi_dung: 'Thử', model: 'opus --x', ma_tam: 'b' }));
+  const sau = tin(tram, 'luot').at(-1);
+  assert.notEqual(sau, dau);
+  assert.equal(sau.model, null);
+});
+
 test('Phòng: trạm sai mã bị đóng, đúng mã thì nhận lượt, chữ tạm không lưu, xong lượt thì lưu phiên Claude', async () => {
   const { phong, moi } = dungPhong();
   const { khoa } = await phong.xuLy('tao-khoa');

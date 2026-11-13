@@ -7,7 +7,7 @@
 import { bam, json, loi, maNgauNhien } from './tien-ich.js';
 import { TEP_TOI_DA } from './hop-tin.js';
 
-export const MODEL_CLAUDE = ['opus', 'sonnet', 'haiku', 'fable'];
+export const MODEL_CLAUDE = ['opus', 'opusplan', 'sonnet', 'haiku', 'fable'];
 export const EFFORT_CLAUDE = ['low', 'medium', 'high', 'xhigh', 'max'];
 export const CHE_DO_CLAUDE = ['acceptEdits', 'plan'];
 const LUU_LAI = new Set(['nguoi', 'chu', 'cong_cu', 'ket_qua_cong_cu', 'tep', 'xong', 'he_thong', 'bo_nho', 'hoi', 'xin_phep', 'da_tra_loi']);
