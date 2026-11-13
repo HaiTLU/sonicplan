@@ -1,0 +1,23 @@
+{
+  "id": "go-access-hoalac",
+  "muc_dich": "Bỏ AUD ứng dụng Access riêng của /hoalac (đã gỡ khu Dự án)",
+  "duong_dan_duoc_sua": [
+    "README.md",
+    "src/xac-thuc.js",
+    "wrangler.jsonc"
+  ],
+  "lenh_kiem": [
+    "npm test"
+  ],
+  "han_muc": {
+    "usd": 5,
+    "phut": 30,
+    "loai": "nho"
+  },
+  "dau_ra": [],
+  "can_phan_bien": true,
+  "bo_qua_kiem": [
+    "memory/*"
+  ],
+  "tao_luc": "2026-11-13T22:04:19"
+}
