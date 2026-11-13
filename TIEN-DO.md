@@ -230,3 +230,10 @@ Cập nhật: 11/10/2026.
 - Chưa kiểm trên trang thật thao tác sửa vì kho thật chưa có hồ sơ (không tải tệp thử lên kho thật).
 - Còn treo: `hoalac.js`, `hoalac.css` lưu đệm 4 giờ nên người dùng thấy bản mới chậm; đổi nhãn phiên bản cũ trên giao diện chưa làm.
 - 13/11/2026: lưu đệm 4 giờ do cài đặt Browser Cache TTL chung của vùng sonicapp.top (Cloudflare ghi đè `no-cache` của máy chủ). Đã thêm Cache Rule "plan - trinh duyet theo may chu" (Hostname equals plan.sonicapp.top, Browser TTL: Respect origin). Kiểm: hoalac.js, hoalac.css, chung.js, kieu.css, app.js đều trả `no-cache`. Trình duyệt còn giữ bản cũ tối đa 4 giờ cho lần cuối.
+
+## Dừng kế hoạch khu Dự án (13/11/2026)
+
+- PM quyết dừng cả kế hoạch khu Dự án (`~/.claude/plans/t-i-mu-n-x-y-d-ng-replicated-tower.md`). Không làm tiếp các bước còn lại, kể cả đợt 3 (xuất Word, slide, tóm tắt tuần).
+- Phần đã chạy trên plan.sonicapp.top giữ nguyên, không xóa: khu Dự án, dữ liệu Hòa Lạc và Ipsos, đợt thanh toán, kho hồ sơ (PR 184), sửa thông tin hồ sơ (PR 185), Cache Rule Cloudflare.
+- Việc nhập hồ sơ pháp lý thật của Hòa Lạc dừng ở bước lập danh sách: chưa tải tệp nào, kho hồ sơ thật vẫn 0 hồ sơ.
+- Muốn gỡ khu Dự án khỏi Sonicplan thì phải có lệnh riêng của PM: sao lưu sqlite trước, trình danh sách cần xóa để PM duyệt.
