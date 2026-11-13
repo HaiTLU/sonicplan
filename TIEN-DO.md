@@ -1,6 +1,13 @@
 # Tiến độ - Sonicplan
 
-Cập nhật: 11/10/2026.
+Cập nhật: 13/11/2026.
+
+## Tình trạng hiện tại (đọc trước)
+
+- Khu Dự án (/hoalac, bảng qlda_*, tổ chức tc_hoalac và tc_ipsos) đã gỡ hẳn ngày 13/11/2026, xem mục cuối tệp. Các mục PR2-PR6 Hòa Lạc và "Khu Dự án nhiều dự án" bên dưới chỉ còn là lịch sử.
+- Mọi việc "còn treo", "bước tiếp", UNVERIFIED trong các mục đó đã hết hiệu lực: Access riêng cho /hoalac, lỗi COALESCE của qlda_hop_dong, lưu đệm hoalac.js, nhập hồ sơ pháp lý, đổi nhãn phiên bản, kiểm ba vai trò.
+- Lịch .ics sau khi gỡ (kiểm 13/11/2026): khóa sai trả 404; dựng lịch từ dữ liệu thật đủ 51/51 việc. Chưa có lần tải thật nào sau triển khai: xem cột dung_luc của khoa_truy_cap (loai 'lich') đổi sang giờ mới.
+- Còn giữ theo PM: Cache Rule "plan - trinh duyet theo may chu" trên Cloudflare.
 
 ## Kế hoạch đợt
 
