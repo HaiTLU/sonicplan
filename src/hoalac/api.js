@@ -8,6 +8,7 @@ import { laDoiTac, idHangMucDuocXem, duocXemHangMuc, idThuTucDuocXem, duocXemThu
 import { capNhatCpm } from './wbs.js';
 import { taoThongBao } from '../thong-bao.js';
 import { xuLyDanhMuc } from './danh-muc.js';
+import { xuLyThanhToan } from './thanh-toan.js';
 
 // Mức rủi ro cao (ma trận 5x5, điểm từ 1 đến 25): từ 15 điểm trở lên thì báo, không phải mọi rủi ro.
 const DIEM_RUI_RO_CAO = 15;
@@ -52,6 +53,8 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
 
   const danhMuc = await xuLyDanhMuc(yeuCau, env, phien, p, m);
   if (danhMuc) return danhMuc;
+  const thanhToan = await xuLyThanhToan(yeuCau, env, phien, p, m);
+  if (thanhToan) return thanhToan;
 
   // ---------- Sản phẩm bàn giao (dự án thuê đơn vị nghiên cứu) ----------
   if (p === '/api/hoalac/ban-giao' && m === 'GET') {
@@ -539,6 +542,8 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
       return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy hợp đồng.');
     }
     if (m === 'DELETE') {
+      const coDot = await env.CSDL.prepare('SELECT 1 FROM qlda_dot_thanh_toan WHERE hop_dong_id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+      if (coDot) return loi(409, 'Hợp đồng còn đợt thanh toán. Xóa các đợt trước.');
       const { meta } = await env.CSDL.prepare('DELETE FROM qlda_hop_dong WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).run();
       return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy hợp đồng.');
     }
@@ -823,6 +828,8 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
   if ((khop = p.match(/^\/api\/hoalac\/giai-ngan\/(\d+)$/)) && m === 'DELETE') {
     const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
     const id = Number(khop[1]);
+    const coDot = await env.CSDL.prepare('SELECT 1 FROM qlda_dot_thanh_toan WHERE giai_ngan_id = ?1 AND to_chuc_id = ?2').bind(id, tc).first();
+    if (coDot) return loi(409, 'Dòng này tạo từ đợt thanh toán. Bỏ đánh dấu đã trả ở tab Hợp đồng thay vì xóa.');
     const { meta } = await env.CSDL.prepare('DELETE FROM qlda_giai_ngan WHERE id = ?1 AND to_chuc_id = ?2').bind(id, tc).run();
     return meta.changes ? json({ ok: true }) : loi(404, 'Không tìm thấy giải ngân.');
   }

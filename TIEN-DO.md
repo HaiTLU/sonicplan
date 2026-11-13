@@ -200,3 +200,12 @@ Cập nhật: 11/10/2026.
 - 12/11/2026: làm trang Báo cáo BGH (nhánh `claude/trang-bgh`, migration 0051 bảng `qlda_cap_nhat_tuan`): tab mới, đèn tính tự động, mốc tới, việc quá hạn, rủi ro cao, cập nhật tuần do AI soạn nháp (AI lỗi thì ra bản mẫu từ số liệu), chủ dự án sửa và lưu. 9 test mới. Bỏ dòng "việc xong 7 ngày qua": chưa có mốc tin được lúc việc chuyển sang xong. Bỏ Chart.js (hai dự án, thanh tiến độ là đủ).
 - Đợt sau: cập nhật bằng lời qua Telegram, hợp đồng gắn đợt thanh toán, kho hồ sơ R2.
 - 12/11/2026: cập nhật dự án bằng lời qua Telegram (nhánh `claude/cap-nhat-bang-loi`, migration 0052 bảng `qlda_de_xuat`): lệnh `/duan <tin nhắn hoặc biên bản>`, AI tách tối đa 8 đề xuất (cập nhật hạng mục, rủi ro mới, đóng rủi ro), máy chủ kiểm lại từng đề xuất, mỗi đề xuất một tin có nút Duyệt / Bỏ qua. Chỉ người gửi lệnh duyệt được; nhóm phải chỉ gồm chủ dự án; số tiền được che trước khi gửi AI. 10 test mới.
+
+## Khu Dự án - Đợt 2: đợt thanh toán gắn hợp đồng, có cảnh báo (13/11/2026)
+
+- Nhánh `claude/dot-thanh-toan`. Thiết kế: `docs/superpowers/specs/2026-11-13-dot-thanh-toan-design.md`. Hợp đồng việc `.claude/hop-dong/dot-thanh-toan.json`.
+- Migration `0053_dot_thanh_toan.sql`; API `src/hoalac/thanh-toan.js` (GET/POST, PUT/DELETE, `/tra` tạo dòng giải ngân trong một batch, `/bo-tra` gỡ dòng đó); chặn xóa hợp đồng còn đợt và giải ngân đang gắn đợt (409).
+- Cảnh báo: quá hạn, sắp đến hạn 7 ngày, đủ điều kiện chưa đề nghị (hạng mục `xong` hoặc bàn giao `da_giao|dang_xem|da_duyet`), lệch giá trị (chỉ trên trang). Tin 8 giờ có mục "Đợt thanh toán", tên đi qua `cheSoTien`.
+- Giao diện: mục con "Đợt thanh toán" trong tab Ngân sách (tab này bật cho cả dự án xây dựng và nghiên cứu; tab Pháp lý chỉ có ở xây dựng).
+- Đã kiểm: `test/hoalac-thanh-toan.test.js` 10/10; `npm test` ngoài hộp cát 601 đạt, 0 lỗi, 1 bỏ qua (trong hộp cát `may-chu` và `tram-claude` bị node hủy, có cả trên bản chưa sửa).
+- Bước tiếp: phản biện, biên nhận, PR, sao lưu CSDL VPS, triển khai, chụp trang ba khổ.
