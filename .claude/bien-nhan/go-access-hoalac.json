@@ -1,0 +1,26 @@
+{
+  "id": "go-access-hoalac",
+  "trang_thai": "DAT",
+  "luc": "2026-11-13T22:04:25",
+  "sha256_hop_dong": "1275e8506cfe2e6da763e6464be74233f127cc2922041849a8878da5b95b6030",
+  "lenh_kiem": [
+    {
+      "lenh": "npm test",
+      "ma_thoat": 0,
+      "dau_ra_cuoi": "t lần mỗi ngày, tải dữ liệu ghi mỗi lần, tách theo tổ chức (22.82775ms)\n✔ tin mình gửi đi và tin người kia cùng mã hội thoại nằm chung một mục, theo thứ tự thời gian (31.032416ms)\n✔ tin cũ chưa có mã hội thoại vẫn gom theo tên và mở được bằng địa chỉ cũ (1.326584ms)\n✔ tên đổi trên Zalo thì mục hiện tên mới nhất của người kia (0.780083ms)\n✔ máy Mac gửi thread_id thì lưu thành mã hội thoại có loại; thiếu thì để trống (3.309625ms)\n✔ vá chương trình Zalo: thêm thread_id và tên người nhận, chạy lại không đổi, mã lạ thì từ chối (1.137959ms)\n✔ Google báo Client Secret sai: thông báo tiếng Việt chỉ đúng chỗ sửa (1.616ms)\n✔ tin cũ mình gửi dưới tên mình: xếp vào cuộc trò chuyện duy nhất quanh đó, mơ hồ thì để nguyên (1.991125ms)\n✔ chuyển tay tin mình gửi sang đúng người: chỉ đụng tin chưa có mã, không đụng nhóm hay tin đã xếp (6.211625ms)\n✔ khung tin đang mở lấy được tin mới hơn bằng sau_id, không lặp tin cũ (0.859417ms)\n✔ tin cũ chưa có mã cùng tên nhóm với một cuộc đã có mã thì nhập chung một mục (0.952ms)\n✔ Google báo secret sai bằng mô tả khác mã lỗi vẫn ra thông báo tiếng Việt (1.265167ms)\n✔ tin tệp chat riêng (không mã, không tieu_de) nhập chung với cuộc trò chuyện của người gửi, không hiện hai mục (4.477667ms)\n✔ chỉ chủ tổ chức gửi được; mã hội thoại phải đúng dạng; phải có chữ hoặc tệp; giới hạn độ dài và số tệp (87.915625ms)\n✔ tạo lệnh, máy Mac lấy một lần, tải tệp khi đang gửi, báo xong; lệnh khác tổ chức không lấy được (31.772667ms)\n✔ lệnh chờ quá 3 phút thì bỏ, không gửi muộn; lệnh đã lấy mà im lặng thì báo không rõ đã gửi chưa (24.731209ms)\n✔ gửi dồn dập quá 20 lần trong 10 phút thì từ chối (27.808416ms)\n✔ ảnh, tệp, thu hồi, nhãn dán, bình chọn (1.115375ms)\n✔ thẻ liên kết, danh thiếp, cuộc gọi (0.807042ms)\n✔ chữ có liên kết được tách, bỏ dấu câu cuối (0.223709ms)\n✔ chỉ tải từ máy chủ Zalo (0.129792ms)\n✔ dòng xem nhanh: tin đặc biệt thành câu ngắn (0.488667ms)\nℹ tests 470\nℹ suites 0\nℹ pass 469\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 1\nℹ duration_ms 6229.416583\n"
+    }
+  ],
+  "tep_ngoai_pham_vi": [],
+  "dau_ra_thieu": [],
+  "tep": {
+    "README.md": "96400f01c797eaf368a95e8e521eb20337a77044f95d5c32e987a30f7126ad66",
+    "src/xac-thuc.js": "020aefc0854b624e8c6d8ee1c9b6519b7c1c3bb1c5c21df234405738c1ce348f",
+    "wrangler.jsonc": "1df4e8545d6242c15067685467f5edfcfb32495f692b289db625ca6ada33cf3f"
+  },
+  "phan_bien": {
+    "ket_luan": "APPROVED",
+    "bao_cao": "/Users/hainguyen/Brain/Software/sonic/wt-go-du-an/.claude/bien-nhan/phan-bien-go-access.md",
+    "sha256_bao_cao": "34ef861a0b37521ec6eb0f5b8b22531aace475363fbb6033b2b90eca20b480a0",
+    "luc": "2026-11-13T22:05:19"
+  }
+}

@@ -54,8 +54,8 @@ export async function kiemDangNhap(yeuCau, env, { layKhoa = layKhoaAccess, bayGi
   return { duoc: true, email };
 }
 
-// Phần /hoalac có ứng dụng Access riêng (AUD riêng), để tách tư vấn bên ngoài khỏi Access chung
-// của Sonicplan. env.ACCESS_UNG_DUNG là JSON mảng các AUD được nhận thêm, ví dụ ["aud-hoalac"].
+// Ứng dụng Access phụ (AUD riêng) cho phần cần tách khỏi Access chung. env.ACCESS_UNG_DUNG là JSON
+// mảng các AUD được nhận thêm, ví dụ ["aud-phu"]. Hiện trống (ứng dụng của /hoalac đã gỡ 13/11/2026).
 function audChoPhep(env) {
   const ds = [env.ACCESS_AUD];
   if (env.ACCESS_UNG_DUNG) {
