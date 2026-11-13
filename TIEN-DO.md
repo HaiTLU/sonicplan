@@ -229,3 +229,4 @@ Cập nhật: 11/10/2026.
 - Đã kiểm: `npm test` ngoài hộp cát 613 đạt, 0 lỗi; máy chủ thử ở máy sửa tên, bỏ gắn, thêm mô tả được; `phan-bien-ma` APPROVED; trang thật đã phục vụ mã mới, nhãn "Hiệu lực đến" một dòng sau khi tải lại cứng.
 - Chưa kiểm trên trang thật thao tác sửa vì kho thật chưa có hồ sơ (không tải tệp thử lên kho thật).
 - Còn treo: `hoalac.js`, `hoalac.css` lưu đệm 4 giờ nên người dùng thấy bản mới chậm; đổi nhãn phiên bản cũ trên giao diện chưa làm.
+- 13/11/2026: lưu đệm 4 giờ do cài đặt Browser Cache TTL chung của vùng sonicapp.top (Cloudflare ghi đè `no-cache` của máy chủ). Đã thêm Cache Rule "plan - trinh duyet theo may chu" (Hostname equals plan.sonicapp.top, Browser TTL: Respect origin). Kiểm: hoalac.js, hoalac.css, chung.js, kieu.css, app.js đều trả `no-cache`. Trình duyệt còn giữ bản cũ tối đa 4 giờ cho lần cuối.
