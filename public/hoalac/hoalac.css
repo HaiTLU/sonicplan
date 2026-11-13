@@ -249,3 +249,20 @@
   .muc-bgh { break-inside: avoid; }
 }
 .soan-bgh .nut-mo-du-an { background: transparent; color: var(--nhan, #0a84ff); border: 1px solid var(--nhan, #0a84ff); }
+
+/* Kho hồ sơ */
+.loc-ho-so { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.loc-ho-so button { min-height: 32px; }
+.loc-ho-so button.dang-chon { background: var(--c-accent, #2b3990); color: #fff; }
+.canh-bao-ho-so { color: #b36b00; margin: 0 0 10px; }
+.the-raid.sap-het-han { border-left: 3px solid #ff9f0a; }
+.nhan-han { font-size: 12px; padding: 2px 8px; border-radius: 999px; }
+.nhan-han-het { background: rgba(255,59,48,.15); color: #d70015; }
+.nhan-han-sap { background: rgba(255,159,10,.15); color: #b36b00; }
+.nhan-ho-so-du_thao { background: rgba(142,142,147,.18); }
+.nhan-ho-so-cho_duyet { background: rgba(255,159,10,.15); color: #b36b00; }
+.nhan-ho-so-da_duyet { background: rgba(52,199,89,.15); color: #2a9d44; }
+.nhan-ho-so-het_hieu_luc { background: rgba(255,59,48,.12); color: #d70015; }
+.hang-tai-ho-so { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.lich-su-ho-so ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; }
+.lich-su-ho-so li { margin: 4px 0; overflow-wrap: anywhere; }

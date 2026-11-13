@@ -214,3 +214,11 @@ Cập nhật: 11/10/2026.
 - Còn treo: nhập hợp đồng và đợt thật (cần PM cấp số tiền); chặn PUT giải ngân sửa số tiền của dòng đã gắn đợt; giao diện sửa đủ trường của đợt (hiện chỉ đổi trạng thái).
 - 13/11/2026 nhập dữ liệu thật Hòa Lạc (PM duyệt số): sao lưu trước `du-lieu/sonicplan.sqlite.truoc-hop-dong-hoalac-261113` (integrity ok). Nhập qua API trên Chrome của PM: HĐ 1 VNCC 106/TVXD/VNCC/2026, 850.000.000, 3 đợt 170/510/170 triệu (lần 1 đã trả, tạm ghi 15/05/2026 vì chưa có ngày thật - giải ngân id 1; lần 2 đã đề nghị; lần 3 chờ; chưa có hạn); HĐ 2 SAPP (BMC) và HĐ 3 dịch vụ cá nhân 26020203 để trống giá trị.
 - 13/11/2026 nhập Ipsos (PM chọn "dự thảo, để trống tiền"): sao lưu trước `du-lieu/sonicplan.sqlite.truoc-hop-dong-ipsos-261113` (integrity ok). HĐ 4 "Nghiên cứu thị trường TLU - Ipsos" trạng thái du_thao, giá trị trống; ghi chú nêu 2 mức giá v3 chưa VAT (2.293.080.000 / 2.788.080.000) và mốc 17/11, 25/11. Đợt 4 (70%) và đợt 5 (30%) chưa có số, chưa có hạn.
+
+## Khu Dự án - Đợt 2: kho hồ sơ (13/11/2026)
+
+- Nhánh `claude/kho-ho-so`. Thiết kế: `docs/superpowers/specs/2026-11-13-kho-ho-so-design.md`. Hợp đồng việc `.claude/hop-dong/kho-ho-so.json`.
+- PM quyết: 6 thư mục chuẩn, gắn được một thủ tục, hợp đồng hoặc bàn giao; nhãn Dự thảo, Chờ duyệt, Đã duyệt, Hết hiệu lực (ghi người đổi, lúc đổi); chủ và thành viên tải lên, vai trò xem chỉ xem và tải về, đối tác không thấy; tối đa 50 MB mỗi tệp.
+- Migration `0054_ho_so.sql`; API `src/hoalac/ho-so.js` (không có xóa); tab "Hồ sơ"; tin 8 giờ có khối hồ sơ hết hạn hoặc sắp hết hạn (30 ngày); VPS nhận thân yêu cầu tới 55 MB.
+- Đã kiểm: `test/hoalac-ho-so.test.js` 10/10; `npm test` ngoài hộp cát 612 test, 611 đạt, 0 lỗi, 1 todo.
+- Sao lưu trước migration trên VPS: `du-lieu/sonicplan.sqlite.truoc-ho-so-261113` (integrity ok).
