@@ -222,3 +222,10 @@ Cập nhật: 11/10/2026.
 - Migration `0054_ho_so.sql`; API `src/hoalac/ho-so.js` (không có xóa); tab "Hồ sơ"; tin 8 giờ có khối hồ sơ hết hạn hoặc sắp hết hạn (30 ngày); VPS nhận thân yêu cầu tới 55 MB.
 - Đã kiểm: `test/hoalac-ho-so.test.js` 10/10; `npm test` ngoài hộp cát 612 test, 611 đạt, 0 lỗi, 1 todo.
 - Sao lưu trước migration trên VPS: `du-lieu/sonicplan.sqlite.truoc-ho-so-261113` (integrity ok).
+
+### Sửa thông tin hồ sơ (13/11/2026)
+
+- PR 185 gộp thành `ee8a14c`, VPS đã chạy bản này. Nút "Sửa thông tin" trên thẻ hồ sơ mở biểu mẫu sửa tên, thư mục, mục gắn, hạn hiệu lực, mô tả (gọi PUT có sẵn); vai trò xem không thấy.
+- Đã kiểm: `npm test` ngoài hộp cát 613 đạt, 0 lỗi; máy chủ thử ở máy sửa tên, bỏ gắn, thêm mô tả được; `phan-bien-ma` APPROVED; trang thật đã phục vụ mã mới, nhãn "Hiệu lực đến" một dòng sau khi tải lại cứng.
+- Chưa kiểm trên trang thật thao tác sửa vì kho thật chưa có hồ sơ (không tải tệp thử lên kho thật).
+- Còn treo: `hoalac.js`, `hoalac.css` lưu đệm 4 giờ nên người dùng thấy bản mới chậm; đổi nhãn phiên bản cũ trên giao diện chưa làm.
