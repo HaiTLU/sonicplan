@@ -1,10 +1,10 @@
 // Trang Claude: khung chat giống Claude Code, chạy bằng trạm Claude trên máy Mac của chủ tổ chức.
 // Trình duyệt nối WebSocket tới /api/tram/ws; phòng chat chuyển yêu cầu sang trạm và đưa chữ Claude về từng đoạn.
 
-const MODEL = [['', 'Mặc định'], ['opus', 'Opus'], ['sonnet', 'Sonnet'], ['haiku', 'Haiku'], ['fable', 'Fable']];
+const MODEL = [['', 'Mặc định'], ['opus', 'Opus'], ['opusplan', 'Opus lập kế hoạch, Sonnet làm'], ['sonnet', 'Sonnet'], ['haiku', 'Haiku'], ['fable', 'Fable']];
 const EFFORT = [['', 'Mặc định'], ['low', 'Thấp'], ['medium', 'Vừa'], ['high', 'Cao'], ['xhigh', 'Rất cao'], ['max', 'Tối đa']];
 const CHE_DO = [['acceptEdits', 'Tự sửa tệp'], ['plan', 'Chỉ lập kế hoạch']];
-const GIAI_MODEL = 'Model Claude dùng cho lượt này. Opus mạnh nhất, Sonnet cân bằng, Haiku nhanh và rẻ. Mặc định là model đang đặt trong Claude Code trên máy Mac.';
+const GIAI_MODEL = 'Model Claude dùng cho lượt này. Opus mạnh nhất. "Opus lập kế hoạch, Sonnet làm" dùng Opus ở chế độ chỉ lập kế hoạch và Sonnet khi tự sửa tệp. Sonnet cân bằng, Haiku nhanh và rẻ. Mặc định là model đang đặt trong Claude Code trên máy Mac.';
 const GIAI_EFFORT = 'Mức suy nghĩ: càng cao Claude nghĩ càng kỹ nhưng chậm hơn và tốn lượt dùng hơn. Mặc định theo cài đặt Claude Code trên máy Mac.';
 const GIAI_CHE_DO = 'Tự sửa tệp: Claude được tạo và sửa tệp trong thư mục của phiên. Chỉ lập kế hoạch: Claude chỉ đọc và đề xuất, không sửa gì.';
 const TEP_TOI_DA = 25 * 1024 * 1024;
