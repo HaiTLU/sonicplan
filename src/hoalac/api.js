@@ -810,7 +810,11 @@ export async function xuLyHoaLac(yeuCau, env, phien, url) {
 
   if (p === '/api/hoalac/giai-ngan' && m === 'GET') {
     const chan = CHAN_DOI_TAC(phien); if (chan) return chan;
-    const { results } = await env.CSDL.prepare('SELECT * FROM qlda_giai_ngan WHERE to_chuc_id = ?1 ORDER BY ngay DESC, id DESC').bind(tc).all();
+    // dot_id: dòng tạo từ đợt thanh toán (giao diện ẩn nút Xóa, api vẫn chặn xóa).
+    const { results } = await env.CSDL.prepare(
+      `SELECT g.*, (SELECT d.id FROM qlda_dot_thanh_toan d WHERE d.giai_ngan_id = g.id AND d.to_chuc_id = g.to_chuc_id) AS dot_id
+       FROM qlda_giai_ngan g WHERE g.to_chuc_id = ?1 ORDER BY g.ngay DESC, g.id DESC`,
+    ).bind(tc).all();
     return json({ giai_ngan: results });
   }
   if (p === '/api/hoalac/giai-ngan' && m === 'POST') {

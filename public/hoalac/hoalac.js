@@ -988,7 +988,9 @@ function veGiaiNgan(ds, dsDong, lamMoi) {
   const list = ds.map((x) => h('div', { class: 'the-raid' },
     h('div', { class: 'dau-the-raid' }, h('strong', { text: tienOrChuaThongNhat(x.so_tien) }), x.ngay ? h('span', { class: 'chi-tiet-raid', text: fmt.ngayNgan.format(new Date(`${x.ngay}T00:00:00Z`)) }) : null),
     h('p', { class: 'chi-tiet-raid' }, `${x.ngan_sach_dong_id ? `Dòng: ${tenDong(x.ngan_sach_dong_id) || x.ngan_sach_dong_id}` : ''}${x.noi_dung ? ` · ${x.noi_dung}` : ''}`),
-    h('div', { class: 'hang-dong-raid' }, h('button', { type: 'button', onclick: () => xoaRaid(`/api/hoalac/giai-ngan/${x.id}`, lamMoi) }, 'Xóa')),
+    x.dot_id
+      ? h('p', { class: 'chi-tiet-raid', text: 'Tạo từ đợt thanh toán. Muốn gỡ thì bỏ đánh dấu đã trả ở tab Hợp đồng.' })
+      : h('div', { class: 'hang-dong-raid' }, h('button', { type: 'button', onclick: () => xoaRaid(`/api/hoalac/giai-ngan/${x.id}`, lamMoi) }, 'Xóa')),
   ));
   return h('div', {}, form, ...list);
 }
