@@ -6,6 +6,10 @@ import { goiNgoai } from './goi-ngoai.js';
 const KHOA_LUU_MS = 60 * 60 * 1000;
 const LAM_MOI_TOI_THIEU_MS = 60 * 1000;
 let khoaDaLuu = { mien: '', luc: 0, khoa: [] };
+// Đang tải khóa: các yêu cầu đến cùng lúc (ví dụ ngay sau khi khởi động) dùng chung một lần tải.
+let dangTai = null;
+// Khóa đã nạp sẵn cho từng khóa JWK. Danh sách khóa được tải lại thì đối tượng JWK mới, mục cũ tự bị bỏ.
+const khoaDaNap = new WeakMap();
 
 export async function kiemDangNhap(yeuCau, env, { layKhoa = layKhoaAccess, bayGio = Date.now() } = {}) {
   const ve = yeuCau.headers.get('cf-access-jwt-assertion');
@@ -33,7 +37,7 @@ export async function kiemDangNhap(yeuCau, env, { layKhoa = layKhoaAccess, bayGi
   }
   if (!jwk) return { duoc: false, ly_do: 'Không tìm thấy khóa của vé' };
 
-  const khoa = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
+  const khoa = await napKhoa(jwk);
   const dungChuKy = await crypto.subtle.verify(
     'RSASSA-PKCS1-v1_5',
     khoa,
@@ -68,14 +72,41 @@ function audChoPhep(env) {
   return ds;
 }
 
-async function layKhoaAccess(mien, bayGio, { lamMoi = false } = {}) {
+function napKhoa(jwk) {
+  let lan = khoaDaNap.get(jwk);
+  if (!lan) {
+    lan = crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
+    khoaDaNap.set(jwk, lan);
+    // Nạp lỗi thì không giữ lại để lần sau thử lại.
+    lan.catch(() => khoaDaNap.delete(jwk));
+  }
+  return lan;
+}
+
+export async function layKhoaAccess(mien, bayGio, { lamMoi = false } = {}) {
   const giuLai = lamMoi ? LAM_MOI_TOI_THIEU_MS : KHOA_LUU_MS;
   if (khoaDaLuu.mien === mien && bayGio - khoaDaLuu.luc < giuLai) return khoaDaLuu.khoa;
+  if (dangTai && dangTai.mien === mien) return dangTai.lan;
+  const lan = tai(mien, bayGio);
+  const muc = { mien, lan };
+  dangTai = muc;
+  const xong = () => { if (dangTai === muc) dangTai = null; };
+  lan.then(xong, xong);
+  return lan;
+}
+
+async function tai(mien, bayGio) {
   const phanHoi = await goiNgoai(`https://${mien}/cdn-cgi/access/certs`);
   if (!phanHoi.ok) throw new Error(`Không lấy được khóa Access (${phanHoi.status})`);
   const { keys = [] } = await phanHoi.json();
   khoaDaLuu = { mien, luc: bayGio, khoa: keys };
   return keys;
+}
+
+// Dùng cho kiểm thử.
+export function xoaBoNho() {
+  khoaDaLuu = { mien: '', luc: 0, khoa: [] };
+  dangTai = null;
 }
 
 function giaiBase64Url(chuoi) {
