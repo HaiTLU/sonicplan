@@ -6,6 +6,8 @@ import { hexMau, mauViec, oChonMau } from '../mau.js';
 import { dongTrinhDon, moTrinhDon } from '../trinh-don.js';
 import { NHOM, S, api, bao, capNhatDem, congNgay, h, homNay, icon, khungLoi, luc, meo, ngayHienThi, thay, trang, xuong } from './chung.js';
 import { luuTuyChonViec } from './tuy-chon-viec.js';
+import { COT_TRANG_THAI, chiaCotTrangThai, mocXong, suaKhiThaTrangThai } from './cot-trang-thai.js';
+import { apTab, chupTab, chuanTab, laTabHienTai, maTabMoi } from './tab-viec.js';
 import { moBangLenh } from './bang-lenh.js';
 import { moMuc } from './dieu-huong.js';
 import { doiXong, huyViec, moTinhChinh, moTrinhDonViec, mucTrinhDonViec } from './tong-quan.js';
@@ -78,7 +80,8 @@ export async function veViec(goc) {
     h('button', { class: 'chip chip-sao', type: 'button', 'aria-pressed': String(v.chiSao), onclick: () => { v.chiSao = !v.chiSao; luuTuyChonViec(v); veViec(goc); } }, icon('sao'), 'Có sao'),
   )) : null;
   const xem = (ma, nhan) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.xem === ma), onclick: () => { v.xem = ma; luuTuyChonViec(v); veViec(goc); } }, nhan);
-  thay(goc, form, h('div', { class: 'thanh-loc' }, tab('mo', 'Đang mở'), tab('xong', 'Đã xong'), v.tab === 'mo' ? h('span', { class: 'gian' }) : null, v.tab === 'mo' ? chon('sapXep', 'Sắp xếp', [['tay', 'Thứ tự tay kéo'], ['han', 'Hạn và giờ'], ['moi', 'Mới thêm'], ['ten', 'Tên A-Z']]) : null, h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.anNhan), title: 'Ẩn nguồn, dự án và nhãn Claude trên thẻ', onclick: () => { v.anNhan = !v.anNhan; luuTuyChonViec(v); veViec(goc); } }, 'Ẩn nhãn'), v.tab === 'mo' ? xem('han', 'Theo hạn') : null, v.tab === 'mo' ? xem('du-an', 'Theo dự án') : null, v.tab === 'mo' && v.xem === 'du-an' ? h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.anTrong), title: 'Ẩn các cột dự án chưa có việc', onclick: () => { v.anTrong = !v.anTrong; luuTuyChonViec(v); napViec(); } }, 'Ẩn cột trống') : null), locDuAn, locKhac, vung);
+  const hangTab = h('nav', { class: 'hang-tab-viec', 'aria-label': 'Tab xem đã lưu' });
+  thay(goc, hangTab, form, h('div', { class: 'thanh-loc' }, tab('mo', 'Đang mở'), tab('xong', 'Đã xong'), v.tab === 'mo' ? h('span', { class: 'gian' }) : null, v.tab === 'mo' ? chon('sapXep', 'Sắp xếp', [['tay', 'Thứ tự tay kéo'], ['han', 'Hạn và giờ'], ['moi', 'Mới thêm'], ['ten', 'Tên A-Z']]) : null, h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.anNhan), title: 'Ẩn nguồn, dự án và nhãn Claude trên thẻ', onclick: () => { v.anNhan = !v.anNhan; luuTuyChonViec(v); veViec(goc); } }, 'Ẩn nhãn'), v.tab === 'mo' ? xem('han', 'Theo hạn') : null, v.tab === 'mo' ? xem('du-an', 'Theo dự án') : null, v.tab === 'mo' ? xem('trang-thai', 'Theo trạng thái') : null, v.tab === 'mo' && v.xem === 'du-an' ? h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.anTrong), title: 'Ẩn các cột dự án chưa có việc', onclick: () => { v.anTrong = !v.anTrong; luuTuyChonViec(v); napViec(); } }, 'Ẩn cột trống') : null), locDuAn, locKhac, vung);
   batKeoTha(vung, { khiTha: (d) => khiThaViec(d, v, napViec), nhanDuoc: (ma) => ma !== 'qua-han' && v.tab === 'mo',
     khiThaCot: async (ids) => {
       try { await api('/api/du-an/sap-xep', { method: 'POST', body: JSON.stringify({ ids }) }); bao('Đã lưu thứ tự dự án.'); } catch (err) { bao(err.message, { loi: true }); }
@@ -109,6 +112,47 @@ export async function veViec(goc) {
     return h('span', { class: 'them-du-an' }, nut, form);
   }
 
+  // ---- Tab xem đã lưu: bấm để áp, nút ba chấm (hoặc chuột phải) để cập nhật, đổi tên, xóa ----
+  async function luuDsTab(ds, loiNhan) {
+    try {
+      const r = await api('/api/viec/tab', { method: 'PUT', body: JSON.stringify({ tab: ds }) });
+      S.tabViec = r.tab.map(chuanTab);
+      if (loiNhan) bao(loiNhan);
+    } catch (e) { bao(e.message, { loi: true }); }
+    veHangTab();
+  }
+  function mucTab(t) {
+    const ds = S.tabViec || [];
+    return [
+      { nhan: 'Cập nhật theo cách xem hiện tại', lam: () => luuDsTab(ds.map((x) => (x.id === t.id ? { ...x, ...chupTab(v) } : x)), `Đã cập nhật tab "${t.ten}".`) },
+      { nhan: 'Đổi tên', lam: () => { const ten = (prompt('Tên tab', t.ten) || '').trim(); if (ten && ten !== t.ten) luuDsTab(ds.map((x) => (x.id === t.id ? { ...x, ten } : x)), 'Đã đổi tên tab.'); } },
+      { vach: true },
+      { nhan: 'Xóa tab', nguy: true, lam: () => { if (confirm(`Xóa tab "${t.ten}"? Việc không bị ảnh hưởng.`)) luuDsTab(ds.filter((x) => x.id !== t.id), 'Đã xóa tab.'); } },
+    ];
+  }
+  function veHangTab() {
+    const ds = S.tabViec || [];
+    const nutTab = (t) => {
+      const dang = laTabHienTai(v, t);
+      const baCham = h('button', { class: 'nut-ba-cham nut-tab-menu', type: 'button', 'aria-label': `Thao tác với tab ${t.ten}`, 'aria-haspopup': 'menu', title: 'Thao tác' }, icon('ba-cham'));
+      baCham.addEventListener('click', (ev) => { ev.stopPropagation(); const r = baCham.getBoundingClientRect(); moTrinhDon({ x: r.left, y: r.bottom + 4, muc: mucTab(t), nhan: `Thao tác với tab ${t.ten}` }); });
+      const el = h('span', { class: `tab-viec${dang ? ' dang-chon' : ''}` },
+        h('button', { class: 'chip', type: 'button', 'aria-pressed': String(dang), onclick: () => { apTab(v, t); luuTuyChonViec(v); veViec(goc); } }, t.ten),
+        baCham);
+      el._td = () => ({ muc: mucTab(t), nhan: `Thao tác với tab ${t.ten}` });
+      return el;
+    };
+    const nutLuu = h('button', { class: 'chip chip-luu-tab', type: 'button', title: 'Lưu kiểu xem, bộ lọc và cách sắp xếp hiện tại thành một tab', onclick: () => {
+      if (ds.length >= 12) { bao('Tối đa 12 tab. Xóa bớt một tab trước.', { loi: true }); return; }
+      const goiY = v.xem === 'trang-thai' ? 'Theo trạng thái' : v.xem === 'han' ? 'Theo hạn' : 'Theo dự án';
+      const ten = (prompt('Tên tab mới', goiY) || '').trim();
+      if (ten) luuDsTab([...ds, { id: maTabMoi(ds), ten, ...chupTab(v) }], `Đã lưu tab "${ten}".`);
+    } }, icon('cong'), 'Lưu tab');
+    thay(hangTab, ...ds.map(nutTab), nutLuu);
+  }
+  if (S.tabViec) veHangTab();
+  else api('/api/viec/tab').then((r) => { S.tabViec = (r.tab || []).map(chuanTab); veHangTab(); }, () => { S.tabViec = []; veHangTab(); });
+
   function veLoc(viec) {
     const dem = (f) => viec.filter(f).length;
     const chip = (ma, nhan, so, mau, da) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(v.duAn === ma), onclick: () => { v.duAn = ma; napViec(); } }, da && (da.icon || da.anh_khoa) ? anhDuAn(h, da, 'nho') : hexMau(mau) ? h('i', { class: 'cham-mau', style: `--mau:${hexMau(mau)}` }) : null, nhan, h('b', { text: String(so) }));
@@ -118,19 +162,25 @@ export async function veViec(goc) {
 
   async function napViec() {
     try {
-      const [{ viec: tatCa, hom_nay: hn }, dsDa] = await Promise.all([api(`/api/viec?trang_thai=${v.tab}`), api('/api/du-an').catch(() => ({ du_an: [] }))]);
+      const theoTT = v.tab === 'mo' && v.xem === 'trang-thai';
+      const [{ viec: tatCa, hom_nay: hn }, dsDa, dsXong] = await Promise.all([api(`/api/viec?trang_thai=${v.tab}`), api('/api/du-an').catch(() => ({ du_an: [] })), theoTT ? api('/api/viec?trang_thai=xong').catch(() => { bao('Không tải được cột Xong, các cột khác vẫn đúng.', { loi: true }); return { viec: [] }; }) : null]);
       S.duAnDs = dsDa.du_an;
       if (v.tab === 'mo') capNhatDem(null, tatCa.length);
       veLoc(tatCa);
       const hn2 = hn;
       const hanKhop = { 'qua-han': (x) => x.han_ngay && x.han_ngay < hn2, 'hom-nay': (x) => x.han_ngay === hn2, tuan: (x) => x.han_ngay && x.han_ngay >= hn2 && x.han_ngay <= congNgay(hn2, 7), khong: (x) => !x.han_ngay }[v.han];
-      const viec = tatCa.filter((x) => (v.duAn === 'tat-ca' || (v.duAn === 'khong' ? !x.du_an_id : x.du_an_id === v.duAn))
-        && (v.tab !== 'mo' || ((v.nguon === 'tat-ca' || nhanNguon(x).ma === v.nguon) && (!hanKhop || hanKhop(x)) && (v.nang === 'tat-ca' || x.do_nang === v.nang) && (v.gio === 'tat-ca' || (v.gio === 'co-gio' ? x.gio_hen : !x.gio_hen)) && (v.claude === 'tat-ca' || trangThaiClaude(x) === v.claude) && (!v.chiSao || x.sao))));
+      const khopLoc = (x) => (v.duAn === 'tat-ca' || (v.duAn === 'khong' ? !x.du_an_id : x.du_an_id === v.duAn))
+        && (v.tab !== 'mo' || ((v.nguon === 'tat-ca' || nhanNguon(x).ma === v.nguon) && (!hanKhop || hanKhop(x)) && (v.nang === 'tat-ca' || x.do_nang === v.nang) && (v.gio === 'tat-ca' || (v.gio === 'co-gio' ? x.gio_hen : !x.gio_hen)) && (v.claude === 'tat-ca' || trangThaiClaude(x) === v.claude) && (!v.chiSao || x.sao)));
+      const viec = tatCa.filter(khopLoc);
       if (v.tab === 'mo') viec.sort(soSanhViec(v.sapXep));
-      cacViec = new Map(tatCa.map((x) => [x.id, x]));
+      // Cột Xong của kiểu xem Theo trạng thái: việc xong 7 ngày gần nhất, cùng bộ lọc như việc mở.
+      const tuLuc = mocXong();
+      const xongGan = theoTT ? dsXong.viec.filter((x) => x.xong_luc >= tuLuc && khopLoc(x)) : [];
+      cacViec = new Map([...tatCa, ...xongGan].map((x) => [x.id, x]));
       homNayCuaViec = hn;
       vung.classList.toggle('an-nhan', Boolean(v.anNhan));
-      thay(vung, ...(v.tab === 'mo' ? (v.xem === 'du-an' ? cotTheoDuAn(viec, hn) : cotTheoHan(viec, hn)) : [cotXong(viec)]));
+      thay(vung, ...(v.tab === 'mo' ? (theoTT ? cotTheoTrangThai([...viec, ...xongGan], hn, tuLuc) : v.xem === 'du-an' ? cotTheoDuAn(viec, hn) : cotTheoHan(viec, hn)) : [cotXong(viec)]));
+      veHangTab();
     } catch (e) {
       thay(vung, khungLoi(e, napViec));
     }
@@ -175,6 +225,15 @@ function cotTheoHan(ds, hn) {
     ));
 }
 
+// Kiểu xem Theo trạng thái: Chưa làm, Đang làm, Chờ anh duyệt, Xong (7 ngày). Kéo thẻ giữa cột đổi tiến độ hoặc đánh xong.
+function cotTheoTrangThai(ds, hn, tuLuc) {
+  const chia = chiaCotTrangThai(ds, { tuLuc });
+  return COT_TRANG_THAI.map((c) => h('section', { class: `cot-viec cot-tt ${c.ma}`, dataset: { cot: c.ma }, 'aria-label': c.ten },
+    h('header', {}, h('h2', { text: c.ten }), h('span', { text: String(chia[c.ma].length) })),
+    chia[c.ma].length ? h('ul', {}, ...chia[c.ma].map((x) => theViec(x, hn))) : h('p', { class: 'cot-trong', text: c.trong }),
+  ));
+}
+
 // Nút Claude ở đầu cột dự án: soạn một prompt cho các việc đang mở của dự án (bấm mới soạn).
 function nutClaudeCot(c) {
   const mo = c.ds.filter((x) => x.trang_thai === 'mo');
@@ -202,6 +261,7 @@ async function khiThaViec({ id, tuCot, denCot, ids }, v, napLai) {
   const x = cacViec.get(id);
   if (!x) return napLai();
   const hn = homNayCuaViec;
+  if (denCot.startsWith('tt-')) return thaTrangThai(x, { tuCot, denCot, ids }, napLai);
   const cuaDuAn = denCot.startsWith('da-');
   const sua = {};
   if (cuaDuAn) {
@@ -217,6 +277,26 @@ async function khiThaViec({ id, tuCot, denCot, ids }, v, napLai) {
     const ten = { 'hom-nay': 'Hôm nay', 'ngay-mai': 'Ngày mai', tuan: '7 ngày tới', sau: 'Sau đó', khong: 'Chưa có hạn' }[denCot] || S.duAnDs.find((d) => `da-${d.id}` === denCot)?.ten || 'Chưa xếp dự án';
     const cu = { han_ngay: x.han_ngay || null, du_an_id: x.du_an_id || null };
     if (Object.keys(sua).length) bao(`Đã chuyển sang ${ten}.`, { hanhDong: { nhan: 'Hoàn tác', lam: async () => { await api(`/api/viec/${id}`, { method: 'PATCH', body: JSON.stringify(Object.fromEntries(Object.keys(sua).map((k) => [k, cu[k]]))) }); napLai(); } } });
+  } catch (err) {
+    bao(err.message, { loi: true });
+  }
+  napLai();
+}
+
+async function thaTrangThai(x, { tuCot, denCot, ids }, napLai) {
+  const sua = tuCot === denCot ? null : suaKhiThaTrangThai(x, denCot);
+  const ten = COT_TRANG_THAI.find((c) => c.ma === denCot)?.ten || '';
+  try {
+    if (sua) await api(`/api/viec/${x.id}`, { method: 'PATCH', body: JSON.stringify(sua) });
+    if (denCot !== 'tt-xong') await api('/api/viec/sap-xep', { method: 'POST', body: JSON.stringify({ ids }) });
+    if (sua) {
+      // Hoàn tác gửi lại cả trạng thái lẫn tiến độ cũ, để mở lại không xóa mất tiến độ trước đó.
+      const cu = { trang_thai: x.trang_thai, tien_do: x.tien_do || null };
+      bao(denCot === 'tt-xong' ? `Đã xong: ${x.tieu_de}.` : `Đã chuyển sang ${ten}.`, { hanhDong: { nhan: 'Hoàn tác', lam: async () => {
+        try { await api(`/api/viec/${x.id}`, { method: 'PATCH', body: JSON.stringify(sua.trang_thai ? cu : { tien_do: cu.tien_do }) }); } catch (e) { bao(e.message, { loi: true }); }
+        napLai();
+      } } });
+    }
   } catch (err) {
     bao(err.message, { loi: true });
   }
@@ -437,13 +517,14 @@ function theViec(v, hn) {
   const mau = mauViec(v);
   const baCham = h('button', { class: 'nut-ba-cham', type: 'button', 'aria-label': `Thao tác với việc: ${v.tieu_de}`, 'aria-haspopup': 'menu', title: 'Thao tác' }, icon('ba-cham'));
   baCham.addEventListener('click', (ev) => { ev.stopPropagation(); const r = baCham.getBoundingClientRect(); moTrinhDonViec(v, r.left, r.bottom + 4); });
-  const the = h('li', { class: `the-viec${mau ? ' co-mau' : ''}${v.sao ? ' co-sao' : ''}`, dataset: { id: String(v.id) }, ...(mau ? { style: `--mau:${mau}` } : {}) },
+  const the = h('li', { class: `the-viec${mau ? ' co-mau' : ''}${v.sao ? ' co-sao' : ''}${v.uu_tien === 'cao' && v.trang_thai === 'mo' ? ' uu-tien-cao' : ''}`, dataset: { id: String(v.id) }, ...(mau ? { style: `--mau:${mau}` } : {}) },
     o,
     h('div', { style: 'min-width:0' },
       h('button', { class: 'ten-viec', type: 'button', text: v.tieu_de, onclick: () => moNganViec(v) }),
       v.ghi_chu ? h('p', { class: 'ghi', text: v.ghi_chu }) : null,
       dongNghiTrung(v),
       h('div', { class: 'chan' },
+        v.uu_tien === 'cao' && v.trang_thai === 'mo' ? h('span', { class: 'nhan-uu-tien', title: 'Ưu tiên cao' }, 'Ưu tiên cao') : null,
         chipHan(v, hn),
         v.so_lan_doi ? h('span', { class: v.so_lan_doi >= 3 ? 'tre' : '', ...meo(`Việc tự dời sang ngày sau ${v.so_lan_doi} lần vì chưa xong cuối ngày. Hạn gốc ${v.han_goc ? ngayHienThi(v.han_goc) : 'không rõ'}. Sửa hạn để bỏ đếm.`) }, `Dời ${v.so_lan_doi} lần`) : null,
         h('span', { class: `nguon ${nhanNguon(v).ma}`, title: `Nguồn: ${v.tin_nhom || v.tin_nguoi_gui || nhanNguon(v).chu}` }, icon(nhanNguon(v).icon), nhanNguon(v).chu),

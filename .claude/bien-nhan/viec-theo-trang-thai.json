@@ -1,0 +1,41 @@
+{
+  "id": "viec-theo-trang-thai",
+  "trang_thai": "DAT",
+  "luc": "2026-11-22T01:21:59",
+  "sha256_hop_dong": "b79ab3cd6695cc1fd836d8e738129baf0a7fe494efac043a46c29fc6d8f441d8",
+  "lenh_kiem": [
+    {
+      "lenh": "npm test",
+      "ma_thoat": 0,
+      "dau_ra_cuoi": "e: 'test'\n  ...\n# (node:7689) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n# (Use `node --trace-warnings ...` to show where the warning was created)\n# Subtest: chỉ chủ tổ chức gửi được; mã hội thoại phải đúng dạng; phải có chữ hoặc tệp; giới hạn độ dài và số tệp\nok 476 - chỉ chủ tổ chức gửi được; mã hội thoại phải đúng dạng; phải có chữ hoặc tệp; giới hạn độ dài và số tệp\n  ---\n  duration_ms: 94.928993\n  type: 'test'\n  ...\n# Subtest: tạo lệnh, máy Mac lấy một lần, tải tệp khi đang gửi, báo xong; lệnh khác tổ chức không lấy được\nok 477 - tạo lệnh, máy Mac lấy một lần, tải tệp khi đang gửi, báo xong; lệnh khác tổ chức không lấy được\n  ---\n  duration_ms: 56.263855\n  type: 'test'\n  ...\n# Subtest: lệnh chờ quá 3 phút thì bỏ, không gửi muộn; lệnh đã lấy mà im lặng thì báo không rõ đã gửi chưa\nok 478 - lệnh chờ quá 3 phút thì bỏ, không gửi muộn; lệnh đã lấy mà im lặng thì báo không rõ đã gửi chưa\n  ---\n  duration_ms: 31.670995\n  type: 'test'\n  ...\n# Subtest: gửi dồn dập quá 20 lần trong 10 phút thì từ chối\nok 479 - gửi dồn dập quá 20 lần trong 10 phút thì từ chối\n  ---\n  duration_ms: 40.417744\n  type: 'test'\n  ...\n# Subtest: ảnh, tệp, thu hồi, nhãn dán, bình chọn\nok 480 - ảnh, tệp, thu hồi, nhãn dán, bình chọn\n  ---\n  duration_ms: 1.784652\n  type: 'test'\n  ...\n# Subtest: thẻ liên kết, danh thiếp, cuộc gọi\nok 481 - thẻ liên kết, danh thiếp, cuộc gọi\n  ---\n  duration_ms: 0.907025\n  type: 'test'\n  ...\n# Subtest: chữ có liên kết được tách, bỏ dấu câu cuối\nok 482 - chữ có liên kết được tách, bỏ dấu câu cuối\n  ---\n  duration_ms: 0.597361\n  type: 'test'\n  ...\n# Subtest: chỉ tải từ máy chủ Zalo\nok 483 - chỉ tải từ máy chủ Zalo\n  ---\n  duration_ms: 0.295485\n  type: 'test'\n  ...\n# Subtest: dòng xem nhanh: tin đặc biệt thành câu ngắn\nok 484 - dòng xem nhanh: tin đặc biệt thành câu ngắn\n  ---\n  duration_ms: 0.941449\n  type: 'test'\n  ...\n1..484\n# tests 484\n# suites 0\n# pass 483\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 1\n# duration_ms 6151.104793\n"
+    }
+  ],
+  "tep_ngoai_pham_vi": [],
+  "dau_ra_thieu": [],
+  "tep": {
+    ".gitignore": "e2aa64119372cfa41a51ec2921557b4260e52d4a069cb60bea72675bc9c7e891",
+    "CHANGELOG.md": "db450a96a984a6d55ebb62443c6053ffe0171bfdfe51435febce3678c5052218",
+    "TIEN-DO.md": "ad27bdd4c53220f82c7469668008c3b58db23e06295515b97828e64bbd2172f2",
+    "docs/261122_Sonicplan_DacTa_TrangViec.md": "ac00f5cf6f74f9c1285da1be8899edeaee0dd34a8f3f107804ec5bd0fa41d41c",
+    "docs/bao-mat.md": "f6e82f25db671793be15d35fb52377a66293fad307fccf91057af438b5d27709",
+    "docs/decisions.md": "68ca1cfe2d27c1413c12609a75f0fb0d6598e113b9c7b702ca9c8bcb8603458c",
+    "docs/kien-truc.md": "4b9be636c972da2216d502d0a5d67c2e89421f1f1d048cdaf82a8d7012466ea2",
+    "docs/trien-khai.md": "0858911dcae7a09de9cb3cabcf1aea5cf2427e54ab3b6e2d8127ff897875ec69",
+    "migrations/0056_tien_do_viec.sql": "f8388b6b0b93c93c7ad749d3d4fcf2987cc7176c478d26470dbbfecb5182027c",
+    "public/index.html": "fce2756cf46fac89455939eaa074cc3287d8ebee40d56a685b6bec5b85d80841",
+    "public/kieu.css": "da04ed4462ddde69de5dda3ded7fecde302a3e17946c44cfd2e19c17a3495e2a",
+    "public/trang/cot-trang-thai.js": "4ae2b61eb9255f19943bda6be8cfd8341a4dee309fa8922c3f2e6e5baf18b547",
+    "public/trang/tab-viec.js": "bfaca5ef5617a7cb055d4c2fbf0e6dbdb481c9e1e153605ee8b137289ad362eb",
+    "public/trang/tuy-chon-viec.js": "3901f848f83ea44a97e7a033b31ad1374cd2da3fceeb457a9697d2820d00a2f2",
+    "public/trang/viec.js": "cad93b62ffba41f286b690ad7c505ab2ccc1f5c6f87cbd3dc68c5e44f7ed0f4b",
+    "sdlc-cham.json": "6464f57a32be4ca913a05cf6bc389e381dba7b9adf47624e1b9149d3de47f152",
+    "src/api/viec.js": "25dd1408ba78e557830b3748af06919d00804e7a2d80c9d3fc47edd4dd638404",
+    "test/viec-trang-thai.test.js": "3c7735baf8e8bb6f532d9e6330a36428c57a62780db7627387c6a9b68409ca2e"
+  },
+  "phan_bien": {
+    "ket_luan": "APPROVED",
+    "bao_cao": "/home/user/sonicplan/.claude/bien-nhan/phan-bien-viec-theo-trang-thai.md",
+    "sha256_bao_cao": "e702fe67ea68ef40039ebbd74ffa3ae48fcd9023654213263369fe7b8c2109d2",
+    "luc": "2026-11-22T01:22:31"
+  }
+}

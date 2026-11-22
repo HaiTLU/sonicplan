@@ -477,6 +477,22 @@ td.ghi-chu { max-width: 30rem; overflow-wrap: anywhere; color: var(--chu-2); }
 .the-viec .chan span.gmail { color: var(--thu); }
 .the-viec .chan span.hop { color: var(--hop); }
 .the-viec .chan span.tre { color: var(--loi); background: var(--loi-nhat); }
+/* Nhãn ưu tiên cao: nền đặc màu lỗi, chữ màu nền trang (token có sẵn, đủ tương phản ở cả sáng và tối), viền trái cùng màu trên thẻ. */
+.the-viec .chan span.nhan-uu-tien { order: -1; background: var(--loi); color: var(--nen); font-weight: 700; letter-spacing: .01em; }
+.the-viec.uu-tien-cao:not(.co-mau) { border-left: 4px solid var(--loi); }
+/* Hàng tab xem đã lưu phía trên trang Việc */
+.hang-tab-viec { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.hang-tab-viec:empty { display: none; }
+.tab-viec { display: inline-flex; align-items: center; gap: 2px; }
+.tab-viec .nut-tab-menu { position: static; width: 28px; height: 28px; opacity: .6; }
+.tab-viec.dang-chon .nut-tab-menu, .tab-viec:hover .nut-tab-menu, .tab-viec .nut-tab-menu:focus-visible { opacity: 1; }
+.chip-luu-tab { border-style: dashed; }
+.chip-luu-tab svg { width: 14px; height: 14px; }
+/* Kiểu xem Theo trạng thái: 4 cột cố định */
+.cot-viec-wrap:has(> .cot-tt) { grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); }
+.cot-viec[data-cot="tt-dang-lam"] > header h2::before { background: var(--nhan); }
+.cot-viec[data-cot="tt-cho-duyet"] > header h2::before { background: var(--loi); }
+.cot-viec[data-cot="tt-xong"] > header h2::before { background: var(--on); }
 .cot-trong { margin: 6px 16px 18px; padding: 18px; border: 1px dashed var(--vach-2); border-radius: 14px; color: var(--mo); font-size: 14px; text-align: center; }
 
 /* ---------- Tệp ---------- */

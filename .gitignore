@@ -14,3 +14,4 @@ du-lieu-cuoi.sql
 out-hoalac.sql
 .claude/nhat-ky/
 __pycache__/
+.env

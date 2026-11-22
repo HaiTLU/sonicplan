@@ -1,6 +1,6 @@
 # Tiến độ - Sonicplan
 
-Cập nhật: 13/11/2026.
+Cập nhật: 22/11/2026.
 
 ## Tình trạng hiện tại (đọc trước)
 
@@ -8,6 +8,30 @@ Cập nhật: 13/11/2026.
 - Mọi việc "còn treo", "bước tiếp", UNVERIFIED trong các mục đó đã hết hiệu lực: Access riêng cho /hoalac, lỗi COALESCE của qlda_hop_dong, lưu đệm hoalac.js, nhập hồ sơ pháp lý, đổi nhãn phiên bản, kiểm ba vai trò.
 - Lịch .ics sau khi gỡ (kiểm 13/11/2026): khóa sai trả 404; dựng lịch từ dữ liệu thật đủ 51/51 việc. Chưa có lần tải thật nào sau triển khai: xem cột dung_luc của khoa_truy_cap (loai 'lich') đổi sang giờ mới.
 - Còn giữ theo PM: Cache Rule "plan - trinh duyet theo may chu" trên Cloudflare.
+
+## Trang Việc: Theo trạng thái, tab đã lưu, nhãn ưu tiên (22/11/2026)
+
+Nhánh `claude/viec-theo-trang-thai`, PR nháp. Đặc tả và quyết định: `docs/261122_Sonicplan_DacTa_TrangViec.md`, `docs/decisions.md`. Migration 0056 (`viec.tien_do`, mặc định NULL).
+
+- [x] Đọc mã, phát hiện `claude_trang_thai` không có trong CSDL; "Chờ anh duyệt" suy từ ô hỏi AI đang chờ.
+- [x] Migration 0056, API (`tien_do`, `uu_tien`, `hoi_cho`, `/api/viec/tab`), giao diện 3 tính năng.
+- [x] Test: 483/483 đạt (13 ca mới ở `test/viec-trang-thai.test.js`).
+- [x] Kiểm trên bản thử cục bộ (máy chủ `may-chu/chay.js`, dữ liệu mẫu), Chromium Playwright.
+- [x] Phản biện mã độc lập: 0 lỗi nặng, 2 lỗi vừa đã sửa, phần nhẹ sửa hoặc ghi giới hạn.
+- [ ] Trước khi gộp: sao lưu CSDL trên VPS (`docs/trien-khai.md`), gộp, kiểm `pragma_table_info`.
+
+| Tiêu chí | Kết quả | Bằng chứng |
+|---|---|---|
+| 4 cột đúng số thẻ, máy tính và điện thoại, sáng và tối | PASS | Playwright 4/4 khung, ảnh 261122_Sonicplan_*_TheoTrangThai.png (không đưa vào kho) |
+| Kéo chuột 4 lần đổi đúng `trang_thai`, `tien_do` trong CSDL | PASS | đọc SQLite sau mỗi lần thả |
+| Chạm giữ kéo trên điện thoại đổi đúng `tien_do` | PASS | CDP touch, iPhone 13 |
+| Lưu, đổi tên, xóa, áp tab | PASS | dòng `cai_dat` `viec_tab:nd_thu`, kiểm giao diện |
+| Nhãn ưu tiên tương phản >= 4,5:1 | PASS | 6,85:1 sáng, 9,23:1 tối (đo màu tính toán) |
+| Không lỗi JS ở mọi khung | PASS | `pageerror` rỗng |
+| Test hiện có vẫn qua, có test suy trạng thái | PASS | `npm test` 483/483 |
+| Điểm SDLC >= 70 | PASS | `cham_sdlc.py` 83/100 |
+| Chạy trên bản thật plan.sonicapp.top | UNVERIFIED | chưa gộp; phiên đám mây không vào được VPS |
+| Kiểm trợ năng bằng accesslint | UNVERIFIED | chưa chạy, chỉ đo tương phản nhãn |
 
 ## Kế hoạch đợt
 
