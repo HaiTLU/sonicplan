@@ -13,9 +13,34 @@ import { themViec, viecGiongKhiThemTay } from '../viec.js';
 import { laChu } from './chung.js';
 import { chuanTepTuy, dsDinhKemTuDong } from '../tho-claude.js';
 import { hoiAi } from '../luong-thu.js';
-import { luuTep, TEP_TOI_DA } from '../hop-tin.js';
+import { docCaiDat, ghiCaiDat, luuTep, TEP_TOI_DA } from '../hop-tin.js';
 
 const GIO = /^([01]\d|2[0-3]):[0-5]\d$/;
+export const TIEN_DO = ['chua_lam', 'dang_lam', 'cho_duyet'];
+
+// ---- Tab xem đã lưu của trang Việc: mỗi người một danh sách, lưu ở cai_dat khóa viec_tab:<người dùng> ----
+const TAB_TOI_DA = 12;
+const TRUONG_TAB = ['xem', 'duAn', 'nguon', 'han', 'gio', 'nang', 'claude', 'sapXep'];
+// Chỉ giữ trường đã biết, giá trị ngắn; giao diện kiểm lại từng giá trị theo danh sách hợp lệ khi đọc.
+export function chuanTabViec(ds) {
+  if (!Array.isArray(ds)) return null;
+  const ra = [];
+  const daCo = new Set();
+  for (const t of ds.slice(0, TAB_TOI_DA)) {
+    if (!t || typeof t !== 'object') continue;
+    const ten = String(t.ten || '').trim().slice(0, 40);
+    if (!ten) continue;
+    // Mã tab trùng hoặc thiếu thì sinh mã mới, để đổi tên hay xóa chỉ chạm đúng một tab.
+    let id = String(t.id || '').replace(/[^a-z0-9-]/gi, '').slice(0, 24);
+    for (let i = ra.length + 1; !id || daCo.has(id); i += 1) id = `t${i}`;
+    daCo.add(id);
+    const dong = { id, ten };
+    for (const k of TRUONG_TAB) if (typeof t[k] === 'string' && t[k].length <= 24) dong[k] = t[k];
+    if (t.chiSao === true) dong.chiSao = true;
+    ra.push(dong);
+  }
+  return ra;
+}
 
 
 // ---- Việc ----
@@ -27,7 +52,9 @@ async function dsViec(env, tc, url) {
     `SELECT v.id, v.tieu_de, v.ghi_chu, v.han_ngay, v.gio_hen, v.buoi, v.trang_thai, v.tin_nhan_id, v.tao_luc, v.xong_luc,
        t.nguon AS tin_nguon, t.nguoi_gui AS tin_nguoi_gui, t.nhom AS tin_nhom,
        (SELECT CASE WHEN e.loai = 'nghi_trung' THEN e.noi_dung END FROM viec_su_kien e WHERE e.viec_id = v.id AND e.to_chuc_id = v.to_chuc_id AND e.loai IN ('nghi_trung', 'giu_ca_hai') ORDER BY e.id DESC LIMIT 1) AS nghi_trung,
-       v.du_an_id, v.nhom, v.nguon, v.mau, v.sao, v.do_nang, v.han_goc, v.so_lan_doi, d.ten AS du_an_ten, d.mau AS du_an_mau, d.icon AS du_an_icon, d.anh_khoa AS du_an_anh
+       v.du_an_id, v.nhom, v.nguon, v.mau, v.sao, v.do_nang, v.han_goc, v.so_lan_doi, v.uu_tien, v.tien_do,
+       EXISTS (SELECT 1 FROM cau_hoi_ai c WHERE c.to_chuc_id = v.to_chuc_id AND c.viec_id = v.id AND c.trang_thai IN ('moi', 'cho')) AS hoi_cho,
+       d.ten AS du_an_ten, d.mau AS du_an_mau, d.icon AS du_an_icon, d.anh_khoa AS du_an_anh
      FROM viec v LEFT JOIN tin_nhan t ON t.id = v.tin_nhan_id LEFT JOIN du_an d ON d.id = v.du_an_id
      WHERE v.to_chuc_id = ?1 AND v.trang_thai = ?2 ORDER BY ${thuTu.replace(/\b(xong_luc|han_ngay|gio_hen|thu_tu|sao|id)\b/g, 'v.$1')} LIMIT 300`,
   ).bind(tc, trangThai).all();
@@ -77,6 +104,11 @@ export function kiemViec(than, { batBuocTieuDe }) {
     ra.uu_tien = than.uu_tien;
   }
   if ('sao' in than) ra.sao = than.sao ? 1 : 0;
+  // Tiến độ do người dùng kéo thẻ ở kiểu xem Theo trạng thái; null là bỏ đặt, để giao diện tự suy.
+  if ('tien_do' in than) {
+    if (than.tien_do !== null && !TIEN_DO.includes(than.tien_do)) return { loi: 'Tiến độ không hợp lệ.' };
+    ra.tien_do = than.tien_do;
+  }
   if ('nhom' in than) {
     if (than.nhom !== null && !['claude_tu_lam', 'claude_chuan_bi', 'anh_tu_lam'].includes(than.nhom)) return { loi: 'Nhóm việc không hợp lệ.' };
     ra.nhom = than.nhom;
@@ -123,6 +155,8 @@ export async function suaViec(env, tc, id, than) {
   if (['tieu_de', 'han_ngay', 'gio_hen', 'buoi', 'ghi_chu', 'mau', 'du_an_id'].some((c) => c in k.viec)) gan.push('can_dong_bo = 1');
   // Người dùng tự đặt hạn mới: bỏ đếm số lần tự dời.
   if ('han_ngay' in k.viec) gan.push('so_lan_doi = 0');
+  // Mở lại việc (ô tích, trình đơn, Telegram) mà không nêu tiến độ: về Chưa làm, không giữ tiến độ cũ trước khi xong.
+  if (k.viec.trang_thai === 'mo' && !('tien_do' in k.viec)) gan.push('tien_do = NULL');
   const giaTri = cot.map((c) => k.viec[c]);
   if (k.viec.trang_thai) gan.push(`xong_luc = ${k.viec.trang_thai === 'xong' ? `?${cot.length + 3}` : 'NULL'}`);
   const kq = await env.CSDL.prepare(
@@ -171,6 +205,20 @@ export async function xuLyViec(yeuCau, env, phien, url) {
   let khop;
 
   if (p === '/api/viec' && m === 'GET') return json(await dsViec(env, tc, url));
+  if (p === '/api/viec/tab' && (m === 'GET' || m === 'PUT')) {
+    const nd = phien?.nguoi_dung?.id;
+    if (!nd) return loi(403, 'Cần đăng nhập bằng tài khoản người dùng để lưu tab.');
+    const khoa = `viec_tab:${nd}`;
+    if (m === 'PUT') {
+      const ds = chuanTabViec((await yeuCau.json().catch(() => ({})))?.tab);
+      if (!ds) return loi(400, 'Danh sách tab không hợp lệ.');
+      await ghiCaiDat(env, tc, khoa, JSON.stringify(ds));
+      return json({ tab: ds });
+    }
+    let ds = [];
+    try { ds = chuanTabViec(JSON.parse(await docCaiDat(env, tc, khoa) || '[]')) || []; } catch { /* dữ liệu hỏng: coi như chưa có tab */ }
+    return json({ tab: ds });
+  }
   if (p === '/api/viec/sap-xep' && m === 'POST') return sapXepViec(env, tc, await yeuCau.json().catch(() => ({})));
   if (p === '/api/viec' && m === 'POST') return taoViec(env, tc, await yeuCau.json().catch(() => ({})));
   // Thợ Claude chỉ soạn prompt (PM dặn 19/10/2026): mỗi lần bấm một lần gọi AI, prompt lưu lại để sao chép lại. Không có đường nào tự soạn.

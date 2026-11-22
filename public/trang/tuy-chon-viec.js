@@ -1,6 +1,6 @@
 // Cách hiển thị trang Việc được nhớ trên trình duyệt này: kiểu xem, ẩn cột trống và các bộ lọc phụ.
 const KHOA_TUY_VIEC = 'sp.viec.tuy';
-const GIA_TRI_HOP_LE = { xem: ['han', 'du-an'], nguon: ['tat-ca', 'zalo', 'gmail', 'hop', 'tay'], han: ['tat-ca', 'qua-han', 'hom-nay', 'tuan', 'khong'], nang: ['tat-ca', 'nhe', 'vua', 'nang', 'rat_nang'], gio: ['tat-ca', 'co-gio', 'chua-gio'], claude: ['tat-ca', 'chua-giao', 'dang-chay', 'hoi', 'xong'], sapXep: ['tay', 'han', 'moi', 'ten'] };
+export const GIA_TRI_HOP_LE = { xem: ['han', 'du-an', 'trang-thai'], nguon: ['tat-ca', 'zalo', 'gmail', 'hop', 'tay'], han: ['tat-ca', 'qua-han', 'hom-nay', 'tuan', 'khong'], nang: ['tat-ca', 'nhe', 'vua', 'nang', 'rat_nang'], gio: ['tat-ca', 'co-gio', 'chua-gio'], claude: ['tat-ca', 'chua-giao', 'dang-chay', 'hoi', 'xong'], sapXep: ['tay', 'han', 'moi', 'ten'] };
 export function docTuyChonViec() {
   const ra = { xem: 'du-an', anTrong: false, nguon: 'tat-ca', han: 'tat-ca', nang: 'tat-ca', gio: 'tat-ca', claude: 'tat-ca', sapXep: 'tay', anNhan: false, chiSao: false };
   try {

@@ -1,0 +1,31 @@
+{
+  "id": "viec-theo-trang-thai",
+  "muc_dich": "Trang Việc: kiểu xem Theo trạng thái, tab xem đã lưu, nhãn ưu tiên cao",
+  "duong_dan_duoc_sua": [
+    "public/*",
+    "src/*",
+    "migrations/0056_*",
+    "test/*",
+    "README.md",
+    "CHANGELOG.md",
+    "TIEN-DO.md",
+    "KE-HOACH.md",
+    "docs/*",
+    ".gitignore",
+    "sdlc-cham.json"
+  ],
+  "lenh_kiem": [
+    "npm test"
+  ],
+  "han_muc": {
+    "usd": 15,
+    "phut": 90,
+    "loai": "lon"
+  },
+  "dau_ra": [],
+  "can_phan_bien": true,
+  "bo_qua_kiem": [
+    "memory/*"
+  ],
+  "tao_luc": "2026-11-22T01:10:37"
+}
